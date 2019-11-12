@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -175,7 +176,7 @@ void cam_tfe_get_timestamp(struct cam_isp_timestamp *time_stamp)
 {
 	struct timespec ts;
 
-	get_monotonic_boottime(&ts);
+	ts = ktime_to_timespec(ktime_get_boottime());
 	time_stamp->mono_time.tv_sec    = ts.tv_sec;
 	time_stamp->mono_time.tv_usec   = ts.tv_nsec/1000;
 }

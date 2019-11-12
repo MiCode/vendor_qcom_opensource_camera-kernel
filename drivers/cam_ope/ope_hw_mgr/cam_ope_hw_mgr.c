@@ -618,7 +618,7 @@ static bool cam_ope_check_req_delay(struct cam_ope_ctx *ctx_data,
 	struct timespec64 ts;
 	uint64_t ts_ns;
 
-	get_monotonic_boottime64(&ts);
+	ktime_get_boottime_ts64(&ts);
 	ts_ns = (uint64_t)((ts.tv_sec * 1000000000) +
 		ts.tv_nsec);
 
@@ -1625,7 +1625,7 @@ static void cam_ope_ctx_cdm_callback(uint32_t handle, void *userdata,
 
 	ope_req = ctx->req_list[cookie];
 
-	get_monotonic_boottime64(&ts);
+	ktime_get_boottime_ts64(&ts);
 	ope_hw_mgr->last_callback_time = (uint64_t)((ts.tv_sec * 1000000000) +
 		ts.tv_nsec);
 
@@ -3286,7 +3286,7 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 	prepare_args->priv = ctx_data->req_list[request_idx];
 	prepare_args->pf_data->packet = packet;
 	ope_req->hang_data.packet = packet;
-	get_monotonic_boottime64(&ts);
+	ktime_get_boottime_ts64(&ts);
 	ctx_data->last_req_time = (uint64_t)((ts.tv_sec * 1000000000) +
 		ts.tv_nsec);
 	CAM_DBG(CAM_REQ, "req_id= %llu ctx_id= %d lrt=%llu",
