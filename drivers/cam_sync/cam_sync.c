@@ -1164,10 +1164,9 @@ static struct platform_driver cam_sync_driver = {
 	},
 };
 
-static int __init cam_sync_init(void)
+int cam_sync_init(void)
 {
 	int rc;
-
 	rc = platform_device_register(&cam_sync_device);
 	if (rc)
 		return -ENODEV;
@@ -1175,7 +1174,7 @@ static int __init cam_sync_init(void)
 	return platform_driver_register(&cam_sync_driver);
 }
 
-static void __exit cam_sync_exit(void)
+void cam_sync_exit(void)
 {
 	int idx;
 
@@ -1186,7 +1185,5 @@ static void __exit cam_sync_exit(void)
 	kfree(sync_dev);
 }
 
-module_init(cam_sync_init);
-module_exit(cam_sync_exit);
 MODULE_DESCRIPTION("Camera sync driver");
 MODULE_LICENSE("GPL v2");

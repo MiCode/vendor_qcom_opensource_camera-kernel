@@ -400,4 +400,14 @@ int cam_smmu_get_io_region_info(int32_t smmu_hdl,
 	dma_addr_t *iova, size_t *len,
 	dma_addr_t *discard_iova_start, size_t *discard_iova_len);
 
+/**
+ * @brief : API to register SMMU hw to platform framework.
+ * @return struct platform_device pointer on on success, or ERR_PTR() on error.
+ */
+int cam_smmu_init_module(void);
+
+/**
+ * @brief : API to remove SMMU Hw from platform framework.
+ */
+void cam_smmu_exit_module(void);
 #endif /* _CAM_SMMU_API_H_ */

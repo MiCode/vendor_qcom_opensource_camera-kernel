@@ -312,6 +312,16 @@ struct v4l2_subdev *cam_cci_get_subdev(int cci_dev_index);
 void cam_cci_dump_registers(struct cci_device *cci_dev,
 	enum cci_i2c_master_t master, enum cci_i2c_queue_t queue);
 
+/**
+ * @brief : API to register CCI hw to platform framework.
+ * @return struct platform_device pointer on on success, or ERR_PTR() on error.
+ */
+int cam_cci_init_module(void);
+
+/**
+ * @brief : API to remove CCI Hw from platform framework.
+ */
+void cam_cci_exit_module(void);
 #define VIDIOC_MSM_CCI_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 23, struct cam_cci_ctrl)
 

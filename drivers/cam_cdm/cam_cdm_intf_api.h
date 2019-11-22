@@ -305,4 +305,26 @@ int cam_cdm_detect_hang_error(uint32_t handle);
  * @return 0 on success
  */
 int cam_cdm_dump_debug_registers(uint32_t handle);
+
+/**
+ * @brief : API to register CDM hw to platform framework.
+ * @return struct platform_device pointer on on success, or ERR_PTR() on error.
+ */
+int cam_hw_cdm_init_module(void);
+
+/**
+ * @brief : API to register CDM interface to platform framework.
+ * @return struct platform_device pointer on on success, or ERR_PTR() on error.
+ */
+int cam_cdm_intf_init_module(void);
+
+/**
+ * @brief : API to remove CDM interface from platform framework.
+ */
+void cam_cdm_intf_exit_module(void);
+
+/**
+ * @brief : API to remove CDM hw from platform framework.
+ */
+void cam_hw_cdm_exit_module(void);
 #endif /* _CAM_CDM_API_H_ */
