@@ -62,6 +62,7 @@ struct cam_subdev {
 					struct v4l2_subdev *sd,
 					enum cam_subdev_message_type_t msg_type,
 					uint32_t data);
+	bool                                   subdev_node_created;
 };
 
 /**
