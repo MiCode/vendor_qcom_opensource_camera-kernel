@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_FLASH_DEV_H_
@@ -13,12 +14,18 @@
 #include <linux/of.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/leds-qpnp-flash.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
 #include <media/cam_sensor.h>
 #include <media/cam_req_mgr.h>
+
+#if IS_REACHABLE(CONFIG_LEDS_QPNP_FLASH_V2)
+#include <linux/leds-qpnp-flash.h>
+#elif IS_REACHABLE(CONFIG_LEDS_QTI_FLASH)
+#include <linux/leds-qti-flash.h>
+#endif
+
 #include "cam_req_mgr_util.h"
 #include "cam_req_mgr_interface.h"
 #include "cam_subdev.h"
@@ -222,8 +229,6 @@ int cam_flash_i2c_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg);
 int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl, uint64_t req_id);
 int cam_flash_i2c_apply_setting(struct cam_flash_ctrl *fctrl, uint64_t req_id);
 int cam_flash_off(struct cam_flash_ctrl *fctrl);
-int cam_flash_pmic_power_ops(struct cam_flash_ctrl *fctrl,
-	bool regulator_enable);
 int cam_flash_i2c_power_ops(struct cam_flash_ctrl *fctrl,
 	bool regulator_enable);
 int cam_flash_i2c_flush_request(struct cam_flash_ctrl *fctrl,
