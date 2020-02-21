@@ -203,6 +203,7 @@ struct cam_dma_buff_info {
 	int ion_fd;
 	size_t len;
 	size_t phys_len;
+	bool is_internal;
 };
 
 struct cam_sec_buff_info {
@@ -257,7 +258,7 @@ static struct cam_dma_buff_info *cam_smmu_find_mapping_by_virt_address(int idx,
 static int cam_smmu_map_buffer_and_add_to_list(int idx, int ion_fd,
 	bool dis_delayed_unmap, enum dma_data_direction dma_dir,
 	dma_addr_t *paddr_ptr, size_t *len_ptr,
-	enum cam_smmu_region_id region_id);
+	enum cam_smmu_region_id region_id, bool is_internal);
 
 static int cam_smmu_map_kernel_buffer_and_add_to_list(int idx,
 	struct dma_buf *buf, enum dma_data_direction dma_dir,
@@ -2143,7 +2144,7 @@ err_out:
 static int cam_smmu_map_buffer_and_add_to_list(int idx, int ion_fd,
 	bool dis_delayed_unmap, enum dma_data_direction dma_dir,
 	dma_addr_t *paddr_ptr, size_t *len_ptr,
-	enum cam_smmu_region_id region_id)
+	enum cam_smmu_region_id region_id, bool is_internal)
 {
 	int rc = -1;
 	struct cam_dma_buff_info *mapping_info = NULL;
@@ -2161,6 +2162,7 @@ static int cam_smmu_map_buffer_and_add_to_list(int idx, int ion_fd,
 	}
 
 	mapping_info->ion_fd = ion_fd;
+	mapping_info->is_internal = is_internal;
 	/* add to the list */
 	list_add(&mapping_info->list,
 		&iommu_cb_set.cb_info[idx].smmu_buf_list);
@@ -2263,6 +2265,9 @@ static int cam_smmu_unmap_buf_and_remove_from_list(
 	} else if (mapping_info->region_id == CAM_SMMU_REGION_IO) {
 		iommu_cb_set.cb_info[idx].io_mapping_size -= mapping_info->len;
 	}
+
+	if (mapping_info->is_internal)
+		mapping_info->attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
 
 	dma_buf_unmap_attachment(mapping_info->attach,
 		mapping_info->table, mapping_info->dir);
@@ -3045,7 +3050,8 @@ static int cam_smmu_map_iova_validate_params(int handle,
 
 int cam_smmu_map_user_iova(int handle, int ion_fd, bool dis_delayed_unmap,
 	enum cam_smmu_map_dir dir, dma_addr_t *paddr_ptr,
-	size_t *len_ptr, enum cam_smmu_region_id region_id)
+	size_t *len_ptr, enum cam_smmu_region_id region_id,
+	bool is_internal)
 {
 	int idx, rc = 0;
 	enum cam_smmu_buf_state buf_state;
@@ -3095,7 +3101,8 @@ int cam_smmu_map_user_iova(int handle, int ion_fd, bool dis_delayed_unmap,
 	}
 
 	rc = cam_smmu_map_buffer_and_add_to_list(idx, ion_fd,
-		dis_delayed_unmap, dma_dir, paddr_ptr, len_ptr, region_id);
+		dis_delayed_unmap, dma_dir, paddr_ptr, len_ptr,
+		region_id, is_internal);
 	if (rc < 0) {
 		CAM_ERR(CAM_SMMU,
 			"mapping or add list fail, idx=%d, fd=%d, region=%d, rc=%d",
