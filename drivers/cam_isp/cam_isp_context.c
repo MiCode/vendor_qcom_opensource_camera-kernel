@@ -4985,34 +4985,28 @@ static int cam_isp_context_dump_active_request(void *data, unsigned long iova,
 
 static int cam_isp_context_debug_register(void)
 {
-	isp_ctx_debug.dentry = debugfs_create_dir("camera_isp_ctx",
-		NULL);
+	int rc = 0;
+	struct dentry *dbgfileptr = NULL;
 
-	if (!isp_ctx_debug.dentry) {
-		CAM_ERR(CAM_ISP, "failed to create dentry");
-		return -ENOMEM;
+	dbgfileptr = debugfs_create_dir("camera_isp_ctx", NULL);
+	if (!dbgfileptr) {
+		CAM_ERR(CAM_ICP,"DebugFS could not create directory!");
+		rc = -ENOENT;
+		goto end;
 	}
+	/* Store parent inode for cleanup in caller */
+	isp_ctx_debug.dentry = dbgfileptr;
 
-	if (!debugfs_create_u32("enable_state_monitor_dump",
-		0644,
-		isp_ctx_debug.dentry,
-		&isp_ctx_debug.enable_state_monitor_dump)) {
-		CAM_ERR(CAM_ISP, "failed to create enable_state_monitor_dump");
-		goto err;
+	dbgfileptr = debugfs_create_u32("enable_state_monitor_dump", 0644,
+		isp_ctx_debug.dentry, &isp_ctx_debug.enable_state_monitor_dump);
+	if (IS_ERR(dbgfileptr)) {
+		if (PTR_ERR(dbgfileptr) == -ENODEV)
+			CAM_WARN(CAM_ICP, "DebugFS not enabled in kernel!");
+		else
+			rc = PTR_ERR(dbgfileptr);
 	}
-
-	if (!debugfs_create_u32("enable_cdm_cmd_buffer_dump",
-		0644,
-		isp_ctx_debug.dentry,
-		&isp_ctx_debug.enable_cdm_cmd_buff_dump)) {
-		CAM_ERR(CAM_ISP, "failed to create enable_cdm_cmd_buffer_dump");
-		goto err;
-	}
-
-	return 0;
-err:
-	debugfs_remove_recursive(isp_ctx_debug.dentry);
-	return -ENOMEM;
+end:
+	return rc;
 }
 
 int cam_isp_context_init(struct cam_isp_context *ctx,
