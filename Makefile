@@ -1,53 +1,14 @@
-# SPDX-License-Identifier: GPL-2.0-only
+# Makefile for use with Android's kernel/build system
 
-# auto-detect subdirs
-ifeq ($(CONFIG_ARCH_KONA), y)
-include $(srctree)/techpack/camera/config/konacamera.conf
-endif
+KBUILD_OPTIONS += CAMERA_KERNEL_ROOT=$(shell pwd)
+KBUILD_OPTIONS += KERNEL_ROOT=$(ROOT_DIR)/$(KERNEL_DIR)
+KBUILD_OPTIONS += MODNAME=camera
 
-ifeq ($(CONFIG_ARCH_LITO), y)
-include $(srctree)/techpack/camera/config/litocamera.conf
-endif
+modules:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules $(KBUILD_OPTIONS)
 
-ifeq ($(CONFIG_ARCH_BENGAL), y)
-include $(srctree)/techpack/camera/config/bengalcamera.conf
-endif
+modules_install:
+	$(MAKE) M=$(M) -C $(KERNEL_SRC) modules_install
 
-ifeq ($(CONFIG_ARCH_KHAJE), y)
-include $(srctree)/techpack/camera/config/khajecamera.conf
-endif
-
-ifeq ($(CONFIG_ARCH_KONA), y)
-LINUXINCLUDE    += \
-		-include $(srctree)/techpack/camera/config/konacameraconf.h
-endif
-
-ifeq ($(CONFIG_ARCH_LITO), y)
-LINUXINCLUDE    += \
-		-include $(srctree)/techpack/camera/config/litocameraconf.h
-endif
-
-ifeq ($(CONFIG_ARCH_BENGAL), y)
-LINUXINCLUDE    += \
-		-include $(srctree)/techpack/camera/config/bengalcameraconf.h
-endif
-
-ifeq ($(CONFIG_ARCH_KHAJE), y)
-LINUXINCLUDE    += \
-		-include $(srctree)/techpack/camera/config/khajecameraconf.h
-endif
-
-ifneq (,$(filter $(CONFIG_SPECTRA_CAMERA), y m))
-# Use USERINCLUDE when you must reference the UAPI directories only.
-USERINCLUDE     += \
-                -I$(srctree)/techpack/camera/include/uapi
-
-# Use LINUXINCLUDE when you must reference the include/ directory.
-# Needed to be compatible with the O= option
-LINUXINCLUDE    += \
-                -I$(srctree)/techpack/camera/include/uapi \
-                -I$(srctree)/techpack/camera/include
-obj-y += drivers/
-else
-$(info Target not found)
-endif
+clean:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) clean

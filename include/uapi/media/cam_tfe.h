@@ -10,7 +10,6 @@
 #include "cam_isp_tfe.h"
 #include "cam_cpas.h"
 
-
 /* ISP TFE driver name */
 #define CAM_ISP_TFE_DEV_NAME                        "cam-isp"
 
