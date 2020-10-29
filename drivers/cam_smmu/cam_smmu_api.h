@@ -410,4 +410,11 @@ int cam_smmu_init_module(void);
  * @brief : API to remove SMMU Hw from platform framework.
  */
 void cam_smmu_exit_module(void);
+
+/**
+ * @brief : API to determine whether to force all allocations to CACHED
+ */
+int cam_smmu_need_force_alloc_cached(bool *force_alloc_cached);
+
+
 #endif /* _CAM_SMMU_API_H_ */
