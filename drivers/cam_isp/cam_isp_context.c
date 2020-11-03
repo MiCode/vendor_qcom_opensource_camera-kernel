@@ -4997,7 +4997,7 @@ static int cam_isp_context_debug_register(void)
 	/* Store parent inode for cleanup in caller */
 	isp_ctx_debug.dentry = dbgfileptr;
 
-	dbgfileptr = debugfs_create_u32("enable_state_monitor_dump", 0644,
+	debugfs_create_u32("enable_state_monitor_dump", 0644,
 		isp_ctx_debug.dentry, &isp_ctx_debug.enable_state_monitor_dump);
 	if (IS_ERR(dbgfileptr)) {
 		if (PTR_ERR(dbgfileptr) == -ENODEV)
