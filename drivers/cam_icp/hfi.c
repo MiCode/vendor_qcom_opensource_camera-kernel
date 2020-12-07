@@ -19,6 +19,7 @@
 #include "hfi_intf.h"
 #include "cam_icp_hw_mgr_intf.h"
 #include "cam_debug_util.h"
+#include "cam_compat.h"
 
 #define HFI_VERSION_INFO_MAJOR_VAL  1
 #define HFI_VERSION_INFO_MINOR_VAL  1
@@ -947,7 +948,7 @@ void cam_hfi_deinit(void __iomem *icp_base)
 	g_hfi->cmd_q_state = false;
 	g_hfi->msg_q_state = false;
 
-	kzfree(g_hfi);
+	cam_free_clear((void *)g_hfi);
 	g_hfi = NULL;
 
 err:

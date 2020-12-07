@@ -10,6 +10,7 @@
 #include <linux/timer.h>
 #include <linux/ratelimit.h>
 #include <media/cam_tfe.h>
+
 #include "cam_cdm_util.h"
 #include "cam_tasklet_util.h"
 #include "cam_isp_hw_mgr_intf.h"
@@ -19,6 +20,7 @@
 #include "cam_debug_util.h"
 #include "cam_cpas_api.h"
 #include <dt-bindings/msm/msm-camera.h>
+#include "cam_compat.h"
 
 static const char drv_name[] = "tfe";
 
@@ -1128,7 +1130,7 @@ static int cam_tfe_top_set_axi_bw_vote(
 	}
 
 free_mem:
-	kzfree(agg_vote);
+	cam_free_clear((void *)agg_vote);
 	agg_vote = NULL;
 	return rc;
 }

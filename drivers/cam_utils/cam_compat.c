@@ -5,12 +5,13 @@
 
 #include <linux/dma-mapping.h>
 #include <linux/of_address.h>
+#include <linux/slab.h>
 
 #include "cam_compat.h"
 #include "cam_debug_util.h"
 #include "cam_cpas_api.h"
 
-#if KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
 int cam_reserve_icp_fw(struct cam_fw_alloc_info *icp_fw, size_t fw_length)
 {
 	int rc = 0;
@@ -173,5 +174,17 @@ void cam_cpastop_scm_write(struct cam_cpas_hw_errata_wa *errata_wa)
 	reg_val = scm_io_read(errata_wa->data.reg_info.offset);
 	reg_val |= errata_wa->data.reg_info.value;
 	scm_io_write(errata_wa->data.reg_info.offset, reg_val);
+}
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+void cam_free_clear(const void * ptr)
+{
+	kfree_sensitive(ptr);
+}
+#else
+void cam_free_clear(const void * ptr)
+{
+	kzfree(ptr);
 }
 #endif
