@@ -9,7 +9,7 @@
 #include <linux/of_platform.h>
 #include <linux/slab.h>
 #include <linux/mutex.h>
-#include <linux/spinlock.h>
+#include <linux/spinlock_types.h>
 #include <linux/random.h>
 #include <media/cam_req_mgr.h>
 #include "cam_req_mgr_util.h"
