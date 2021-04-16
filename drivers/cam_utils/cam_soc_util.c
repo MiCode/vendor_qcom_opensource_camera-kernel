@@ -191,7 +191,7 @@ static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 		return -EINVAL;
 	}
 
-	if (!soc_info->dentry) {
+	if (soc_info->dentry) {
 		CAM_DBG(CAM_UTIL, "Debugfs entry for %s already exist",
 			soc_info->dev_name);
 		goto end;
