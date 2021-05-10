@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * copyright (c) 2022, Qulacomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSIPHY_DEV_H_
@@ -77,6 +77,16 @@ enum cam_csiphy_state {
 	CAM_CSIPHY_INIT,
 	CAM_CSIPHY_ACQUIRE,
 	CAM_CSIPHY_START,
+};
+
+/**
+ * enum cam_csiphy_common_reg_program
+ * @CAM_CSIPHY_PRGM_ALL              : Programs common registers for all CSIPHYs
+ * @CAM_CSIPHY_PRGM_INDVDL           : Programs common registers only for the given CSIPHY
+ */
+enum cam_csiphy_common_reg_program {
+	CAM_CSIPHY_PRGM_ALL = 0,
+	CAM_CSIPHY_PRGM_INDVDL,
 };
 
 /**
@@ -257,6 +267,7 @@ struct csiphy_ctrl_t {
 	struct csiphy_reg_t *csiphy_irq_reg;
 	struct csiphy_reg_t *csiphy_reset_enter_regs;
 	struct csiphy_reg_t *csiphy_reset_exit_regs;
+	struct csiphy_reg_t *csiphy_lane_config_reg;
 	struct csiphy_reg_t (*csiphy_2ph_reg)[MAX_SETTINGS_PER_LANE];
 	struct csiphy_reg_t (*csiphy_2ph_combo_mode_reg)[MAX_SETTINGS_PER_LANE];
 	struct csiphy_reg_t (*csiphy_3ph_reg)[MAX_SETTINGS_PER_LANE];
