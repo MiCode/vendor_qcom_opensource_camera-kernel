@@ -21,6 +21,7 @@
 #include "lx7_soc.h"
 #include "cam_common_util.h"
 #include "cam_compat.h"
+#include "cam_presil_hw_access.h"
 
 #define TZ_STATE_SUSPEND 0
 #define TZ_STATE_RESUME  1
@@ -387,6 +388,7 @@ static int __cam_lx7_power_resume(struct cam_hw_info *lx7_info)
 	return 0;
 }
 
+#ifndef CONFIG_CAM_PRESIL
 /* Used for non secure FW load */
 static int32_t __cam_non_sec_load_fw(void *device_priv)
 {
@@ -477,6 +479,19 @@ fw_download_failed:
 	release_firmware(core_info->fw_params.fw_elf);
 	return rc;
 }
+#else /* #ifndef CONFIG_CAM_PRESIL */
+static int __cam_non_sec_load_fw(struct cam_hw_info *lx7_info)
+{
+	if (!lx7_info) {
+		CAM_ERR(CAM_ICP, "invalid lx7 dev info");
+		return -EINVAL;
+	}
+
+	cam_presil_send_event(CAM_PRESIL_EVENT_HFI_REG_ON_FIRST_REG_START_FW_DOWNLOAD, 0xFF);
+
+	return 0;
+}
+#endif /* #ifndef CONFIG_CAM_PRESIL */
 
 /* Used for non secure FW load */
 static int cam_lx7_non_sec_boot(

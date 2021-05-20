@@ -4064,6 +4064,11 @@ static int cam_icp_mgr_hw_open_u(void *hw_mgr_priv, void *download_fw_args)
 		return 0;
 	}
 
+	if (cam_presil_mode_enabled()) {
+		CAM_DBG(CAM_PRESIL, "hw_open from umd skipped for presil");
+		return 0;
+	}
+
 	mutex_lock(&hw_mgr->hw_mgr_mutex);
 	rc = cam_icp_mgr_hw_open(hw_mgr, download_fw_args);
 	mutex_unlock(&hw_mgr->hw_mgr_mutex);
@@ -4074,13 +4079,17 @@ static int cam_icp_mgr_hw_open_u(void *hw_mgr_priv, void *download_fw_args)
 static int cam_icp_mgr_hw_open_k(void *hw_mgr_priv, void *download_fw_args)
 {
 	struct cam_icp_hw_mgr *hw_mgr = hw_mgr_priv;
+	int rc;
 
 	if (!hw_mgr) {
 		CAM_ERR(CAM_ICP, "Null hw mgr");
 		return 0;
 	}
 
-	return cam_icp_mgr_hw_open(hw_mgr, download_fw_args);
+	rc = cam_icp_mgr_hw_open(hw_mgr, download_fw_args);
+	CAM_DBG(CAM_ICP, "hw_open from kmd done %d", rc);
+
+	return rc;
 }
 
 static int cam_icp_mgr_icp_resume(struct cam_icp_hw_mgr *hw_mgr)
