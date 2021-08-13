@@ -383,6 +383,15 @@ static int cam_ife_mgr_handle_reg_dump(struct cam_ife_hw_mgr_ctx *ctx,
 {
 	int rc = 0, i;
 
+	if (cam_presil_mode_enabled()) {
+		if (g_ife_hw_mgr.debug_cfg.enable_presil_reg_dump) {
+			CAM_WARN(CAM_ISP, "regdump enabled for presil mode");
+		} else {
+			CAM_ERR(CAM_ISP, "regdump disabled by default for presil mode");
+			return 0;
+		}
+	}
+
 	if (!num_reg_dump_buf || !reg_dump_buf_desc) {
 		CAM_DBG(CAM_ISP,
 			"Invalid args for reg dump req_id: [%llu] ctx idx: [%u] meta_type: [%u] num_reg_dump_buf: [%u] reg_dump_buf_desc: [%pK]",
@@ -14418,6 +14427,9 @@ static int cam_ife_hw_mgr_debug_register(void)
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_csid_testbus_debug);
 	debugfs_create_bool("disable_isp_drv", 0644, g_ife_hw_mgr.debug_cfg.dentry,
 		&g_ife_hw_mgr.debug_cfg.disable_isp_drv);
+	debugfs_create_bool("enable_presil_reg_dump", 0644,
+		g_ife_hw_mgr.debug_cfg.dentry,
+		&g_ife_hw_mgr.debug_cfg.enable_presil_reg_dump);
 end:
 	g_ife_hw_mgr.debug_cfg.enable_csid_recovery = 1;
 	return rc;
