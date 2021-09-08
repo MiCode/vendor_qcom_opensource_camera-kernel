@@ -44,6 +44,14 @@
 #define CAM_IFE_CSID_CAP_SOF_RETIME_DIS                   0x100
 
 /*
+ * CSID RX debug vc-dt capture
+ */
+#define CAM_IFE_CSID_DEBUGFS_RST_STROBE_MASK              0xF
+#define CAM_IFE_CSID_DEBUGFS_VC_DT_MASK                   0xFF
+#define CAM_IFE_CSID_DEBUGFS_VC_SHIFT_MASK                0x4
+#define CAM_IFE_CSID_DEBUGFS_DT_SHIFT_MASK                0xC
+
+/*
  * Debug values enable the corresponding interrupts and debug logs provide
  * necessary information
  */
@@ -226,14 +234,22 @@ struct cam_ife_csid_csi2_rx_reg_info {
 	uint32_t vc_mask;
 	uint32_t wc_mask;
 	uint32_t dt_mask;
+	uint32_t vc_shift;
+	uint32_t dt_shift;
+	uint32_t wc_shift;
 	uint32_t calc_crc_mask;
 	uint32_t expected_crc_mask;
+	uint32_t calc_crc_shift;
 	uint32_t lane_num_shift;
 	uint32_t lane_cfg_shift;
 	uint32_t phy_type_shift;
 	uint32_t phy_num_shift;
 	uint32_t tpg_mux_en_shift;
 	uint32_t tpg_num_sel_shift;
+	uint32_t long_pkt_strobe_rst_shift;
+	uint32_t short_pkt_strobe_rst_shift;
+	uint32_t cphy_pkt_strobe_rst_shift;
+	uint32_t unmapped_pkt_strobe_rst_shift;
 	uint32_t fatal_err_mask;
 	uint32_t part_fatal_err_mask;
 	uint32_t non_fatal_err_mask;
@@ -279,14 +295,22 @@ struct cam_ife_csid_hw_counters {
 /*
  * struct cam_ife_csid_debug_info: place holder for csid debug
  *
- * @debug_val:          Debug val for enabled features
- * @rx_mask:            Debug mask for rx irq
- * @path_mask:          Debug mask for path irq
+ * @debug_val:             Debug val for enabled features
+ * @rx_capture_vc:         rx packet vc capture
+ * @rx_capture_dt:         rx packet dt capture
+ * @rst_capture_strobes:   rx packet capture rst strobes
+ * @rx_mask:               Debug mask for rx irq
+ * @path_mask:             Debug mask for path irq
+ * @rx_capture_debug_set:  rx pkt capture debug set
  */
 struct cam_ife_csid_debug_info {
 	uint32_t                          debug_val;
+	uint32_t                          rx_capture_vc;
+	uint32_t                          rx_capture_dt;
+	uint32_t                          rst_capture_strobes;
 	uint32_t                          rx_mask;
 	uint32_t                          path_mask;
+	bool                              rx_capture_debug_set;
 };
 
 /*

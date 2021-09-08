@@ -42,6 +42,7 @@ enum cam_ife_ctx_master_type {
  *
  * @dentry:                    Debugfs entry
  * @csid_debug:                csid debug information
+ * @rx_capture_debug:          rx capture debug info
  * @enable_recovery:           enable recovery
  * @camif_debug:               camif debug info
  * @enable_csid_recovery:      enable csid recovery
@@ -52,11 +53,13 @@ enum cam_ife_ctx_master_type {
  * @per_req_reg_dump:          Enable per request reg dump
  * @disable_ubwc_comp:         Disable UBWC compression
  * @disable_ife_mmu_prefetch:  Disable MMU prefetch for IFE bus WR
+ * @rx_capture_debug_set:      If rx capture debug is set by user
  *
  */
 struct cam_ife_hw_mgr_debug {
 	struct dentry  *dentry;
 	uint64_t       csid_debug;
+	uint32_t       rx_capture_debug;
 	uint32_t       enable_recovery;
 	uint32_t       camif_debug;
 	uint32_t       enable_csid_recovery;
@@ -67,6 +70,7 @@ struct cam_ife_hw_mgr_debug {
 	bool           per_req_reg_dump;
 	bool           disable_ubwc_comp;
 	bool           disable_ife_mmu_prefetch;
+	bool           rx_capture_debug_set;
 };
 
 /**

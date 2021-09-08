@@ -460,4 +460,17 @@ struct cam_ife_csid_discard_init_frame_args {
 	struct cam_isp_resource_node     *res;
 };
 
+/*
+ * struct cam_ife_csid_debug_cfg_args:
+ *
+ * @csid_debug: CSID debug val
+ * @csid_rx_capture_debug: CSID rx capture debug val
+ * @rx_capture_debug_set: CSID rx capture debug set;
+ */
+struct cam_ife_csid_debug_cfg_args {
+	uint64_t                          csid_debug;
+	uint32_t                          csid_rx_capture_debug;
+	bool                              rx_capture_debug_set;
+};
+
 #endif /* _CAM_CSID_HW_INTF_H_ */
