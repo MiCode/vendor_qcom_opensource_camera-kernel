@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
- * Copyright (c) 2016-2021, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_SYNC_H__
@@ -104,6 +105,7 @@
 #define CAM_SYNC_JPEG_EVENT_CDM_CONFIG_ERR      (CAM_SYNC_JPEG_EVENT_START + 5)
 #define CAM_SYNC_JPEG_EVENT_START_HW_ERR        (CAM_SYNC_JPEG_EVENT_START + 6)
 #define CAM_SYNC_JPEG_EVENT_START_HW_HANG       (CAM_SYNC_JPEG_EVENT_START + 7)
+#define CAM_SYNC_JPEG_EVENT_MISR_CONFIG_ERR     (CAM_SYNC_JPEG_EVENT_START + 8)
 #define CAM_SYNC_JPEG_EVENT_END                 (CAM_SYNC_JPEG_EVENT_START + 50)
 
 /* FD Sync event reason types */
