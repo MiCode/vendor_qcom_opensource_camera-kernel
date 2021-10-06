@@ -7,6 +7,7 @@
 #define _CAM_COMPAT_H_
 
 #include <linux/version.h>
+#include <linux/dma-buf.h>
 
 #include "cam_csiphy_dev.h"
 #include "cam_cpastop_hw.h"
@@ -44,5 +45,6 @@ int cam_ife_notify_safe_lut_scm(bool safe_trigger);
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 	bool protect, int32_t offset);
 void cam_free_clear(const void *);
+int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr);
 
 #endif /* _CAM_COMPAT_H_ */
