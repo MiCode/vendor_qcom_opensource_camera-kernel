@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * copyright (c) 2022, Qulacomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSIPHY_DEV_H_
@@ -269,8 +270,8 @@ struct csiphy_ctrl_t {
 
 /**
  * cam_csiphy_param            :  Provides cmdbuffer structure
- * @lane_assign                :  Lane sensor will be using
- * @lane_cnt                   :  Total number of lanes
+ * @lane_assign                :  Lanes the sensor will be using(One Lane idx in one Nibble)
+ * @lane_cnt                   :  Total number of lanes to be enabled
  * @secure_mode                :  To identify whether stream is secure/nonsecure
  * @lane_enable                :  Data Lane selection
  * @settle_time                :  Settling time in ms

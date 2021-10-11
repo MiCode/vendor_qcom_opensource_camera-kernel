@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * copyright (c) 2022, Qulacomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -30,7 +31,7 @@
  * PHY index at which CPAS_SEC_LANE_CP_CTRL register mask
  * changes depending on PHY HW version
  */
-#define MAX_PHY_MSK_PER_REG 4
+#define CAM_MAX_PHYS_PER_CP_CTRL_REG 4
 
 static DEFINE_MUTEX(active_csiphy_cnt_mutex);
 
@@ -372,65 +373,60 @@ static void cam_csiphy_prgm_cmn_data(
 	}
 }
 
-static int32_t cam_csiphy_update_secure_info(
-	struct csiphy_device *csiphy_dev, int32_t index)
+static int cam_csiphy_update_secure_info(struct csiphy_device *csiphy_dev, int32_t index)
 {
-	uint32_t adj_lane_mask = 0;
-	uint16_t lane_assign = 0;
-	uint32_t phy_mask_len = 0;
-	uint8_t lane_cnt = 0;
+	uint64_t lane_assign_bitmask = 0;
+	uint16_t lane_assign;
+	uint32_t bit_offset_bet_phys_in_cp_ctrl;
+	uint8_t lane_cnt;
+	uint32_t cpas_version;
+	int rc;
 
 	lane_assign = csiphy_dev->csiphy_info[index].lane_assign;
 	lane_cnt = csiphy_dev->csiphy_info[index].lane_cnt;
 
 	while (lane_cnt--) {
-		if ((lane_assign & 0xF) == 0x0)
-			adj_lane_mask |= 0x1;
-		else
-			adj_lane_mask |= (1 << (lane_assign & 0xF));
-
+		lane_assign_bitmask |= (1 << (lane_assign & 0xF));
 		lane_assign >>= 4;
 	}
 
-	switch (csiphy_dev->hw_version) {
-	case CSIPHY_VERSION_V201:
-	case CSIPHY_VERSION_V125:
-		phy_mask_len =
-		CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES + 1;
-		break;
-	case CSIPHY_VERSION_V121:
-	case CSIPHY_VERSION_V123:
-	case CSIPHY_VERSION_V124:
-	case CSIPHY_VERSION_V210:
-	case CSIPHY_VERSION_V211:
-	case CSIPHY_VERSION_V213:
-		phy_mask_len =
-		(csiphy_dev->soc_info.index < MAX_PHY_MSK_PER_REG) ?
-		(CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES) :
-		(CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES + 1);
+	rc = cam_cpas_get_cpas_hw_version(&cpas_version);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed while getting CPAS Version");
+		return rc;
+	}
+
+	switch (cpas_version) {
+	case CAM_CPAS_TITAN_580_V100:
+	case CAM_CPAS_TITAN_680_V100:
+	case CAM_CPAS_TITAN_780_V100:
+		bit_offset_bet_phys_in_cp_ctrl =
+			(csiphy_dev->soc_info.index < CAM_MAX_PHYS_PER_CP_CTRL_REG) ?
+				(CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES) :
+				(CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES + 1);
 		break;
 	default:
-		phy_mask_len =
-		CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES;
+		bit_offset_bet_phys_in_cp_ctrl =
+			CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES;
 		break;
 	}
 
-	if (csiphy_dev->soc_info.index < MAX_PHY_MSK_PER_REG) {
+	if (csiphy_dev->soc_info.index < CAM_MAX_PHYS_PER_CP_CTRL_REG)
 		csiphy_dev->csiphy_info[index].csiphy_cpas_cp_reg_mask =
-			adj_lane_mask <<
-			((csiphy_dev->soc_info.index * phy_mask_len) +
-			(!csiphy_dev->csiphy_info[index].csiphy_3phase) *
-			(CAM_CSIPHY_MAX_CPHY_LANES));
-	} else {
+			lane_assign_bitmask <<
+				((csiphy_dev->soc_info.index * bit_offset_bet_phys_in_cp_ctrl) +
+				(!csiphy_dev->csiphy_info[index].csiphy_3phase) *
+				(CAM_CSIPHY_MAX_CPHY_LANES));
+	else
 		csiphy_dev->csiphy_info[index].csiphy_cpas_cp_reg_mask =
-			((uint64_t)adj_lane_mask) <<
-			((csiphy_dev->soc_info.index - MAX_PHY_MSK_PER_REG) *
-			phy_mask_len + SEC_LANE_CP_REG_LEN +
-			(!csiphy_dev->csiphy_info[index].csiphy_3phase) *
-			(CAM_CSIPHY_MAX_CPHY_LANES));
-	}
+			lane_assign_bitmask <<
+				((csiphy_dev->soc_info.index - CAM_MAX_PHYS_PER_CP_CTRL_REG) *
+					bit_offset_bet_phys_in_cp_ctrl +
+				SEC_LANE_CP_REG_LEN +
+				(!csiphy_dev->csiphy_info[index].csiphy_3phase) *
+					CAM_CSIPHY_MAX_CPHY_LANES);
 
-	CAM_DBG(CAM_CSIPHY, "csi phy idx:%d, cp_reg_mask:0x%lx",
+	CAM_DBG(CAM_CSIPHY, "CSIPHY_idx:%d, cp_reg_mask:0x%llx",
 		csiphy_dev->soc_info.index,
 		csiphy_dev->csiphy_info[index].csiphy_cpas_cp_reg_mask);
 
@@ -686,9 +682,14 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 		lane_assign >>= 4;
 	}
 
-	if (cam_cmd_csiphy_info->secure_mode == 1)
-		cam_csiphy_update_secure_info(csiphy_dev,
-			index);
+	if (cam_cmd_csiphy_info->secure_mode == 1) {
+		rc = cam_csiphy_update_secure_info(csiphy_dev, index);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY,
+				"Secure info configuration failed for index: %d", index);
+			goto reset_settings;
+		}
+	}
 
 	CAM_DBG(CAM_CSIPHY,
 		"phy version:%d, phy_idx: %d, preamble_en: %u",
@@ -2139,9 +2140,9 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		struct cam_config_dev_cmd config;
 
 		CAM_DBG(CAM_CSIPHY, "CONFIG_DEV Called");
-		if (copy_from_user(&config,
-			u64_to_user_ptr(cmd->handle),
-					sizeof(config))) {
+
+		if (copy_from_user(&config, u64_to_user_ptr(cmd->handle), sizeof(config))) {
+			CAM_ERR(CAM_CSIPHY, "Couldn't copy the Entire Config From User");
 			rc = -EFAULT;
 		} else {
 			rc = cam_cmd_buf_parser(csiphy_dev, &config);
