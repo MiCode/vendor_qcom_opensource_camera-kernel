@@ -193,6 +193,17 @@ int cam_cdm_find_free_client_slot(struct cam_cdm *hw)
 	return -EBUSY;
 }
 
+static int cam_cdm_get_last_client_idx(struct cam_cdm *core)
+{
+	int i, last_client = 0;
+
+	for (i = 0; i < CAM_PER_CDM_MAX_REGISTERED_CLIENTS; i++) {
+		if (core->clients[i])
+			last_client = i;
+	}
+
+	return last_client;
+}
 
 void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 	enum cam_cdm_cb_status status, void *data)
@@ -200,6 +211,9 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 	int i;
 	struct cam_cdm *core = NULL;
 	struct cam_cdm_client *client = NULL;
+	struct cam_cdm_bl_cb_request_entry *node = NULL;
+	struct cam_hw_dump_pf_args pf_args = {0};
+	int client_idx, last_client;
 
 	if (!cdm_hw) {
 		CAM_ERR(CAM_CDM, "CDM Notify called with NULL hw info");
@@ -207,10 +221,9 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 	}
 	core = (struct cam_cdm *)cdm_hw->core_info;
 
-	if (status == CAM_CDM_CB_STATUS_BL_SUCCESS) {
-		int client_idx;
-		struct cam_cdm_bl_cb_request_entry *node =
-			(struct cam_cdm_bl_cb_request_entry *)data;
+	switch (status) {
+	case CAM_CDM_CB_STATUS_BL_SUCCESS:
+		node = (struct cam_cdm_bl_cb_request_entry *)data;
 
 		client_idx = CAM_CDM_GET_CLIENT_IDX(node->client_hdl);
 		client = core->clients[client_idx];
@@ -226,7 +239,7 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 				client->data.identifier, node->cookie);
 			client->data.cam_cdm_callback(node->client_hdl,
 				node->userdata, CAM_CDM_CB_STATUS_BL_SUCCESS,
-				node->cookie);
+				(void *)(&node->cookie));
 			CAM_DBG(CAM_CDM, "Exit client cb cookie=%d",
 				node->cookie);
 		} else {
@@ -235,15 +248,13 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 		}
 		mutex_unlock(&client->lock);
 		cam_cdm_put_client_refcount(client);
-		return;
-	} else if (status == CAM_CDM_CB_STATUS_HW_RESET_DONE ||
-			status == CAM_CDM_CB_STATUS_HW_FLUSH ||
-			status == CAM_CDM_CB_STATUS_HW_RESUBMIT ||
-			status == CAM_CDM_CB_STATUS_INVALID_BL_CMD ||
-			status == CAM_CDM_CB_STATUS_HW_ERROR) {
-		int client_idx;
-		struct cam_cdm_bl_cb_request_entry *node =
-			(struct cam_cdm_bl_cb_request_entry *)data;
+		break;
+	case CAM_CDM_CB_STATUS_HW_RESET_DONE:
+	case CAM_CDM_CB_STATUS_HW_FLUSH:
+	case CAM_CDM_CB_STATUS_HW_RESUBMIT:
+	case CAM_CDM_CB_STATUS_INVALID_BL_CMD:
+	case CAM_CDM_CB_STATUS_HW_ERROR:
+		node = (struct cam_cdm_bl_cb_request_entry *)data;
 
 		client_idx = CAM_CDM_GET_CLIENT_IDX(node->client_hdl);
 		client = core->clients[client_idx];
@@ -259,7 +270,7 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 				client->handle,
 				client->data.userdata,
 				status,
-				node->cookie);
+				(void *)(&node->cookie));
 		} else {
 			CAM_ERR(CAM_CDM,
 				"No cb registered for client: name %s, hdl=%x",
@@ -267,34 +278,56 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 		}
 		mutex_unlock(&client->lock);
 		cam_cdm_put_client_refcount(client);
-		return;
-	}
-
-	for (i = 0; i < CAM_PER_CDM_MAX_REGISTERED_CLIENTS; i++) {
-		if (core->clients[i] != NULL) {
+		break;
+	case CAM_CDM_CB_STATUS_PAGEFAULT:
+		last_client = cam_cdm_get_last_client_idx(core);
+		pf_args.pf_smmu_info = (struct cam_smmu_pf_info *)data;
+		pf_args.handle_sec_pf = true;
+		for (i = 0; i < CAM_PER_CDM_MAX_REGISTERED_CLIENTS; i++) {
 			client = core->clients[i];
+			if (!client)
+				continue;
 			cam_cdm_get_client_refcount(client);
-			mutex_lock(&client->lock);
-			CAM_DBG(CAM_CDM, "Found client slot %d", i);
 			if (client->data.cam_cdm_callback) {
-				if (status == CAM_CDM_CB_STATUS_PAGEFAULT) {
-					unsigned long iova =
-						(unsigned long)data;
-
-					client->data.cam_cdm_callback(
-						client->handle,
-						client->data.userdata,
-						CAM_CDM_CB_STATUS_PAGEFAULT,
-						(iova & 0xFFFFFFFF));
+				if (i == last_client)
+					/*
+					 * If the fault causing client is not found,
+					 * make the last client of this CDM sends PF
+					 * notification to userspace. This avoids multiple
+					 * PF notifications and ensures at least one
+					 * notification is sent.
+					 */
+					pf_args.pf_context_info.force_send_pf_evt = true;
+				mutex_lock(&client->lock);
+				CAM_DBG(CAM_CDM, "Found client slot %d name %s",
+					i, client->data.identifier);
+				client->data.cam_cdm_callback(
+					client->handle,
+					client->data.userdata,
+					status,
+					&pf_args);
+				if (pf_args.pf_context_info.ctx_found ||
+					pf_args.pf_context_info.force_send_pf_evt) {
+					if (pf_args.pf_context_info.ctx_found)
+						CAM_ERR(CAM_CDM,
+							"Page Fault found on client: [%s][%u]",
+							client->data.identifier,
+							client->data.cell_index);
+					mutex_unlock(&client->lock);
+					cam_cdm_put_client_refcount(client);
+					break;
 				}
+				mutex_unlock(&client->lock);
 			} else {
-				CAM_ERR(CAM_CDM,
-					"No cb registered for client hdl=%x",
+				CAM_ERR(CAM_CDM, "No cb registered for client hdl=%x",
 					client->handle);
 			}
-			mutex_unlock(&client->lock);
 			cam_cdm_put_client_refcount(client);
 		}
+
+		break;
+	default:
+		CAM_ERR(CAM_CDM, "Invalid cdm cb status: %u", status);
 	}
 }
 

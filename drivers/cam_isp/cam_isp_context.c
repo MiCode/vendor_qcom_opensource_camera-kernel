@@ -33,7 +33,7 @@ static struct cam_isp_ctx_debug isp_ctx_debug;
 	max_entries, (ret))
 
 static int cam_isp_context_dump_requests(void *data,
-	struct cam_smmu_pf_info *pf_info);
+	void *pf_args);
 
 static int cam_isp_context_hw_recovery(void *priv, void *data);
 
@@ -953,7 +953,7 @@ static int __cam_isp_ctx_enqueue_init_request(
 			req_isp_old->num_cfg += req_isp_new->num_cfg;
 
 			memcpy(&req_old->pf_data, &req->pf_data,
-				sizeof(struct cam_hw_mgr_dump_pf_data));
+				sizeof(struct cam_hw_mgr_pf_request_info));
 
 			if (req_isp_new->hw_update_data.num_reg_dump_buf) {
 				req_update_new = &req_isp_new->hw_update_data;
@@ -6092,6 +6092,7 @@ static int __cam_isp_ctx_acquire_dev_in_available(struct cam_context *ctx,
 	memset(&param, 0, sizeof(param));
 	param.context_data = ctx;
 	param.event_cb = ctx->irq_cb_intf;
+	param.sec_pf_evt_cb = cam_context_dump_pf_info;
 	param.num_acq = cmd->num_resources;
 	param.acquire_info = (uintptr_t) isp_res;
 
@@ -6259,6 +6260,7 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 	memset(&param, 0, sizeof(param));
 	param.context_data = ctx;
 	param.event_cb = ctx->irq_cb_intf;
+	param.sec_pf_evt_cb = cam_context_dump_pf_info;
 	param.num_acq = CAM_API_COMPAT_CONSTANT;
 	param.acquire_info_size = cmd->data_size;
 	param.acquire_info = (uint64_t) acquire_hw_info;
@@ -6411,6 +6413,7 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 	memset(&param, 0, sizeof(param));
 	param.context_data = ctx;
 	param.event_cb = ctx->irq_cb_intf;
+	param.sec_pf_evt_cb = cam_context_dump_pf_info;
 	param.num_acq = CAM_API_COMPAT_CONSTANT;
 	param.acquire_info_size = cmd->data_size;
 	param.acquire_info = (uint64_t) acquire_hw_info;
@@ -7556,68 +7559,70 @@ static int cam_isp_context_hw_recovery(void *priv, void *data)
 	return rc;
 }
 
-static int cam_isp_context_dump_requests(void *data,
-	struct cam_smmu_pf_info *pf_info)
+static void cam_isp_context_find_faulted_context(struct cam_context *ctx,
+	struct list_head *req_list, struct cam_hw_dump_pf_args *pf_args, bool *found)
 {
-
-	struct cam_context *ctx = (struct cam_context *)data;
 	struct cam_ctx_request *req = NULL;
 	struct cam_ctx_request *req_temp = NULL;
-	struct cam_isp_ctx_req *req_isp  = NULL;
-	struct cam_isp_prepare_hw_update_data *hw_update_data = NULL;
-	struct cam_hw_mgr_dump_pf_data *pf_dbg_entry = NULL;
-	struct cam_req_mgr_message       req_msg = {0};
-	struct cam_isp_context          *ctx_isp;
-	uint32_t  resource_type = 0;
-	bool mem_found = false, ctx_found = false, send_error = false;
+	int rc;
+
+	*found = false;
+	list_for_each_entry_safe(req, req_temp, req_list, list) {
+		CAM_INFO(CAM_ISP, "List req_id: %llu ctx id: %u",
+			req->request_id, ctx->ctx_id);
+
+		rc = cam_context_dump_pf_info_to_hw(ctx, pf_args, &req->pf_data);
+		if (rc)
+			CAM_ERR(CAM_ISP, "Failed to dump pf info");
+		/*
+		 * Found faulted buffer. Even if faulted ctx is found, but
+		 * continue to search for faulted buffer
+		 */
+		if (pf_args->pf_context_info.mem_type != CAM_FAULT_BUF_NOT_FOUND) {
+			*found = true;
+			break;
+		}
+	}
+}
+
+static int cam_isp_context_dump_requests(void *data, void *args)
+{
+	struct cam_context         *ctx = (struct cam_context *)data;
+	struct cam_isp_context     *ctx_isp;
+	struct cam_hw_dump_pf_args *pf_args = (struct cam_hw_dump_pf_args *)args;
 	int rc = 0;
+	bool found;
 
-	struct cam_isp_context *isp_ctx =
-		(struct cam_isp_context *)ctx->ctx_priv;
+	if (!ctx || !pf_args) {
+		CAM_ERR(CAM_ISP, "Invalid ctx %pK or pf args %pK",
+			ctx, pf_args);
+		return -EINVAL;
+	}
 
-	if (!isp_ctx) {
+	ctx_isp = (struct cam_isp_context *)ctx->ctx_priv;
+	if (!ctx_isp) {
 		CAM_ERR(CAM_ISP, "Invalid isp ctx");
 		return -EINVAL;
 	}
 
-	CAM_INFO(CAM_ISP, "iommu fault handler for isp ctx %d state %d",
+	if (pf_args->handle_sec_pf)
+		goto end;
+
+	CAM_INFO(CAM_ISP,
+		"Iterating over active list for isp ctx %d state %d",
 		ctx->ctx_id, ctx->state);
+	cam_isp_context_find_faulted_context(ctx, &ctx->active_req_list,
+		pf_args, &found);
+	if (found)
+		goto end;
 
-	list_for_each_entry_safe(req, req_temp,
-		&ctx->active_req_list, list) {
-		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-		hw_update_data = &req_isp->hw_update_data;
-		pf_dbg_entry = &(req->pf_data);
-		CAM_INFO(CAM_ISP, "Active List: req_id : %lld ",
-			req->request_id);
-
-		rc = cam_context_dump_pf_info_to_hw(ctx, pf_dbg_entry,
-			&mem_found, &ctx_found, &resource_type, pf_info);
-		if (rc)
-			CAM_ERR(CAM_ISP, "Failed to dump pf info");
-
-		if (ctx_found)
-			send_error = true;
-	}
-
-	CAM_INFO(CAM_ISP, "Iterating over wait_list of isp ctx %d state %d",
-			ctx->ctx_id, ctx->state);
-
-	list_for_each_entry_safe(req, req_temp,
-		&ctx->wait_req_list, list) {
-		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-		hw_update_data = &req_isp->hw_update_data;
-		pf_dbg_entry = &(req->pf_data);
-		CAM_INFO(CAM_ISP, "Wait List: req_id : %lld ", req->request_id);
-
-		rc = cam_context_dump_pf_info_to_hw(ctx, pf_dbg_entry,
-			&mem_found, &ctx_found, &resource_type, pf_info);
-		if (rc)
-			CAM_ERR(CAM_ISP, "Failed to dump pf info");
-
-		if (ctx_found)
-			send_error = true;
-	}
+	CAM_INFO(CAM_ISP,
+		"Iterating over waiting list of isp ctx %d state %d",
+		ctx->ctx_id, ctx->state);
+	cam_isp_context_find_faulted_context(ctx, &ctx->wait_req_list,
+		pf_args, &found);
+	if (found)
+		goto end;
 
 	/*
 	 * In certain scenarios we observe both overflow and SMMU pagefault
@@ -7627,61 +7632,37 @@ static int cam_isp_context_dump_requests(void *data,
 	 * and all the subsequent requests to the pending list while handling
 	 * overflow error.
 	 */
-
 	CAM_INFO(CAM_ISP,
 		"Iterating over pending req list of isp ctx %d state %d",
 		ctx->ctx_id, ctx->state);
+	cam_isp_context_find_faulted_context(ctx, &ctx->pending_req_list,
+		pf_args, &found);
+	if (found)
+		goto end;
 
-	list_for_each_entry_safe(req, req_temp,
-		&ctx->pending_req_list, list) {
-		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-		hw_update_data = &req_isp->hw_update_data;
-		pf_dbg_entry = &(req->pf_data);
-		CAM_INFO(CAM_ISP, "Pending List: req_id : %lld ",
-			req->request_id);
-
-		rc = cam_context_dump_pf_info_to_hw(ctx, pf_dbg_entry,
-			&mem_found, &ctx_found, &resource_type, pf_info);
-		if (rc)
-			CAM_ERR(CAM_ISP, "Failed to dump pf info");
-
-		if (ctx_found)
-			send_error = true;
-	}
-
-	if (resource_type) {
-		ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
-		CAM_ERR(CAM_ISP,
+end:
+	if (pf_args->pf_context_info.resource_type) {
+		ctx_isp = (struct cam_isp_context *)ctx->ctx_priv;
+		CAM_INFO(CAM_ISP,
 			"Page fault on resource:%s (0x%x) ctx id:%d frame id:%d reported id:%lld applied id:%lld",
-			__cam_isp_resource_handle_id_to_type(
-			ctx_isp->isp_device_type, resource_type),
-			resource_type, ctx->ctx_id, ctx_isp->frame_id,
+			__cam_isp_resource_handle_id_to_type(ctx_isp->isp_device_type,
+				pf_args->pf_context_info.resource_type),
+			pf_args->pf_context_info.resource_type, ctx->ctx_id, ctx_isp->frame_id,
 			ctx_isp->reported_req_id, ctx_isp->last_applied_req_id);
 	}
 
-	if (send_error) {
-		CAM_INFO(CAM_ISP,
-			"page fault notifying to umd ctx %u session_hdl:%d device_hdl:%d link_hdl:%d",
-			ctx->ctx_id, ctx->session_hdl,
-			ctx->dev_hdl, ctx->link_hdl);
+	/*
+	 * Send PF notification to UMD if PF found on current CTX
+	 * or it is forced to send PF notification to UMD even if no
+	 * faulted context found
+	 */
+	if (pf_args->pf_context_info.ctx_found ||
+			pf_args->pf_context_info.force_send_pf_evt)
+		rc = cam_context_send_pf_evt(ctx, pf_args);
+	if (rc)
+		CAM_ERR(CAM_ISP,
+			"Failed to notify PF event to userspace rc: %d", rc);
 
-		req_msg.session_hdl = ctx->session_hdl;
-		req_msg.u.err_msg.device_hdl = ctx->dev_hdl;
-		req_msg.u.err_msg.error_type =
-			CAM_REQ_MGR_ERROR_TYPE_PAGE_FAULT;
-		req_msg.u.err_msg.link_hdl = ctx->link_hdl;
-		req_msg.u.err_msg.request_id = 0;
-		req_msg.u.err_msg.resource_size = 0x0;
-		req_msg.u.err_msg.error_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
-
-		if (cam_req_mgr_notify_message(&req_msg,
-				V4L_EVENT_CAM_REQ_MGR_ERROR,
-				V4L_EVENT_CAM_REQ_MGR_EVENT))
-			CAM_ERR(CAM_ISP,
-				"could not send page fault notification ctx %u session_hdl:%d device_hdl:%d link_hdl:%d",
-				ctx->ctx_id, ctx->session_hdl,
-				ctx->dev_hdl, ctx->link_hdl);
-	}
 	return rc;
 }
 

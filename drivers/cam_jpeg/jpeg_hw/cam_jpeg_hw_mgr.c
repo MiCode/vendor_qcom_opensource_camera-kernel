@@ -1931,23 +1931,20 @@ static void cam_jpeg_mgr_dump_pf_data(
 	struct cam_jpeg_hw_mgr  *hw_mgr,
 	struct cam_hw_cmd_args  *hw_cmd_args)
 {
-	struct cam_jpeg_hw_ctx_data    *ctx_data;
-	struct cam_packet              *packet;
-	struct cam_jpeg_match_pid_args  jpeg_pid_mid_args;
-	struct cam_buf_io_cfg          *io_cfg = NULL;
-	uint32_t                        dev_type;
-	dma_addr_t   iova_addr;
-	size_t       src_buf_size;
-	int          i, j;
-	int32_t    mmu_hdl;
-	bool      hw_pid_support = true;
-	int rc = 0;
+	struct cam_jpeg_hw_ctx_data   *ctx_data;
+	struct cam_packet             *packet;
+	struct cam_jpeg_match_pid_args jpeg_pid_mid_args;
+	struct cam_hw_dump_pf_args    *pf_args;
+	uint32_t                       dev_type;
+	bool                           hw_pid_support = true;
+	int                            rc = 0;
 
 	ctx_data = (struct cam_jpeg_hw_ctx_data  *)hw_cmd_args->ctxt_to_hw_map;
-	packet  = hw_cmd_args->u.pf_args.pf_data.packet;
+	pf_args = hw_cmd_args->u.pf_cmd_args->pf_args;
+	packet  = hw_cmd_args->u.pf_cmd_args->pf_req_info->packet;
 
-	jpeg_pid_mid_args.fault_mid = hw_cmd_args->u.pf_args.mid;
-	jpeg_pid_mid_args.pid = hw_cmd_args->u.pf_args.pid;
+	jpeg_pid_mid_args.fault_mid = pf_args->pf_smmu_info->mid;
+	jpeg_pid_mid_args.pid = pf_args->pf_smmu_info->pid;
 	dev_type = ctx_data->jpeg_dev_acquire_info.dev_type;
 
 	if (!hw_mgr->num_pid[dev_type]) {
@@ -1968,66 +1965,11 @@ static void cam_jpeg_mgr_dump_pf_data(
 		CAM_INFO(CAM_JPEG, "This context data is not matched with pf pid and mid");
 		return;
 	}
+	pf_args->pf_context_info.resource_type = jpeg_pid_mid_args.match_res;
 
 iodump:
-	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
-		packet->io_configs_offset / 4);
-
-	for (i = 0; i < packet->num_io_configs; i++) {
-		if (hw_pid_support) {
-			if (io_cfg[i].resource_type !=
-				jpeg_pid_mid_args.match_res)
-				continue;
-
-			if (i == packet->num_io_configs) {
-				CAM_ERR(CAM_JPEG,
-					"getting io port for mid resource id failed  req id:%lld res id:0x%x",
-					packet->header.request_id,
-					jpeg_pid_mid_args.match_res);
-				return;
-			}
-		}
-
-		for (j = 0; j < CAM_PACKET_MAX_PLANES; j++) {
-			if (!io_cfg[i].mem_handle[j])
-				break;
-
-			CAM_INFO(CAM_JPEG, "port: %d f: %u format: %d dir %d",
-				io_cfg[i].resource_type,
-				io_cfg[i].fence,
-				io_cfg[i].format,
-				io_cfg[i].direction);
-
-			mmu_hdl = cam_mem_is_secure_buf(
-				io_cfg[i].mem_handle[j]) ? hw_mgr->iommu_sec_hdl :
-				hw_mgr->iommu_hdl;
-			rc = cam_mem_get_io_buf(io_cfg[i].mem_handle[j],
-				mmu_hdl, &iova_addr, &src_buf_size, NULL);
-			if (rc < 0) {
-				CAM_ERR(CAM_UTIL, "get src buf address fail");
-				continue;
-			}
-			if ((iova_addr & 0xFFFFFFFF) != iova_addr) {
-				CAM_ERR(CAM_JPEG, "Invalid mapped address");
-				rc = -EINVAL;
-				continue;
-			}
-
-			CAM_INFO(CAM_JPEG,
-				"pln %u w %u h %u stride %u slice %u size %d addr 0x%x offset 0x%x memh %x",
-				j, io_cfg[i].planes[j].width,
-				io_cfg[i].planes[j].height,
-				io_cfg[i].planes[j].plane_stride,
-				io_cfg[i].planes[j].slice_height,
-				(int32_t)src_buf_size,
-				(unsigned int)iova_addr,
-				io_cfg[i].offsets[j],
-				io_cfg[i].mem_handle[j]);
-		}
-
-		if (hw_pid_support)
-			return;
-	}
+	cam_packet_util_dump_io_bufs(packet, hw_mgr->iommu_hdl, hw_mgr->iommu_sec_hdl,
+		pf_args, hw_pid_support);
 }
 
 static int cam_jpeg_mgr_cmd(void *hw_mgr_priv, void *cmd_args)

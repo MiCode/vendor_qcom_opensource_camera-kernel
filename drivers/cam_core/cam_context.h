@@ -70,22 +70,22 @@ enum cam_context_state {
  *
  */
 struct cam_ctx_request {
-	struct list_head               list;
-	uint32_t                       status;
-	uint64_t                       request_id;
-	void                          *req_priv;
-	struct cam_hw_update_entry    *hw_update_entries;
-	uint32_t                       num_hw_update_entries;
-	struct cam_hw_fence_map_entry *in_map_entries;
-	uint32_t                       num_in_map_entries;
-	struct cam_hw_fence_map_entry *out_map_entries;
-	uint32_t                       num_out_map_entries;
-	atomic_t                       num_in_acked;
-	uint32_t                       num_out_acked;
-	uint32_t                       index;
-	int                            flushed;
-	struct cam_context            *ctx;
-	struct cam_hw_mgr_dump_pf_data pf_data;
+	struct list_head                  list;
+	uint32_t                          status;
+	uint64_t                          request_id;
+	void                             *req_priv;
+	struct cam_hw_update_entry       *hw_update_entries;
+	uint32_t                          num_hw_update_entries;
+	struct cam_hw_fence_map_entry    *in_map_entries;
+	uint32_t                          num_in_map_entries;
+	struct cam_hw_fence_map_entry    *out_map_entries;
+	uint32_t                          num_out_map_entries;
+	atomic_t                          num_in_acked;
+	uint32_t                          num_out_acked;
+	uint32_t                          index;
+	int                               flushed;
+	struct cam_context               *ctx;
+	struct cam_hw_mgr_pf_request_info pf_data;
 };
 
 /**
@@ -406,11 +406,11 @@ int cam_context_mini_dump_from_hw(struct cam_context *ctx,
  * @brief:        Handle dump active request request command
  *
  * @ctx:          Object pointer for cam_context
- * @pf_info:      Smmu page fault info
+ * @pf_args:      pf args to dump pf info to hw
  *
  */
-int cam_context_dump_pf_info(struct cam_context *ctx,
-	struct cam_smmu_pf_info *pf_info);
+int cam_context_dump_pf_info(void *ctx,
+	void *pf_args);
 
 /**
  * cam_context_handle_acquire_dev()

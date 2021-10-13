@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SMMU_API_H_
@@ -16,6 +17,11 @@
 #include <linux/spinlock_types.h>
 #include <linux/mutex.h>
 #include <linux/msm_ion.h>
+
+#define CAM_SMMU_GET_IOVA_DELTA(val1, val2)                                \
+({                                                                         \
+	(val1) > (val2) ? (val1) - (val2) : (val2) - (val1);               \
+})
 
 /*Enum for possible CAM SMMU operations */
 enum cam_smmu_ops_param {
@@ -46,27 +52,31 @@ enum cam_smmu_region_id {
 /**
  * @brief          : cam_smmu_pf_info
  *
- * @param domain   : Iommu domain received in iommu page fault handler
- * @param dev      : Device received in iommu page fault handler
- * @param iova     : IOVA where page fault occurred
- * @param flags    : Flags received in iommu page fault handler
- * @param token    : Userdata given during callback registration
- * @param buf_info : Closest mapped buffer info
- * @bid            : bus id
- * @pid            : unique id for hw group of ports
- * @mid            : port id of hw
+ * @param domain           : Iommu domain received in iommu page fault handler
+ * @param dev              : Device received in iommu page fault handler
+ * @param iova             : IOVA where page fault occurred
+ * @param flags            : Flags received in iommu page fault handler
+ * @param token            : Userdata given during callback registration
+ * @param buf_info         : Closest mapped buffer info
+ * @param bid              : bus id
+ * @param pid              : unique id for hw group of ports
+ * @param mid              : port id of hw
+ * @param is_secure        : Faulted memory in secure or non-secure region
+ * @param in_map_region    : Faulted memory fall in mapped region or not
  */
 
 struct cam_smmu_pf_info {
-	struct iommu_domain *domain;
+	struct iommu_domain  *domain;
 	struct device        *dev;
-	unsigned long        iova;
-	int                  flags;
-	void                *token;
-	uint32_t             buf_info;
-	uint32_t             bid;
-	uint32_t             pid;
-	uint32_t             mid;
+	unsigned long         iova;
+	int                   flags;
+	void                 *token;
+	uint32_t              buf_info;
+	uint32_t              bid;
+	uint32_t              pid;
+	uint32_t              mid;
+	bool                  is_secure;
+	bool                  in_map_region;
 };
 
 /**

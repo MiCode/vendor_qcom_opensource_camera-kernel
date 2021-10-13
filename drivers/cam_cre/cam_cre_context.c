@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -131,22 +132,18 @@ static int __cam_cre_ctx_handle_buf_done_in_ready(void *ctx,
 	return cam_context_buf_done_from_hw(ctx, done, evt_id);
 }
 
-static int cam_cre_context_dump_active_request(void *data,
-	struct cam_smmu_pf_info *pf_info)
+static int cam_cre_context_dump_active_request(void *data, void *args)
 {
 
-	struct cam_context *ctx = (struct cam_context *)data;
-	struct cam_ctx_request          *req = NULL;
-	struct cam_ctx_request          *req_temp = NULL;
-	struct cam_hw_mgr_dump_pf_data  *pf_dbg_entry = NULL;
-	uint32_t  resource_type = 0;
+	struct cam_context         *ctx = (struct cam_context *)data;
+	struct cam_ctx_request     *req = NULL;
+	struct cam_ctx_request     *req_temp = NULL;
+	struct cam_hw_dump_pf_args *pf_args = (struct cam_hw_dump_pf_args *)args;
 	int rc = 0;
-	int closest_port;
-	bool b_mem_found = false, b_ctx_found = false;
 
-
-	if (!ctx) {
-		CAM_ERR(CAM_CRE, "Invalid ctx");
+	if (!ctx || !pf_args) {
+		CAM_ERR(CAM_CRE, "Invalid ctx %pK or pf arguments %pK",
+			ctx, pf_args);
 		return -EINVAL;
 	}
 
@@ -155,19 +152,24 @@ static int cam_cre_context_dump_active_request(void *data,
 
 	list_for_each_entry_safe(req, req_temp,
 			&ctx->active_req_list, list) {
-		pf_dbg_entry = &(req->pf_data);
-		closest_port = -1;
-		CAM_INFO(CAM_CRE, "req_id : %lld ", req->request_id);
 
-		rc = cam_context_dump_pf_info_to_hw(ctx, pf_dbg_entry->packet,
-			&b_mem_found, &b_ctx_found, &resource_type, pf_info);
+		CAM_INFO(CAM_CRE, "Active req_id: %llu ctx_id: %u",
+			req->request_id, ctx->ctx_id);
+
+		rc = cam_context_dump_pf_info_to_hw(ctx, pf_args, &req->pf_data);
 		if (rc)
-			CAM_ERR(CAM_CRE, "Failed to dump pf info");
-
-		if (b_mem_found)
-			CAM_ERR(CAM_CRE, "Found page fault in req %lld %d",
-				req->request_id, rc);
+			CAM_ERR(CAM_CRE, "Failed to dump pf info ctx_id: %u state: %d",
+				ctx->ctx_id, ctx->state);
 	}
+
+	if (pf_args->pf_context_info.ctx_found) {
+		/* Send PF notification to UMD if PF found on current CTX */
+		rc = cam_context_send_pf_evt(ctx, pf_args);
+		if (rc)
+			CAM_ERR(CAM_CRE,
+				"Failed to notify PF event to userspace rc: %d", rc);
+	}
+
 	return rc;
 }
 

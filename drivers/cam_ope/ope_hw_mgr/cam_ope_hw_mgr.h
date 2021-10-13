@@ -412,7 +412,7 @@ struct cam_ope_request {
 	struct cam_cdm_bl_request *cdm_cmd;
 	struct cam_ope_clk_bw_request clk_info;
 	struct cam_ope_clk_bw_req_internal_v2 clk_info_v2;
-	struct cam_hw_mgr_dump_pf_data hang_data;
+	struct cam_hw_mgr_pf_request_info hang_data;
 	ktime_t submit_timestamp;
 };
 

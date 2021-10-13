@@ -353,7 +353,7 @@ static void cam_smmu_print_table(void);
 
 static int cam_smmu_probe(struct platform_device *pdev);
 
-static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr);
+static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr, bool *in_map_region);
 
 static void cam_smmu_update_monitor_array(
 	struct cam_context_bank_info *cb_info,
@@ -542,8 +542,9 @@ static void cam_smmu_page_fault_work(struct work_struct *work)
 	int j;
 	int idx;
 	struct cam_smmu_work_payload *payload;
-	uint32_t buf_info;
+	uint32_t buf_info = 0;
 	struct cam_smmu_pf_info pf_info;
+	bool in_map = false;
 
 	mutex_lock(&iommu_cb_set.payload_list_lock);
 	if (list_empty(&iommu_cb_set.payload_list)) {
@@ -562,7 +563,10 @@ static void cam_smmu_page_fault_work(struct work_struct *work)
 
 	/* Dereference the payload to call the handler */
 	idx = payload->idx;
-	buf_info = cam_smmu_find_closest_mapping(idx, (void *)payload->iova);
+	/* If fault address is null, found closest buffer is inaccurate */
+	if (payload->iova)
+		buf_info = cam_smmu_find_closest_mapping(idx, (void *)payload->iova, &in_map);
+
 	if (buf_info != 0)
 		CAM_INFO(CAM_SMMU, "closest buf 0x%x idx %d", buf_info, idx);
 
@@ -571,6 +575,8 @@ static void cam_smmu_page_fault_work(struct work_struct *work)
 	pf_info.iova  = payload->iova;
 	pf_info.flags = payload->flags;
 	pf_info.buf_info = buf_info;
+	pf_info.is_secure = iommu_cb_set.cb_info[idx].is_secure;
+	pf_info.in_map_region = in_map;
 
 	for (j = 0; j < CAM_SMMU_CB_MAX; j++) {
 		if ((iommu_cb_set.cb_info[idx].handler[j])) {
@@ -675,7 +681,7 @@ static void cam_smmu_print_table(void)
 	}
 }
 
-static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr)
+static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr, bool *in_map_region)
 {
 	struct cam_dma_buff_info *mapping, *closest_mapping =  NULL;
 	unsigned long start_addr, end_addr, current_addr;
@@ -684,6 +690,7 @@ static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr)
 	long delta = 0, lowest_delta = 0;
 
 	current_addr = (unsigned long)vaddr;
+	*in_map_region = false;
 	list_for_each_entry(mapping,
 			&iommu_cb_set.cb_info[idx].smmu_buf_list, list) {
 		start_addr = (unsigned long)mapping->paddr;
@@ -691,6 +698,7 @@ static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr)
 
 		if (start_addr <= current_addr && current_addr <= end_addr) {
 			closest_mapping = mapping;
+			*in_map_region = true;
 			CAM_INFO(CAM_SMMU,
 				"Found va 0x%lx in:0x%lx-0x%lx, fd %d i_ino %lu cb:%s",
 				current_addr, start_addr,

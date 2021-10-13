@@ -166,10 +166,11 @@ int cam_packet_util_get_kmd_buffer(struct cam_packet *packet,
 	return rc;
 }
 
-void cam_packet_dump_patch_info(struct cam_packet *packet,
-	int32_t iommu_hdl, int32_t sec_mmu_hdl)
+void cam_packet_util_dump_patch_info(struct cam_packet *packet,
+	int32_t iommu_hdl, int32_t sec_iommu_hdl, struct cam_hw_dump_pf_args *pf_args)
 {
 	struct cam_patch_desc *patch_desc = NULL;
+	struct cam_context_pf_info *pf_context_info  = NULL;
 	dma_addr_t iova_addr;
 	size_t     dst_buf_len;
 	size_t     src_buf_size;
@@ -177,19 +178,29 @@ void cam_packet_dump_patch_info(struct cam_packet *packet,
 	int32_t    hdl;
 	uintptr_t  cpu_addr = 0;
 	uint32_t  *dst_cpu_addr;
-	uint32_t   flags;
+	uint32_t   flags, buf_fd;
 	uint32_t   value = 0;
+
+	if (!packet) {
+		CAM_ERR(CAM_UTIL, "Invalid packet");
+		return;
+	}
 
 	patch_desc = (struct cam_patch_desc *)
 			((uint32_t *) &packet->payload +
 			packet->patch_offset/4);
+
+	if (pf_args) {
+		pf_context_info = &(pf_args->pf_context_info);
+		buf_fd = pf_args->pf_smmu_info->buf_info;
+	}
 
 	CAM_INFO(CAM_UTIL, "Total num of patches : %d",
 		packet->num_patches);
 
 	for (i = 0; i < packet->num_patches; i++) {
 		hdl = cam_mem_is_secure_buf(patch_desc[i].src_buf_hdl) ?
-			sec_mmu_hdl : iommu_hdl;
+			sec_iommu_hdl : iommu_hdl;
 		rc = cam_mem_get_io_buf(patch_desc[i].src_buf_hdl,
 			hdl, &iova_addr, &src_buf_size, &flags);
 		if (rc < 0) {
@@ -197,6 +208,24 @@ void cam_packet_dump_patch_info(struct cam_packet *packet,
 				"unable to get src buf address for hdl 0x%x",
 				hdl);
 			return;
+		}
+
+		if (pf_args &&
+			GET_FD_FROM_HANDLE(patch_desc[i].src_buf_hdl) == buf_fd &&
+			pf_context_info->mem_type == CAM_FAULT_BUF_NOT_FOUND) {
+			/* found PF at this hdl */
+			pf_context_info->mem_type = CAM_FAULT_PATCH_BUF;
+			pf_context_info->patch_idx = i;
+			pf_context_info->buf_hdl = patch_desc[i].src_buf_hdl;
+			pf_context_info->offset = patch_desc[i].src_offset;
+			pf_context_info->mem_flag = flags;
+			pf_context_info->delta =
+				CAM_SMMU_GET_IOVA_DELTA(pf_args->pf_smmu_info->iova, iova_addr);
+			pf_context_info->req_id = packet->header.request_id;
+			pf_context_info->ctx_found = true;
+
+			CAM_ERR(CAM_UTIL, "Found PF at patch: %d src buf hdl: 0x%llx",
+				i, patch_desc[i].src_buf_hdl);
 		}
 
 		rc = cam_mem_get_cpu_buf(patch_desc[i].dst_buf_hdl,
@@ -380,6 +409,97 @@ int cam_packet_util_process_patches(struct cam_packet *packet,
 	}
 
 	return rc;
+}
+
+void cam_packet_util_dump_io_bufs(struct cam_packet *packet,
+	int32_t iommu_hdl, int32_t sec_mmu_hdl,
+	struct cam_hw_dump_pf_args *pf_args, bool res_id_support)
+{
+	struct cam_buf_io_cfg      *io_cfg;
+	struct cam_context_pf_info *pf_context_info;
+	int32_t        mmu_hdl, buf_fd;
+	dma_addr_t     iova_addr;
+	size_t         src_buf_size;
+	int            i, j, rc = 0;
+	uint32_t       resource_type;
+
+	if (!packet) {
+		CAM_ERR(CAM_UTIL, "Invalid packet");
+		return;
+	}
+
+	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
+		packet->io_configs_offset / 4);
+
+	buf_fd = pf_args->pf_smmu_info->buf_info;
+	pf_context_info = &(pf_args->pf_context_info);
+	resource_type = pf_context_info->resource_type;
+
+	for (i = 0; i < packet->num_io_configs; i++) {
+		if (res_id_support && io_cfg[i].resource_type !=
+			pf_context_info->resource_type)
+			continue;
+
+		for (j = 0; j < CAM_PACKET_MAX_PLANES; j++) {
+			if (!io_cfg[i].mem_handle[j])
+				break;
+
+			CAM_INFO(CAM_UTIL, "port: 0x%x f: %u format: %d dir %d",
+				io_cfg[i].resource_type,
+				io_cfg[i].fence,
+				io_cfg[i].format,
+				io_cfg[i].direction);
+
+			mmu_hdl = cam_mem_is_secure_buf(
+				io_cfg[i].mem_handle[j]) ? sec_mmu_hdl :
+				iommu_hdl;
+			rc = cam_mem_get_io_buf(io_cfg[i].mem_handle[j],
+				mmu_hdl, &iova_addr, &src_buf_size, NULL);
+			if (rc < 0) {
+				CAM_ERR(CAM_UTIL,
+					"get src buf address fail mem_handle 0x%x",
+					io_cfg[i].mem_handle[j]);
+				continue;
+			}
+			if (GET_FD_FROM_HANDLE(io_cfg[i].mem_handle[j]) == buf_fd) {
+				pf_context_info->mem_type = CAM_FAULT_IO_CFG_BUF;
+				pf_context_info->buf_hdl = io_cfg[i].mem_handle[j];
+				pf_context_info->offset = io_cfg[i].offsets[j];
+				pf_context_info->resource_type = io_cfg[i].resource_type;
+				pf_context_info->delta =
+					CAM_SMMU_GET_IOVA_DELTA(pf_args->pf_smmu_info->iova,
+						iova_addr);
+				pf_context_info->req_id = packet->header.request_id;
+				pf_context_info->ctx_found = true;
+
+				resource_type = pf_context_info->resource_type;
+				CAM_INFO(CAM_UTIL,
+					"Found PF at port: 0x%x mem 0x%x fd: %d plane id: %d delta: %llu",
+					io_cfg[i].resource_type,
+					io_cfg[i].mem_handle[j],
+					buf_fd,
+					j, pf_context_info->delta);
+			}
+			CAM_INFO(CAM_UTIL,
+				"pln %d w %d h %d s %u size %zu addr 0x%llx end_addr 0x%llx offset %u memh 0x%x",
+				j, io_cfg[i].planes[j].width,
+				io_cfg[i].planes[j].height,
+				io_cfg[i].planes[j].plane_stride,
+				src_buf_size, iova_addr,
+				iova_addr + src_buf_size,
+				io_cfg[i].offsets[j],
+				io_cfg[i].mem_handle[j]);
+		}
+
+		if (res_id_support)
+			return;
+	}
+
+	if (res_id_support)
+		CAM_ERR(CAM_UTIL,
+			"getting io port for mid resource id failed req id: %llu res id: 0x%x",
+			packet->header.request_id, resource_type);
+
 }
 
 int cam_packet_util_process_generic_cmd_buffer(

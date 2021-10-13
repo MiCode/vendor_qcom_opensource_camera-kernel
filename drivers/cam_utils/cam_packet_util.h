@@ -8,7 +8,7 @@
 #define _CAM_PACKET_UTIL_H_
 
 #include <media/cam_defs.h>
-
+#include "cam_hw_mgr_intf.h"
 /**
  * @brief                  KMD scratch buffer information
  *
@@ -88,7 +88,7 @@ int cam_packet_util_get_kmd_buffer(struct cam_packet *packet,
 	struct cam_kmd_buf_info *kmd_buf_info);
 
 /**
- * cam_packet_dump_patch_info()
+ * cam_packet_util_dump_patch_info()
  *
  * @brief:              Dump patch info in case of page fault
  *
@@ -96,10 +96,11 @@ int cam_packet_util_get_kmd_buffer(struct cam_packet *packet,
  * @iommu_hdl:          IOMMU handle of the HW Device that received the packet
  * @sec_iommu_hdl:      Secure IOMMU handle of the HW Device that
  *                      received the packet
+ * @pf_args:            Page fault arguments
  *
  */
-void cam_packet_dump_patch_info(struct cam_packet *packet,
-	int32_t iommu_hdl, int32_t sec_mmu_hdl);
+void cam_packet_util_dump_patch_info(struct cam_packet *packet,
+	int32_t iommu_hdl, int32_t sec_iommu_hdl, struct cam_hw_dump_pf_args *pf_args);
 
 /**
  * cam_packet_util_process_patches()
@@ -119,6 +120,23 @@ void cam_packet_dump_patch_info(struct cam_packet *packet,
  */
 int cam_packet_util_process_patches(struct cam_packet *packet,
 	int32_t iommu_hdl, int32_t sec_mmu_hdl, bool exp_mem);
+
+/**
+ * cam_packet_util_dump_io_bufs()
+ *
+ * @brief:              Search for faulted io buffer in packet and print io buffers info
+ *
+ * @packet:             Input packet containing io buffers
+ * @iommu_hdl:          IOMMU handle of the HW Device that received the packet
+ * @sec_iommu_hdl:      Secure IOMMU handle of the HW Device that
+ *                      received the packet
+ * @pf_args:            Pault Fault related info
+ * @res_id_support:     if the specific device has knowledge of the resource id for hw
+ */
+
+void cam_packet_util_dump_io_bufs(struct cam_packet *packet,
+	int32_t iommu_hdl, int32_t sec_mmu_hdl,
+	struct cam_hw_dump_pf_args *pf_args, bool res_id_support);
 
 /**
  * cam_packet_util_process_generic_cmd_buffer()

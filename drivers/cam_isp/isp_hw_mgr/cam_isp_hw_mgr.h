@@ -21,7 +21,9 @@
  *                         acquire device
  * @cb_priv:               first argument for the call back function
  *                         set during acquire device
- * @mini_dump_cb           Callback for mini dump
+ * @mini_dump_cb:          Callback for mini dump
+ * @sec_pf_evt_cb:         Callback interface to ISP context for CDM page fault
+ *                         set during device acquire
  *
  */
 struct cam_isp_hw_mgr_ctx {
@@ -29,6 +31,7 @@ struct cam_isp_hw_mgr_ctx {
 	cam_hw_event_cb_func            event_cb;
 	void                           *cb_priv;
 	cam_ctx_mini_dump_cb_func       mini_dump_cb;
+	cam_hw_pagefault_cb_func        sec_pf_evt_cb;
 };
 
 /**

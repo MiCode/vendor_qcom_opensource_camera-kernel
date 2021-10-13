@@ -25,26 +25,18 @@
 
 static const char icp_dev_name[] = "cam-icp";
 
-static int cam_icp_context_dump_active_request(void *data,
-	struct cam_smmu_pf_info *pf_info)
+static int cam_icp_context_dump_active_request(void *data, void *args)
 {
-	struct cam_context *ctx = (struct cam_context *)data;
-	struct cam_ctx_request          *req = NULL;
-	struct cam_ctx_request          *req_temp = NULL;
-	struct cam_hw_mgr_dump_pf_data  *pf_dbg_entry = NULL;
-	uint32_t  resource_type = 0;
+	struct cam_context         *ctx = (struct cam_context *)data;
+	struct cam_ctx_request     *req = NULL;
+	struct cam_ctx_request     *req_temp = NULL;
+	struct cam_hw_dump_pf_args *pf_args = (struct cam_hw_dump_pf_args *)args;
 	int rc = 0;
-	bool b_mem_found = false, b_ctx_found = false;
 
-	if (!ctx) {
-		CAM_ERR(CAM_ICP, "Invalid ctx");
+	if (!ctx || !pf_args) {
+		CAM_ERR(CAM_ICP, "Invalid ctx %pK or pf args %pK",
+			ctx, pf_args);
 		return -EINVAL;
-	}
-
-	if (ctx->state < CAM_CTX_ACQUIRED || ctx->state > CAM_CTX_ACTIVATED) {
-		CAM_ERR(CAM_ICP, "Invalid state icp ctx %d state %d",
-			ctx->ctx_id, ctx->state);
-		goto end;
 	}
 
 	CAM_INFO(CAM_ICP, "iommu fault for icp ctx %d state %d",
@@ -52,20 +44,28 @@ static int cam_icp_context_dump_active_request(void *data,
 
 	list_for_each_entry_safe(req, req_temp,
 			&ctx->active_req_list, list) {
-		pf_dbg_entry = &(req->pf_data);
-		CAM_INFO(CAM_ICP, "req_id : %lld", req->request_id);
+		CAM_INFO(CAM_ICP, "Active req_id: %llu ctx_id: %u",
+			req->request_id, ctx->ctx_id);
 
-		rc = cam_context_dump_pf_info_to_hw(ctx, pf_dbg_entry,
-			&b_mem_found, &b_ctx_found, &resource_type, pf_info);
+		rc = cam_context_dump_pf_info_to_hw(ctx, pf_args, &req->pf_data);
 		if (rc)
-			CAM_ERR(CAM_ICP, "Failed to dump pf info");
-
-		if (b_mem_found)
-			CAM_ERR(CAM_ICP, "Found page fault in req %lld %d",
-				req->request_id, rc);
+			CAM_ERR(CAM_ICP, "Failed to dump pf info ctx_id: %u state: %d",
+				ctx->ctx_id, ctx->state);
 	}
 
-end:
+	/*
+	 * Faulted ctx found. Since IPE/BPS instances are shared among contexts,
+	 * faulted ctx is found if and only if the context contains
+	 * faulted buffer
+	 */
+	if (pf_args->pf_context_info.ctx_found) {
+		/* Send PF notification to UMD if PF found on current CTX */
+		rc = cam_context_send_pf_evt(ctx, pf_args);
+		if (rc)
+			CAM_ERR(CAM_ICP,
+				"Failed to notify PF event to userspace rc: %d", rc);
+	}
+
 	return rc;
 }
 
