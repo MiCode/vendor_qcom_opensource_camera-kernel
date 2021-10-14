@@ -30,6 +30,7 @@
 #include "cam_debug_util.h"
 #include "cam_smmu_api.h"
 #include "camera_main.h"
+#include "cam_common_util.h"
 
 #define CAM_ICP_DEV_NAME        "cam-icp"
 
@@ -49,6 +50,23 @@ static const struct of_device_id cam_icp_dt_match[] = {
 	{.compatible = "qcom,cam-icp"},
 	{}
 };
+
+static int cam_icp_dev_err_inject_cb(void *err_param)
+{
+	int i  = 0;
+
+	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
+		if (g_icp_dev.ctx[i].dev_hdl ==
+			((struct cam_err_inject_param *)err_param)->dev_hdl) {
+			CAM_INFO(CAM_ICP, "ICP err inject dev_hdl found:%d",
+				g_icp_dev.ctx[i].dev_hdl);
+			cam_context_add_err_inject(&g_icp_dev.ctx[i], err_param);
+			return 0;
+		}
+	}
+	CAM_ERR(CAM_ICP, "No dev hdl found");
+	return -ENODEV;
+}
 
 static void cam_icp_dev_iommu_fault_handler(struct cam_smmu_pf_info *pf_info)
 {
@@ -222,6 +240,9 @@ static int cam_icp_component_bind(struct device *dev,
 		CAM_ERR(CAM_ICP, "ICP node init failed");
 		goto ctx_fail;
 	}
+
+	cam_common_register_err_inject_cb(cam_icp_dev_err_inject_cb,
+		CAM_COMMON_ERR_INJECT_HW_ICP);
 
 	node->sd_handler = cam_icp_subdev_close_internal;
 	cam_smmu_set_client_page_fault_handler(iommu_hdl,

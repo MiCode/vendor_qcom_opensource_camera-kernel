@@ -1575,6 +1575,26 @@ end:
 	*bytes_updated = bytes_written;
 }
 
+int cam_context_err_to_hw(struct cam_context *ctx, void *args)
+{
+	int rc = -EINVAL;
+
+	if (!ctx || !args) {
+		CAM_ERR(CAM_CTXT, "invalid params for error injection");
+		return rc;
+	}
+
+	if (ctx->hw_mgr_intf->hw_inject_err) {
+		ctx->hw_mgr_intf->hw_inject_err(ctx->ctxt_to_hw_map, args);
+		rc = 0;
+	} else {
+		CAM_ERR(CAM_CTXT, "hw_intf cb absent for dev hdl: %lld, ctx id: %lld",
+			ctx->dev_hdl, ctx->ctx_id);
+	}
+
+	return rc;
+}
+
 int cam_context_mini_dump(struct cam_context *ctx, void *args)
 {
 	struct cam_hw_mini_dump_info *md;

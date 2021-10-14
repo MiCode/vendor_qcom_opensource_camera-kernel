@@ -2248,6 +2248,33 @@ static const char *cam_icp_error_handle_id_to_type(
 	return name;
 }
 
+static inline void cam_icp_mgr_validate_inject_err(uint64_t current_req_id, uint32_t *event_id,
+		struct cam_hw_done_event_data *buf_data, struct cam_icp_hw_ctx_data *ctx_data)
+{
+	if (ctx_data->err_inject_params.err_req_id == current_req_id) {
+		switch (ctx_data->err_inject_params.err_code) {
+		case CAM_SYNC_ICP_EVENT_FRAME_PROCESS_FAILURE:
+			*event_id = CAM_CTX_EVT_ID_ERROR;
+			buf_data->evt_param = CAM_SYNC_ICP_EVENT_FRAME_PROCESS_FAILURE;
+			break;
+		case CAM_SYNC_ICP_EVENT_CONFIG_ERR:
+			*event_id = CAM_CTX_EVT_ID_ERROR;
+			buf_data->evt_param = CAM_SYNC_ICP_EVENT_CONFIG_ERR;
+			break;
+		default:
+			CAM_INFO(CAM_ICP, "ICP error code not supported: %d",
+				ctx_data->err_inject_params.err_code);
+			return;
+		}
+	} else
+		return;
+
+	CAM_INFO(CAM_ICP, "ICP Err Induced! err_code: %u, req_id: %llu",
+		ctx_data->err_inject_params.err_code, current_req_id);
+
+	memset(&(ctx_data->err_inject_params), 0, sizeof(struct cam_hw_err_param));
+}
+
 static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 {
 	int i;
@@ -2346,6 +2373,9 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 	CAM_TRACE(CAM_ICP,
 		"[%s]: BufDone Req %llu event_id %d",
 		ctx_data->ctx_id_string, hfi_frame_process->request_id[idx], event_id);
+
+	if (ctx_data->err_inject_params.is_valid)
+		cam_icp_mgr_validate_inject_err(request_id, &event_id, &buf_data, ctx_data);
 
 	buf_data.request_id = hfi_frame_process->request_id[idx];
 	icp_done_evt.evt_id = event_id;
@@ -3914,6 +3944,8 @@ static int cam_icp_mgr_release_ctx(struct cam_icp_hw_mgr *hw_mgr, int ctx_id)
 	}
 
 	mutex_lock(&hw_mgr->ctx_data[ctx_id].ctx_mutex);
+	memset(&(hw_mgr->ctx_data[ctx_id].err_inject_params), 0,
+		sizeof(struct cam_hw_err_param));
 	cam_icp_remove_ctx_bw(hw_mgr, &hw_mgr->ctx_data[ctx_id]);
 	if (hw_mgr->ctx_data[ctx_id].state !=
 		CAM_ICP_CTX_STATE_ACQUIRED) {
@@ -6926,6 +6958,19 @@ static int cam_icp_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 	return rc;
 }
 
+static void cam_icp_mgr_inject_err(void *hw_mgr_priv, void *hw_err_inject_args)
+{
+	struct cam_icp_hw_ctx_data *ctx_data = hw_mgr_priv;
+
+	ctx_data->err_inject_params.err_code   = ((struct cam_err_inject_param *)
+		hw_err_inject_args)->err_code;
+	ctx_data->err_inject_params.err_type   = ((struct cam_err_inject_param *)
+		hw_err_inject_args)->err_type;
+	ctx_data->err_inject_params.err_req_id = ((struct cam_err_inject_param *)
+		hw_err_inject_args)->req_id;
+	ctx_data->err_inject_params.is_valid   = true;
+}
+
 int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	int *iommu_hdl, cam_icp_mini_dump_cb mini_dump_cb)
 {
@@ -6955,6 +7000,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	hw_mgr_intf->hw_flush = cam_icp_mgr_hw_flush;
 	hw_mgr_intf->hw_cmd = cam_icp_mgr_cmd;
 	hw_mgr_intf->hw_dump = cam_icp_mgr_hw_dump;
+	hw_mgr_intf->hw_inject_err = cam_icp_mgr_inject_err;
 
 	icp_hw_mgr.secure_mode = CAM_SECURE_MODE_NON_SECURE;
 	icp_hw_mgr.mini_dump_cb = mini_dump_cb;

@@ -65,6 +65,10 @@ typedef int (*cam_ctx_recovery_cb_func)(void *context,
 typedef int (*cam_ctx_mini_dump_cb_func)(void *context,
 	void *args);
 
+/* ctx error inject callback function type */
+typedef int (*cam_ctx_err_inject_cb_func)(void *context,
+	void *args);
+
 /**
  * struct cam_hw_update_entry - Entry for hardware config
  *
@@ -497,6 +501,21 @@ struct cam_hw_mini_dump_info {
 };
 
 /**
+ * cam_hw_err_param - cam hHW error injection parameters
+ *
+ * @err_type         error type for the injected error
+ * @err_code         error code for the injected error
+ * @err_req_id       Req Id for which the error is injected
+ * @is_valid         bool flag to indicate if error injection is enabled for a context
+ */
+struct cam_hw_err_param {
+	uint32_t   err_type;
+	uint32_t   err_code;
+	uint64_t   err_req_id;
+	bool       is_valid;
+};
+
+/**
  * cam_hw_mgr_intf - HW manager interface
  *
  * @hw_mgr_priv:               HW manager object
@@ -526,6 +545,7 @@ struct cam_hw_mini_dump_info {
  * @hw_reset:                  Function pointer for HW reset
  * @hw_dump:                   Function pointer for HW dump
  * @hw_recovery:               Function pointer for HW recovery callback
+ * @hw_inject_err              Function pointer for HW error injection callback
  *
  */
 struct cam_hw_mgr_intf {
@@ -549,6 +569,7 @@ struct cam_hw_mgr_intf {
 	int (*hw_reset)(void *hw_priv, void *hw_reset_args);
 	int (*hw_dump)(void *hw_priv, void *hw_dump_args);
 	int (*hw_recovery)(void *hw_priv, void *hw_recovery_args);
+	void (*hw_inject_err)(void *hw_priv, void *hw_err_inject_args);
 };
 
 #endif /* _CAM_HW_MGR_INTF_H_ */

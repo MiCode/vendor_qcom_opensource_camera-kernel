@@ -271,6 +271,7 @@ struct cam_ctx_clk_info {
  * @watch_dog_reset_counter: Counter for watch dog reset
  * @icp_dev_io_info: io config resource
  * @last_flush_req: last flush req for this ctx
+ * @err_inject_params: Error injection data for hw_mgr_ctx
  * @abort_timed_out: Indicates if abort timed out
  */
 struct cam_icp_hw_ctx_data {
@@ -295,6 +296,7 @@ struct cam_icp_hw_ctx_data {
 	struct cam_icp_acquire_dev_info icp_dev_io_info;
 	uint64_t last_flush_req;
 	char ctx_id_string[128];
+	struct cam_hw_err_param err_inject_params;
 	bool abort_timed_out;
 };
 

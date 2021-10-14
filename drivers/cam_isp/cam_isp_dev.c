@@ -19,8 +19,24 @@
 #include "cam_debug_util.h"
 #include "cam_smmu_api.h"
 #include "camera_main.h"
+#include "cam_common_util.h"
 
 static struct cam_isp_dev g_isp_dev;
+
+static int cam_isp_dev_err_inject_cb(void *err_param)
+{
+	int i  = 0;
+
+	for (i = 0; i < g_isp_dev.max_context; i++) {
+		if ((g_isp_dev.ctx[i].dev_hdl) ==
+			((struct cam_err_inject_param *)err_param)->dev_hdl) {
+			cam_context_add_err_inject(&g_isp_dev.ctx[i], err_param);
+			return 0;
+		}
+	}
+	CAM_ERR(CAM_ISP, "no dev hdl found for IFE");
+	return -ENODEV;
+}
 
 static void cam_isp_dev_iommu_fault_handler(struct cam_smmu_pf_info *pf_info)
 {
@@ -179,6 +195,9 @@ static int cam_isp_dev_component_bind(struct device *dev,
 			goto kfree;
 		}
 	}
+
+	cam_common_register_err_inject_cb(cam_isp_dev_err_inject_cb,
+		CAM_COMMON_ERR_INJECT_HW_ISP);
 
 	rc = cam_node_init(node, &hw_mgr_intf, g_isp_dev.ctx,
 			g_isp_dev.max_context, CAM_ISP_DEV_NAME);

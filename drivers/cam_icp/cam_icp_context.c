@@ -111,6 +111,8 @@ static int __cam_icp_release_dev_in_acquired(struct cam_context *ctx,
 	if (rc)
 		CAM_ERR(CAM_ICP, "Unable to release device");
 
+	cam_common_release_err_params(ctx->dev_hdl);
+
 	ctx->state = CAM_CTX_AVAILABLE;
 	trace_cam_context_state("ICP", ctx);
 	return rc;
@@ -326,6 +328,48 @@ static int __cam_icp_ctx_handle_hw_event(void *ctx,
 	return rc;
 }
 
+static int cam_icp_context_inject_error(void *context, void *err_param)
+{
+	int rc = 0;
+	uint32_t err_code;
+	uint32_t err_type;
+	uint64_t req_id;
+	struct cam_context *ctx = (struct cam_context *)context;
+
+	if (!err_param) {
+		CAM_ERR(CAM_ICP, "err_params is not valid");
+		return -EINVAL;
+	}
+
+	err_code = ((struct cam_err_inject_param *)err_param)->err_code;
+	err_type = ((struct cam_err_inject_param *)err_param)->err_type;
+	req_id = ((struct cam_err_inject_param *)err_param)->req_id;
+
+	switch (err_type) {
+	case CAM_SYNC_STATE_SIGNALED_ERROR:
+		switch (err_code) {
+		case CAM_SYNC_ICP_EVENT_FRAME_PROCESS_FAILURE:
+		case CAM_SYNC_ICP_EVENT_CONFIG_ERR:
+			break;
+		default:
+			CAM_ERR(CAM_ICP, "ICP Error code %d not supported!", err_code);
+			return -EINVAL;
+		}
+		break;
+	default:
+		CAM_ERR(CAM_ICP, "ICP Error type: %d not supported!", err_code);
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_ICP,
+		"Err inject params: err_code: %u err_type: %u, to dev_hdl: %lld",
+		err_code, err_type, ctx->dev_hdl);
+
+	rc = cam_context_err_to_hw(ctx, err_param);
+
+	return rc;
+}
+
 static struct cam_ctx_ops
 	cam_icp_ctx_state_machine[CAM_CTX_STATE_MAX] = {
 	/* Uninit */
@@ -356,6 +400,7 @@ static struct cam_ctx_ops
 		.irq_ops = __cam_icp_ctx_handle_hw_event,
 		.pagefault_ops = cam_icp_context_dump_active_request,
 		.mini_dump_ops = cam_icp_context_mini_dump,
+		.err_inject_ops = cam_icp_context_inject_error,
 	},
 	/* Ready */
 	{
@@ -370,6 +415,7 @@ static struct cam_ctx_ops
 		.irq_ops = __cam_icp_ctx_handle_hw_event,
 		.pagefault_ops = cam_icp_context_dump_active_request,
 		.mini_dump_ops = cam_icp_context_mini_dump,
+		.err_inject_ops = cam_icp_context_inject_error,
 	},
 	/* Flushed */
 	{
@@ -382,6 +428,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_icp_context_dump_active_request,
 		.mini_dump_ops = cam_icp_context_mini_dump,
+		.err_inject_ops = cam_icp_context_inject_error,
 	},
 };
 

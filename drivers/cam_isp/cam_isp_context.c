@@ -4009,6 +4009,24 @@ static struct cam_isp_ctx_irq_ops
 	},
 };
 
+static inline int cam_isp_context_apply_error(struct cam_hw_err_param *err_params,
+	uint64_t current_req_id, struct cam_context *ctx)
+{
+	int rc = 0;
+
+	if (err_params->err_req_id == current_req_id) {
+		CAM_INFO(CAM_ISP,
+			"Err inject for req: %llu, err_code: %d, err_type: %d ctx id: %d",
+			current_req_id, err_params->err_code, err_params->err_type, ctx->ctx_id);
+
+		__cam_isp_ctx_notify_v4l2_error_event(err_params->err_type, err_params->err_code,
+			current_req_id, ctx);
+		memset(err_params, 0, sizeof(struct cam_hw_err_param));
+		return rc;
+	}
+	return -EINVAL;
+}
+
 static int __cam_isp_ctx_apply_req_in_activated_state(
 	struct cam_context *ctx, struct cam_req_mgr_apply_request *apply,
 	enum cam_isp_ctx_activated_substate next_state)
@@ -4118,6 +4136,13 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 	cfg.init_packet = 0;
 	cfg.reapply_type = req_isp->reapply_type;
 	cfg.cdm_reset_before_apply = req_isp->cdm_reset_before_apply;
+
+	if (ctx_isp->err_inject_params.is_valid) {
+		rc = cam_isp_context_apply_error(&(ctx_isp->err_inject_params),
+			req->request_id, ctx_isp->base);
+		if (!rc)
+			goto end;
+	}
 
 	atomic_set(&ctx_isp->apply_in_progress, 1);
 
@@ -5625,6 +5650,9 @@ static int __cam_isp_ctx_release_dev_in_top_state(struct cam_context *ctx,
 			&rel_arg);
 		ctx_isp->hw_ctx = NULL;
 	}
+
+	cam_common_release_err_params(ctx->dev_hdl);
+	memset(&(ctx_isp->err_inject_params), 0, sizeof(struct cam_hw_err_param));
 
 	ctx->session_hdl = -1;
 	ctx->dev_hdl = -1;
@@ -7327,6 +7355,69 @@ static int __cam_isp_ctx_handle_irq_in_activated(void *context,
 	return rc;
 }
 
+static int cam_isp_context_inject_error(void *context, void *err_param)
+{
+	int rc = 0;
+	struct cam_context *ctx = (struct cam_context *)context;
+	struct cam_isp_context *ctx_isp = ctx->ctx_priv;
+	uint64_t req_id;
+	uint32_t err_code;
+	uint32_t err_type;
+
+	if (!err_param) {
+		CAM_ERR(CAM_ISP, "err_param not valid");
+		return -EINVAL;
+	}
+
+	req_id     = ((struct cam_err_inject_param *)err_param)->req_id;
+	err_type   = ((struct cam_err_inject_param *)err_param)->err_type;
+	err_code   = ((struct cam_err_inject_param *)err_param)->err_code;
+
+	switch (err_type) {
+	case CAM_REQ_MGR_ERROR_TYPE_RECOVERY:
+		switch (err_code) {
+		case CAM_REQ_MGR_LINK_STALLED_ERROR:
+		case CAM_REQ_MGR_CSID_FIFO_OVERFLOW_ERROR:
+		case CAM_REQ_MGR_CSID_RECOVERY_OVERFLOW_ERROR:
+		case CAM_REQ_MGR_CSID_PIXEL_COUNT_MISMATCH:
+		case CAM_REQ_MGR_CSID_ERR_ON_SENSOR_SWITCHING:
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+			return -EINVAL;
+		}
+		break;
+	case CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY:
+		switch (err_code) {
+		case CAM_REQ_MGR_CSID_FATAL_ERROR:
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+			return -EINVAL;
+		}
+		break;
+	case CAM_REQ_MGR_ERROR_TYPE_SOF_FREEZE:
+		err_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		break;
+	case CAM_REQ_MGR_ERROR_TYPE_PAGE_FAULT:
+		err_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		break;
+	default:
+		CAM_ERR(CAM_ISP, "err type not supported %d", err_type);
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_ISP, "inject err isp code: %d type: %d ctx id: %d",
+		err_code, err_type, ctx->ctx_id);
+
+	ctx_isp->err_inject_params.err_code = err_code;
+	ctx_isp->err_inject_params.err_type = err_type;
+	ctx_isp->err_inject_params.err_req_id   = req_id;
+	ctx_isp->err_inject_params.is_valid = true;
+
+	return rc;
+}
+
 /* top state machine */
 static struct cam_ctx_ops
 	cam_isp_ctx_top_state_machine[CAM_CTX_STATE_MAX] = {
@@ -7363,6 +7454,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
+		.err_inject_ops = cam_isp_context_inject_error,
 	},
 	/* Ready */
 	{
@@ -7381,6 +7473,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
+		.err_inject_ops = cam_isp_context_inject_error,
 	},
 	/* Flushed */
 	{
@@ -7398,6 +7491,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
+		.err_inject_ops = cam_isp_context_inject_error,
 	},
 	/* Activated */
 	{
@@ -7421,6 +7515,7 @@ static struct cam_ctx_ops
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
 		.recovery_ops = cam_isp_context_hw_recovery,
+		.err_inject_ops = cam_isp_context_inject_error,
 	},
 };
 

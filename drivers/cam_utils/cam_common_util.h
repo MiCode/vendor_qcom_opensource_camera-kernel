@@ -19,6 +19,14 @@
 
 #define CAM_COMMON_HW_DUMP_TAG_MAX_LEN 64
 
+#define CAM_COMMON_ERR_MODULE_PARAM_MAX_LENGTH  4096
+#define CAM_COMMON_ERR_INJECT_BUFFER_LEN  200
+#define CAM_COMMON_ERR_INJECT_DEV_MAX     5
+#define CAM_COMMON_ERR_INJECT_PARAM_NUM   5
+#define CAM_COMMON_IFE_NODE "IFE"
+#define CAM_COMMON_ICP_NODE "IPE"
+#define CAM_COMMON_JPEG_NODE "JPEG"
+
 #define PTR_TO_U64(ptr) ((uint64_t)(uintptr_t)ptr)
 #define U64_TO_PTR(ptr) ((void *)(uintptr_t)ptr)
 
@@ -76,6 +84,54 @@ struct cam_common_mini_dump_data {
 	void          *waddr[CAM_COMMON_MINI_DUMP_DEV_NUM];
 	uint8_t        name[CAM_COMMON_MINI_DUMP_DEV_NUM][CAM_COMMON_MINI_DUMP_DEV_NAME_LEN];
 	unsigned long  size[CAM_COMMON_MINI_DUMP_DEV_NUM];
+};
+
+
+typedef int (*cam_common_err_inject_cb) (void *err_param);
+int cam_common_release_err_params(uint64_t dev_hdl);
+
+enum cam_common_err_inject_hw_id {
+	CAM_COMMON_ERR_INJECT_HW_ISP,
+	CAM_COMMON_ERR_INJECT_HW_ICP,
+	CAM_COMMON_ERR_INJECT_HW_JPEG,
+	CAM_COMMON_ERR_INJECT_HW_MAX
+};
+
+enum cam_common_err_inject_input_param_pos {
+	HW_NAME = 0,
+	REQ_ID,
+	ERR_TYPE,
+	ERR_CODE,
+	DEV_HDL
+};
+
+/**
+ * @req_id  : req id for err to be injected
+ * @dev_hdl : dev_hdl for the context
+ * @err_type: error type for error request
+ * @err_code: error code for error request
+ * @hw_id   : hw id representing hw nodes of type cam_common_err_inject_hw_id
+ */
+struct cam_err_inject_param {
+	struct list_head  list;
+	uint64_t          req_id;
+	uint64_t          dev_hdl;
+	uint32_t          err_type;
+	uint32_t          err_code;
+	uint8_t           hw_id;
+};
+/**
+ * struct cam_common_err_inject_info
+ * @err_inject_cb      : address of callback
+ * @active_err_ctx_list: list containing active err inject requests
+ * @num_hw_registered  : number of callbacks registered
+ * @is_list_initialised: bool to check init for err_inject list
+ */
+struct cam_common_err_inject_info {
+	cam_common_err_inject_cb    err_inject_cb[CAM_COMMON_ERR_INJECT_HW_MAX];
+	struct list_head            active_err_ctx_list;
+	uint8_t                     num_hw_registered;
+	bool                        is_list_initialised;
 };
 
 /**
@@ -257,5 +313,19 @@ int cam_common_user_dump_helper(
 	size_t       size,
 	const char  *tag,
 	...);
+
+/**
+ * cam_common_register_err_inject_cb()
+ *
+ * @brief                  common interface to register error inject cb
+ *
+ * @err_inject_cb:         Pointer to err_inject_cb
+ * @hw_id:                 HW id of the HW driver registering
+ *
+ * @return:                0 if success in register non-zero if failes
+ */
+int cam_common_register_err_inject_cb(
+	cam_common_err_inject_cb err_inject_cb,
+	enum cam_common_err_inject_hw_id hw_id);
 
 #endif /* _CAM_COMMON_UTIL_H_ */

@@ -8,6 +8,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
+#include <media/cam_sync.h>
 #include "cam_mem_mgr.h"
 #include "cam_jpeg_context.h"
 #include "cam_context_utils.h"
@@ -97,6 +98,8 @@ static int __cam_jpeg_ctx_release_dev_in_acquired(struct cam_context *ctx,
 	if (rc)
 		CAM_ERR(CAM_JPEG, "Unable to release device %d", rc);
 
+	cam_common_release_err_params(ctx->dev_hdl);
+
 	ctx->state = CAM_CTX_AVAILABLE;
 
 	return rc;
@@ -153,6 +156,57 @@ static int __cam_jpeg_ctx_stop_dev_in_acquired(struct cam_context *ctx,
 	return rc;
 }
 
+static int cam_jpeg_context_inject_error(void *context, void *err_param)
+{
+	int rc = 0;
+	struct cam_context *ctx = (struct cam_context *)context;
+	uint64_t req_id;
+	uint32_t err_code;
+	uint32_t err_type;
+
+	if (!err_param) {
+		CAM_ERR(CAM_ISP, "err_param not valid");
+		return -EINVAL;
+	}
+
+	req_id     = ((struct cam_err_inject_param *)err_param)->req_id;
+	err_code   = ((struct cam_err_inject_param *)err_param)->err_code;
+	err_type   = ((struct cam_err_inject_param *)err_param)->err_type;
+
+	switch (err_type) {
+	case CAM_REQ_MGR_RETRY_EVENT:
+		switch (err_code) {
+		case CAM_REQ_MGR_JPEG_THUBNAIL_SIZE_ERROR:
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+			return -EINVAL;
+		}
+		break;
+	case CAM_SYNC_STATE_SIGNALED_ERROR:
+		switch (err_code) {
+		case CAM_SYNC_JPEG_EVENT_INVLD_CMD:
+		case CAM_SYNC_JPEG_EVENT_SET_IRQ_CB:
+		case CAM_SYNC_JPEG_EVENT_HW_RESET_FAILED:
+		case CAM_SYNC_JPEG_EVENT_CDM_CHANGE_BASE_ERR:
+		case CAM_SYNC_JPEG_EVENT_CDM_CONFIG_ERR:
+		case CAM_SYNC_JPEG_EVENT_START_HW_ERR:
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+			return -EINVAL;
+		}
+		break;
+	default:
+		CAM_ERR(CAM_ISP, "err type not supported %d", err_type);
+		return -EINVAL;
+	}
+
+	rc = cam_context_err_to_hw(ctx, err_param);
+
+	return rc;
+}
+
 /* top state machine */
 static struct cam_ctx_ops
 	cam_jpeg_ctx_state_machine[CAM_CTX_STATE_MAX] = {
@@ -184,6 +238,7 @@ static struct cam_ctx_ops
 		.irq_ops = __cam_jpeg_ctx_handle_buf_done_in_acquired,
 		.pagefault_ops = cam_jpeg_context_dump_active_request,
 		.mini_dump_ops = cam_jpeg_context_mini_dump,
+		.err_inject_ops = cam_jpeg_context_inject_error,
 	},
 	/* Ready */
 	{

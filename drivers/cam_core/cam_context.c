@@ -769,3 +769,31 @@ void cam_context_getref(struct cam_context *ctx)
 		ctx->dev_hdl, refcount_read(&(ctx->refcount.refcount)),
 		ctx->dev_name);
 }
+
+int cam_context_add_err_inject(struct cam_context *ctx, void *err_param)
+{
+	int rc = 0;
+
+	if (!ctx->state_machine) {
+		CAM_ERR(CAM_CORE, "Context is not ready");
+		return -EINVAL;
+	}
+
+	mutex_lock(&ctx->ctx_mutex);
+	if ((ctx->state > CAM_CTX_AVAILABLE) &&
+		(ctx->state < CAM_CTX_STATE_MAX)) {
+		if (ctx->state_machine[ctx->state].err_inject_ops) {
+			rc = ctx->state_machine[ctx->state].err_inject_ops(
+				ctx, err_param);
+		} else {
+			CAM_WARN(CAM_CORE, "No err inject ops in dev %d,state %d",
+				ctx->dev_hdl, ctx->state);
+		}
+	} else {
+		rc = -EINVAL;
+	}
+
+	mutex_unlock(&ctx->ctx_mutex);
+
+	return rc;
+}

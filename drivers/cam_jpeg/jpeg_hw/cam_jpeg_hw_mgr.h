@@ -104,6 +104,7 @@ struct cam_jpeg_hw_cfg_req {
  * @wait_complete: Completion info
  * @cdm_cmd: Cdm cmd submitted for that context.
  * @mini_dump_cb: Mini dump cb
+ * @err_inject_params: Error injection params for hw_mgr_ctx
  */
 struct cam_jpeg_hw_ctx_data {
 	void *context_priv;
@@ -114,6 +115,7 @@ struct cam_jpeg_hw_ctx_data {
 	struct completion wait_complete;
 	struct cam_cdm_bl_request *cdm_cmd;
 	cam_ctx_mini_dump_cb_func      mini_dump_cb;
+	struct cam_hw_err_param err_inject_params;
 };
 
 /**

@@ -16,10 +16,27 @@
 #include "cam_debug_util.h"
 #include "cam_smmu_api.h"
 #include "camera_main.h"
+#include "cam_common_util.h"
 
 #define CAM_JPEG_DEV_NAME "cam-jpeg"
 
 static struct cam_jpeg_dev g_jpeg_dev;
+
+static int cam_jpeg_dev_err_inject_cb(void *err_param)
+{
+	int i  = 0;
+
+	for (i = 0; i < CAM_JPEG_CTX_MAX; i++) {
+		if (g_jpeg_dev.ctx[i].dev_hdl ==
+			((struct cam_err_inject_param *)err_param)->dev_hdl) {
+			CAM_INFO(CAM_ISP, "dev_hdl found:%d", g_jpeg_dev.ctx[i].dev_hdl);
+			cam_context_add_err_inject(&g_jpeg_dev.ctx[i], err_param);
+			return 0;
+		}
+	}
+	CAM_ERR(CAM_ISP, "no dev hdl found jpeg");
+	return -EINVAL;
+}
 
 static void cam_jpeg_dev_iommu_fault_handler(
 	struct cam_smmu_pf_info *pf_info)
@@ -154,6 +171,9 @@ static int cam_jpeg_dev_component_bind(struct device *dev,
 			goto ctx_init_fail;
 		}
 	}
+
+	cam_common_register_err_inject_cb(cam_jpeg_dev_err_inject_cb,
+		CAM_COMMON_ERR_INJECT_HW_JPEG);
 
 	rc = cam_node_init(node, &hw_mgr_intf, g_jpeg_dev.ctx, CAM_JPEG_CTX_MAX,
 		CAM_JPEG_DEV_NAME);
