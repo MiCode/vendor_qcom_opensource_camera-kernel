@@ -8,6 +8,7 @@
 
 #include <linux/version.h>
 #include <linux/dma-buf.h>
+#include <linux/dma-iommu.h>
 
 #include "cam_csiphy_dev.h"
 #include "cam_cpastop_hw.h"
@@ -46,5 +47,7 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 	bool protect, int32_t offset);
 void cam_free_clear(const void *);
 int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr);
+void cam_smmu_util_iommu_custom(struct device *dev,
+	dma_addr_t discard_start, size_t discard_length);
 
 #endif /* _CAM_COMPAT_H_ */

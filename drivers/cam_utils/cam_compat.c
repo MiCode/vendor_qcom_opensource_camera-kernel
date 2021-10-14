@@ -191,6 +191,12 @@ void cam_free_clear(const void * ptr)
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+void cam_smmu_util_iommu_custom(struct device *dev,
+	dma_addr_t discard_start, size_t discard_length)
+{
+	return;
+}
+
 int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
 {
 	struct dma_buf_map mapping;
@@ -206,6 +212,17 @@ int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
 }
 
 #else
+void cam_smmu_util_iommu_custom(struct device *dev,
+	dma_addr_t discard_start, size_t discard_length)
+{
+	iommu_dma_enable_best_fit_algo(dev);
+
+	if (discard_start)
+		iommu_dma_reserve_iova(dev, discard_start, discard_length);
+
+	return;
+}
+
 int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
 {
 	int error_code = 0;
