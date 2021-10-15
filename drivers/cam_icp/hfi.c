@@ -1070,7 +1070,8 @@ int hfi_write_cmd(void *cmd_ptr)
 
 	mutex_lock(&hfi_cmd_q_mutex);
 
-	presil_rc = cam_presil_hfi_write_cmd(cmd_ptr, (*(uint32_t *)cmd_ptr));
+	presil_rc = cam_presil_hfi_write_cmd(cmd_ptr, (*(uint32_t *)cmd_ptr),
+		CAM_PRESIL_CLIENT_ID_CAMERA);
 
 	if ((presil_rc != CAM_PRESIL_SUCCESS) && (presil_rc != CAM_PRESIL_BLOCKED)) {
 		CAM_ERR(CAM_HFI, "failed presil rc %d", presil_rc);
@@ -1103,7 +1104,8 @@ int hfi_read_message(uint32_t *pmsg, uint8_t q_id,
 	memset(pmsg, 0x0, sizeof(uint32_t) * 256 /* ICP_MSG_BUF_SIZE */);
 	*words_read = 0;
 
-	presil_rc = cam_presil_hfi_read_message(pmsg, q_id, words_read);
+	presil_rc = cam_presil_hfi_read_message(pmsg, q_id, words_read,
+		CAM_PRESIL_CLIENT_ID_CAMERA);
 
 	if ((presil_rc != CAM_PRESIL_SUCCESS) && (presil_rc != CAM_PRESIL_BLOCKED)) {
 		CAM_ERR(CAM_HFI, "failed presil rc %d", presil_rc);

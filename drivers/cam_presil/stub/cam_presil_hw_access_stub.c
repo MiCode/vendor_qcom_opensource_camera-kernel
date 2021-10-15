@@ -50,13 +50,13 @@ int cam_presil_readl_poll_timeout(void __iomem *mem_address, uint32_t val,
 	return CAM_PRESIL_SUCCESS;
 }
 
-int cam_presil_hfi_write_cmd(void *hfi_cmd, uint32_t cmdlen)
+int cam_presil_hfi_write_cmd(void *hfi_cmd, uint32_t cmdlen, uint32_t client_id)
 {
 	return CAM_PRESIL_SUCCESS;
 }
 
 int cam_presil_hfi_read_message(uint32_t *pmsg, uint8_t q_id,
-	uint32_t *words_read)
+	uint32_t *words_read, uint32_t client_id)
 {
 	return CAM_PRESIL_SUCCESS;
 }
