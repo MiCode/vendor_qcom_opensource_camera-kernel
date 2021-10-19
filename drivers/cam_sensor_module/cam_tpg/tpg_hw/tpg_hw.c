@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw.h"
@@ -80,6 +81,8 @@ static const char * const tpg_interleaving_format_string[] = {
 	"TPG_INTERLEAVING_FORMAT_INVALID",
 	"TPG_INTERLEAVING_FORMAT_FRAME",
 	"TPG_INTERLEAVING_FORMAT_LINE",
+	"TPG_INTERLEAVING_FORMAT_SHDR",
+	"TPG_INTERLEAVING_FORMAT_SparsePD",
 	"TPG_INTERLEAVING_FORMAT_MAX"
 };
 
