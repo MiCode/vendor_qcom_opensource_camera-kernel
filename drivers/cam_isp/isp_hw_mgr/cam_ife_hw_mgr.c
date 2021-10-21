@@ -80,6 +80,15 @@ static int cam_ife_mgr_prog_default_settings(
 static int cam_ife_mgr_cmd_get_sof_timestamp(struct cam_ife_hw_mgr_ctx *ife_ctx,
 	uint64_t *time_stamp, uint64_t *boot_time_stamp, uint64_t *prev_time_stamp);
 
+static bool cam_isp_is_ctx_primary_rdi(struct cam_ife_hw_mgr_ctx  *ctx)
+{
+	/* check for RDI only and RDI PD context*/
+	if (ctx->flags.is_rdi_only_context || ctx->flags.rdi_pd_context)
+		return true;
+
+	return false;
+}
+
 static int cam_ife_mgr_finish_clk_bw_update(
 	struct cam_ife_hw_mgr_ctx *ctx,
 	uint64_t request_id, bool skip_clk_data_rst)
@@ -793,8 +802,8 @@ static int cam_ife_mgr_csid_start_hw(
 				continue;
 
 			if (primary_rdi_csid_res == hw_mgr_res->res_id) {
-				hw_mgr_res->hw_res[0]->rdi_only_ctx =
-				ctx->flags.is_rdi_only_context;
+				hw_mgr_res->hw_res[0]->is_rdi_primary_res =
+					cam_isp_is_ctx_primary_rdi(ctx);
 			}
 
 			CAM_DBG(CAM_ISP, "csid[%u] res:%s res_id %d cnt %u",
@@ -882,7 +891,7 @@ static void cam_ife_hw_mgr_stop_hw_res(
 				CAM_ISP_HW_CMD_STOP_BUS_ERR_IRQ,
 				&dummy_args, sizeof(dummy_args));
 		}
-		isp_hw_res->hw_res[i]->rdi_only_ctx = false;
+		isp_hw_res->hw_res[i]->is_rdi_primary_res = false;
 	}
 }
 
@@ -1536,7 +1545,7 @@ static int cam_ife_mgr_csid_stop_hw(
 		stop.stop_cmd = stop_cmd;
 		hw_intf->hw_ops.stop(hw_intf->hw_priv, &stop, sizeof(stop));
 		for (i = 0; i < cnt; i++)
-			stop_res[i]->rdi_only_ctx = false;
+			stop_res[i]->is_rdi_primary_res = false;
 	}
 
 	return 0;
@@ -4347,17 +4356,6 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 		}
 	}
 
-	if (in_port->rdi_count) {
-		/* get ife csid RDI resource */
-		rc = cam_ife_hw_mgr_acquire_res_ife_csid_rdi(ife_ctx, in_port,
-			acquired_hw_path);
-		if (rc) {
-			CAM_ERR(CAM_ISP,
-				"Acquire IFE CSID RDI resource Failed");
-			goto err;
-		}
-	}
-
 	if (in_port->ppp_count) {
 		/* get ife csid PPP resource */
 
@@ -4374,6 +4372,17 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Acquire IFE CSID PPP resource Failed");
+			goto err;
+		}
+	}
+
+	if (in_port->rdi_count) {
+		/* get ife csid RDI resource */
+		rc = cam_ife_hw_mgr_acquire_res_ife_csid_rdi(ife_ctx, in_port,
+			acquired_hw_path);
+		if (rc) {
+			CAM_ERR(CAM_ISP,
+				"Acquire IFE CSID RDI resource Failed");
 			goto err;
 		}
 	}
@@ -4856,6 +4865,14 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		CAM_DBG(CAM_ISP, "RDI only context");
 	}
 
+	/* Check whether context has only RDI and PD resource */
+	if (!total_pix_port &&
+		(total_pd_port && total_rdi_port)) {
+		ife_ctx->flags.rdi_pd_context = true;
+		CAM_DBG(CAM_ISP, "RDI and PD context with [%u pd] [%u rdi]",
+			total_pd_port, total_rdi_port);
+	}
+
 	/* Check if all output ports are of lite  */
 	if (total_lite_port == total_pix_port + total_rdi_port)
 		ife_ctx->flags.is_lite_context = true;
@@ -5210,6 +5227,14 @@ static int cam_ife_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 	if (!total_pix_port || !total_pd_port) {
 		ife_ctx->flags.is_rdi_only_context = true;
 		CAM_DBG(CAM_ISP, "RDI only context");
+	}
+
+	/* Check whether context has only RDI and PD resource */
+	if (!total_pix_port &&
+		(total_pd_port && total_rdi_port)) {
+		ife_ctx->flags.rdi_pd_context = true;
+		CAM_DBG(CAM_ISP, "RDI and PD context with [%u pd] [%u rdi]",
+			total_pd_port, total_rdi_port);
 	}
 
 	/* acquire HW resources */
@@ -6709,9 +6734,9 @@ start_only:
 		case CAM_ISP_IFE_OUT_RES_RDI_1:
 		case CAM_ISP_IFE_OUT_RES_RDI_2:
 		case CAM_ISP_IFE_OUT_RES_RDI_3:
-			if (!res_rdi_context_set && ctx->flags.is_rdi_only_context) {
-				hw_mgr_res->hw_res[0]->rdi_only_ctx =
-					ctx->flags.is_rdi_only_context;
+			if (!res_rdi_context_set && cam_isp_is_ctx_primary_rdi(ctx)) {
+				hw_mgr_res->hw_res[0]->is_rdi_primary_res =
+					cam_isp_is_ctx_primary_rdi(ctx);
 				res_rdi_context_set = true;
 				primary_rdi_out_res = hw_mgr_res->res_id;
 			}
@@ -6741,9 +6766,10 @@ start_only:
 	/* Start the IFE mux in devices */
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_src, list) {
 		if (primary_rdi_src_res == hw_mgr_res->res_id) {
-			hw_mgr_res->hw_res[0]->rdi_only_ctx =
-				ctx->flags.is_rdi_only_context;
+			hw_mgr_res->hw_res[0]->is_rdi_primary_res =
+				cam_isp_is_ctx_primary_rdi(ctx);
 		}
+
 		rc = cam_ife_hw_mgr_start_hw_res(hw_mgr_res, ctx);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Can not start IFE Mux (%d)",
@@ -11456,7 +11482,8 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 			else if (ctx->flags.is_fe_enabled && !ctx->flags.is_offline &&
 				ctx->ctx_type != CAM_IFE_CTX_TYPE_SFE)
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_FS2;
-			else if (ctx->flags.is_rdi_only_context || ctx->flags.is_lite_context)
+			else if (ctx->flags.is_rdi_only_context || ctx->flags.is_lite_context ||
+					ctx->flags.rdi_pd_context)
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_RDI;
 			else
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_PIX;
@@ -12401,7 +12428,7 @@ static int cam_ife_hw_mgr_handle_hw_rup(
 	case CAM_ISP_HW_VFE_IN_RDI1:
 	case CAM_ISP_HW_VFE_IN_RDI2:
 	case CAM_ISP_HW_VFE_IN_RDI3:
-		if (!ife_hw_mgr_ctx->flags.is_rdi_only_context)
+		if (!cam_isp_is_ctx_primary_rdi(ife_hw_mgr_ctx))
 			break;
 		if (atomic_read(&ife_hw_mgr_ctx->overflow_pending))
 			break;
@@ -12514,7 +12541,7 @@ static int cam_ife_hw_mgr_handle_hw_sof(
 	case CAM_ISP_HW_VFE_IN_RDI1:
 	case CAM_ISP_HW_VFE_IN_RDI2:
 	case CAM_ISP_HW_VFE_IN_RDI3:
-		if (!ife_hw_mgr_ctx->flags.is_rdi_only_context)
+		if (!cam_isp_is_ctx_primary_rdi(ife_hw_mgr_ctx))
 			break;
 		cam_ife_mgr_cmd_get_sof_timestamp(ife_hw_mgr_ctx,
 			&sof_done_event_data.timestamp,

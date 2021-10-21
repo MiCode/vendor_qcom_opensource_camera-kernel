@@ -1361,7 +1361,7 @@ static int cam_sfe_bus_acquire_sfe_out(void *priv, void *acquire_args,
 	mutex_unlock(&rsrc_data->common_data->bus_mutex);
 
 	bus_priv->tasklet_info = acq_args->tasklet;
-	rsrc_node->rdi_only_ctx = 0;
+	rsrc_node->is_rdi_primary_res = false;
 	rsrc_node->res_id = out_acquire_args->out_port_info->res_type;
 	rsrc_node->tasklet_info = acq_args->tasklet;
 	rsrc_node->cdm_ops = out_acquire_args->cdm_ops;

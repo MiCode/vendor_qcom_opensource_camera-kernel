@@ -273,10 +273,10 @@ int cam_vfe_rdi_ver2_acquire_resource(
 	rdi_data     = (struct cam_vfe_mux_rdi_data *)rdi_res->res_priv;
 	acquire_data = (struct cam_vfe_acquire_args *)acquire_param;
 
-	rdi_data->event_cb    = acquire_data->event_cb;
-	rdi_data->priv        = acquire_data->priv;
-	rdi_data->sync_mode   = acquire_data->vfe_in.sync_mode;
-	rdi_res->rdi_only_ctx = 0;
+	rdi_data->event_cb          = acquire_data->event_cb;
+	rdi_data->priv              = acquire_data->priv;
+	rdi_data->sync_mode         = acquire_data->vfe_in.sync_mode;
+	rdi_res->is_rdi_primary_res = false;
 
 	return 0;
 }
@@ -330,7 +330,7 @@ static int cam_vfe_rdi_resource_start(
 		}
 	}
 
-	if (!rdi_res->rdi_only_ctx)
+	if (!rdi_res->is_rdi_primary_res)
 		goto end;
 
 	rdi_irq_mask[0] =

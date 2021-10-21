@@ -224,7 +224,6 @@ enum cam_isp_hw_cmd_type {
  * @tasklet_info:                 Tasklet structure that will be used to
  *                                schedule IRQ events related to this resource
  * @irq_handle:                   handle returned on subscribing for IRQ event
- * @rdi_only_ctx:                 resource belong to rdi only context or not
  * @init:                         function pointer to init the HW resource
  * @deinit:                       function pointer to deinit the HW resource
  * @start:                        function pointer to start the HW resource
@@ -234,6 +233,8 @@ enum cam_isp_hw_cmd_type {
  * @top_half_handler:             Top Half handler function
  * @bottom_half_handler:          Bottom Half handler function
  * @res_name:                     Name of resource
+ * @is_rdi_primary_res:           Indicates whether RDI is primiary resource or not.
+ *                                Based on this, We need to enable interrupts on RDI path only.
  */
 struct cam_isp_resource_node {
 	enum cam_isp_resource_type     res_type;
@@ -245,7 +246,6 @@ struct cam_isp_resource_node {
 	void                          *cdm_ops;
 	void                          *tasklet_info;
 	int                            irq_handle;
-	int                            rdi_only_ctx;
 
 	int (*init)(struct cam_isp_resource_node *rsrc_node,
 		void *init_args, uint32_t arg_size);
@@ -258,6 +258,7 @@ struct cam_isp_resource_node {
 	CAM_IRQ_HANDLER_TOP_HALF       top_half_handler;
 	CAM_IRQ_HANDLER_BOTTOM_HALF    bottom_half_handler;
 	uint8_t                        res_name[CAM_ISP_RES_NAME_LEN];
+	bool                           is_rdi_primary_res;
 };
 
 /*

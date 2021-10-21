@@ -3169,7 +3169,7 @@ static int cam_ife_csid_ver2_program_rdi_path(
 
 	val = csid_hw->debug_info.path_mask;
 
-	if (res->rdi_only_ctx) {
+	if (res->is_rdi_primary_res) {
 		path_cfg->handle_camif_irq = true;
 		val |= path_reg->camif_irq_mask;
 	}
