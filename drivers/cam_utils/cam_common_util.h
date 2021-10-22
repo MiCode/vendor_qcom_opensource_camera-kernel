@@ -38,6 +38,7 @@
 
 #define CAM_TRIGGER_PANIC(format, args...) panic("CAMERA - " format "\n", ##args)
 
+#define CAM_GET_BOOT_TIMESTAMP(timestamp) ktime_get_boottime_ts64(&(timestamp))
 #define CAM_GET_TIMESTAMP(timestamp) ktime_get_real_ts64(&(timestamp))
 #define CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, diff_microsec)                     \
 ({                                                                                           \

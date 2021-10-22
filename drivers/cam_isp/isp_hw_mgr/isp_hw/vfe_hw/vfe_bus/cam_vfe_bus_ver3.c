@@ -2446,7 +2446,7 @@ static void cam_vfe_bus_ver3_print_wm_info(
 	struct cam_vfe_bus_ver3_common_data  *common_data,
 	uint8_t *wm_name)
 {
-	uint32_t addr_status0, addr_status1, addr_status2, addr_status3;
+	uint32_t addr_status0, addr_status1, addr_status2, addr_status3, limiter;
 
 	addr_status0 = cam_io_r_mb(common_data->mem_base +
 		wm_data->hw_regs->addr_status_0);
@@ -2456,6 +2456,8 @@ static void cam_vfe_bus_ver3_print_wm_info(
 		wm_data->hw_regs->addr_status_2);
 	addr_status3 = cam_io_r_mb(common_data->mem_base +
 		wm_data->hw_regs->addr_status_3);
+	limiter = cam_io_r_mb(common_data->mem_base +
+		wm_data->hw_regs->bw_limiter_addr);
 
 	CAM_INFO(CAM_ISP,
 		"VFE:%u WM:%d wm_name:%s width:%u height:%u stride:%u x_init:%u en_cfg:%u acquired width:%u height:%u",
@@ -2467,13 +2469,9 @@ static void cam_vfe_bus_ver3_print_wm_info(
 		wm_data->acquired_width,
 		wm_data->acquired_height);
 	CAM_INFO(CAM_ISP,
-		"hw:%u WM:%d last consumed address:0x%x last frame addr:0x%x fifo cnt:0x%x current client address:0x%x",
-		common_data->hw_intf->hw_idx,
-		wm_data->index,
-		addr_status0,
-		addr_status1,
-		addr_status2,
-		addr_status3);
+		"VFE:%u WM:%u last consumed address:0x%x last frame addr:0x%x fifo cnt:0x%x current client address:0x%x limiter: 0x%x",
+		common_data->hw_intf->hw_idx, wm_data->index,
+		addr_status0, addr_status1, addr_status2, addr_status3, limiter);
 }
 
 static int cam_vfe_bus_ver3_print_dimensions(

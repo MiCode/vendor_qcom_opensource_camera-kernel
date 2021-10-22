@@ -503,8 +503,9 @@ int cam_vfe_top_ver4_dump_timestamps(
 	ktime_get_boottime_ts64(&ts);
 
 	CAM_INFO(CAM_ISP,
-		"VFE[%u] current monotonic timestamp:[%lld.%09lld]",
-		vfe_priv->hw_intf->hw_idx, ts.tv_sec, ts.tv_nsec);
+		"VFE[%u] res: %u current_ts: %lld:%lld epoch_factor: %u%%",
+		vfe_priv->hw_intf->hw_idx, res_id, ts.tv_sec, ts.tv_nsec,
+		vfe_priv->epoch_factor);
 
 	CAM_INFO(CAM_ISP,
 		"VFE[%u] CAMIF Error timestamp:[%lld.%09lld] SOF timestamp:[%lld.%09lld] EPOCH timestamp:[%lld.%09lld] EOF timestamp:[%lld.%09lld]",

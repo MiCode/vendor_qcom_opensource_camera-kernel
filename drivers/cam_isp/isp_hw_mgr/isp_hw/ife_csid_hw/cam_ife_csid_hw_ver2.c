@@ -113,6 +113,24 @@ static bool cam_ife_csid_ver2_disable_sof_retime(
 	return false;
 }
 
+static uint64_t __cam_ife_csid_ver2_get_time_stamp(void __iomem *mem_base,
+	uint32_t timestamp0_addr, uint32_t timestamp1_addr,
+	bool ts_comb_vcdt_en, uint32_t ts_comb_vcdt_mask)
+{
+	uint64_t timestamp_val, time_hi, time_lo;
+
+	time_hi = cam_io_r_mb(mem_base + timestamp1_addr);
+	time_lo = cam_io_r_mb(mem_base + timestamp0_addr);
+	if (ts_comb_vcdt_en)
+		time_lo &= ~ts_comb_vcdt_mask;
+
+	timestamp_val = (time_hi << 32) | time_lo;
+
+	return mul_u64_u32_div(timestamp_val,
+		CAM_IFE_CSID_QTIMER_MUL_FACTOR,
+		CAM_IFE_CSID_QTIMER_DIV_FACTOR);
+}
+
 static void cam_ife_csid_ver2_print_camif_timestamps(
 	struct cam_ife_csid_ver2_hw  *csid_hw)
 {
@@ -120,6 +138,10 @@ static void cam_ife_csid_ver2_print_camif_timestamps(
 	struct   cam_isp_resource_node         *res;
 	bool                                    found = false;
 	int                                     i;
+	struct cam_hw_soc_info                 *soc_info = &csid_hw->hw_info->soc_info;
+	const struct cam_ife_csid_ver2_path_reg_info *path_reg;
+	struct cam_ife_csid_ver2_reg_info *csid_reg =
+		(struct cam_ife_csid_ver2_reg_info *)csid_hw->core_info->csid_reg;
 
 	for (i = CAM_IFE_PIX_PATH_RES_RDI_0; i < CAM_IFE_PIX_PATH_RES_MAX; i++) {
 		res = &csid_hw->path_res[i];
@@ -148,13 +170,50 @@ static void cam_ife_csid_ver2_print_camif_timestamps(
 			break;
 	}
 
-	if (found && path_cfg)
+
+	if (found && path_cfg) {
+		path_reg = csid_reg->path_reg[res->res_id];
+
 		CAM_INFO(CAM_ISP,
-			"CSID[%u] %s SOF timestamp:[%lld.%09lld] EPOCH timestamp:[%lld.%09lld] EOF timestamp:[%lld.%09lld]",
+			"CSID[%u] %s SOF[%lld:%lld] EPOCH[%lld:%lld] EOF[%lld:%lld]",
 			csid_hw->hw_intf->hw_idx, res->res_name,
 			path_cfg->sof_ts.tv_sec, path_cfg->sof_ts.tv_nsec,
 			path_cfg->epoch_ts.tv_sec, path_cfg->epoch_ts.tv_nsec,
 			path_cfg->eof_ts.tv_sec, path_cfg->eof_ts.tv_nsec);
+
+		if (!path_reg) {
+			CAM_ERR(CAM_ISP, "CSID:%d no path registers for res :%d",
+				csid_hw->hw_intf->hw_idx, res->res_id);
+			return;
+		}
+
+		CAM_INFO(CAM_ISP,
+			"qtimer current [SOF: 0x%llx EOF: 0x%llx] prev [SOF: 0x%llx EOF: 0x%llx]",
+			__cam_ife_csid_ver2_get_time_stamp(
+				soc_info->reg_map[0].mem_base,
+				path_reg->timestamp_curr0_sof_addr,
+				path_reg->timestamp_curr1_sof_addr,
+				path_cfg->ts_comb_vcdt_en,
+				csid_reg->cmn_reg->ts_comb_vcdt_mask),
+			__cam_ife_csid_ver2_get_time_stamp(
+				soc_info->reg_map[0].mem_base,
+				path_reg->timestamp_curr0_eof_addr,
+				path_reg->timestamp_curr1_eof_addr,
+				path_cfg->ts_comb_vcdt_en,
+				csid_reg->cmn_reg->ts_comb_vcdt_mask),
+			__cam_ife_csid_ver2_get_time_stamp(
+				soc_info->reg_map[0].mem_base,
+				path_reg->timestamp_perv0_sof_addr,
+				path_reg->timestamp_perv1_sof_addr,
+				path_cfg->ts_comb_vcdt_en,
+				csid_reg->cmn_reg->ts_comb_vcdt_mask),
+			__cam_ife_csid_ver2_get_time_stamp(
+				soc_info->reg_map[0].mem_base,
+				path_reg->timestamp_perv0_eof_addr,
+				path_reg->timestamp_perv1_eof_addr,
+				path_cfg->ts_comb_vcdt_en,
+				csid_reg->cmn_reg->ts_comb_vcdt_mask));
+	}
 }
 
 static void cam_ife_csid_ver2_update_event_ts(
@@ -5801,25 +5860,6 @@ static int cam_ife_csid_ver2_program_offline_go_cmd(
 	go_args->cmd.used_bytes = size * 4;
 
 	return 0;
-}
-
-static uint64_t __cam_ife_csid_ver2_get_time_stamp(void __iomem *mem_base,
-	uint32_t timestamp0_addr, uint32_t timestamp1_addr,
-	bool ts_comb_vcdt_en, uint32_t ts_comb_vcdt_mask)
-{
-	uint64_t timestamp_val, time_hi, time_lo, mask;
-
-	time_hi = cam_io_r_mb(mem_base + timestamp1_addr);
-	time_lo = cam_io_r_mb(mem_base + timestamp0_addr);
-	mask = (uint64_t)ts_comb_vcdt_mask;
-	if (ts_comb_vcdt_en)
-		time_lo &= ~mask;
-
-	timestamp_val = (time_hi << 32) | time_lo;
-
-	return mul_u64_u32_div(timestamp_val,
-		CAM_IFE_CSID_QTIMER_MUL_FACTOR,
-		CAM_IFE_CSID_QTIMER_DIV_FACTOR);
 }
 
 static int cam_ife_csid_ver2_get_time_stamp(
