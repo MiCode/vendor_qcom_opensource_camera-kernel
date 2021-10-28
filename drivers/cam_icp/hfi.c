@@ -275,7 +275,7 @@ int hfi_read_message(uint32_t *pmsg, uint8_t q_id,
 		return -EINVAL;
 	}
 
-	if (q_id > Q_DBG) {
+	if (!((q_id == Q_MSG) || (q_id == Q_DBG))) {
 		CAM_ERR(CAM_HFI, "Invalid q :%u", q_id);
 		return -EINVAL;
 	}
@@ -305,13 +305,11 @@ int hfi_read_message(uint32_t *pmsg, uint8_t q_id,
 		goto err;
 	}
 
-	if (q_id == Q_MSG) {
+	size_upper_bound = q->qhdr_q_size;
+	if (q_id == Q_MSG)
 		read_q = (uint32_t *)g_hfi->map.msg_q.kva;
-		size_upper_bound = ICP_HFI_MAX_PKT_SIZE_MSGQ_IN_WORDS;
-	} else {
+	else
 		read_q = (uint32_t *)g_hfi->map.dbg_q.kva;
-		size_upper_bound = ICP_HFI_MAX_PKT_SIZE_IN_WORDS;
-	}
 
 	read_ptr = (uint32_t *)(read_q + q->qhdr_read_idx);
 	write_ptr = (uint32_t *)(read_q + q->qhdr_write_idx);
@@ -320,12 +318,7 @@ int hfi_read_message(uint32_t *pmsg, uint8_t q_id,
 		size_in_words = write_ptr - read_ptr;
 	else {
 		word_diff = read_ptr - write_ptr;
-		if (q_id == Q_MSG)
-			size_in_words = (ICP_MSG_Q_SIZE_IN_BYTES >>
-			BYTE_WORD_SHIFT) - word_diff;
-		else
-			size_in_words = (ICP_DBG_Q_SIZE_IN_BYTES >>
-			BYTE_WORD_SHIFT) - word_diff;
+		size_in_words =  q->qhdr_q_size -  word_diff;
 	}
 
 	if ((size_in_words == 0) ||
