@@ -133,6 +133,8 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_SFE_FE_CONFIG             25
 #define CAM_ISP_GENERIC_BLOB_TYPE_SFE_SCRATCH_BUF_CFG       26
 #define CAM_ISP_GENERIC_BLOB_TYPE_SFE_EXP_ORDER_CFG         27
+#define CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG                28
+#define CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V3              29
 
 #define CAM_ISP_VC_DT_CFG    4
 
@@ -195,6 +197,30 @@
  */
 #define CAM_IFE_DECODE_FORMAT_MASK      0xFF
 #define CAM_IFE_DECODE_FORMAT_SHIFT_VAL 8
+
+/**
+ * struct cam_isp_drv_config - CSID config for DRV
+ *        Enables DRV and provides worst case timeout value in INIT packet,
+ *        provides path_idle_en and timeout updates (if any) in UPDATE packet
+ *
+ * @drv_en            : Enables DRV block
+ * @timeout_val       : Timeout value from SOF to trigger vote up,
+ *                      given in number of Global Counter cycles.
+ * @path_idle_en      : Mask for paths to be considered for consolidated IDLE signal.
+ *                      When paths matching the mask go idle, BW is voted down.
+ * @num_valid_params  : Number of valid params
+ * @valid_param_mask  : Valid param mask
+ * @params            : params
+ */
+struct cam_isp_drv_config {
+	__u32    drv_en;
+	__u32    timeout_val;
+	__u32    path_idle_en;
+	__u32    num_valid_params;
+	__u32    valid_param_mask;
+	__u32    params[5];
+} __attribute__((packed));
+
 
 /* Query devices */
 /**
@@ -624,6 +650,25 @@ struct cam_isp_bw_config_v2 {
 	__u32                             usage_type;
 	__u32                             num_paths;
 	struct cam_axi_per_path_bw_vote   axi_path[1];
+} __attribute__((packed));
+
+/**
+ * struct cam_isp_bw_config_v3 - Bandwidth configuration
+ *
+ * @usage_type:                 Usage type (Single/Dual)
+ * @num_paths:                  Number of axi data paths
+ * @num_valid_params:           Number of valid params
+ * @valid_param_mask:           Valid param mask
+ * @params:                     params
+ * @axi_path:                   Per path vote info v2
+ */
+struct cam_isp_bw_config_v3 {
+	__u32                                usage_type;
+	__u32                                num_paths;
+	__u32                                num_valid_params;
+	__u32                                valid_param_mask;
+	__u32                                params[4];
+	struct cam_axi_per_path_bw_vote_v2   axi_path[1];
 } __attribute__((packed));
 
 /**
