@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSID_HW_INTF_H_
@@ -66,16 +67,17 @@ enum cam_ife_csid_secondary_evt_type {
 
 /**
  * struct cam_ife_csid_hw_caps- get the CSID hw capability
- * @num_rdis:             number of rdis supported by CSID HW device
- * @num_pix:              number of pxl paths supported by CSID HW device
- * @num_ppp:              number of ppp paths supported by CSID HW device
- * @major_version :       major version
- * @minor_version:        minor version
- * @version_incr:         version increment
- * @is_lite:              is the ife_csid lite
- * @global_reset_en:      flag to indicate if global reset is enabled
- * @rup_en:               flag to indicate if rup is on csid side
- * @only_master_rup:      flag to indicate if only master RUP
+ * @num_rdis:              number of rdis supported by CSID HW device
+ * @num_pix:               number of pxl paths supported by CSID HW device
+ * @num_ppp:               number of ppp paths supported by CSID HW device
+ * @major_version :        major version
+ * @minor_version:         minor version
+ * @version_incr:          version increment
+ * @sfe_ipp_input_rdi_res: RDI Res as an input to SFE
+ * @is_lite:               is the ife_csid lite
+ * @global_reset_en:       flag to indicate if global reset is enabled
+ * @rup_en:                flag to indicate if rup is on csid side
+ * @only_master_rup:       flag to indicate if only master RUP
  */
 struct cam_ife_csid_hw_caps {
 	uint32_t      num_rdis;
@@ -84,6 +86,7 @@ struct cam_ife_csid_hw_caps {
 	uint32_t      major_version;
 	uint32_t      minor_version;
 	uint32_t      version_incr;
+	uint32_t      sfe_ipp_input_rdi_res;
 	bool          is_lite;
 	bool          global_reset_en;
 	bool          rup_en;
@@ -150,6 +153,7 @@ struct cam_isp_in_port_generic_info {
 	bool                            sfe_binned_epoch_cfg;
 	bool                            epd_supported;
 	bool                            aeb_mode;
+	bool                            dynamic_hdr_switch_en;
 	struct cam_isp_out_port_generic_info    *data;
 };
 
@@ -194,8 +198,6 @@ struct cam_csid_secondary_evt_config {
  * @event_cb:            Callback function to hw mgr in case of hw events
  * @phy_sel:             Phy selection number if tpg is enabled from userspace
  * @cb_priv:             Private pointer to return to callback
- * @can_use_lite:        Flag to indicate if current call qualifies for
- *                       acquire lite
  * @sfe_en:              Flag to indicate if SFE is enabled
  * @use_wm_pack:         [OUT]Flag to indicate if WM packing is to be used for packing
  *
@@ -221,7 +223,6 @@ struct cam_csid_hw_reserve_resource_args {
 	cam_hw_mgr_event_cb_func                  event_cb;
 	uint32_t                                  phy_sel;
 	void                                     *cb_priv;
-	bool                                      can_use_lite;
 	bool                                      sfe_en;
 	bool                                      use_wm_pack;
 };

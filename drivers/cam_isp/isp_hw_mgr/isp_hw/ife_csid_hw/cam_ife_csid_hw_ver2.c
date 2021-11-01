@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -1917,6 +1918,7 @@ int cam_ife_csid_ver2_get_hw_caps(void *hw_priv,
 	hw_caps->rup_en = csid_reg->cmn_reg->rup_supported;
 	hw_caps->only_master_rup = csid_reg->cmn_reg->only_master_rup;
 	hw_caps->is_lite = soc_private->is_ife_csid_lite;
+	hw_caps->sfe_ipp_input_rdi_res = csid_reg->cmn_reg->sfe_ipp_input_rdi_res;
 
 	CAM_DBG(CAM_ISP,
 		"CSID:%d num-rdis:%d, num-pix:%d, major:%d minor:%d ver:%d",
@@ -2256,7 +2258,6 @@ static int cam_ife_csid_hw_ver2_config_path_data(
 		path_cfg->in_format[i] = reserve->in_port->format[i];
 
 	path_cfg->cid = cid;
-	path_cfg->out_format = reserve->out_port->format;
 	path_cfg->sync_mode = reserve->sync_mode;
 	path_cfg->height  = reserve->in_port->height;
 	path_cfg->start_line = reserve->in_port->line_start;
@@ -2270,6 +2271,11 @@ static int cam_ife_csid_hw_ver2_config_path_data(
 	path_cfg->sec_evt_config.en_secondary_evt = reserve->sec_evt_config.en_secondary_evt;
 	path_cfg->sec_evt_config.evt_type = reserve->sec_evt_config.evt_type;
 	path_reg = csid_reg->path_reg[res->res_id];
+
+	if (reserve->out_port)
+		path_cfg->out_format = reserve->out_port->format;
+	else
+		path_cfg->out_format = path_reg->default_out_format;
 
 	if (reserve->sync_mode == CAM_ISP_HW_SYNC_MASTER) {
 		path_cfg->start_pixel = reserve->in_port->left_start;
@@ -3248,13 +3254,6 @@ static int cam_ife_csid_ver2_program_rdi_path(
 	val = csid_hw->debug_info.path_mask;
 
 	if (res->is_rdi_primary_res) {
-		path_cfg->handle_camif_irq = true;
-		val |= path_reg->camif_irq_mask;
-	}
-
-	if ((csid_hw->flags.offline_mode ||
-		path_cfg->sfe_shdr) &&
-		(res->res_id == CAM_IFE_PIX_PATH_RES_RDI_0)) {
 		val |= path_reg->camif_irq_mask;
 		path_cfg->handle_camif_irq = true;
 	}
@@ -3273,7 +3272,6 @@ static int cam_ife_csid_ver2_program_rdi_path(
 	}
 
 	res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
-
 	path_cfg->irq_reg_idx =
 		cam_ife_csid_convert_res_to_irq_reg(res->res_id);
 
@@ -3402,6 +3400,7 @@ static int cam_ife_csid_ver2_program_ipp_path(
 	if (path_cfg->sync_mode == CAM_ISP_HW_SYNC_NONE ||
 		path_cfg->sync_mode == CAM_ISP_HW_SYNC_MASTER) {
 		val |= path_reg->camif_irq_mask;
+		path_cfg->handle_camif_irq = true;
 	}
 
 	irq_mask[CAM_IFE_CSID_IRQ_REG_TOP] = path_reg->top_irq_mask;

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_ISP_H__
@@ -179,6 +180,7 @@
 #define CAM_ISP_SFE_FS_MODE_EN                 BIT(5)
 #define CAM_ISP_SFE_SHDR_MODE_EN               BIT(6)
 #define CAM_ISP_AEB_MODE_EN                    BIT(7)
+#define CAM_ISP_HDR_MODE_DYNAMIC_SWITCH_EN     BIT(8)
 
 /* ISP core cfg flag params */
 #define CAM_ISP_PARAM_CORE_CFG_HDR_MUX_SEL BIT(0)

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_780_H_
@@ -678,6 +679,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.epoch1_shift_val                 = 0,
 		.pix_store_en_shift_val           = 10,
 		.sof_retiming_dis_shift           = 5,
+		.default_out_format               = CAM_FORMAT_PLAIN16_16,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -1244,6 +1246,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.top_buf_done_irq_mask                   = 0x2000,
 	.decode_format_payload_only              = 0xF,
 	.timestamp_enabled_in_cfg0               = true,
+	.sfe_ipp_input_rdi_res                   = BIT(CAM_IFE_PIX_PATH_RES_RDI_0),
 };
 
 static struct cam_ife_csid_ver2_top_reg_info
