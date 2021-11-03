@@ -173,6 +173,21 @@ struct cam_icp_clk_bw_req_internal_v2 {
 	struct cam_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
 };
 
+#define HANG_DUMP_REGIONS_MAX 10
+
+/**
+ * struct cam_hangdump_mem_regions -
+ *        List of multiple memory descriptors of different
+ *        regions
+ *
+ * @num_regions    : Number of regions
+ * @map_info_array : Array of all the regions
+ */
+struct cam_hangdump_mem_regions {
+	uint32_t num_mem_regions;
+	struct cam_cmd_mem_region_info mem_info_array[HANG_DUMP_REGIONS_MAX];
+};
+
 /**
  * struct hfi_frame_process_info
  * @hfi_frame_cmd: Frame process command info
@@ -187,6 +202,7 @@ struct cam_icp_clk_bw_req_internal_v2 {
  * @clk_info_v2: Clock info for AXI bw voting v2
  * @frame_info: information needed to process request
  * @submit_timestamp: Submit timestamp to hw
+ * @hangdump_mem_regions: Mem regions for hangdump
  */
 struct hfi_frame_process_info {
 	struct hfi_cmd_ipebps_async hfi_frame_cmd[CAM_FRAME_CMD_MAX];
@@ -203,6 +219,7 @@ struct hfi_frame_process_info {
 	struct cam_icp_clk_bw_req_internal_v2 clk_info_v2[CAM_FRAME_CMD_MAX];
 	struct icp_frame_info frame_info[CAM_FRAME_CMD_MAX];
 	ktime_t submit_timestamp[CAM_FRAME_CMD_MAX];
+	struct cam_hangdump_mem_regions *hangdump_mem_regions;
 };
 
 /**
@@ -230,6 +247,7 @@ struct cam_ctx_clk_info {
 	struct cam_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
 	bool bw_included;
 };
+
 /**
  * struct cam_icp_hw_ctx_data
  * @context_priv: Context private data
