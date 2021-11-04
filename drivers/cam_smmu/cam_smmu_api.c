@@ -4130,8 +4130,8 @@ static int cam_smmu_get_memory_regions_info(struct device_node *of_node,
 
 		CAM_DBG(CAM_SMMU, "Found label -> %s", cb->name[0]);
 		CAM_DBG(CAM_SMMU, "Found region -> %s", region_name);
-		CAM_DBG(CAM_SMMU, "region_start -> %X", region_start);
-		CAM_DBG(CAM_SMMU, "region_len -> %X", region_len);
+		CAM_DBG(CAM_SMMU, "region_start -> %lx", region_start);
+		CAM_DBG(CAM_SMMU, "region_len -> %lx", region_len);
 		CAM_DBG(CAM_SMMU, "region_id -> %X", region_id);
 	}
 
