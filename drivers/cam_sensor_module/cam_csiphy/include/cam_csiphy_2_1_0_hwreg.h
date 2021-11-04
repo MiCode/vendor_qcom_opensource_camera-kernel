@@ -364,8 +364,8 @@ struct csiphy_reg_t csiphy_3ph_v2_1_0_reg[MAX_LANES][MAX_SETTINGS_PER_LANE] = {
 		{0x0258, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0254, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x025C, 0x04, 0x00, CSIPHY_DEFAULT_PARAMS},
-		{0x0248, 0x0C, 0x00, CSIPHY_DEFAULT_PARAMS},
-		{0x024C, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+		{0x0248, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
+		{0x024C, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0240, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0260, 0xA8, 0x00, CSIPHY_DEFAULT_PARAMS},
 	},
@@ -403,8 +403,8 @@ struct csiphy_reg_t csiphy_3ph_v2_1_0_reg[MAX_LANES][MAX_SETTINGS_PER_LANE] = {
 		{0x0658, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0654, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x065C, 0x04, 0x00, CSIPHY_DEFAULT_PARAMS},
-		{0x0648, 0x0C, 0x00, CSIPHY_DEFAULT_PARAMS},
-		{0x064C, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+		{0x0648, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
+		{0x064C, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0640, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0660, 0xA8, 0x00, CSIPHY_DEFAULT_PARAMS},
 	},
@@ -442,13 +442,12 @@ struct csiphy_reg_t csiphy_3ph_v2_1_0_reg[MAX_LANES][MAX_SETTINGS_PER_LANE] = {
 		{0x0A58, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0A54, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0A5C, 0x04, 0x00, CSIPHY_DEFAULT_PARAMS},
-		{0x0A48, 0x0C, 0x00, CSIPHY_DEFAULT_PARAMS},
-		{0x0A4C, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+		{0x0A48, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
+		{0x0A4C, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0A40, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 		{0x0A60, 0xA8, 0x64, CSIPHY_DEFAULT_PARAMS},
 	},
 };
-
 struct csiphy_reg_t bist_arr_2_1_0[] = {
 	/* 3Phase BIST CONFIGURATION REG SET */
 	{0x02D4, 0x64, 0x00, CSIPHY_3PH_REGS},
@@ -469,36 +468,31 @@ struct csiphy_reg_t bist_arr_2_1_0[] = {
 };
 
 struct csiphy_reg_t bist_status_arr_2_1_0[] = {
-	/* STATUS1 for the BIST checker output for 3phase */
+
 	{0x0344, 0x00, 0x00, CSIPHY_3PH_REGS},
 	{0x0744, 0x00, 0x00, CSIPHY_3PH_REGS},
 	{0x0B44, 0x00, 0x00, CSIPHY_3PH_REGS},
-	/* STATUS0 for BIST checker output for 2phase */
 	{0x00C0, 0x00, 0x00, CSIPHY_2PH_REGS},
 	{0x04C0, 0x00, 0x00, CSIPHY_2PH_REGS},
 	{0x08C0, 0x00, 0x00, CSIPHY_2PH_REGS},
 	{0x0CC0, 0x00, 0x00, CSIPHY_2PH_REGS},
 };
 
-struct csiphy_reg_t bist_status_err_check_arr_2_1_0[] = {
-	/* STATUS2_3 for the BIST word error detection */
-	{0x0348, 0x00, 0x00, CSIPHY_3PH_REGS},
-	{0x0748, 0x00, 0x00, CSIPHY_3PH_REGS},
-	{0x0B48, 0x00, 0x00, CSIPHY_3PH_REGS},
-	{0x034C, 0x00, 0x00, CSIPHY_3PH_REGS},
-	{0x074C, 0x00, 0x00, CSIPHY_3PH_REGS},
-	{0x0B4C, 0x00, 0x00, CSIPHY_3PH_REGS},
-	/* STATUS */
-};
-
 struct bist_reg_settings_t bist_setting_2_1_0 = {
-	.expected_status_val = 0xB,
+	.error_status_val_3ph = 0x10,
+	.error_status_val_2ph = 0x10,
+	.set_status_update_3ph_base_offset = 0x0240,
+	.set_status_update_2ph_base_offset = 0x0050,
+	.bist_status_3ph_base_offset = 0x0344,
+	.bist_status_2ph_base_offset = 0x00C0,
+	.bist_sensor_data_3ph_status_base_offset = 0x0340,
+	.bist_counter_3ph_base_offset = 0x0348,
+	.bist_counter_2ph_base_offset = 0x00C8,
+	.number_of_counters = 2,
 	.num_data_settings = ARRAY_SIZE(bist_arr_2_1_0),
 	.bist_arry = bist_arr_2_1_0,
 	.num_status_reg = ARRAY_SIZE(bist_status_arr_2_1_0),
 	.bist_status_arr = bist_status_arr_2_1_0,
-	.num_status_err_check_reg = ARRAY_SIZE(bist_status_err_check_arr_2_1_0),
-	.bist_status_err_check_arr = bist_status_err_check_arr_2_1_0,
 };
 
 struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
@@ -515,7 +509,7 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 						{0x0274, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0278, 0x70, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0288, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
-						{0x028C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+						{0x028C, 0x11, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x026C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0290, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0214, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -528,7 +522,7 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 						{0x0674, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0678, 0x70, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0688, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
-						{0x068C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+						{0x068C, 0x11, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x066C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0690, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0614, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -541,7 +535,7 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 						{0x0A74, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A78, 0x70, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A88, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
-						{0x0A8C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+						{0x0A8C, 0x11, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A6C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A90, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A14, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},

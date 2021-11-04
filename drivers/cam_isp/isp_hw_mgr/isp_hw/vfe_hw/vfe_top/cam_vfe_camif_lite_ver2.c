@@ -496,6 +496,7 @@ static int cam_vfe_camif_lite_handle_irq_bottom_half(
 	uint32_t                              irq_status1;
 	struct cam_hw_soc_info               *soc_info = NULL;
 	struct cam_vfe_soc_private           *soc_private = NULL;
+	struct cam_isp_hw_error_event_info    err_evt_info;
 	struct timespec64                     ts;
 
 	if (!handler_priv || !evt_payload_priv) {
@@ -512,6 +513,7 @@ static int cam_vfe_camif_lite_handle_irq_bottom_half(
 	soc_private =
 		(struct cam_vfe_soc_private *)soc_info->soc_private;
 
+	evt_info.hw_type  = CAM_ISP_HW_TYPE_VFE;
 	evt_info.hw_idx   = camif_lite_node->hw_intf->hw_idx;
 	evt_info.res_id   = camif_lite_node->res_id;
 	evt_info.res_type = camif_lite_node->res_type;
@@ -548,6 +550,8 @@ static int cam_vfe_camif_lite_handle_irq_bottom_half(
 		CAM_DBG(CAM_ISP, "VFE:%d CAMIF LITE Received ERROR",
 			evt_info.hw_idx);
 
+		err_evt_info.err_type = CAM_VFE_IRQ_STATUS_OVERFLOW;
+		evt_info.event_data = (void *)&err_evt_info;
 		cam_vfe_camif_lite_cpas_fifo_levels_reg_dump(camif_lite_priv);
 
 		ktime_get_boottime_ts64(&ts);

@@ -922,7 +922,7 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 			apply_req.dev_hdl = dev->dev_hdl;
 			apply_req.request_id =
 				link->req.prev_apply_data[pd].req_id;
-			apply_req.trigger_point = 0;
+			apply_req.trigger_point = trigger;
 			apply_req.report_if_bubble = 0;
 			if ((dev->ops) && (dev->ops->notify_frame_skip))
 				dev->ops->notify_frame_skip(&apply_req);
@@ -1002,7 +1002,7 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 				apply_req.dev_hdl = dev->dev_hdl;
 				apply_req.request_id =
 					link->req.prev_apply_data[pd].req_id;
-				apply_req.trigger_point = 0;
+				apply_req.trigger_point = trigger;
 				apply_req.report_if_bubble = 0;
 				if ((dev->ops) && (dev->ops->notify_frame_skip))
 					dev->ops->notify_frame_skip(&apply_req);
@@ -1599,7 +1599,10 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 	if ((trigger == CAM_TRIGGER_POINT_SOF) &&
 		(sync_link->sof_timestamp > 0) &&
 		(sof_timestamp_delta < master_slave_diff) &&
-		(sync_rd_slot->sync_mode == CAM_REQ_MGR_SYNC_MODE_SYNC)) {
+		(sync_rd_slot->sync_mode == CAM_REQ_MGR_SYNC_MODE_SYNC) &&
+		(req_id >= link->initial_sync_req) &&
+		(req_id - link->initial_sync_req >=
+		(INITIAL_IN_SYNC_REQ + link->max_delay))) {
 
 		/*
 		 * This means current frame should sync with next
@@ -2635,8 +2638,11 @@ static int __cam_req_mgr_try_cancel_req(struct cam_req_mgr_core_link *link,
 	case CRM_SLOT_STATUS_REQ_PENDING:
 	case CRM_SLOT_STATUS_REQ_APPLIED:
 		pd = __cam_req_mgr_get_dev_pd(link, CAM_REQ_MGR_DEVICE_IFE);
-		if (pd < 0)
+		if ((pd < 0) || (pd >= CAM_PIPELINE_DELAY_MAX)) {
+			CAM_ERR(CAM_CRM, "pd: %d link_hdl: 0x%x red_id: %d", pd,
+				link->link_hdl, flush_info->req_id);
 			return pd;
+		}
 
 		if (flush_info->req_id <= link->req.prev_apply_data[pd].req_id) {
 			CAM_WARN(CAM_CRM, "req %lld already applied to IFE on link 0x%x",

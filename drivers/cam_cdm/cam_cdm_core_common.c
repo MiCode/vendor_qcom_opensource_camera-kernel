@@ -180,12 +180,10 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 			(struct cam_cdm_bl_cb_request_entry *)data;
 
 		client_idx = CAM_CDM_GET_CLIENT_IDX(node->client_hdl);
-		mutex_lock(&cdm_hw->hw_mutex);
 		client = core->clients[client_idx];
 		if ((!client) || (client->handle != node->client_hdl)) {
 			CAM_ERR(CAM_CDM, "Invalid client %pK hdl=%x", client,
 				node->client_hdl);
-			mutex_unlock(&cdm_hw->hw_mutex);
 			return;
 		}
 		cam_cdm_get_client_refcount(client);
@@ -204,7 +202,6 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 		}
 		mutex_unlock(&client->lock);
 		cam_cdm_put_client_refcount(client);
-		mutex_unlock(&cdm_hw->hw_mutex);
 		return;
 	} else if (status == CAM_CDM_CB_STATUS_HW_RESET_DONE ||
 			status == CAM_CDM_CB_STATUS_HW_FLUSH ||
@@ -242,7 +239,6 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 
 	for (i = 0; i < CAM_PER_CDM_MAX_REGISTERED_CLIENTS; i++) {
 		if (core->clients[i] != NULL) {
-			mutex_lock(&cdm_hw->hw_mutex);
 			client = core->clients[i];
 			cam_cdm_get_client_refcount(client);
 			mutex_lock(&client->lock);
@@ -265,7 +261,6 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 			}
 			mutex_unlock(&client->lock);
 			cam_cdm_put_client_refcount(client);
-			mutex_unlock(&cdm_hw->hw_mutex);
 		}
 	}
 }
@@ -285,27 +280,18 @@ static int cam_cdm_stream_handle_init(void *hw_priv, bool init)
 			return rc;
 		}
 
-		if (core->arbitration !=
-			CAM_CDM_ARBITRATION_PRIORITY_BASED) {
-			rc = cam_hw_cdm_alloc_genirq_mem(
-				hw_priv);
-			if (rc) {
-				CAM_ERR(CAM_CDM,
-					"Genirqalloc failed");
-				cam_hw_cdm_deinit(hw_priv,
-					NULL, 0);
-			}
+		rc = cam_hw_cdm_alloc_genirq_mem(hw_priv);
+		if (rc) {
+			CAM_ERR(CAM_CDM, "Genirqalloc failed");
+			cam_hw_cdm_deinit(hw_priv, NULL, 0);
 		}
 	} else {
 		rc = cam_hw_cdm_deinit(hw_priv, NULL, 0);
 		if (rc)
 			CAM_ERR(CAM_CDM, "Deinit failed in streamoff");
 
-		if (core->arbitration !=
-			CAM_CDM_ARBITRATION_PRIORITY_BASED) {
-			if (cam_hw_cdm_release_genirq_mem(hw_priv))
-				CAM_ERR(CAM_CDM, "Genirq release fail");
-		}
+		if (cam_hw_cdm_release_genirq_mem(hw_priv))
+			CAM_ERR(CAM_CDM, "Genirq release fail");
 	}
 
 	return rc;
@@ -509,7 +495,7 @@ int cam_cdm_process_cmd(void *hw_priv,
 			break;
 		}
 		cam_cdm_get_client_refcount(client);
-		if ((req->data->flag == true) &&
+		if (req->data->flag &&
 			(!client->data.cam_cdm_callback)) {
 			CAM_ERR(CAM_CDM,
 				"CDM request cb without registering cb");

@@ -153,6 +153,7 @@ struct cam_ife_hw_mgr_sfe_info {
  * @dump_on_flush:       Set if reg dump triggered on flush
  * @dump_on_error:       Set if reg dump triggered on error
  * @custom_aeb_mode:     Set if custom AEB stream
+ * @rdi_lcr_en:          To indicate if RDI LCR is enabled
  * @sys_cache_usage:     Per context sys cache usage
  *                       The corresponding index will be set
  *                       for the cache type
@@ -175,6 +176,7 @@ struct cam_ife_hw_mgr_ctx_flags {
 	bool   dump_on_flush;
 	bool   dump_on_error;
 	bool   is_aeb_mode;
+	bool   rdi_lcr_en;
 	bool   sys_cache_usage[CAM_LLCC_MAX];
 };
 
@@ -239,6 +241,8 @@ struct cam_ife_cdm_user_data {
  * @flags                   Flags pertainting to this ctx
  * @bw_config_version       BW Config version
  * @recovery_id:            Unique ID of the current valid scheduled recovery
+ * @current_mup:            Current MUP val, scratch will then apply the same as previously
+ *                          applied request
  *
  */
 struct cam_ife_hw_mgr_ctx {
@@ -294,6 +298,7 @@ struct cam_ife_hw_mgr_ctx {
 	struct cam_ife_cdm_user_data      cdm_userdata;
 	uint32_t                          bw_config_version;
 	atomic_t                          recovery_id;
+	uint32_t                          current_mup;
 };
 
 /**

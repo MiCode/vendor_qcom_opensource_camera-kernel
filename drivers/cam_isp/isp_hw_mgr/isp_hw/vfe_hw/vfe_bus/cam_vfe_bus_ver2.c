@@ -1447,6 +1447,7 @@ static int cam_vfe_bus_err_bottom_half(void *handler_priv,
 	struct cam_vfe_bus_ver2_priv *bus_priv = handler_priv;
 	struct cam_vfe_bus_ver2_common_data *common_data;
 	struct cam_isp_hw_event_info evt_info;
+	struct cam_isp_hw_error_event_info err_evt_info;
 	uint32_t val = 0;
 
 	if (!handler_priv || !evt_payload_priv)
@@ -1532,9 +1533,13 @@ static int cam_vfe_bus_err_bottom_half(void *handler_priv,
 
 	cam_vfe_bus_put_evt_payload(common_data, &evt_payload);
 
+	evt_info.hw_type = CAM_ISP_HW_TYPE_VFE;
 	evt_info.hw_idx = common_data->core_index;
 	evt_info.res_type = CAM_ISP_RESOURCE_VFE_OUT;
 	evt_info.res_id = CAM_VFE_BUS_VER2_VFE_OUT_MAX;
+
+	err_evt_info.err_type = CAM_VFE_IRQ_STATUS_VIOLATION;
+	evt_info.event_data = (void *)&err_evt_info;
 
 	if (common_data->event_cb)
 		common_data->event_cb(NULL, CAM_ISP_HW_EVENT_ERROR,
@@ -2476,7 +2481,8 @@ static int cam_vfe_bus_handle_vfe_out_done_bottom_half(
 	int rc = -EINVAL;
 	struct cam_isp_resource_node             *vfe_out = handler_priv;
 	struct cam_vfe_bus_ver2_vfe_out_data     *rsrc_data = vfe_out->res_priv;
-	struct cam_isp_hw_compdone_event_info      evt_info = {0};
+	struct cam_isp_hw_event_info              evt_info;
+	struct cam_isp_hw_compdone_event_info     compdone_evt_info = {0};
 	void                                     *ctx = NULL;
 	uint32_t                                  evt_id = 0;
 	uint32_t                                  comp_mask = 0;
@@ -2506,6 +2512,7 @@ static int cam_vfe_bus_handle_vfe_out_done_bottom_half(
 	case CAM_VFE_IRQ_STATUS_SUCCESS:
 		evt_id = evt_payload->evt_id;
 
+		evt_info.hw_type = CAM_ISP_HW_TYPE_VFE;
 		evt_info.res_type = vfe_out->res_type;
 		evt_info.hw_idx   = vfe_out->hw_intf->hw_idx;
 		if (rsrc_data->comp_grp) {
@@ -2523,14 +2530,15 @@ static int cam_vfe_bus_handle_vfe_out_done_bottom_half(
 				goto end;
 			}
 
-			evt_info.num_res = num_out;
+			compdone_evt_info.num_res = num_out;
 			for (i = 0; i < num_out; i++) {
-				evt_info.res_id[i] = out_list[i];
+				compdone_evt_info.res_id[i] = out_list[i];
 			}
 		} else {
-			evt_info.num_res = 1;
-			evt_info.res_id[0] = vfe_out->res_id;
+			compdone_evt_info.num_res = 1;
+			compdone_evt_info.res_id[0] = vfe_out->res_id;
 		}
+		evt_info.event_data = (void *)&compdone_evt_info;
 		if (rsrc_data->common_data->event_cb)
 			rsrc_data->common_data->event_cb(ctx,
 				evt_id, (void *)&evt_info);

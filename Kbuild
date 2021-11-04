@@ -34,6 +34,10 @@ ifeq ($(CONFIG_ARCH_SHIMA), y)
 include $(CAMERA_KERNEL_ROOT)/config/shima.mk
 endif
 
+ifeq ($(CONFIG_ARCH_DIWALI), y)
+include $(CAMERA_KERNEL_ROOT)/config/diwali.mk
+endif
+
 # List of all camera-kernel headers
 cam_include_dirs := $(shell dirname `find $(CAMERA_KERNEL_ROOT) -name '*.h'` | uniq)
 
@@ -90,6 +94,8 @@ ifeq (,$(filter $(CONFIG_CAM_PRESIL),y m))
 	camera-y += drivers/cam_utils/cam_io_util.o
 else
 	camera-y += drivers/cam_presil/presil/cam_presil_io_util.o
+	camera-y += drivers/cam_presil/presil/cam_presil_hw_access.o
+	camera-y += drivers/cam_presil/presil_framework_dev/cam_presil_framework_dev.o
 	ccflags-y += -DCONFIG_CAM_PRESIL=1
 endif
 

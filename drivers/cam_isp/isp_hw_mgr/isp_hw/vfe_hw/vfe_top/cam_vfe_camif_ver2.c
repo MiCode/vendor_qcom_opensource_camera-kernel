@@ -790,6 +790,7 @@ static int cam_vfe_camif_handle_irq_bottom_half(void *handler_priv,
 	uint32_t                              irq_status0;
 	uint32_t                              irq_status1;
 	uint32_t                              val;
+	struct cam_isp_hw_error_event_info    err_evt_info;
 	struct timespec64                     ts;
 
 	if (!handler_priv || !evt_payload_priv) {
@@ -806,6 +807,7 @@ static int cam_vfe_camif_handle_irq_bottom_half(void *handler_priv,
 	soc_info = camif_priv->soc_info;
 	soc_private = (struct cam_vfe_soc_private *)soc_info->soc_private;
 
+	evt_info.hw_type  = CAM_ISP_HW_TYPE_VFE;
 	evt_info.hw_idx   = camif_node->hw_intf->hw_idx;
 	evt_info.res_id   = camif_node->res_id;
 	evt_info.res_type = camif_node->res_type;
@@ -882,6 +884,8 @@ static int cam_vfe_camif_handle_irq_bottom_half(void *handler_priv,
 	if (irq_status0 & camif_priv->reg_data->error_irq_mask0) {
 		CAM_DBG(CAM_ISP, "Received ERROR");
 
+		err_evt_info.err_type = CAM_VFE_IRQ_STATUS_OVERFLOW;
+		evt_info.event_data = (void *)&err_evt_info;
 		ktime_get_boottime_ts64(&ts);
 		CAM_INFO(CAM_ISP,
 			"current monotonic time stamp seconds %lld:%lld",
@@ -908,6 +912,8 @@ static int cam_vfe_camif_handle_irq_bottom_half(void *handler_priv,
 	if (irq_status1 & camif_priv->reg_data->error_irq_mask1) {
 		CAM_DBG(CAM_ISP, "Received ERROR");
 
+		err_evt_info.err_type = CAM_VFE_IRQ_STATUS_OVERFLOW;
+		evt_info.event_data = (void *)&err_evt_info;
 		ktime_get_boottime_ts64(&ts);
 		CAM_INFO(CAM_ISP,
 			"current monotonic time stamp seconds %lld:%lld",

@@ -151,6 +151,7 @@ struct cam_vfe_bus_ver3_wm_resource_data {
 	uint32_t             acquired_width;
 	uint32_t             acquired_height;
 	uint32_t             default_line_based;
+	bool                 use_wm_pack;
 };
 
 struct cam_vfe_bus_ver3_comp_grp_data {
@@ -554,7 +555,7 @@ static int cam_vfe_bus_ver3_get_comp_vfe_out_res_id_list(
 		out_list[count++] = CAM_ISP_IFE_OUT_RES_STATS_BAYER_RS;
 
 	if (comp_mask & (BIT_ULL(CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED)))
-		out_list[count++] = CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED;
+		out_list[count++] = CAM_ISP_IFE_OUT_RES_PDAF_PARSED_DATA;
 
 	*num_out = count;
 	return 0;
@@ -742,6 +743,7 @@ static int cam_vfe_bus_ver3_handle_rup_bottom_half(void *handler_priv,
 
 	irq_status = payload->irq_reg_val[CAM_IFE_IRQ_BUS_VER3_REG_STATUS0];
 
+	evt_info.hw_type  = CAM_ISP_HW_TYPE_VFE;
 	evt_info.hw_idx = rsrc_data->common_data->core_index;
 	evt_info.res_type = CAM_ISP_RESOURCE_VFE_IN;
 
@@ -846,7 +848,7 @@ static int cam_vfe_bus_ver3_handle_rup_bottom_half(void *handler_priv,
 static int cam_vfe_bus_ver3_config_rdi_wm(
 	struct cam_vfe_bus_ver3_wm_resource_data  *rsrc_data)
 {
-	/* Force RDI to use PLAIN128 */
+
 	rsrc_data->pack_fmt = PACKER_FMT_VER3_PLAIN_128;
 	switch (rsrc_data->format) {
 	case CAM_FORMAT_MIPI_RAW_10:
@@ -859,6 +861,12 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->height = 0;
 			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
 			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+		}
+
+		if (rsrc_data->use_wm_pack) {
+			rsrc_data->pack_fmt = PACKER_FMT_VER3_MIPI10;
+			if (rsrc_data->default_line_based)
+				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 16);
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_6:
@@ -897,6 +905,12 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
 			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
 		}
+
+		if (rsrc_data->use_wm_pack) {
+			rsrc_data->pack_fmt = PACKER_FMT_VER3_MIPI12;
+			if (rsrc_data->default_line_based)
+				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 16);
+		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_14:
 		if (rsrc_data->default_line_based) {
@@ -908,6 +922,12 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->height = 0;
 			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
 			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+		}
+
+		if (rsrc_data->use_wm_pack) {
+			rsrc_data->pack_fmt = PACKER_FMT_VER3_MIPI14;
+			if (rsrc_data->default_line_based)
+				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 16);
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_16:
@@ -933,6 +953,9 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
 			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
 		}
+
+		if (rsrc_data->use_wm_pack)
+			rsrc_data->pack_fmt = PACKER_FMT_VER3_MIPI20;
 		break;
 	case CAM_FORMAT_PLAIN128:
 		if (rsrc_data->default_line_based) {
@@ -997,13 +1020,12 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 }
 
 static int cam_vfe_bus_ver3_acquire_wm(
-	struct cam_vfe_bus_ver3_priv          *ver3_bus_priv,
-	struct cam_isp_out_port_generic_info  *out_port_info,
-	void                                  *tasklet,
-	enum cam_vfe_bus_ver3_vfe_out_type     vfe_out_res_id,
-	enum cam_vfe_bus_plane_type            plane,
-	struct cam_isp_resource_node          *wm_res,
-	uint32_t                               is_dual,
+	struct cam_vfe_bus_ver3_priv           *ver3_bus_priv,
+	struct cam_vfe_hw_vfe_out_acquire_args *out_acq_args,
+	void                                   *tasklet,
+	enum cam_vfe_bus_ver3_vfe_out_type      vfe_out_res_id,
+	enum cam_vfe_bus_plane_type             plane,
+	struct cam_isp_resource_node           *wm_res,
 	enum cam_vfe_bus_ver3_comp_grp_type   *comp_grp_id)
 {
 	int32_t wm_idx = 0, rc;
@@ -1020,15 +1042,16 @@ static int cam_vfe_bus_ver3_acquire_wm(
 
 	rsrc_data = wm_res->res_priv;
 	wm_idx = rsrc_data->index;
-	rsrc_data->format = out_port_info->format;
+	rsrc_data->format = out_acq_args->out_port_info->format;
+	rsrc_data->use_wm_pack = out_acq_args->use_wm_pack;
 	rsrc_data->pack_fmt = cam_vfe_bus_ver3_get_packer_fmt(rsrc_data->format,
 		wm_idx);
 
-	rsrc_data->width = out_port_info->width;
-	rsrc_data->height = out_port_info->height;
-	rsrc_data->acquired_width = out_port_info->width;
-	rsrc_data->acquired_height = out_port_info->height;
-	rsrc_data->is_dual = is_dual;
+	rsrc_data->width = out_acq_args->out_port_info->width;
+	rsrc_data->height = out_acq_args->out_port_info->height;
+	rsrc_data->acquired_width = out_acq_args->out_port_info->width;
+	rsrc_data->acquired_height = out_acq_args->out_port_info->height;
+	rsrc_data->is_dual = out_acq_args->is_dual;
 	/* Set WM offset value to default */
 	rsrc_data->offset  = 0;
 	CAM_DBG(CAM_ISP, "WM:%d width %d height %d", rsrc_data->index,
@@ -2028,12 +2051,11 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	/* Acquire WM and retrieve COMP GRP ID */
 	for (i = 0; i < rsrc_data->num_wm; i++) {
 		rc = cam_vfe_bus_ver3_acquire_wm(ver3_bus_priv,
-			out_acquire_args->out_port_info,
+			out_acquire_args,
 			acq_args->tasklet,
 			vfe_out_res_id,
 			i,
 			&rsrc_data->wm_res[i],
-			out_acquire_args->is_dual,
 			&comp_acq_args.comp_grp_id);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
@@ -2403,7 +2425,8 @@ static int cam_vfe_bus_ver3_handle_vfe_out_done_bottom_half(
 	struct cam_isp_resource_node          *vfe_out = handler_priv;
 	struct cam_vfe_bus_ver3_vfe_out_data  *rsrc_data = vfe_out->res_priv;
 	struct cam_vfe_bus_irq_evt_payload    *evt_payload = evt_payload_priv;
-	struct cam_isp_hw_compdone_event_info  evt_info = {0};
+	struct cam_isp_hw_event_info           evt_info;
+	struct cam_isp_hw_compdone_event_info  compdone_evt_info = {0};
 	void                                  *ctx = NULL;
 	uint32_t                               evt_id = 0;
 	uint64_t                               comp_mask = 0;
@@ -2439,14 +2462,15 @@ static int cam_vfe_bus_ver3_handle_vfe_out_done_bottom_half(
 			goto end;
 		}
 
-		evt_info.num_res = num_out;
+		compdone_evt_info.num_res = num_out;
 		for (i = 0; i < num_out; i++) {
-			evt_info.res_id[i] = out_list[i];
-			evt_info.last_consumed_addr[i] =
+			compdone_evt_info.res_id[i] = out_list[i];
+			compdone_evt_info.last_consumed_addr[i] =
 				cam_vfe_bus_ver3_get_last_consumed_addr(
 				rsrc_data->bus_priv,
-				evt_info.res_id[i]);
+				compdone_evt_info.res_id[i]);
 		}
+		evt_info.event_data = (void *)&compdone_evt_info;
 		if (rsrc_data->common_data->event_cb)
 			rsrc_data->common_data->event_cb(ctx, evt_id,
 				(void *)&evt_info);
@@ -2860,6 +2884,7 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 	struct cam_vfe_bus_ver3_priv *bus_priv = handler_priv;
 	struct cam_vfe_bus_ver3_common_data *common_data;
 	struct cam_isp_hw_event_info evt_info;
+	struct cam_isp_hw_error_event_info err_evt_info;
 	uint32_t status = 0, image_size_violation = 0, ccif_violation = 0, constraint_violation = 0;
 
 	if (!handler_priv || !evt_payload_priv)
@@ -2901,8 +2926,9 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 	evt_info.hw_idx = common_data->core_index;
 	evt_info.res_type = CAM_ISP_RESOURCE_VFE_OUT;
 	evt_info.res_id = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
-	evt_info.err_type = CAM_VFE_IRQ_STATUS_VIOLATION;
 	evt_info.hw_type = CAM_ISP_HW_TYPE_VFE;
+	err_evt_info.err_type = CAM_VFE_IRQ_STATUS_VIOLATION;
+	evt_info.event_data = (void *)&err_evt_info;
 
 	if (common_data->event_cb)
 		common_data->event_cb(common_data->priv, CAM_ISP_HW_EVENT_ERROR,
@@ -3138,9 +3164,8 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 	struct cam_cdm_utils_ops                       *cdm_util_ops;
 	uint32_t *reg_val_pair;
 	uint32_t num_regval_pairs = 0;
-	uint32_t i, j, k, size = 0;
+	uint32_t i, j, size = 0;
 	uint32_t frame_inc = 0, val;
-	uint32_t loop_size = 0;
 	uint32_t iova_addr, iova_offset, image_buf_offset = 0;
 	dma_addr_t iova;
 
@@ -3284,12 +3309,6 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 				wm_data->index, reg_val_pair[j-1]);
 		}
 
-		if ((!bus_priv->common_data.is_lite && wm_data->index > 22) ||
-			bus_priv->common_data.is_lite)
-			loop_size = wm_data->irq_subsample_period + 1;
-		else
-			loop_size = 1;
-
 		if (wm_data->en_ubwc)
 			image_buf_offset = io_cfg->planes[i].meta_size;
 		else if (wm_data->en_cfg & (0x3 << 16))
@@ -3298,31 +3317,29 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 			image_buf_offset = 0;
 
 		/* WM Image address */
-		for (k = 0; k < loop_size; k++) {
-			iova = update_buf->wm_update->image_buf[i] +
-				image_buf_offset + (k * frame_inc);
+		iova = update_buf->wm_update->image_buf[i] +
+			image_buf_offset;
 
-			if (cam_smmu_is_expanded_memory()) {
-				iova_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
-				iova_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
+		if (cam_smmu_is_expanded_memory()) {
+			iova_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
+			iova_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
 
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->image_addr, iova_addr);
+			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				wm_data->hw_regs->image_addr, iova_addr);
 
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->addr_cfg, iova_offset);
+			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				wm_data->hw_regs->addr_cfg, iova_offset);
 
-				CAM_DBG(CAM_ISP, "WM:%d image address 0x%X 0x%X",
-					wm_data->index, reg_val_pair[j-2], reg_val_pair[j-1]);
-			} else {
-				iova_addr = iova;
+			CAM_DBG(CAM_ISP, "WM:%d image address 0x%X 0x%X",
+				wm_data->index, reg_val_pair[j-2], reg_val_pair[j-1]);
+		} else {
+			iova_addr = iova;
 
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->image_addr, iova_addr);
+			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				wm_data->hw_regs->image_addr, iova_addr);
 
-				CAM_DBG(CAM_ISP, "WM:%d image address 0x%X",
-					wm_data->index, reg_val_pair[j-1]);
-			}
+			CAM_DBG(CAM_ISP, "WM:%d image address 0x%X",
+				wm_data->index, reg_val_pair[j-1]);
 		}
 
 		update_buf->wm_update->image_buf_offset[i] = image_buf_offset;
