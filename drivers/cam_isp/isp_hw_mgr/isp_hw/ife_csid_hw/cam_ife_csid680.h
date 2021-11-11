@@ -1085,8 +1085,8 @@ static struct cam_ife_csid_csi2_rx_reg_info
 		.short_pkt_strobe_rst_shift      = 1,
 		.cphy_pkt_strobe_rst_shift       = 2,
 		.unmapped_pkt_strobe_rst_shift   = 3,
-		.fatal_err_mask                  = 0x097A000,
-		.part_fatal_err_mask             = 0x1081800,
+		.fatal_err_mask                  = 0x19FA800,
+		.part_fatal_err_mask             = 0x0001000,
 		.non_fatal_err_mask              = 0x0200000,
 		.top_irq_mask                    = 0x4,
 };

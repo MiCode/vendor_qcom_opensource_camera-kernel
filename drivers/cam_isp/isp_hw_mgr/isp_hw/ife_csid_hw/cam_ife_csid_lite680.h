@@ -457,9 +457,9 @@ static struct cam_ife_csid_csi2_rx_reg_info
 		.short_pkt_strobe_rst_shift           = 1,
 		.cphy_pkt_strobe_rst_shift            = 2,
 		.unmapped_pkt_strobe_rst_shift        = 3,
-		.fatal_err_mask                       = 0x78000,
-		.part_fatal_err_mask                  = 0x1801800,
-		.non_fatal_err_mask                   = 0x380000,
+		.fatal_err_mask                       = 0x19FA800,
+		.part_fatal_err_mask                  = 0x0001000,
+		.non_fatal_err_mask                   = 0x0200000,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
