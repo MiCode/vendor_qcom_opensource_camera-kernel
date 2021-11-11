@@ -3089,20 +3089,95 @@ static int __cam_isp_ctx_buf_done_in_bubble_applied(
 	return rc;
 }
 
-static uint32_t get_evt_param(uint32_t error_type)
+static void get_notification_evt_params(uint32_t hw_error, uint32_t *fence_evt_cause,
+	uint32_t *req_mgr_err_code, uint32_t *recovery_type)
 {
-	switch (error_type) {
-	case CAM_ISP_HW_ERROR_OVERFLOW:
-		return CAM_SYNC_ISP_EVENT_OVERFLOW;
-	case CAM_ISP_HW_ERROR_P2I_ERROR:
-		return CAM_SYNC_ISP_EVENT_P2I_ERROR;
-	case CAM_ISP_HW_ERROR_VIOLATION:
-		return CAM_SYNC_ISP_EVENT_VIOLATION;
-	case CAM_ISP_HW_ERROR_BUSIF_OVERFLOW:
-		return CAM_SYNC_ISP_EVENT_BUSIF_OVERFLOW;
-	default:
-		return CAM_SYNC_ISP_EVENT_UNKNOWN;
+	uint32_t err_type, err_code = 0, recovery_type_temp;
+
+	err_type = CAM_SYNC_ISP_EVENT_UNKNOWN;
+	recovery_type_temp = CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
+
+	if (hw_error & CAM_ISP_HW_ERROR_OVERFLOW) {
+		err_code |= CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		err_type = CAM_SYNC_ISP_EVENT_OVERFLOW;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 	}
+	if (hw_error & CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW) {
+		err_code |= CAM_REQ_MGR_CSID_FIFO_OVERFLOW_ERROR;
+		err_type = CAM_SYNC_ISP_EVENT_CSID_OUTPUT_FIFO_OVERFLOW;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW) {
+		err_code |= CAM_REQ_MGR_CSID_RECOVERY_OVERFLOW_ERROR;
+		err_type = CAM_SYNC_ISP_EVENT_RECOVERY_OVERFLOW;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_P2I_ERROR) {
+		err_code |= CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		err_type = CAM_SYNC_ISP_EVENT_P2I_ERROR;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_VIOLATION) {
+		err_code |= CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		err_type = CAM_SYNC_ISP_EVENT_VIOLATION;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_BUSIF_OVERFLOW) {
+		err_code |= CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		err_type = CAM_SYNC_ISP_EVENT_BUSIF_OVERFLOW;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_CSID_SENSOR_SWITCH_ERROR) {
+		err_code |= CAM_REQ_MGR_CSID_ERR_ON_SENSOR_SWITCHING;
+		err_type = CAM_SYNC_ISP_EVENT_CSID_SENSOR_SWITCH_ERROR;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_CSID_LANE_FIFO_OVERFLOW) {
+		err_code |= CAM_REQ_MGR_CSID_LANE_FIFO_OVERFLOW_ERROR;
+		err_type = CAM_SYNC_ISP_EVENT_CSID_RX_ERROR;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_CSID_PKT_HDR_CORRUPTED) {
+		err_code |= CAM_REQ_MGR_CSID_RX_PKT_HDR_CORRUPTION;
+		err_type = CAM_SYNC_ISP_EVENT_CSID_RX_ERROR;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_CSID_MISSING_PKT_HDR_DATA) {
+		err_code |= CAM_REQ_MGR_CSID_MISSING_PKT_HDR_DATA;
+		err_type = CAM_SYNC_ISP_EVENT_CSID_RX_ERROR;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_CSID_UNBOUNDED_FRAME) {
+		err_code |= CAM_REQ_MGR_CSID_UNBOUNDED_FRAME;
+		err_type = CAM_SYNC_ISP_EVENT_CSID_RX_ERROR;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_CSID_FRAME_SIZE) {
+		err_code |= CAM_REQ_MGR_CSID_PIXEL_COUNT_MISMATCH;
+		err_type = CAM_SYNC_ISP_EVENT_CSID_RX_ERROR;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_CSID_MISSING_EOT) {
+		err_code |= CAM_REQ_MGR_CSID_MISSING_EOT;
+		err_type = CAM_SYNC_ISP_EVENT_CSID_RX_ERROR;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY;
+	}
+	if (hw_error & CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED) {
+		err_code |= CAM_REQ_MGR_CSID_RX_PKT_PAYLOAD_CORRUPTION;
+		err_type = CAM_SYNC_ISP_EVENT_CSID_RX_ERROR;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY;
+	}
+
+	if (recovery_type_temp == (CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY |
+		CAM_REQ_MGR_ERROR_TYPE_RECOVERY))
+		recovery_type_temp = CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY;
+
+	if (!err_code)
+		err_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+
+	*req_mgr_err_code = err_code;
+	*fence_evt_cause = err_type;
+	*recovery_type = recovery_type_temp;
 }
 
 static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
@@ -3120,26 +3195,22 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 	struct cam_isp_ctx_req          *req_isp_to_report = NULL;
 	uint64_t                         error_request_id;
 	struct cam_hw_fence_map_entry   *fence_map_out = NULL;
-	uint32_t                         evt_param;
+	uint32_t                         recovery_type, fence_evt_cause;
+	uint32_t                         req_mgr_err_code;
 
 	struct cam_context *ctx = ctx_isp->base;
 	struct cam_isp_hw_error_event_data  *error_event_data =
 			(struct cam_isp_hw_error_event_data *)evt_data;
 
-	uint32_t error_type = error_event_data->error_type;
-
-	CAM_DBG(CAM_ISP, "Enter error_type = %d", error_type);
+	CAM_DBG(CAM_ISP, "Enter HW error_type = %d", error_event_data->error_type);
 
 	if (!ctx_isp->offline_context)
 		__cam_isp_ctx_pause_crm_timer(ctx);
 
-	if ((error_type == CAM_ISP_HW_ERROR_OVERFLOW) ||
-		(error_type == CAM_ISP_HW_ERROR_BUSIF_OVERFLOW) ||
-		(error_type == CAM_ISP_HW_ERROR_VIOLATION))
-		__cam_isp_ctx_trigger_reg_dump(CAM_HW_MGR_CMD_REG_DUMP_ON_ERROR, ctx);
+	__cam_isp_ctx_trigger_reg_dump(CAM_HW_MGR_CMD_REG_DUMP_ON_ERROR, ctx);
 
-	evt_param = get_evt_param(error_type);
-
+	get_notification_evt_params(error_event_data->error_type, &fence_evt_cause,
+		&req_mgr_err_code, &recovery_type);
 	/*
 	 * The error is likely caused by first request on the active list.
 	 * If active list is empty check wait list (maybe error hit as soon
@@ -3187,7 +3258,7 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 					rc = cam_sync_signal(
 						fence_map_out->sync_id,
 						CAM_SYNC_STATE_SIGNALED_ERROR,
-						evt_param);
+						fence_evt_cause);
 					fence_map_out->sync_id = -1;
 				}
 			}
@@ -3221,7 +3292,7 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 					rc = cam_sync_signal(
 						fence_map_out->sync_id,
 						CAM_SYNC_STATE_SIGNALED_ERROR,
-						evt_param);
+						fence_evt_cause);
 					fence_map_out->sync_id = -1;
 				}
 			}
@@ -3283,7 +3354,7 @@ end:
 				rc = cam_sync_signal(
 					req_isp->fence_map_out[i].sync_id,
 					CAM_SYNC_STATE_SIGNALED_ERROR,
-					evt_param);
+					fence_evt_cause);
 			req_isp->fence_map_out[i].sync_id = -1;
 		}
 		list_del_init(&req->list);
@@ -3307,16 +3378,9 @@ end:
 	 * This will help UMD to take necessary action
 	 * and to dump relevant info
 	 */
-	if (error == CRM_KMD_ERR_FATAL) {
-		uint32_t req_mgr_error_type = CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
-
-		if (error_type == CAM_ISP_HW_ERROR_CSID_FATAL)
-			req_mgr_error_type =
-				CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY;
-
-		__cam_isp_ctx_notify_v4l2_error_event(req_mgr_error_type,
-			error_event_data->error_code, error_request_id, ctx);
-	}
+	if (error == CRM_KMD_ERR_FATAL)
+		__cam_isp_ctx_notify_v4l2_error_event(recovery_type,
+			req_mgr_err_code, error_request_id, ctx);
 
 	ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_HW_ERROR;
 	CAM_DBG(CAM_ISP, "Handling error done on ctx: %u", ctx->ctx_id);

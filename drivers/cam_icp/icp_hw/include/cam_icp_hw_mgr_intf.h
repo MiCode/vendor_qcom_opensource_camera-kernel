@@ -31,6 +31,16 @@
 #define CAM_ICP_DUMP_TAG_MAX_LEN 64
 #define CAM_ICP_DUMP_NUM_WORDS   5
 
+enum cam_icp_hw_event_type {
+	CAM_ICP_EVT_ID_BUF_DONE,
+	CAM_ICP_EVT_ID_ERROR,
+};
+
+enum cam_icp_hw_error_type {
+	CAM_ICP_HW_ERROR_NO_MEM,
+	CAM_ICP_HW_ERROR_SYSTEM_FAILURE,
+};
+
 typedef void(*cam_icp_mini_dump_cb)(void *priv,
 	void *args);
 
@@ -76,6 +86,26 @@ struct cam_icp_dump_header {
 	uint8_t    tag[CAM_ICP_DUMP_TAG_MAX_LEN];
 	uint64_t   size;
 	int32_t    word_size;
+};
+
+/**
+ * struct cam_icp_hw_buf_done_evt_data
+ * @buf_done_data:    buf done payload
+ * @evt_id:           event id (success/cancel/error)
+ */
+struct cam_icp_hw_buf_done_evt_data {
+	void      *buf_done_data;
+	uint32_t   evt_id;
+};
+
+/**
+ * struct cam_icp_hw_error_evt_data
+ * @req_id:    request id
+ * @err_type:      type of fatal error
+ */
+struct cam_icp_hw_error_evt_data {
+	uint64_t                       req_id;
+	enum cam_icp_hw_error_type     err_type;
 };
 
 #endif /* CAM_ICP_HW_MGR_INTF_H */

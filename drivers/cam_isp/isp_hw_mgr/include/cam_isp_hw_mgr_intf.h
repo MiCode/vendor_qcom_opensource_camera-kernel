@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_MGR_INTF_H_
@@ -326,8 +327,7 @@ struct cam_isp_hw_eof_event_data {
 /**
  * struct cam_isp_hw_error_event_data - Event payload for CAM_HW_EVENT_ERROR
  *
- * @error_type:            Error type for the error event
- * @error_code:            HW Error Code that caused to trigger this event
+ * @error_type:            HW error type for the error event
  * @timestamp:             Timestamp for the error event
  * @recovery_enabled:      Identifies if the context needs to recover & reapply
  *                         this request
@@ -335,7 +335,6 @@ struct cam_isp_hw_eof_event_data {
  */
 struct cam_isp_hw_error_event_data {
 	uint32_t             error_type;
-	uint32_t             error_code;
 	uint64_t             timestamp;
 	bool                 recovery_enabled;
 	bool                 enable_req_dump;
