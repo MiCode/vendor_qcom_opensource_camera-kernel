@@ -4858,14 +4858,25 @@ static int cam_ife_csid_ver2_set_dynamic_switch_config(
 		for (i = CAM_IFE_PIX_PATH_RES_RDI_0; i <= CAM_IFE_PIX_PATH_RES_RDI_2; i++) {
 			res = &csid_hw->path_res[i];
 			path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
-			if ((i - CAM_IFE_PIX_PATH_RES_RDI_0) >= exp_update_args->num_exposures) {
-				path_cfg->skip_discard_frame_cfg = true;
-				if (path_cfg->discard_init_frames) {
-					path_cfg->discard_init_frames = false;
-					path_cfg->num_frames_discard = 0;
-					atomic_dec(&csid_hw->discard_frame_per_path);
-					CAM_DBG(CAM_ISP, "CSID[%u] Reset discard config for %s",
-						csid_hw->hw_intf->hw_idx, res->res_name);
+
+			/* Skip if path_cfg is NULL */
+			if (!path_cfg)
+				continue;
+
+			/* Skip if res is not acquired or powered on */
+			if ((res->res_state == CAM_ISP_RESOURCE_STATE_RESERVED) ||
+				(res->res_state == CAM_ISP_RESOURCE_STATE_INIT_HW)) {
+				if ((i - CAM_IFE_PIX_PATH_RES_RDI_0) >=
+					exp_update_args->num_exposures) {
+					path_cfg->skip_discard_frame_cfg = true;
+					if (path_cfg->discard_init_frames) {
+						path_cfg->discard_init_frames = false;
+						path_cfg->num_frames_discard = 0;
+						atomic_dec(&csid_hw->discard_frame_per_path);
+						CAM_DBG(CAM_ISP,
+							"CSID[%u] Reset discard config for %s",
+							csid_hw->hw_intf->hw_idx, res->res_name);
+					}
 				}
 			}
 		}
