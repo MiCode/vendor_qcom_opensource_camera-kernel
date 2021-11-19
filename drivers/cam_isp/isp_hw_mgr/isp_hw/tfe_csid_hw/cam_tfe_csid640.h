@@ -200,7 +200,7 @@ static struct cam_tfe_csid_csi2_rx_reg_offset
 	.csid_csi2_rx_stats_ecc_addr                  = 0x164,
 	.csid_csi2_rx_total_crc_err_addr              = 0x168,
 
-	.phy_tpg_base_id                              = 0,
+	.phy_tpg_base_id                              = 1,
 	.csi2_rst_srb_all                             = 0x3FFF,
 	.csi2_rst_done_shift_val                      = 27,
 	.csi2_irq_mask_all                            = 0xFFFFFFF,
@@ -217,6 +217,7 @@ static struct cam_tfe_csid_csi2_rx_reg_offset
 	.csi2_rx_long_pkt_hdr_rst_stb_shift           = 0x1,
 	.csi2_rx_short_pkt_hdr_rst_stb_shift          = 0x2,
 	.csi2_rx_cphy_pkt_hdr_rst_stb_shift           = 0x3,
+	.need_to_sel_tpg_mux                          = true,
 };
 
 static struct cam_tfe_csid_common_reg_offset

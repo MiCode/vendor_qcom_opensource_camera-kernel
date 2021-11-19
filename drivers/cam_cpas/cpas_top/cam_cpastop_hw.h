@@ -534,4 +534,17 @@ struct cam_cpas_info {
 	uint8_t num_qchannel;
 };
 
+/**
+ * struct cam_cpas_top_regs : CPAS Top registers
+ * @tpg_mux_sel_shift:     TPG mux select shift value
+ * @tpg_mux_sel:           For selecting TPG
+ * @tpg_mux_sel_enabled:   TPG mux select enabled or not
+ *
+ */
+struct cam_cpas_top_regs {
+	uint32_t tpg_mux_sel_shift;
+	uint32_t tpg_mux_sel;
+	bool     tpg_mux_sel_enabled;
+};
+
 #endif /* _CAM_CPASTOP_HW_H_ */
