@@ -367,6 +367,36 @@ static int cam_sfe_bus_rd_handle_irq(
 	return (rc == IRQ_HANDLED) ? 0 : -EINVAL;
 }
 
+static int cam_sfe_bus_rd_print_dimensions(
+	enum cam_sfe_bus_rd_type     bus_rd_res_id,
+	struct cam_sfe_bus_rd_priv  *bus_rd_priv)
+{
+	int i;
+	struct cam_isp_resource_node           *rsrc_node = NULL;
+	struct cam_sfe_bus_rd_data             *rsrc_data = NULL;
+	struct cam_sfe_bus_rd_rm_resource_data *rm_data;
+	struct cam_sfe_bus_rd_common_data      *common_data;
+
+	rsrc_node = &bus_rd_priv->sfe_bus_rd[bus_rd_res_id];
+	rsrc_data = rsrc_node->res_priv;
+
+	for (i = 0; i < rsrc_data->num_rm; i++) {
+		rm_data = rsrc_data->rm_res[i]->res_priv;
+
+		if (!rm_data)
+			continue;
+
+		common_data = rm_data->common_data;
+		CAM_INFO(CAM_SFE,
+			"SFE: %u RD: %u res_id: 0x%x width: 0x%x height: 0x%x stride: 0x%x unpacker: 0x%x addr: 0x%x",
+			bus_rd_priv->common_data.core_index, i, rsrc_node->res_id,
+			rm_data->width, rm_data->height, rm_data->stride, rm_data->unpacker_cfg,
+			cam_io_r_mb(common_data->mem_base + rm_data->hw_regs->image_addr));
+	}
+
+	return 0;
+}
+
 static int cam_sfe_bus_acquire_rm(
 	struct cam_sfe_bus_rd_priv             *bus_rd_priv,
 	void                                   *tasklet,
@@ -1556,12 +1586,12 @@ static int cam_sfe_bus_rd_get_res_for_mid(
 	 * Correct value will be dumped in hw mgr
 	 */
 	if (i == bus_priv->num_bus_rd_resc) {
-		CAM_INFO(CAM_SFE, "mid:%d does not match with any out resource", get_res->mid);
+		CAM_INFO(CAM_SFE, "mid:%d does not match with any read resource", get_res->mid);
 		return 0;
 	}
 
 end:
-	CAM_INFO(CAM_SFE, "match mid :%d  out resource: 0x%x found",
+	CAM_INFO(CAM_SFE, "match mid :%d  read resource: 0x%x found",
 		get_res->mid, bus_priv->sfe_bus_rd[i].res_id);
 	get_res->out_res_id = bus_priv->sfe_bus_rd[i].res_id;
 	return 0;
@@ -1714,6 +1744,27 @@ static int cam_sfe_bus_rd_process_cmd(
 	case CAM_ISP_HW_CMD_GET_RES_FOR_MID:
 		rc = cam_sfe_bus_rd_get_res_for_mid(priv, cmd_args, arg_size);
 		break;
+	case CAM_ISP_HW_CMD_DUMP_BUS_INFO: {
+		struct cam_isp_hw_event_info  *event_info =
+			(struct cam_isp_hw_event_info *)cmd_args;
+		enum cam_sfe_bus_rd_type       bus_rd_res_id;
+
+		bus_rd_res_id = cam_sfe_bus_get_bus_rd_res_id(
+			event_info->res_id);
+
+		/* Skip if it's not a read resource */
+		if (bus_rd_res_id == CAM_SFE_BUS_RD_MAX) {
+			CAM_DBG(CAM_SFE,
+				"Not a SFE read res: 0x%x - skip dump",
+				event_info->res_id);
+			rc = 0;
+			break;
+		}
+
+		rc = cam_sfe_bus_rd_print_dimensions(bus_rd_res_id,
+			(struct cam_sfe_bus_rd_priv  *)priv);
+		break;
+	}
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_SFE,
 			"Invalid SFE BUS RD command type: %d",

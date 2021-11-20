@@ -353,7 +353,7 @@ int cam_sfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 			cmd_args, arg_size);
 		break;
 	case  CAM_ISP_HW_CMD_UNMASK_BUS_WR_IRQ:
-		/* Needs to be handled based on hw_mgr change */
+		/* Not supported */
 		break;
 	case CAM_ISP_HW_CMD_SET_SFE_DEBUG_CFG:
 		/* propagate to SFE top */
@@ -361,6 +361,7 @@ int cam_sfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 			core_info->sfe_top->top_priv, cmd_type,
 			cmd_args, arg_size);
 	case CAM_ISP_HW_CMD_GET_RES_FOR_MID:
+	case CAM_ISP_HW_CMD_DUMP_BUS_INFO:
 		/* propagate to SFE bus wr */
 		core_info->sfe_bus_wr->hw_ops.process_cmd(
 			core_info->sfe_bus_wr->bus_priv, cmd_type,

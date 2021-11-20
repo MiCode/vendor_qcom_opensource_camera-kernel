@@ -5146,6 +5146,10 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 	case CAM_ISP_HW_CMD_RDI_LCR_CFG:
 		rc = cam_ife_csid_ver2_rdi_lcr_cfg(csid_hw, cmd_args);
 		break;
+	case CAM_IFE_CSID_LOG_ACQUIRE_DATA:
+		/* Not supported on ver2 */
+		rc = 0;
+		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",
 			csid_hw->hw_intf->hw_idx, cmd_type);

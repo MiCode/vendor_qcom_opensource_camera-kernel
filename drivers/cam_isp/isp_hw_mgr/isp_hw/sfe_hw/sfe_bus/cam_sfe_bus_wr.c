@@ -2010,13 +2010,29 @@ static int cam_sfe_bus_deinit_sfe_out_resource(
 static inline void __cam_sfe_bus_wr_print_wm_info(
 	struct cam_sfe_bus_wr_wm_resource_data  *wm_data)
 {
+	uint32_t addr_status0, addr_status1, addr_status2, addr_status3;
+
+	addr_status0 = cam_io_r_mb(wm_data->common_data->mem_base +
+		wm_data->hw_regs->addr_status_0);
+	addr_status1 = cam_io_r_mb(wm_data->common_data->mem_base +
+		wm_data->hw_regs->addr_status_1);
+	addr_status2 = cam_io_r_mb(wm_data->common_data->mem_base +
+		wm_data->hw_regs->addr_status_2);
+	addr_status3 = cam_io_r_mb(wm_data->common_data->mem_base +
+		wm_data->hw_regs->addr_status_3);
+
 	CAM_INFO(CAM_SFE,
-		"SFE:%d WM:%d width:%u height:%u stride:%u x_init:%u en_cfg:%u acquired width:%u height:%u pack_cfg: 0x%x",
+		"SFE:%u WM:%u width:%u height:%u stride:%u x_init:%u en_cfg:%u acquired width:%u height:%u pack_cfg: 0x%x",
 		wm_data->common_data->core_index, wm_data->index,
 		wm_data->width, wm_data->height,
 		wm_data->stride, wm_data->h_init,
 		wm_data->en_cfg, wm_data->acquired_width,
 		wm_data->acquired_height, wm_data->pack_fmt);
+
+	CAM_INFO(CAM_SFE,
+		"SFE:%u WM:%u last_consumed_image_addr:0x%x last_consumed_frame_header:0x%x fifo_word_cnt:0x%x [FH + Image] current_image_addr:0x%x",
+		wm_data->common_data->hw_intf->hw_idx, wm_data->index,
+		addr_status0, addr_status1, addr_status2, addr_status3);
 }
 
 static int cam_sfe_bus_wr_print_dimensions(
@@ -2996,7 +3012,7 @@ static int cam_sfe_bus_wr_get_res_for_mid(
 
 	for (i = 0; i < bus_priv->num_out; i++) {
 
-		for (j = 0; j < CAM_SFE_BUS_MAX_MID_PER_PORT; j++) {
+		for (j = 0; j < bus_priv->sfe_out_hw_info[i].num_mid; j++) {
 			if (bus_priv->sfe_out_hw_info[i].mid[j] == get_res->mid)
 				goto end;
 		}
@@ -3137,18 +3153,26 @@ static int cam_sfe_bus_wr_process_cmd(
 		rc = 0;
 		break;
 	case CAM_ISP_HW_CMD_DUMP_BUS_INFO: {
-		struct cam_isp_hw_event_info  *event_info;
+		struct cam_isp_hw_event_info  *event_info =
+			(struct cam_isp_hw_event_info *)cmd_args;
 		enum cam_sfe_bus_sfe_out_type  sfe_out_res_id;
 
-		event_info =
-			(struct cam_isp_hw_event_info *)cmd_args;
-		bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
 		sfe_out_res_id =
 			cam_sfe_bus_wr_get_out_res_id(event_info->res_id);
-		rc = cam_sfe_bus_wr_print_dimensions(
-			sfe_out_res_id, bus_priv);
-		break;
+
+		/* Skip if not write resource */
+		if (sfe_out_res_id == CAM_SFE_BUS_SFE_OUT_MAX) {
+			CAM_DBG(CAM_SFE,
+				"No a SFE write res: 0x%x - skip dump",
+				event_info->res_id);
+			rc = 0;
+			break;
 		}
+
+		rc = cam_sfe_bus_wr_print_dimensions(
+			sfe_out_res_id, (struct cam_sfe_bus_wr_priv  *)priv);
+		break;
+	}
 	case CAM_ISP_HW_CMD_WM_CONFIG_UPDATE:
 		rc = cam_sfe_bus_wr_update_wm_config(cmd_args);
 		break;

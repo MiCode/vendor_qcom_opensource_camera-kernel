@@ -958,6 +958,10 @@ static char *__cam_isp_ife_sfe_resource_handle_id_to_type(
 	case CAM_ISP_SFE_OUT_BAYER_RS_STATS_0:          return "SFE_RS_STATS_0";
 	case CAM_ISP_SFE_OUT_BAYER_RS_STATS_1:          return "SFE_RS_STATS_1";
 	case CAM_ISP_SFE_OUT_BAYER_RS_STATS_2:          return "SFE_RS_STATS_2";
+	/* SFE input ports */
+	case CAM_ISP_SFE_IN_RD_0:                       return "SFE_RD_0";
+	case CAM_ISP_SFE_IN_RD_1:                       return "SFE_RD_1";
+	case CAM_ISP_SFE_IN_RD_2:                       return "SFE_RD_2";
 	/* Handle invalid type */
 	default:                                        return "Invalid_Resource_Type";
 	}
