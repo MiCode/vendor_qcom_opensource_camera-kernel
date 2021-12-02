@@ -2958,8 +2958,6 @@ int cam_cpas_hw_probe(struct platform_device *pdev,
 		return -ENOMEM;
 	}
 
-	CAM_INFO(CAM_CPAS, "cpas probe start");
-
 	cpas_core = kzalloc(sizeof(struct cam_cpas), GFP_KERNEL);
 	if (!cpas_core) {
 		kfree(cpas_hw);
