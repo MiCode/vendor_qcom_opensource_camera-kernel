@@ -2833,8 +2833,10 @@ static int cam_icp_alloc_shared_mem(struct cam_mem_mgr_memory_desc *qtbl)
 		CAM_MEM_FLAG_HW_SHARED_ACCESS;
 	alloc.smmu_hdl = icp_hw_mgr.iommu_hdl;
 	rc = cam_mem_mgr_request_mem(&alloc, &out);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in alloc shared mem rc %d", rc);
 		return rc;
+	}
 
 	*qtbl = out;
 	CAM_DBG(CAM_ICP, "kva: %llX, iova: %x, hdl: %x, len: %lld",
@@ -2855,8 +2857,10 @@ static int cam_icp_allocate_fw_mem(void)
 
 	rc = cam_smmu_alloc_firmware(icp_hw_mgr.iommu_hdl,
 		&iova, &kvaddr, &len);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in alloc firmware rc %d", rc);
 		return -ENOMEM;
+	}
 
 	icp_hw_mgr.hfi_mem.fw_buf.len = len;
 	icp_hw_mgr.hfi_mem.fw_buf.kva = kvaddr;
@@ -2877,8 +2881,10 @@ static int cam_icp_allocate_qdss_mem(void)
 
 	rc = cam_smmu_alloc_qdss(icp_hw_mgr.iommu_hdl,
 		&iova, &len);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in alloc qdss mem rc %d", rc);
 		return rc;
+	}
 
 	icp_hw_mgr.hfi_mem.qdss_buf.len = len;
 	icp_hw_mgr.hfi_mem.qdss_buf.iova = iova;
@@ -2921,19 +2927,19 @@ static int cam_icp_allocate_hfi_mem(void)
 		CAM_SMMU_REGION_SHARED,
 		&icp_hw_mgr.hfi_mem.shmem);
 	if (rc) {
-		CAM_ERR(CAM_ICP, "Unable to get shared memory info");
+		CAM_ERR(CAM_ICP, "Unable to get shared memory info rc %d", rc);
 		return rc;
 	}
 
 	rc = cam_icp_allocate_fw_mem();
 	if (rc) {
-		CAM_ERR(CAM_ICP, "Unable to allocate FW memory");
+		CAM_ERR(CAM_ICP, "Unable to allocate FW memory rc %d", rc);
 		return rc;
 	}
 
 	rc = cam_icp_allocate_qdss_mem();
 	if (rc) {
-		CAM_ERR(CAM_ICP, "Unable to allocate qdss memory");
+		CAM_ERR(CAM_ICP, "Unable to allocate qdss memory rc %d", rc);
 		goto fw_alloc_failed;
 	}
 
@@ -2960,7 +2966,7 @@ static int cam_icp_allocate_hfi_mem(void)
 			CAM_SMMU_REGION_FWUNCACHED,
 			&out);
 		if (rc) {
-			CAM_ERR(CAM_ICP, "Unable to reserve secheap memory");
+			CAM_ERR(CAM_ICP, "Unable to reserve secheap memory rc %d", rc);
 			goto qtbl_alloc_failed;
 		}
 
@@ -3033,37 +3039,37 @@ static int cam_icp_allocate_hfi_mem(void)
 	} else {
 		rc = cam_icp_alloc_shared_mem(&icp_hw_mgr.hfi_mem.qtbl);
 		if (rc) {
-			CAM_ERR(CAM_ICP, "Unable to allocate qtbl memory");
+			CAM_ERR(CAM_ICP, "Unable to allocate qtbl memory, rc %d", rc);
 			goto qtbl_alloc_failed;
 		}
 
 		rc = cam_icp_alloc_shared_mem(&icp_hw_mgr.hfi_mem.cmd_q);
 		if (rc) {
-			CAM_ERR(CAM_ICP, "Unable to allocate cmd q memory");
+			CAM_ERR(CAM_ICP, "Unable to allocate cmd q memory rc %d", rc);
 			goto cmd_q_alloc_failed;
 		}
 
 		rc = cam_icp_alloc_shared_mem(&icp_hw_mgr.hfi_mem.msg_q);
 		if (rc) {
-			CAM_ERR(CAM_ICP, "Unable to allocate msg q memory");
+			CAM_ERR(CAM_ICP, "Unable to allocate msg q memory rc %d", rc);
 			goto msg_q_alloc_failed;
 		}
 
 		rc = cam_icp_alloc_shared_mem(&icp_hw_mgr.hfi_mem.dbg_q);
 		if (rc) {
-			CAM_ERR(CAM_ICP, "Unable to allocate dbg q memory");
+			CAM_ERR(CAM_ICP, "Unable to allocate dbg q memory rc %d", rc);
 			goto dbg_q_alloc_failed;
 		}
 
 		rc = cam_icp_alloc_sfr_mem(&icp_hw_mgr.hfi_mem.sfr_buf);
 		if (rc) {
-			CAM_ERR(CAM_ICP, "Unable to allocate sfr buffer");
+			CAM_ERR(CAM_ICP, "Unable to allocate sfr buffer rc %d", rc);
 			goto sfr_buf_alloc_failed;
 		}
 
 		rc = cam_icp_alloc_secheap_mem(&icp_hw_mgr.hfi_mem.sec_heap);
 		if (rc) {
-			CAM_ERR(CAM_ICP, "Unable to allocate sec heap memory");
+			CAM_ERR(CAM_ICP, "Unable to allocate sec heap memory rc %d", rc);
 			goto sec_heap_alloc_failed;
 		}
 	}
@@ -3103,7 +3109,7 @@ static int cam_icp_allocate_hfi_mem(void)
 
 	rc = cam_icp_get_io_mem_info();
 	if (rc) {
-		CAM_ERR(CAM_ICP, "Unable to get I/O region info");
+		CAM_ERR(CAM_ICP, "Unable to get I/O region info rc %d", rc);
 		if (fwuncached_region_exists) {
 			cam_mem_mgr_free_memory_region(
 				&icp_hw_mgr.hfi_mem.fw_uncached);
@@ -3192,6 +3198,7 @@ static int cam_ipe_bps_deint(struct cam_icp_hw_mgr *hw_mgr)
 	struct cam_hw_intf *ipe0_dev_intf = NULL;
 	struct cam_hw_intf *ipe1_dev_intf = NULL;
 	struct cam_hw_intf *bps_dev_intf = NULL;
+	int rc = 0;
 
 	ipe0_dev_intf = hw_mgr->ipe0_dev_intf;
 	ipe1_dev_intf = hw_mgr->ipe1_dev_intf;
@@ -3202,14 +3209,23 @@ static int cam_ipe_bps_deint(struct cam_icp_hw_mgr *hw_mgr)
 	}
 
 	if (ipe1_dev_intf && hw_mgr->ipe_clk_state) {
-		ipe1_dev_intf->hw_ops.deinit(ipe1_dev_intf->hw_priv,
+		rc = ipe1_dev_intf->hw_ops.deinit(ipe1_dev_intf->hw_priv,
 				NULL, 0);
+		if (rc)
+			CAM_ERR(CAM_ICP, "Failed in ipe1 deinit rc %d", rc);
 	}
 
-	if (hw_mgr->ipe_clk_state)
-		ipe0_dev_intf->hw_ops.deinit(ipe0_dev_intf->hw_priv, NULL, 0);
-	if (hw_mgr->bps_clk_state)
-		bps_dev_intf->hw_ops.deinit(bps_dev_intf->hw_priv, NULL, 0);
+	if (hw_mgr->ipe_clk_state) {
+		rc = ipe0_dev_intf->hw_ops.deinit(ipe0_dev_intf->hw_priv, NULL, 0);
+		if (rc)
+			CAM_ERR(CAM_ICP, "Failed in ipe0 deinit rc %d", rc);
+	}
+
+	if (hw_mgr->bps_clk_state) {
+		rc = bps_dev_intf->hw_ops.deinit(bps_dev_intf->hw_priv, NULL, 0);
+		if (rc)
+			CAM_ERR(CAM_ICP, "Failed in bps deinit rc %d", rc);
+	}
 
 
 	hw_mgr->bps_clk_state = false;
@@ -3288,10 +3304,17 @@ static int __power_collapse(struct cam_icp_hw_mgr *hw_mgr)
 
 	if (!hw_mgr->icp_pc_flag || atomic_read(&hw_mgr->recovery)) {
 		cam_icp_mgr_proc_suspend(hw_mgr);
+
 		rc = cam_icp_mgr_hw_close_k(hw_mgr, NULL);
+		if (rc)
+			CAM_ERR(CAM_ICP, "Failed in hw close rc %d", rc);
 	} else {
 		CAM_DBG(CAM_PERF, "Sending PC prep ICP PC enabled");
+
 		rc = cam_icp_mgr_send_pc_prep(hw_mgr);
+		if (rc)
+			CAM_ERR(CAM_ICP, "Failed in send pc prep rc %d", rc);
+
 		cam_icp_mgr_proc_suspend(hw_mgr);
 	}
 
@@ -3312,7 +3335,8 @@ static int cam_icp_mgr_icp_power_collapse(struct cam_icp_hw_mgr *hw_mgr)
 
 	rc = __power_collapse(hw_mgr);
 
-	icp_dev_intf->hw_ops.deinit(icp_dev_intf->hw_priv, NULL, 0);
+	if (icp_dev_intf->hw_ops.deinit(icp_dev_intf->hw_priv, NULL, 0))
+		CAM_ERR(CAM_ICP, "Failed in icp deinit");
 
 	CAM_DBG(CAM_PERF, "EXIT");
 
@@ -3906,22 +3930,30 @@ static int cam_icp_mgr_device_init(struct cam_icp_hw_mgr *hw_mgr)
 	}
 
 	rc = icp_dev_intf->hw_ops.init(icp_dev_intf->hw_priv, NULL, 0);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in icp init rc %d", rc);
 		goto icp_dev_init_failed;
+	}
 
 	rc = bps_dev_intf->hw_ops.init(bps_dev_intf->hw_priv, NULL, 0);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in bps init rc %d", rc);
 		goto bps_dev_init_failed;
+	}
 
 	rc = ipe0_dev_intf->hw_ops.init(ipe0_dev_intf->hw_priv, NULL, 0);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in ipe0 init rc %d", rc);
 		goto ipe0_dev_init_failed;
+	}
 
 	if (ipe1_dev_intf) {
 		rc = ipe1_dev_intf->hw_ops.init(ipe1_dev_intf->hw_priv,
 						NULL, 0);
-		if (rc)
+		if (rc) {
+			CAM_ERR(CAM_ICP, "Failed in ipe1 init rc %d", rc);
 			goto ipe1_dev_init_failed;
+		}
 	}
 
 	hw_mgr->bps_clk_state = true;
@@ -4037,8 +4069,10 @@ static int cam_icp_mgr_send_fw_init(struct cam_icp_hw_mgr *hw_mgr)
 	CAM_DBG(CAM_ICP, "Sending HFI init command");
 	rc = icp_dev_intf->hw_ops.process_cmd(icp_dev_intf->hw_priv,
 					CAM_ICP_SEND_INIT, NULL, 0);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in sending HFI init command rc %d", rc);
 		return rc;
+	}
 
 	rem_jiffies = cam_common_wait_for_completion_timeout(
 			&icp_hw_mgr.icp_complete,
@@ -4145,25 +4179,37 @@ static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args)
 		return -EINVAL;
 	}
 
+	CAM_DBG(CAM_ICP, "Start icp hw open");
+
 	rc = cam_icp_allocate_hfi_mem();
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in alloc hfi mem, rc %d", rc);
 		goto alloc_hfi_mem_failed;
+	}
 
 	rc = cam_icp_mgr_device_init(hw_mgr);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in device init, rc %d", rc);
 		goto dev_init_fail;
+	}
 
 	rc = cam_icp_mgr_proc_boot(hw_mgr);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in proc boot, rc %d", rc);
 		goto boot_failed;
+	}
 
 	rc = cam_icp_mgr_hfi_init(hw_mgr);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in hfi init, rc %d", rc);
 		goto hfi_init_failed;
+	}
 
 	rc = cam_icp_mgr_send_fw_init(hw_mgr);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in sending fw init, rc %d", rc);
 		goto fw_init_failed;
+	}
 
 	hw_mgr->ctxt_cnt = 0;
 	hw_mgr->icp_booted = true;
@@ -4172,11 +4218,17 @@ static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args)
 	CAM_INFO(CAM_ICP, "FW download done successfully");
 
 	rc = cam_ipe_bps_deint(hw_mgr);
+	if (rc)
+		CAM_ERR(CAM_ICP, "Failed in ipe bps deinit rc %d", rc);
+
 	if (download_fw_args)
 		icp_pc = *((bool *)download_fw_args);
 
 	if (download_fw_args && icp_pc == true && hw_mgr->icp_pc_flag) {
 		rc = cam_ipe_bps_deint(hw_mgr);
+		if (rc)
+			CAM_ERR(CAM_ICP, "Failed in ipe bps deinit with icp_pc rc %d", rc);
+
 		CAM_DBG(CAM_ICP, "deinit all clocks");
 	}
 
@@ -4184,7 +4236,13 @@ static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args)
 		return rc;
 
 	rc = cam_ipe_bps_deint(hw_mgr);
+	if (rc)
+		CAM_ERR(CAM_ICP, "Failed in ipe bps deinit rc %d", rc);
+
 	rc = cam_icp_mgr_icp_power_collapse(hw_mgr);
+	if (rc)
+		CAM_ERR(CAM_ICP, "Failed in icp power collapse rc %d", rc);
+
 	CAM_DBG(CAM_ICP, "deinit all clocks at boot up");
 
 	return rc;
