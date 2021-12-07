@@ -2282,6 +2282,10 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 		}
 	}
 
+	CAM_TRACE(CAM_ICP,
+		"[%s]: BufDone Req %llu event_id %d",
+		ctx_data->ctx_id_string, hfi_frame_process->request_id[idx], event_id);
+
 	buf_data.request_id = hfi_frame_process->request_id[idx];
 	ctx_data->ctxt_event_cb(ctx_data->context_priv, event_id, &buf_data);
 	hfi_frame_process->request_id[idx] = 0;
@@ -6372,6 +6376,34 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	CAM_DBG(CAM_ICP, "Acquire Done for ctx_id %u dev type %d",
 		ctx_data->ctx_id,
 		ctx_data->icp_dev_acquire_info->dev_type);
+
+	CAM_TRACE(CAM_ICP,
+		"[%s]: Acquired, in_res : format=%d, widht=%d, height=%d, fps=%d",
+		ctx_data->ctx_id_string,
+		ctx_data->icp_dev_acquire_info->in_res.format,
+		ctx_data->icp_dev_acquire_info->in_res.width,
+		ctx_data->icp_dev_acquire_info->in_res.height,
+		ctx_data->icp_dev_acquire_info->in_res.fps);
+
+	if (ctx_data->icp_dev_acquire_info->num_out_res > 0) {
+		CAM_TRACE(CAM_ICP,
+			"[%s]: Acquired, out_res[0] : format=%d, widht=%d, height=%d, fps=%d",
+			ctx_data->ctx_id_string,
+			ctx_data->icp_dev_acquire_info->out_res[0].format,
+			ctx_data->icp_dev_acquire_info->out_res[0].width,
+			ctx_data->icp_dev_acquire_info->out_res[0].height,
+			ctx_data->icp_dev_acquire_info->out_res[0].fps);
+	}
+
+	if (ctx_data->icp_dev_acquire_info->num_out_res > 1) {
+		CAM_TRACE(CAM_ICP,
+			"[%s]: Acquired, out_res[1] : format=%d, widht=%d, height=%d, fps=%d",
+			ctx_data->ctx_id_string,
+			ctx_data->icp_dev_acquire_info->out_res[1].format,
+			ctx_data->icp_dev_acquire_info->out_res[1].width,
+			ctx_data->icp_dev_acquire_info->out_res[1].height,
+			ctx_data->icp_dev_acquire_info->out_res[1].fps);
+	}
 
 	return 0;
 

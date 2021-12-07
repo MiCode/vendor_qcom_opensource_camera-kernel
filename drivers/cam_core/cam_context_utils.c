@@ -733,6 +733,9 @@ int32_t cam_context_acquire_dev_to_hw(struct cam_context *ctx,
 	/* store session information */
 	ctx->session_hdl = cmd->session_handle;
 
+	CAM_TRACE(CAM_CTXT, "Ctx[%s]: session_hdl 0x%x, dev_hdl 0x%x",
+		ctx->ctx_id_string, ctx->session_hdl, ctx->dev_hdl);
+
 	return rc;
 
 free_hw:
