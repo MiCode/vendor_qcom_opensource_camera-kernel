@@ -9,6 +9,7 @@
 
 #include <linux/types.h>
 #include <linux/completion.h>
+#include <linux/semaphore.h>
 #include <media/cam_icp.h>
 #include "cam_icp_hw_intf.h"
 #include "cam_hw_mgr_intf.h"
@@ -409,6 +410,8 @@ struct cam_icp_clk_info {
  * @recovery: Flag to validate if in previous session FW
  *            reported a fatal error or wdt. If set FW is
  *            re-downloaded for new camera session.
+ * @frame_in_process: Counter for frames in process
+ * @frame_in_process_ctx_id: Contxt id processing frame
  */
 struct cam_icp_hw_mgr {
 	struct mutex hw_mgr_mutex;
@@ -460,6 +463,8 @@ struct cam_icp_hw_mgr {
 	bool disable_ubwc_comp;
 	atomic_t recovery;
 	uint64_t icp_svs_clk;
+	atomic_t frame_in_process;
+	int frame_in_process_ctx_id;
 };
 
 /**
