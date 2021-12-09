@@ -363,7 +363,8 @@ struct cam_isp_ife_sfe_hw_caps {
 /*
  * struct cam_isp_sys_cache_info:
  *
- * @Brief:                   ISP Bus sys cache info
+ * @Brief:                   ISP Bus sys cache info. Placeholder for all cache ids and their
+ *                           types
  *
  * @type:                    Cache type
  * @scid:                    Cache slice ID
@@ -371,6 +372,29 @@ struct cam_isp_ife_sfe_hw_caps {
 struct cam_isp_sys_cache_info {
 	enum cam_sys_cache_config_types type;
 	int32_t                         scid;
+};
+
+/*
+ * struct cam_isp_sfe_cache_info:
+ *
+ * @Brief:                   SFE cache info. Placeholder for:
+ *                           1. Supported cache IDs which are populated during
+ *                           probe based on large and small.
+ *                           2. keeps track for the current cache id used for a
+ *                           particular exposure type
+ *                           3. keeps track of acvitated exposures.
+ *                           Based on this data, we can toggle the SCIDs for a particular
+ *                           hw whenever there is a hw halt. Also we don't change
+ *                           the SCID in case of dynamic exposure switches.
+ *
+ * @supported_scid_idx:      Bit mask for IDs supported for each exposure type
+ * @curr_idx:                Index of Cache ID in use for each exposure
+ * @activated:               Maintains if the cache is activated for a particular exposure
+ */
+struct cam_isp_sfe_cache_info {
+	int      supported_scid_idx;
+	int      curr_idx[CAM_ISP_EXPOSURE_MAX];
+	bool     activated[CAM_ISP_EXPOSURE_MAX];
 };
 
 /**
@@ -397,6 +421,9 @@ struct cam_isp_sys_cache_info {
  * @csid_camif_irq_support CSID camif IRQ support
  * @isp_caps               Capability of underlying SFE/IFE HW
  * @path_port_map          Mapping of outport to IFE mux
+ * @num_caches_found       Number of caches supported
+ * @sys_cache_info         Sys cache info
+ * @sfe_cache_info         SFE Cache Info
  */
 struct cam_ife_hw_mgr {
 	struct cam_isp_hw_mgr          mgr_common;
@@ -426,6 +453,7 @@ struct cam_ife_hw_mgr {
 
 	uint32_t                         num_caches_found;
 	struct cam_isp_sys_cache_info    sys_cache_info[CAM_LLCC_MAX];
+	struct cam_isp_sfe_cache_info    sfe_cache_info[CAM_SFE_HW_NUM_MAX];
 };
 
 /**

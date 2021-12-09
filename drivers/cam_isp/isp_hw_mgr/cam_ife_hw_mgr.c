@@ -936,7 +936,7 @@ static void cam_ife_hw_mgr_deinit_hw(
 {
 	struct cam_isp_hw_mgr_res *hw_mgr_res;
 	struct cam_ife_hw_mgr          *hw_mgr;
-	int i = 0;
+	int i = 0, j;
 
 	if (!ctx->flags.init_done) {
 		CAM_WARN(CAM_ISP, "ctx is not in init state");
@@ -985,12 +985,22 @@ static void cam_ife_hw_mgr_deinit_hw(
 	for (i = 0; i < max_ife_out_res; i++)
 		cam_ife_hw_mgr_deinit_hw_res(&ctx->res_list_ife_out[i]);
 
-	/* Check if any cache needs to be de-activated */
+	/*
+	 * Do not reset the curr_idx, it can be only be changed only it new SCID is reserved
+	 * for a particular exposure. Check if any cache needs to be de-activated
+	 */
 	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
 		if (ctx->flags.sys_cache_usage[i])
 			cam_cpas_deactivate_llcc(i);
 		ctx->flags.sys_cache_usage[i] = false;
 	}
+
+	for (i = 0; i < ctx->num_base; i++) {
+		if (ctx->base[i].hw_type == CAM_ISP_HW_TYPE_SFE)
+			for (j = 0; j < CAM_ISP_EXPOSURE_MAX; j++)
+				hw_mgr->sfe_cache_info[ctx->base[i].idx].activated[j] = false;
+	}
+
 	ctx->flags.init_done = false;
 }
 
@@ -7824,6 +7834,77 @@ static inline int __cam_isp_sfe_send_cache_config(
 	return rc;
 }
 
+static uint32_t cam_ife_hw_mgr_get_sfe_sys_cache_id(uint32_t exp_type,
+	struct cam_ife_hw_mgr_ctx  *ctx, uint32_t hw_idx)
+{
+	uint32_t               scid_idx = CAM_LLCC_MAX;
+	unsigned long          supported_sc_idx;
+	struct                 cam_ife_hw_mgr *hw_mgr;
+	bool                   use_large;
+
+	hw_mgr = ctx->hw_mgr;
+	supported_sc_idx = hw_mgr->sfe_cache_info[hw_idx].supported_scid_idx;
+	if (!supported_sc_idx) {
+		CAM_DBG(CAM_ISP, "Unsupported SCID for SFE %u exp_type %u", hw_idx, exp_type);
+		goto end;
+	}
+
+	if (exp_type >= CAM_ISP_EXPOSURE_MAX) {
+		CAM_INFO(CAM_ISP, "Invalid Exposure Type for SFE %u exp_type %u", hw_idx, exp_type);
+		goto end;
+	}
+
+	scid_idx = ffs(supported_sc_idx) - 1;
+	clear_bit(scid_idx, &supported_sc_idx);
+	use_large = (exp_type != CAM_ISP_LAST_EXPOSURE) ? true : false;
+
+	if (use_large) {
+		while (supported_sc_idx) {
+			scid_idx = ffs(supported_sc_idx) - 1;
+			clear_bit(scid_idx, &supported_sc_idx);
+			if ((scid_idx < CAM_LLCC_LARGE_1) || (scid_idx >= CAM_LLCC_MAX))
+				continue;
+
+			/*
+			 * In case of scenarios like, 1exp-->2exp-->1exp, we want to
+			 * retaing the earlier allocated SCID. Below check takes care
+			 * if the SCID is already activated, we do not need to reallocate
+			 */
+			if (hw_mgr->sfe_cache_info[hw_idx].activated[exp_type])
+				break;
+
+			/*
+			 * Curr_idx should not be reset in its lifetime. We need to preserve
+			 * it for next session/hw-open/hw-close cases to toggle with next
+			 * available SCID.
+			 */
+			if (hw_mgr->sfe_cache_info[hw_idx].curr_idx[exp_type] != scid_idx)
+				break;
+		}
+	}
+
+	if (use_large && (scid_idx < CAM_LLCC_LARGE_1))
+		scid_idx = CAM_LLCC_MAX;
+
+	if (scid_idx >= CAM_LLCC_MAX) {
+		CAM_DBG(CAM_ISP, "Cannot find scid for SFE %u exp_type %u", hw_idx, exp_type);
+	} else {
+		hw_mgr->sfe_cache_info[hw_idx].curr_idx[exp_type] = scid_idx;
+
+		if (!hw_mgr->sfe_cache_info[hw_idx].activated[exp_type] &&
+			ctx->flags.init_done)
+			cam_cpas_activate_llcc(scid_idx);
+
+		hw_mgr->sfe_cache_info[hw_idx].activated[exp_type] = true;
+
+		CAM_DBG(CAM_ISP, "SFE %u Exp type %u SCID index %d use_large %d", hw_idx, exp_type,
+			scid_idx, use_large);
+	}
+
+end:
+	return scid_idx;
+}
+
 static int cam_isp_blob_sfe_exp_order_update(
 	uint32_t                             base_idx,
 	struct cam_isp_sfe_exp_config       *exp_config,
@@ -7832,7 +7913,7 @@ static int cam_isp_blob_sfe_exp_order_update(
 	int rc = 0, i, j;
 	bool send_config;
 	uint32_t exp_order_max = 0;
-	uint32_t res_id_out, res_id_in;
+	uint32_t res_id_out, res_id_in, sc_idx, exp_type;
 	struct cam_ife_hw_mgr_ctx               *ctx;
 	struct cam_isp_hw_mgr_res               *hw_mgr_res;
 	struct cam_isp_hw_mgr_res               *tmp;
@@ -7882,28 +7963,30 @@ static int cam_isp_blob_sfe_exp_order_update(
 		/* Add more params if needed */
 		wm_rm_cache_cfg.wr_cfg_done = false;
 		wm_rm_cache_cfg.rd_cfg_done = false;
-		wm_rm_cache_cfg.use_cache =
-			(exp_order_max == i) ? true : false;
 		wm_rm_cache_cfg.scid = 0;
+		wm_rm_cache_cfg.use_cache = false;
 		send_config = false;
+		exp_type = CAM_ISP_EXPOSURE_MAX;
+		sc_idx = CAM_LLCC_MAX;
 
-		/* Currently using cache for short only */
+		if (i == exp_order_max)
+			exp_type = CAM_ISP_LAST_EXPOSURE;
+		else if (i == exp_order_max - 1)
+			exp_type = CAM_ISP_LAST_1_EXPOSURE;
+		else if (i == exp_order_max - 2)
+			exp_type = CAM_ISP_LAST_2_EXPOSURE;
+
+		sc_idx = cam_ife_hw_mgr_get_sfe_sys_cache_id(exp_type,
+			ctx, base_idx);
+
+		if (sc_idx < CAM_LLCC_MAX)
+			wm_rm_cache_cfg.use_cache = true;
+
 		if (wm_rm_cache_cfg.use_cache) {
-			if (base_idx == CAM_SFE_CORE_0) {
-				wm_rm_cache_cfg.scid =
-					hw_mgr->sys_cache_info[CAM_LLCC_SMALL_1].scid;
-				if (wm_rm_cache_cfg.scid <= 0)
-					goto end;
-
-				ctx->flags.sys_cache_usage[CAM_LLCC_SMALL_1] = true;
-			} else if (base_idx == CAM_SFE_CORE_1) {
-				wm_rm_cache_cfg.scid =
-					hw_mgr->sys_cache_info[CAM_LLCC_SMALL_2].scid;
-				if (wm_rm_cache_cfg.scid <= 0)
-					goto end;
-
-				ctx->flags.sys_cache_usage[CAM_LLCC_SMALL_2] = true;
-			}
+			wm_rm_cache_cfg.scid = hw_mgr->sys_cache_info[sc_idx].scid;
+			if (wm_rm_cache_cfg.scid <= 0)
+				goto end;
+			ctx->flags.sys_cache_usage[sc_idx] = true;
 		}
 
 		/* Configure cache config for WM */
@@ -7976,10 +8059,8 @@ static int cam_isp_blob_sfe_exp_order_update(
 
 		if (!wm_rm_cache_cfg.rd_cfg_done && !wm_rm_cache_cfg.wr_cfg_done) {
 			wm_rm_cache_cfg.use_cache = false;
-			if (base_idx == CAM_SFE_CORE_0)
-				ctx->flags.sys_cache_usage[CAM_LLCC_SMALL_1] = false;
-			else if (base_idx == CAM_SFE_CORE_1)
-				ctx->flags.sys_cache_usage[CAM_LLCC_SMALL_2] = false;
+			if (sc_idx < CAM_LLCC_MAX)
+				ctx->flags.sys_cache_usage[sc_idx] = false;
 		}
 
 		CAM_DBG(CAM_ISP,
@@ -14090,6 +14171,97 @@ end:
 	return dumped_len;
 }
 
+static void cam_ife_hw_mgr_attach_sfe_sys_cache_id(
+	bool shared, uint32_t type, uint32_t *hw_id, uint32_t num_sfe)
+{
+	int i;
+
+	if (shared) {
+		for (i = 0; i < num_sfe; i++) {
+			g_ife_hw_mgr.sfe_cache_info[i].supported_scid_idx |= BIT(type);
+			CAM_DBG(CAM_ISP, "SFE[%u] shared scid %d type %u", i,
+				g_ife_hw_mgr.sys_cache_info[type].scid, type);
+		}
+	} else {
+		g_ife_hw_mgr.sfe_cache_info[*hw_id].supported_scid_idx |= BIT(type);
+		CAM_DBG(CAM_ISP, "SFE[%u] non-shared cache_type %d, type %u", *hw_id,
+			g_ife_hw_mgr.sys_cache_info[type].scid, type);
+		*hw_id = (*hw_id + 1) % num_sfe;
+	}
+}
+
+static void cam_ife_mgr_populate_sys_cache_id(void)
+{
+	int                             i, scid, j;
+	uint32_t                        hw_id = 0;
+	uint32_t                        num_small_scid = 0;
+	uint32_t                        num_large_scid = 0;
+	uint32_t                        num_sfe = 0;
+	bool                            shared;
+
+	/* Populate sys cache info */
+	g_ife_hw_mgr.num_caches_found = 0;
+	for (i = 0; i < CAM_SFE_HW_NUM_MAX && g_ife_hw_mgr.sfe_devices[i]; i++) {
+		g_ife_hw_mgr.sfe_cache_info[i].supported_scid_idx = 0;
+		num_sfe++;
+		for (j = 0; j < CAM_ISP_EXPOSURE_MAX; j++) {
+			g_ife_hw_mgr.sfe_cache_info[i].activated[j] = false;
+			g_ife_hw_mgr.sfe_cache_info[i].curr_idx[j] = -1;
+		}
+	}
+
+	if (!num_sfe)
+		return;
+
+	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
+		scid = cam_cpas_get_scid(i);
+		g_ife_hw_mgr.sys_cache_info[i].scid = scid;
+		g_ife_hw_mgr.sys_cache_info[i].type = i;
+		if (scid < 0)
+			continue;
+
+		switch (i) {
+		case CAM_LLCC_SMALL_1:
+		case CAM_LLCC_SMALL_2:
+			num_small_scid++;
+			break;
+		case CAM_LLCC_LARGE_1:
+		case CAM_LLCC_LARGE_2:
+		case CAM_LLCC_LARGE_3:
+		case CAM_LLCC_LARGE_4:
+			num_large_scid++;
+			break;
+		default:
+			break;
+		}
+		g_ife_hw_mgr.num_caches_found++;
+	}
+
+	/* Distribute the smaller cache-ids */
+	shared = (bool)(num_small_scid % num_sfe);
+	for (i = 0; i < num_small_scid; i++) {
+		if (g_ife_hw_mgr.sys_cache_info[i].scid < 0)
+			continue;
+		cam_ife_hw_mgr_attach_sfe_sys_cache_id(shared,
+			g_ife_hw_mgr.sys_cache_info[i].type, &hw_id, num_sfe);
+	}
+
+	/* Distribute the large cache-ids */
+	shared = (bool)(num_large_scid % num_sfe);
+	hw_id = 0;
+	for (i = CAM_LLCC_LARGE_1; i < CAM_LLCC_MAX; i++) {
+		if (g_ife_hw_mgr.sys_cache_info[i].scid < 0)
+			continue;
+		cam_ife_hw_mgr_attach_sfe_sys_cache_id(shared,
+			g_ife_hw_mgr.sys_cache_info[i].type, &hw_id, num_sfe);
+	}
+
+	CAM_DBG(CAM_ISP, "Num SCIDs Small:%u Large: %u", num_small_scid, num_large_scid);
+	for (i = 0; i < num_sfe; i++)
+		CAM_DBG(CAM_ISP, "SFE[%u] available SCIDs 0x%x", i,
+			g_ife_hw_mgr.sfe_cache_info[i].supported_scid_idx);
+}
+
 int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 {
 	int rc = -EFAULT;
@@ -14342,16 +14514,7 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 	}
 
 	/* Populate sys cache info */
-	g_ife_hw_mgr.num_caches_found = 0;
-	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
-		g_ife_hw_mgr.sys_cache_info[i].scid =
-			cam_cpas_get_scid(i);
-		g_ife_hw_mgr.sys_cache_info[i].type = i;
-		CAM_DBG(CAM_ISP, "Cache_%d scid: %d",
-			i, g_ife_hw_mgr.sys_cache_info[i].scid);
-		if (g_ife_hw_mgr.sys_cache_info[i].scid > 0)
-			g_ife_hw_mgr.num_caches_found++;
-	}
+	cam_ife_mgr_populate_sys_cache_id();
 
 	/* fill return structure */
 	hw_mgr_intf->hw_mgr_priv = &g_ife_hw_mgr;

@@ -701,6 +701,14 @@ static inline enum cam_sys_cache_config_types cam_cpas_find_type_from_string(
 		return CAM_LLCC_SMALL_1;
 	else if (strcmp(cache_name, "small-2") == 0)
 		return CAM_LLCC_SMALL_2;
+	else if (strcmp(cache_name, "large-1") == 0)
+		return CAM_LLCC_LARGE_1;
+	else if (strcmp(cache_name, "large-2") == 0)
+		return CAM_LLCC_LARGE_2;
+	else if (strcmp(cache_name, "large-3") == 0)
+		return CAM_LLCC_LARGE_3;
+	else if (strcmp(cache_name, "large-4") == 0)
+		return CAM_LLCC_LARGE_4;
 	else
 		return CAM_LLCC_MAX;
 }

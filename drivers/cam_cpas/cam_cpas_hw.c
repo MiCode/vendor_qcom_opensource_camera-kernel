@@ -2609,7 +2609,7 @@ static int cam_cpas_deactivate_cache(
 static inline int cam_cpas_validate_cache_type(
 	uint32_t num_caches, enum cam_sys_cache_config_types type)
 {
-	if ((!num_caches) || (type < 0) || (type >= num_caches))
+	if ((!num_caches) || (type < 0) || (type >= CAM_LLCC_MAX))
 		return -EINVAL;
 	else
 		return 0;

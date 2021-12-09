@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_API_H_
@@ -232,7 +232,11 @@ enum cam_camnoc_irq_type {
 enum cam_sys_cache_config_types {
 	CAM_LLCC_SMALL_1 = 0,
 	CAM_LLCC_SMALL_2 = 1,
-	CAM_LLCC_MAX = 2,
+	CAM_LLCC_LARGE_1 = 2,
+	CAM_LLCC_LARGE_2 = 3,
+	CAM_LLCC_LARGE_3 = 4,
+	CAM_LLCC_LARGE_4 = 5,
+	CAM_LLCC_MAX     = 6,
 };
 
 /**
