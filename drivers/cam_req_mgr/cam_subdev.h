@@ -24,6 +24,7 @@ enum cam_subdev_message_type_t {
 enum cam_subdev_close_seq_priority {
 	CAM_SD_CLOSE_HIGH_PRIORITY,
 	CAM_SD_CLOSE_MEDIUM_PRIORITY,
+	CAM_SD_CLOSE_MEDIUM_LOW_PRIORITY,
 	CAM_SD_CLOSE_LOW_PRIORITY
 };
 
