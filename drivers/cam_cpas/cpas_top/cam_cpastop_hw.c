@@ -545,9 +545,72 @@ static int cam_cpastop_handle_ahb_timeout_err(struct cam_hw_info *cpas_hw,
 	return 0;
 }
 
+#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+static int cam_cpastop_enable_test_irq(struct cam_hw_info *cpas_hw)
+{
+	int i;
+
+	camnoc_info->irq_sbm->sbm_enable.value |= camnoc_info->test_irq_info.sbm_enable_mask;
+	camnoc_info->irq_sbm->sbm_clear.value |= camnoc_info->test_irq_info.sbm_clear_mask;
+
+	for (i = 0; i < camnoc_info->irq_err_size; i++) {
+		if (camnoc_info->irq_err[i].irq_type == CAM_CAMNOC_HW_IRQ_CAMNOC_TEST)
+			camnoc_info->irq_err[i].enable = true;
+	}
+
+	return 0;
+}
+
+static int cam_cpastop_disable_test_irq(struct cam_hw_info *cpas_hw)
+{
+	int i;
+
+	camnoc_info->irq_sbm->sbm_enable.value &= ~camnoc_info->test_irq_info.sbm_enable_mask;
+	camnoc_info->irq_sbm->sbm_clear.value &= ~camnoc_info->test_irq_info.sbm_clear_mask;
+
+	for (i = 0; i < camnoc_info->irq_err_size; i++) {
+		if (camnoc_info->irq_err[i].irq_type == CAM_CAMNOC_HW_IRQ_CAMNOC_TEST)
+			camnoc_info->irq_err[i].enable = false;
+	}
+
+	return 0;
+}
+
+static void cam_cpastop_check_test_irq(struct cam_hw_info *cpas_hw, uint32_t irq_status)
+{
+	int i;
+
+	for (i = 0; i < camnoc_info->irq_err_size; i++) {
+		if ((camnoc_info->irq_err[i].irq_type == CAM_CAMNOC_HW_IRQ_CAMNOC_TEST) &&
+			(irq_status & camnoc_info->irq_err[i].sbm_port)) {
+			CAM_INFO(CAM_CPAS, "CAMNOC Test IRQ triggerred");
+			complete(&cpas_hw->hw_complete);
+		}
+	}
+}
+#endif
+
 static int cam_cpastop_reset_irq(struct cam_hw_info *cpas_hw)
 {
 	int i;
+
+#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+	static int counter;
+	bool wait_for_irq = false;
+	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
+
+	if (counter == 0)  {
+		CAM_INFO(CAM_CPAS, "Enabling camnoc test irq");
+		cam_cpastop_enable_test_irq(cpas_hw);
+		wait_for_irq = true;
+		reinit_completion(&cpas_hw->hw_complete);
+		counter = 1;
+	} else if (counter == 1) {
+		CAM_INFO(CAM_CPAS, "Disabling camnoc test irq");
+		cam_cpastop_disable_test_irq(cpas_hw);
+		counter = 2;
+	}
+#endif
 
 	if (camnoc_info->irq_sbm->sbm_enable.enable == false)
 		return 0;
@@ -567,6 +630,14 @@ static int cam_cpastop_reset_irq(struct cam_hw_info *cpas_hw)
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->irq_err[i].err_enable);
 	}
+
+#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+	if (wait_for_irq) {
+		if (!cam_common_wait_for_completion_timeout(&cpas_hw->hw_complete,
+			msecs_to_jiffies(2000)))
+			CAM_ERR(CAM_CPAS, "CAMNOC Test IRQ line verification timed out");
+	}
+#endif
 
 	return 0;
 }
@@ -713,6 +784,10 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 		camnoc_info->irq_sbm->sbm_status.offset);
 
 	CAM_DBG(CAM_CPAS, "IRQ callback, irq_status=0x%x", payload->irq_status);
+
+#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+	cam_cpastop_check_test_irq(cpas_hw, payload->irq_status);
+#endif
 
 	payload->hw = cpas_hw;
 	INIT_WORK((struct work_struct *)&payload->work, cam_cpastop_work);
