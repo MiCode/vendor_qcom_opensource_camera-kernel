@@ -1748,6 +1748,25 @@ int cam_sfe_top_stop(
 	return 0;
 }
 
+int cam_sfe_top_init_hw(void *priv, void *init_hw_args, uint32_t arg_size)
+{
+	struct cam_sfe_top_priv *top_priv = priv;
+	void __iomem *mem_base;
+
+	if (!priv) {
+		CAM_ERR(CAM_SFE, "Invalid args");
+		return -EINVAL;
+	}
+
+	mem_base = top_priv->common_data.soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base;
+
+	CAM_DBG(CAM_SFE, "SFE:%d hw-version:0x%x",
+		top_priv->common_data.hw_intf->hw_idx,
+		cam_io_r_mb(mem_base + top_priv->hw_info->common_reg->hw_version));
+
+	return 0;
+}
+
 int cam_sfe_top_init(
 	uint32_t                            hw_version,
 	struct cam_hw_soc_info             *soc_info,
@@ -1892,6 +1911,7 @@ int cam_sfe_top_init(
 	sfe_top->hw_ops.stop = cam_sfe_top_stop;
 	sfe_top->hw_ops.reserve = cam_sfe_top_reserve;
 	sfe_top->hw_ops.release = cam_sfe_top_release;
+	sfe_top->hw_ops.init = cam_sfe_top_init_hw;
 
 	spin_lock_init(&top_priv->spin_lock);
 	INIT_LIST_HEAD(&top_priv->common_data.free_payload_list);
