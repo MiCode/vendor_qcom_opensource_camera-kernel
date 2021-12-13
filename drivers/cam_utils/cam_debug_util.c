@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2021, The Linux Foundataion. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/module.h>
+#include <linux/debugfs.h>
 #include "cam_trace.h"
 
 #include "cam_debug_util.h"
@@ -21,6 +22,85 @@ uint debug_priority;
 module_param(debug_priority, uint, 0644);
 
 struct camera_debug_settings cam_debug;
+
+struct dentry *cam_debugfs_root;
+
+void cam_debugfs_init(void)
+{
+	struct dentry *tmp;
+
+	if (!cam_debugfs_available()) {
+		cam_debugfs_root = NULL;
+		CAM_DBG(CAM_UTIL, "debugfs not available");
+		return;
+	}
+
+	if (cam_debugfs_root) {
+		CAM_WARN(CAM_UTIL, "already created debugfs root");
+		return;
+	}
+
+	tmp = debugfs_create_dir("camera", NULL);
+	if (IS_ERR_VALUE(tmp)) {
+		CAM_ERR(CAM_UTIL, "failed to create debugfs root folder (rc=%d)", PTR_ERR(tmp));
+		return;
+	}
+
+	cam_debugfs_root = tmp;
+	CAM_DBG(CAM_UTIL, "successfully created debugfs root");
+}
+
+void cam_debugfs_deinit(void)
+{
+	if (!cam_debugfs_available())
+		return;
+
+	debugfs_remove_recursive(cam_debugfs_root);
+	cam_debugfs_root = NULL;
+}
+
+int cam_debugfs_create_subdir(const char *name, struct dentry **subdir)
+{
+	struct dentry *tmp;
+
+	if (!cam_debugfs_root) {
+		CAM_WARN(CAM_UTIL, "debugfs root not created");
+		*subdir = NULL;
+		return -ENODEV;
+	}
+
+	if (!subdir) {
+		CAM_ERR(CAM_UTIL, "invalid subdir pointer %pK", subdir);
+		return -EINVAL;
+	}
+
+	tmp = debugfs_create_dir(name, cam_debugfs_root);
+	if (IS_ERR_VALUE(tmp)) {
+		CAM_ERR(CAM_UTIL, "failed to create debugfs subdir (name=%s, rc=%d)", name,
+			PTR_ERR(tmp));
+		return PTR_ERR(tmp);
+	}
+
+	*subdir = tmp;
+	return 0;
+}
+
+int cam_debugfs_lookup_subdir(const char *name, struct dentry **subdir)
+{
+	if (!cam_debugfs_root) {
+		CAM_WARN(CAM_UTIL, "debugfs root not created");
+		*subdir = NULL;
+		return -ENODEV;
+	}
+
+	if (!subdir) {
+		CAM_ERR(CAM_UTIL, "invalid subdir pointer %pK", subdir);
+		return -EINVAL;
+	}
+
+	*subdir = debugfs_lookup(name, cam_debugfs_root);
+	return (*subdir) ? 0 : -ENOENT;
+}
 
 const struct camera_debug_settings *cam_debug_get_settings()
 {

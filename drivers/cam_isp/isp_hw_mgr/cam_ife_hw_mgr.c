@@ -13063,8 +13063,11 @@ static int cam_ife_hw_mgr_debug_register(void)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("camera_ife", NULL);
-	if (!dbgfileptr) {
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("ife", &dbgfileptr);
+	if (rc) {
 		CAM_ERR(CAM_ISP,"DebugFS could not create directory!");
 		rc = -ENOENT;
 		goto end;
@@ -13521,7 +13524,6 @@ void cam_ife_hw_mgr_deinit(void)
 	int i = 0;
 
 	cam_req_mgr_workq_destroy(&g_ife_hw_mgr.workq);
-	debugfs_remove_recursive(g_ife_hw_mgr.debug_cfg.dentry);
 	g_ife_hw_mgr.debug_cfg.dentry = NULL;
 
 	for (i = 0; i < CAM_IFE_CTX_MAX; i++) {

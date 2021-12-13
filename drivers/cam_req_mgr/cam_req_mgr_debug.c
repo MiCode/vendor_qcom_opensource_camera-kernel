@@ -117,8 +117,11 @@ int cam_req_mgr_debug_register(struct cam_req_mgr_core_device *core_dev)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("cam_req_mgr", NULL);
-	if (!dbgfileptr) {
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("req_mgr", &dbgfileptr);
+	if (rc) {
 		CAM_ERR(CAM_MEM,"DebugFS could not create directory!");
 		rc = -ENOENT;
 		goto end;
@@ -140,7 +143,6 @@ end:
 
 int cam_req_mgr_debug_unregister(void)
 {
-	debugfs_remove_recursive(debugfs_root);
 	debugfs_root = NULL;
 	return 0;
 }

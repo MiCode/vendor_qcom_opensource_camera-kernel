@@ -3901,36 +3901,24 @@ cmd_work_failed:
 
 static int cam_ope_create_debug_fs(void)
 {
-	ope_hw_mgr->dentry = debugfs_create_dir("camera_ope",
-		NULL);
+	int rc;
 
-	if (!ope_hw_mgr->dentry) {
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("ope", &ope_hw_mgr->dentry);
+	if (rc) {
 		CAM_ERR(CAM_OPE, "failed to create dentry");
-		return -ENOMEM;
+		return rc;
 	}
 
-	if (!debugfs_create_bool("frame_dump_enable",
-		0644,
-		ope_hw_mgr->dentry,
-		&ope_hw_mgr->frame_dump_enable)) {
-		CAM_ERR(CAM_OPE,
-			"failed to create dump_enable_debug");
-		goto err;
-	}
+	debugfs_create_bool("frame_dump_enable", 0644, ope_hw_mgr->dentry,
+		&ope_hw_mgr->frame_dump_enable);
 
-	if (!debugfs_create_bool("dump_req_data_enable",
-		0644,
-		ope_hw_mgr->dentry,
-		&ope_hw_mgr->dump_req_data_enable)) {
-		CAM_ERR(CAM_OPE,
-			"failed to create dump_enable_debug");
-		goto err;
-	}
+	debugfs_create_bool("dump_req_data_enable", 0644, ope_hw_mgr->dentry,
+		&ope_hw_mgr->dump_req_data_enable);
 
 	return 0;
-err:
-	debugfs_remove_recursive(ope_hw_mgr->dentry);
-	return -ENOMEM;
 }
 
 

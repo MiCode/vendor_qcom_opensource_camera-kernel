@@ -360,4 +360,59 @@ const struct camera_debug_settings *cam_debug_get_settings(void);
 ssize_t cam_debug_sysfs_node_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count);
 
+/**
+ * cam_debugfs_init()
+ *
+ * @brief: create camera debugfs root folder
+ */
+void cam_debugfs_init(void);
+
+/**
+ * cam_debugfs_deinit()
+ *
+ * @brief: remove camera debugfs root folder
+ */
+void cam_debugfs_deinit(void);
+
+/**
+ * cam_debugfs_create_subdir()
+ *
+ * @brief:  create a directory within the camera debugfs root folder
+ *
+ * @name:   name of the directory
+ * @subdir: pointer to the newly created directory entry
+ *
+ * @return: 0 on success, negative on failure
+ */
+int cam_debugfs_create_subdir(const char *name, struct dentry **subdir);
+
+/**
+ * cam_debugfs_lookup_subdir()
+ *
+ * @brief:  lookup a directory within the camera debugfs root folder
+ *
+ * @name:   name of the directory
+ * @subdir: pointer to the successfully found directory entry
+ *
+ * @return: 0 on success, negative on failure
+ */
+int cam_debugfs_lookup_subdir(const char *name, struct dentry **subdir);
+
+/**
+ * cam_debugfs_available()
+ *
+ * @brief:  Check if debugfs is enabled for camera. Use this function before creating any
+ *          debugfs entries.
+ *
+ * @return: true if enabled, false otherwise
+ */
+static inline bool cam_debugfs_available(void)
+{
+	#if defined(CONFIG_DEBUG_FS)
+		return true;
+	#else
+		return false;
+	#endif
+}
+
 #endif /* _CAM_DEBUG_UTIL_H_ */

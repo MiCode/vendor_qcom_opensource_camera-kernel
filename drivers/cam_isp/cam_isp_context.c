@@ -7239,12 +7239,15 @@ static int cam_isp_context_debug_register(void)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("camera_isp_ctx", NULL);
-	if (!dbgfileptr) {
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("isp_ctx", &dbgfileptr);
+	if (rc) {
 		CAM_ERR(CAM_ISP, "DebugFS could not create directory!");
-		rc = -ENOENT;
-		goto end;
+		return rc;
 	}
+
 	/* Store parent inode for cleanup in caller */
 	isp_ctx_debug.dentry = dbgfileptr;
 
@@ -7255,14 +7258,7 @@ static int cam_isp_context_debug_register(void)
 	debugfs_create_bool("disable_internal_recovery", 0644,
 		isp_ctx_debug.dentry, &isp_ctx_debug.disable_internal_recovery);
 
-	if (IS_ERR(dbgfileptr)) {
-		if (PTR_ERR(dbgfileptr) == -ENODEV)
-			CAM_WARN(CAM_ISP, "DebugFS not enabled in kernel!");
-		else
-			rc = PTR_ERR(dbgfileptr);
-	}
-end:
-	return rc;
+	return 0;
 }
 
 int cam_isp_context_init(struct cam_isp_context *ctx,
@@ -7346,7 +7342,6 @@ int cam_isp_context_deinit(struct cam_isp_context *ctx)
 			__cam_isp_ctx_substate_val_to_type(
 			ctx->substate_activated));
 
-	debugfs_remove_recursive(isp_ctx_debug.dentry);
 	isp_ctx_debug.dentry = NULL;
 	memset(ctx, 0, sizeof(*ctx));
 

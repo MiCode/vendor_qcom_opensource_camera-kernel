@@ -22,6 +22,8 @@
 #define CAM_SS_START_PRESIL 0x08c00000
 #define CAM_SS_START        0x0ac00000
 
+#define CAM_CLK_DIRNAME "clk"
+
 static uint skip_mmrm_set_rate;
 module_param(skip_mmrm_set_rate, uint, 0644);
 
@@ -684,23 +686,32 @@ DEFINE_SIMPLE_ATTRIBUTE(cam_soc_util_clk_lvl_control,
  */
 static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 {
-	char debugfs_dir_name[64];
 	int rc = 0;
-	struct dentry *dbgfileptr = NULL;
+	struct dentry *dbgfileptr = NULL, *clkdirptr = NULL;
+
+	if (!cam_debugfs_available())
+		return 0;
 
 	if (soc_info->dentry) {
-		CAM_DBG(CAM_UTIL, "Debugfs entry for %s already exist",
+		CAM_DBG(CAM_UTIL, "Debugfs entry for %s already exists",
 			soc_info->dev_name);
 		goto end;
 	}
 
-	memset(debugfs_dir_name, 0, sizeof(debugfs_dir_name));
-	strlcat(debugfs_dir_name, "clk_dir_", sizeof(debugfs_dir_name));
-	strlcat(debugfs_dir_name, soc_info->dev_name, sizeof(debugfs_dir_name));
+	rc = cam_debugfs_lookup_subdir(CAM_CLK_DIRNAME, &clkdirptr);
+	if (rc) {
+		rc = cam_debugfs_create_subdir(CAM_CLK_DIRNAME, &clkdirptr);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "DebugFS could not create clk directory!");
+			rc = -ENOENT;
+			goto end;
+		}
+	}
 
-	dbgfileptr = debugfs_create_dir(debugfs_dir_name, NULL);
-	if (!dbgfileptr) {
-		CAM_ERR(CAM_UTIL,"DebugFS could not create directory!");
+	dbgfileptr = debugfs_create_dir(soc_info->dev_name, clkdirptr);
+	if (IS_ERR_OR_NULL(dbgfileptr)) {
+		CAM_ERR(CAM_UTIL, "DebugFS could not create directory for dev:%s!",
+			soc_info->dev_name);
 		rc = -ENOENT;
 		goto end;
 	}
@@ -711,30 +722,9 @@ static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_options);
 	dbgfileptr = debugfs_create_file("clk_lvl_control", 0644,
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_control);
-	if (IS_ERR(dbgfileptr)) {
-		if (PTR_ERR(dbgfileptr) == -ENODEV)
-			CAM_WARN(CAM_UTIL, "DebugFS not enabled in kernel!");
-		else
-			rc = PTR_ERR(dbgfileptr);
-	}
+	rc = PTR_ERR_OR_ZERO(dbgfileptr);
 end:
 	return rc;
-}
-
-/**
- * cam_soc_util_remove_clk_lvl_debugfs()
- *
- * @brief:      Removes the debugfs files used to view/control
- *              device clk rates
- *
- * @soc_info:   Device soc information
- *
- */
-static void cam_soc_util_remove_clk_lvl_debugfs(
-	struct cam_hw_soc_info *soc_info)
-{
-	debugfs_remove_recursive(soc_info->dentry);
-	soc_info->dentry = NULL;
 }
 
 int cam_soc_util_get_level_from_string(const char *string,
@@ -2836,8 +2826,7 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 	/* release for gpio */
 	cam_soc_util_request_gpio_table(soc_info, false);
 
-	if (soc_info->clk_control_enable)
-		cam_soc_util_remove_clk_lvl_debugfs(soc_info);
+	soc_info->dentry = NULL;
 
 	return 0;
 }

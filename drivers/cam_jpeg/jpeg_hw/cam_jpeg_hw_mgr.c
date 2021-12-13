@@ -2127,28 +2127,23 @@ static int cam_jpeg_mgr_create_debugfs_entry(void)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("camera_jpeg", NULL);
-	if (!dbgfileptr) {
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("jpeg", &dbgfileptr);
+	if (rc) {
 		CAM_ERR(CAM_JPEG, "DebugFS could not create directory!");
-		rc = -ENOENT;
-		goto err;
+		return rc;
 	}
 	/* Store parent inode for cleanup in caller */
 	g_jpeg_hw_mgr.dentry = dbgfileptr;
 
-	dbgfileptr = debugfs_create_file("camnoc_misr_test", 0644,
-		g_jpeg_hw_mgr.dentry, NULL, &camnoc_misr_test);
+	debugfs_create_file("camnoc_misr_test", 0644, g_jpeg_hw_mgr.dentry,
+		NULL, &camnoc_misr_test);
 
-	dbgfileptr = debugfs_create_file("bug_on_misr_mismatch", 0644,
-		g_jpeg_hw_mgr.dentry, NULL, &bug_on_misr_mismatch);
+	debugfs_create_file("bug_on_misr_mismatch", 0644, g_jpeg_hw_mgr.dentry,
+		NULL, &bug_on_misr_mismatch);
 
-	if (IS_ERR(dbgfileptr)) {
-		if (PTR_ERR(dbgfileptr) == -ENODEV)
-			CAM_WARN(CAM_JPEG, "DebugFS not enabled in kernel!");
-		else
-			rc = PTR_ERR(dbgfileptr);
-	}
-err:
 	return rc;
 }
 
