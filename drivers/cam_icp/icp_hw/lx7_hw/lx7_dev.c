@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -70,6 +71,7 @@ static int cam_lx7_component_bind(struct device *dev,
 	lx7_intf->hw_ops.init = cam_lx7_hw_init;
 	lx7_intf->hw_ops.deinit = cam_lx7_hw_deinit;
 	lx7_intf->hw_ops.process_cmd = cam_lx7_process_cmd;
+	lx7_intf->hw_ops.test_irq_line = cam_lx7_test_irq_line;
 
 	rc = cam_lx7_cpas_register(lx7_intf);
 	if (rc) {
