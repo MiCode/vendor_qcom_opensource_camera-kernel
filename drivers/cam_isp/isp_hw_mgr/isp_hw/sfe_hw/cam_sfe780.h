@@ -680,10 +680,10 @@ static struct cam_sfe_bus_rd_hw_info sfe780_bus_rd_hw_info = {
 		.security_cfg                 = 0x00000420,
 		.cons_violation_status        = 0x00000434,
 		.irq_reg_info = {
-			.num_registers     = 1,
-			.irq_reg_set          = sfe780_bus_rd_irq_reg,
-			.global_clear_offset  = 0x0000040C,
-			.global_clear_bitmask = 0x00000001,
+			.num_registers = 1,
+			.irq_reg_set = sfe780_bus_rd_irq_reg,
+			.global_irq_cmd_offset = 0x0000040C,
+			.global_clear_bitmask  = 0x00000001,
 		},
 	},
 	.num_client = 3,
@@ -780,10 +780,10 @@ static struct cam_sfe_bus_wr_hw_info sfe780_bus_wr_hw_info = {
 		.test_bus_ctrl                    = 0x000008DC,
 		.top_irq_mask_0                   = 0x00000020,
 		.irq_reg_info = {
-			.num_registers     = 1,
-			.irq_reg_set          = sfe780_bus_wr_irq_reg,
-			.global_clear_offset  = 0x00000830,
-			.global_clear_bitmask = 0x00000001,
+			.num_registers = 1,
+			.irq_reg_set = sfe780_bus_wr_irq_reg,
+			.global_irq_cmd_offset = 0x00000830,
+			.global_clear_bitmask  = 0x00000001,
 		},
 	},
 	.num_client = 16,
@@ -1596,17 +1596,22 @@ static struct cam_sfe_bus_wr_hw_info sfe780_bus_wr_hw_info = {
 
 static struct cam_irq_register_set sfe780_top_irq_reg_set[1] = {
 	{
-	.mask_reg_offset   = 0x00000020,
-	.clear_reg_offset  = 0x00000024,
-	.status_reg_offset = 0x00000028,
+		.mask_reg_offset   = 0x00000020,
+		.clear_reg_offset  = 0x00000024,
+		.status_reg_offset = 0x00000028,
+		.set_reg_offset    = 0x0000002C,
+		.test_set_val      = BIT(0),
+		.test_sub_val      = BIT(0),
 	},
 };
 
 static struct cam_irq_controller_reg_info sfe780_top_irq_reg_info = {
 	.num_registers = 1,
 	.irq_reg_set = sfe780_top_irq_reg_set,
-	.global_clear_offset  = 0x0000001C,
-	.global_clear_bitmask = 0x00000001,
+	.global_irq_cmd_offset = 0x0000001C,
+	.global_clear_bitmask  = 0x00000001,
+	.global_set_bitmask    = 0x00000010,
+	.clear_all_bitmask     = 0xFFFFFFFF,
 };
 
 struct cam_sfe_hw_info cam_sfe780_hw_info = {

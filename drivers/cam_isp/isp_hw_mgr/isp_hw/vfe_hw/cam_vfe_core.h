@@ -84,6 +84,7 @@ int cam_vfe_write(void *device_priv,
 	void *write_args, uint32_t arg_size);
 int cam_vfe_process_cmd(void *device_priv, uint32_t cmd_type,
 	void *cmd_args, uint32_t arg_size);
+int cam_vfe_test_irq_line(void *hw_priv);
 
 irqreturn_t cam_vfe_irq(int irq_num, void *data);
 

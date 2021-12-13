@@ -48,11 +48,17 @@ enum cam_irq_event_group {
  * @mask_reg_offset:        Offset of IRQ MASK register
  * @clear_reg_offset:       Offset of IRQ CLEAR register
  * @status_reg_offset:      Offset of IRQ STATUS register
+ * @set_reg_offset:         Offset of IRQ SET register
+ * @test_set_val:           Value to write to IRQ SET register to trigger IRQ
+ * @test_sub_val:           Value to write to IRQ MASK register to receive test IRQ
  */
 struct cam_irq_register_set {
 	uint32_t                       mask_reg_offset;
 	uint32_t                       clear_reg_offset;
 	uint32_t                       status_reg_offset;
+	uint32_t                       set_reg_offset;
+	uint32_t                       test_set_val;
+	uint32_t                       test_sub_val;
 };
 
 /*
@@ -62,19 +68,22 @@ struct cam_irq_register_set {
  * @num_registers:          Number of sets(mask/clear/status) of IRQ registers
  * @irq_reg_set:            Array of Register Set Offsets.
  *                          Length of array = num_registers
- * @global_clear_offset:    Offset of Global IRQ Clear register. This register
+ * @global_irq_cmd_offset:  Offset of Global IRQ Clear register. This register
  *                          contains the BIT that needs to be set for the CLEAR
  *                          to take effect
  * @global_clear_bitmask:   Bitmask needed to be used in Global Clear register
  *                          for Clear IRQ cmd to take effect
+ * @global_set_bitmask:     Bitmask needed to be used in Global IRQ command register
+ *                          for Set IRQ cmd to take effect
  * @clear_all_bitmask:      Bitmask that specifies which bits should be written
  *                          to clear register when it is to be cleared forcefully
  */
 struct cam_irq_controller_reg_info {
 	uint32_t                      num_registers;
 	struct cam_irq_register_set  *irq_reg_set;
-	uint32_t                      global_clear_offset;
+	uint32_t                      global_irq_cmd_offset;
 	uint32_t                      global_clear_bitmask;
+	uint32_t                      global_set_bitmask;
 	uint32_t                      clear_all_bitmask;
 };
 
@@ -332,5 +341,24 @@ int cam_irq_controller_register_dependent(void *primary_controller, void *second
  *                         Negative: failed to unregister dependent
  */
 int cam_irq_controller_unregister_dependent(void *primary_controller, void *secondary_controller);
+
+/**
+ * cam_irq_controller_test_irq_line()
+ * @brief: Test IRQ line corresponding to IRQ controller
+ *
+ * @irq_controller: IRQ controller under test
+ * @fmt:            Format of the debug message to be printed
+ * @args:           Arguments for the format specifiers corresponding to @fmt
+ *
+ * @return:         0: success, negative: failure
+ */
+#ifdef CONFIG_CAM_TEST_IRQ_LINE
+int cam_irq_controller_test_irq_line(void *irq_controller, const char *fmt, ...);
+#else
+static inline int cam_irq_controller_test_irq_line(void *irq_controller, const char *fmt, ...)
+{
+	return -EPERM;
+}
+#endif
 
 #endif /* _CAM_IRQ_CONTROLLER_H_ */

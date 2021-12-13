@@ -69,6 +69,7 @@ static int cam_vfe_component_bind(struct device *dev,
 	vfe_hw_intf->hw_ops.read = cam_vfe_read;
 	vfe_hw_intf->hw_ops.write = cam_vfe_write;
 	vfe_hw_intf->hw_ops.process_cmd = cam_vfe_process_cmd;
+	vfe_hw_intf->hw_ops.test_irq_line = cam_vfe_test_irq_line;
 	vfe_hw_intf->hw_type = CAM_ISP_HW_TYPE_VFE;
 
 	CAM_DBG(CAM_ISP, "VFE component bind, type %d index %d",

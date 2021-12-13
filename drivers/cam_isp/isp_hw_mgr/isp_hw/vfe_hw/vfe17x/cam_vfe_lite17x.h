@@ -27,9 +27,9 @@ static struct cam_irq_register_set vfe17x_top_irq_reg_set[2] = {
 static struct cam_irq_controller_reg_info vfe17x_top_irq_reg_info = {
 	.num_registers = 2,
 	.irq_reg_set = vfe17x_top_irq_reg_set,
-	.global_clear_offset  = 0x00000058,
-	.global_clear_bitmask = 0x00000001,
-	.clear_all_bitmask = 0xFFFFFFFF,
+	.global_irq_cmd_offset = 0x00000058,
+	.global_clear_bitmask  = 0x00000001,
+	.clear_all_bitmask     = 0xFFFFFFFF,
 };
 
 static struct cam_vfe_top_ver2_reg_offset_common vfe17x_top_common_reg = {
@@ -151,11 +151,11 @@ static struct cam_vfe_bus_ver2_hw_info vfe17x_bus_hw_info = {
 		.pwr_iso_cfg                  = 0x000020CC,
 		.dual_master_comp_cfg         = 0x00002028,
 		.irq_reg_info = {
-			.num_registers        = 3,
-			.irq_reg_set          = vfe17x_bus_irq_reg,
-			.global_clear_offset  = 0x00002068,
-			.global_clear_bitmask = 0x00000001,
-			.clear_all_bitmask = 0xFFFFFFFF,
+			.num_registers         = 3,
+			.irq_reg_set           = vfe17x_bus_irq_reg,
+			.global_irq_cmd_offset = 0x00002068,
+			.global_clear_bitmask  = 0x00000001,
+			.clear_all_bitmask     = 0xFFFFFFFF,
 		},
 		.comp_error_status            = 0x0000206C,
 		.comp_ovrwr_status            = 0x00002070,

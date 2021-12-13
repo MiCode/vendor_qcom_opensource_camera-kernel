@@ -5462,6 +5462,33 @@ static int cam_ife_csid_hw_init_irq(
 	return rc;
 }
 
+int cam_ife_csid_ver2_irq_line_test(void *hw_priv)
+{
+	struct cam_ife_csid_ver2_hw *csid_hw;
+	struct cam_hw_soc_info *soc_info;
+	int rc = 0;
+
+	if (!hw_priv) {
+		CAM_ERR(CAM_ISP, "CSID: Invalid args");
+		return -EINVAL;
+	}
+
+	csid_hw = ((struct cam_hw_info *)hw_priv)->core_info;
+	soc_info = &csid_hw->hw_info->soc_info;
+
+	rc = cam_ife_csid_enable_soc_resources(soc_info, CAM_LOWSVS_VOTE);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "CSID[%d] Enable soc failed", csid_hw->hw_intf->hw_idx);
+		return rc;
+	}
+
+	rc = cam_irq_controller_test_irq_line(csid_hw->csid_irq_controller, "CSID:%d",
+		csid_hw->hw_intf->hw_idx);
+
+	cam_ife_csid_disable_soc_resources(soc_info);
+	return rc;
+}
+
 int cam_ife_csid_hw_ver2_init(struct cam_hw_intf *hw_intf,
 	struct cam_ife_csid_core_info *core_info,
 	bool is_custom)
@@ -5514,19 +5541,18 @@ int cam_ife_csid_hw_ver2_init(struct cam_hw_intf *hw_intf,
 		CAM_CPAS_HW_IDX_ANY, NULL))
 		csid_hw->flags.binning_enabled = true;
 
-	csid_hw->hw_intf->hw_ops.get_hw_caps =
-						cam_ife_csid_ver2_get_hw_caps;
-	csid_hw->hw_intf->hw_ops.init        = cam_ife_csid_ver2_init_hw;
-	csid_hw->hw_intf->hw_ops.deinit      = cam_ife_csid_ver2_deinit_hw;
-	csid_hw->hw_intf->hw_ops.reset       = cam_ife_csid_ver2_reset;
-	csid_hw->hw_intf->hw_ops.reserve     = cam_ife_csid_ver2_reserve;
-	csid_hw->hw_intf->hw_ops.release     = cam_ife_csid_ver2_release;
-	csid_hw->hw_intf->hw_ops.start       = cam_ife_csid_ver2_start;
-	csid_hw->hw_intf->hw_ops.stop        = cam_ife_csid_ver2_stop;
-	csid_hw->hw_intf->hw_ops.read        = cam_ife_csid_ver2_read;
-	csid_hw->hw_intf->hw_ops.write       = cam_ife_csid_ver2_write;
-	csid_hw->hw_intf->hw_ops.process_cmd =
-						cam_ife_csid_ver2_process_cmd;
+	csid_hw->hw_intf->hw_ops.get_hw_caps   = cam_ife_csid_ver2_get_hw_caps;
+	csid_hw->hw_intf->hw_ops.init          = cam_ife_csid_ver2_init_hw;
+	csid_hw->hw_intf->hw_ops.deinit        = cam_ife_csid_ver2_deinit_hw;
+	csid_hw->hw_intf->hw_ops.reset         = cam_ife_csid_ver2_reset;
+	csid_hw->hw_intf->hw_ops.reserve       = cam_ife_csid_ver2_reserve;
+	csid_hw->hw_intf->hw_ops.release       = cam_ife_csid_ver2_release;
+	csid_hw->hw_intf->hw_ops.start         = cam_ife_csid_ver2_start;
+	csid_hw->hw_intf->hw_ops.stop          = cam_ife_csid_ver2_stop;
+	csid_hw->hw_intf->hw_ops.read          = cam_ife_csid_ver2_read;
+	csid_hw->hw_intf->hw_ops.write         = cam_ife_csid_ver2_write;
+	csid_hw->hw_intf->hw_ops.process_cmd   = cam_ife_csid_ver2_process_cmd;
+	csid_hw->hw_intf->hw_ops.test_irq_line = cam_ife_csid_ver2_irq_line_test;
 
 	rc = cam_ife_csid_hw_init_irq(csid_hw);
 

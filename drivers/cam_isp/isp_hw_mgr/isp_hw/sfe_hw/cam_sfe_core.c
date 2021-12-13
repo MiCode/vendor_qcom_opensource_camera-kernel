@@ -130,6 +130,37 @@ int cam_sfe_deinit_hw(void *hw_priv, void *deinit_hw_args, uint32_t arg_size)
 	return rc;
 }
 
+int cam_sfe_test_irq_line(void *hw_priv)
+{
+	struct cam_hw_info *sfe_hw = hw_priv;
+	struct cam_sfe_hw_core_info *core_info;
+	int rc;
+
+	if (!hw_priv) {
+		CAM_ERR(CAM_SFE, "Invalid arguments");
+		return -EINVAL;
+	}
+
+	core_info = sfe_hw->core_info;
+
+	rc = cam_sfe_init_hw(sfe_hw, NULL, 0);
+	if (rc) {
+		CAM_ERR(CAM_SFE, "SFE:%d failed to init hw", sfe_hw->soc_info.index);
+		return rc;
+	}
+
+	rc = cam_irq_controller_test_irq_line(core_info->sfe_irq_controller, "SFE:%d",
+		sfe_hw->soc_info.index);
+	if (rc)
+		CAM_ERR(CAM_SFE, "failed to test SFE:%d", sfe_hw->soc_info.index);
+
+	rc = cam_sfe_deinit_hw(sfe_hw, NULL, 0);
+	if (rc)
+		CAM_ERR(CAM_SFE, "SFE:%d failed to deinit hw", sfe_hw->soc_info.index);
+
+	return rc;
+}
+
 int cam_sfe_reserve(void *hw_priv, void *reserve_args, uint32_t arg_size)
 {
 	struct cam_sfe_hw_core_info       *core_info = NULL;
