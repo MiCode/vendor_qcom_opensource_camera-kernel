@@ -5,6 +5,7 @@
  */
 
 #include <linux/dma-mapping.h>
+#include <linux/dma-buf.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
 
@@ -414,6 +415,22 @@ int cam_sensor_i3c_driver_remove(struct i3c_device *client)
 {
 	CAM_DBG(CAM_SENSOR, "I3C remove invoked for %s",
 		(client ? dev_name(&client->dev) : "none"));
+	return 0;
+}
+#endif
+
+#if KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE
+long cam_dma_buf_set_name(struct dma_buf *dmabuf, const char *name)
+{
+	long ret = 0;
+
+	ret = dma_buf_set_name(dmabuf, name);
+
+	return ret;
+}
+#else
+long cam_dma_buf_set_name(struct dma_buf *dmabuf, const char *name)
+{
 	return 0;
 }
 #endif

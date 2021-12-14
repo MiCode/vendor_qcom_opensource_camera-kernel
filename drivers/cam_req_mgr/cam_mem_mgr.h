@@ -139,7 +139,7 @@ struct cam_mem_table_mini_dump {
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-int cam_mem_mgr_alloc_and_map(struct cam_mem_mgr_alloc_cmd *cmd);
+int cam_mem_mgr_alloc_and_map(struct cam_mem_mgr_alloc_cmd_v2 *cmd);
 
 /**
  * @brief: Releases a buffer reference
@@ -157,7 +157,7 @@ int cam_mem_mgr_release(struct cam_mem_mgr_release_cmd *cmd);
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd *cmd);
+int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd_v2 *cmd);
 
 /**
  * @brief: Perform cache ops on the buffer

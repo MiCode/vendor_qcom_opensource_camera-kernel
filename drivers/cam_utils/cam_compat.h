@@ -65,4 +65,6 @@ int cam_req_mgr_ordered_list_cmp(void *priv,
 int cam_sensor_i3c_driver_remove(struct i3c_device *client);
 #endif
 
+long cam_dma_buf_set_name(struct dma_buf *dmabuf, const char *name);
+
 #endif /* _CAM_COMPAT_H_ */

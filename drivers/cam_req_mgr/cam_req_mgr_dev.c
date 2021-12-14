@@ -493,6 +493,7 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		break;
 	case CAM_REQ_MGR_ALLOC_BUF: {
 		struct cam_mem_mgr_alloc_cmd cmd;
+		struct cam_mem_mgr_alloc_cmd_v2 cmd_v2 = {0};
 
 		if (k_ioctl->size != sizeof(cmd))
 			return -EINVAL;
@@ -504,7 +505,16 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			break;
 		}
 
-		rc = cam_mem_mgr_alloc_and_map(&cmd);
+		strscpy(cmd_v2.buf_name, "UNKNOWN", CAM_DMA_BUF_NAME_LEN);
+		memcpy(cmd_v2.mmu_hdls, cmd.mmu_hdls,
+			sizeof(__s32) * CAM_MEM_MMU_MAX_HANDLE);
+		cmd_v2.num_hdl = cmd.num_hdl;
+		cmd_v2.flags = cmd.flags;
+		cmd_v2.len = cmd.len;
+		cmd_v2.align = cmd.align;
+
+		rc = cam_mem_mgr_alloc_and_map(&cmd_v2);
+		memcpy(&cmd.out, &cmd_v2.out, sizeof(cmd.out));
 		if (!rc)
 			if (copy_to_user(
 				u64_to_user_ptr(k_ioctl->handle),
@@ -514,8 +524,32 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			}
 		}
 		break;
+	case CAM_REQ_MGR_ALLOC_BUF_V2: {
+		struct cam_mem_mgr_alloc_cmd_v2 cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_mem_mgr_alloc_cmd_v2))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = cam_mem_mgr_alloc_and_map(&cmd);
+		if (!rc)
+			if (copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				&cmd, sizeof(struct cam_mem_mgr_alloc_cmd_v2))) {
+				rc = -EFAULT;
+				break;
+			}
+		}
+		break;
 	case CAM_REQ_MGR_MAP_BUF: {
 		struct cam_mem_mgr_map_cmd cmd;
+		struct cam_mem_mgr_map_cmd_v2 cmd_v2 = {0};
 
 		if (k_ioctl->size != sizeof(cmd))
 			return -EINVAL;
@@ -527,11 +561,42 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			break;
 		}
 
-		rc = cam_mem_mgr_map(&cmd);
+		strscpy(cmd_v2.buf_name, "UNKNOWN", CAM_DMA_BUF_NAME_LEN);
+		memcpy(cmd_v2.mmu_hdls, cmd.mmu_hdls,
+			sizeof(__s32) * CAM_MEM_MMU_MAX_HANDLE);
+		cmd_v2.num_hdl = cmd.num_hdl;
+		cmd_v2.flags = cmd.flags;
+		cmd_v2.fd = cmd.fd;
+
+		rc = cam_mem_mgr_map(&cmd_v2);
+		memcpy(&cmd.out, &cmd_v2.out, sizeof(cmd.out));
 		if (!rc)
 			if (copy_to_user(
 				u64_to_user_ptr(k_ioctl->handle),
 				&cmd, sizeof(struct cam_mem_mgr_map_cmd))) {
+				rc = -EFAULT;
+				break;
+			}
+		}
+		break;
+	case CAM_REQ_MGR_MAP_BUF_V2: {
+		struct cam_mem_mgr_map_cmd_v2 cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_mem_mgr_map_cmd_v2))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = cam_mem_mgr_map(&cmd);
+		if (!rc)
+			if (copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				&cmd, sizeof(struct cam_mem_mgr_map_cmd_v2))) {
 				rc = -EFAULT;
 				break;
 			}
