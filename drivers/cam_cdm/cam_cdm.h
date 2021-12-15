@@ -581,6 +581,7 @@ struct cam_cdm_intf_mgr {
 	uint32_t dt_supported_hw_cdm;
 	int32_t refcount;
 	struct cam_cdm_intf_devices nodes[CAM_CDM_INTF_MGR_MAX_SUPPORTED_CDM];
+	struct dentry *dentry;
 };
 
 int cam_cdm_intf_register_hw_cdm(struct cam_hw_intf *hw,

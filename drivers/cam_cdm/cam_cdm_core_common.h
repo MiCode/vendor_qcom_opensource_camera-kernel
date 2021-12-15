@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _CAM_CDM_CORE_COMMON_H_
@@ -58,5 +58,6 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 	enum cam_cdm_cb_status status, void *data);
 void cam_hw_cdm_dump_core_debug_registers(
 	struct cam_hw_info *cdm_hw, bool pause_core);
+int cam_cdm_util_cpas_start(struct cam_hw_info *cdm_hw);
 
 #endif /* _CAM_CDM_CORE_COMMON_H_ */
