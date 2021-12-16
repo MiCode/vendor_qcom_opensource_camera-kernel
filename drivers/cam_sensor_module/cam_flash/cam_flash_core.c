@@ -996,7 +996,7 @@ int cam_flash_i2c_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 		CAM_DBG(CAM_FLASH,
 			"reject request %lld, last request to flush %lld",
 			csl_packet->header.request_id, fctrl->last_flush_req);
-		return -EINVAL;
+		return -EBADR;
 	}
 
 	if (csl_packet->header.request_id > fctrl->last_flush_req)

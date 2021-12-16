@@ -168,7 +168,7 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		CAM_ERR(CAM_SENSOR,
 			"reject request %lld, last request to flush %u",
 			csl_packet->header.request_id, s_ctrl->last_flush_req);
-		rc = -EINVAL;
+		rc = -EBADR;
 		goto end;
 	}
 
