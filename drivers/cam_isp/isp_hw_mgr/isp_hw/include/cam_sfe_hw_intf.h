@@ -21,9 +21,6 @@ enum cam_sfe_core_id {
 
 enum cam_isp_hw_sfe_in {
 	CAM_ISP_HW_SFE_IN_PIX,
-	CAM_ISP_HW_SFE_IN_RD0,
-	CAM_ISP_HW_SFE_IN_RD1,
-	CAM_ISP_HW_SFE_IN_RD2,
 	CAM_ISP_HW_SFE_IN_RDI0,
 	CAM_ISP_HW_SFE_IN_RDI1,
 	CAM_ISP_HW_SFE_IN_RDI2,

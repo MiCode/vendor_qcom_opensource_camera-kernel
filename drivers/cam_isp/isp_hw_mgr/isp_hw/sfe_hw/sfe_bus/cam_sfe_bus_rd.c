@@ -234,11 +234,11 @@ static enum cam_sfe_bus_rd_type
 	cam_sfe_bus_get_bus_rd_res_id(uint32_t res_type)
 {
 	switch (res_type) {
-	case CAM_ISP_HW_SFE_IN_RD0:
+	case CAM_ISP_SFE_IN_RD_0:
 		return CAM_SFE_BUS_RD_RDI0;
-	case CAM_ISP_HW_SFE_IN_RD1:
+	case CAM_ISP_SFE_IN_RD_1:
 		return CAM_SFE_BUS_RD_RDI1;
-	case CAM_ISP_HW_SFE_IN_RD2:
+	case CAM_ISP_SFE_IN_RD_2:
 		return CAM_SFE_BUS_RD_RDI2;
 	default:
 		return CAM_SFE_BUS_RD_MAX;
