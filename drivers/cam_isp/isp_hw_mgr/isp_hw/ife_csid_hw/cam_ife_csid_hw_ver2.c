@@ -78,16 +78,30 @@ static bool cam_ife_csid_ver2_disable_sof_retime(
 }
 
 static int cam_ife_csid_ver2_set_debug(
-	struct cam_ife_csid_ver2_hw *csid_hw,
-	uint32_t debug_val)
+	struct cam_ife_csid_ver2_hw        *csid_hw,
+	struct cam_ife_csid_debug_cfg_args *debug_args)
 {
 	int bit_pos = 0;
-	uint32_t val;
+	uint32_t val, debug_val;
 
 	memset(&csid_hw->debug_info, 0,
 		sizeof(struct cam_ife_csid_debug_info));
-	csid_hw->debug_info.debug_val = debug_val;
+	csid_hw->debug_info.debug_val = debug_args->csid_debug;
+	/*
+	 * RX capture debug
+	 * [0:3]   = rst strobes
+	 * [4:11]  = vc for capture
+	 * [12:19] = dt for capture
+	 */
+	csid_hw->debug_info.rst_capture_strobes = (debug_args->csid_rx_capture_debug &
+		CAM_IFE_CSID_DEBUGFS_RST_STROBE_MASK);
+	csid_hw->debug_info.rx_capture_vc = ((debug_args->csid_rx_capture_debug >>
+		CAM_IFE_CSID_DEBUGFS_VC_SHIFT_MASK) & CAM_IFE_CSID_DEBUGFS_VC_DT_MASK);
+	csid_hw->debug_info.rx_capture_dt = ((debug_args->csid_rx_capture_debug >>
+		CAM_IFE_CSID_DEBUGFS_DT_SHIFT_MASK) & CAM_IFE_CSID_DEBUGFS_VC_DT_MASK);
+	csid_hw->debug_info.rx_capture_debug_set = debug_args->rx_capture_debug_set;
 
+	debug_val = csid_hw->debug_info.debug_val;
 	while (debug_val) {
 
 		if (!(debug_val & 0x1)) {
@@ -773,7 +787,7 @@ end:
 
 static int cam_ife_csid_ver2_handle_rx_debug_event(
 	struct cam_ife_csid_ver2_hw *csid_hw,
-	uint32_t bit_pos)
+	uint32_t bit_pos, uint32_t *rst_strobe_val)
 {
 	struct cam_hw_soc_info              *soc_info;
 	struct cam_ife_csid_ver2_reg_info *csid_reg;
@@ -791,73 +805,87 @@ static int cam_ife_csid_ver2_handle_rx_debug_event(
 
 		val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			csi2_reg->captured_long_pkt_0_addr);
-		CAM_INFO_RATE_LIMIT(CAM_ISP,
-			"Csid :%d Long pkt VC: %d DT: %d WC: %d",
+		CAM_INFO(CAM_ISP,
+			"CSID :%d Long pkt VC: %u DT: %u WC: %u",
 			csid_hw->hw_intf->hw_idx,
-			(val & csi2_reg->vc_mask) >> 22,
-			(val & csi2_reg->dt_mask) >> 16,
-			val & csi2_reg->wc_mask);
+			((val & csi2_reg->vc_mask) >> csi2_reg->vc_shift),
+			((val & csi2_reg->dt_mask) >> csi2_reg->dt_shift),
+			((val & csi2_reg->wc_mask) >> csi2_reg->wc_shift));
 
 		val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			csi2_reg->captured_long_pkt_1_addr);
-		CAM_INFO_RATE_LIMIT(CAM_ISP,
-			"Csid :%d Long pkt ECC: %d",
+		CAM_INFO(CAM_ISP,
+			"CSID :%d Long pkt ECC: %u",
 			csid_hw->hw_intf->hw_idx, val);
 
 		val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			csi2_reg->captured_long_pkt_ftr_addr);
-		CAM_INFO_RATE_LIMIT(CAM_ISP,
-			"Csid :%d Long pkt cal CRC: %d expected CRC: %d",
+		CAM_INFO(CAM_ISP,
+			"CSID :%d Long pkt cal CRC: %u expected CRC: %u",
 			csid_hw->hw_intf->hw_idx,
-			val & csi2_reg->calc_crc_mask,
-			val & csi2_reg->expected_crc_mask);
+			((val >> csi2_reg->calc_crc_shift) & csi2_reg->calc_crc_mask),
+			(val & csi2_reg->expected_crc_mask));
+
+		/* Update reset long pkt strobe */
+		*rst_strobe_val |= (1 << csi2_reg->long_pkt_strobe_rst_shift);
 		break;
 
 	case IFE_CSID_VER2_RX_SHORT_PKT_CAPTURED:
 
 		val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			csi2_reg->captured_short_pkt_0_addr);
-		CAM_INFO_RATE_LIMIT(CAM_ISP,
-			"Csid :%d Short pkt VC: %d DT: %d LC: %d",
+		CAM_INFO(CAM_ISP,
+			"CSID :%d Short pkt VC: %u DT: %u LC: %u",
 			csid_hw->hw_intf->hw_idx,
-			(val & csi2_reg->vc_mask) >> 22,
-			(val & csi2_reg->dt_mask) >> 16,
-			val & csi2_reg->wc_mask);
+			((val & csi2_reg->vc_mask) >> csi2_reg->vc_shift),
+			((val & csi2_reg->dt_mask) >> csi2_reg->dt_shift),
+			((val & csi2_reg->wc_mask) >> csi2_reg->wc_shift));
 
 		val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			csi2_reg->captured_short_pkt_1_addr);
-		CAM_INFO_RATE_LIMIT(CAM_ISP,
-			"Csid :%d Short pkt ECC: %d",
+		CAM_INFO(CAM_ISP,
+			"CSID :%d Short pkt ECC: %u",
 			csid_hw->hw_intf->hw_idx, val);
+
+		/* Update reset short pkt strobe */
+		*rst_strobe_val |= (1 << csi2_reg->short_pkt_strobe_rst_shift);
 		break;
 	case IFE_CSID_VER2_RX_CPHY_PKT_HDR_CAPTURED:
 
 		val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			csi2_reg->captured_cphy_pkt_hdr_addr);
-		CAM_INFO_RATE_LIMIT(CAM_ISP,
-			"Csid :%d CPHY pkt VC: %d DT: %d LC: %d",
+		CAM_INFO(CAM_ISP,
+			"CSID :%d CPHY pkt VC: %u DT: %u WC: %u",
 			csid_hw->hw_intf->hw_idx,
-			(val & csi2_reg->vc_mask) >> 22,
-			(val & csi2_reg->dt_mask) >> 16,
-			val & csi2_reg->wc_mask);
+			((val & csi2_reg->vc_mask) >> csi2_reg->vc_shift),
+			((val & csi2_reg->dt_mask) >> csi2_reg->dt_shift),
+			((val & csi2_reg->wc_mask) >> csi2_reg->wc_shift));
+
+		/* Update reset phy pkt strobe */
+		*rst_strobe_val |= (1 << csi2_reg->cphy_pkt_strobe_rst_shift);
 		break;
 	case IFE_CSID_VER2_RX_UNMAPPED_VC_DT:
 		val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			csi2_reg->cap_unmap_long_pkt_hdr_0_addr);
 
-		CAM_ERR_RATE_LIMIT(CAM_ISP,
-			"CSID:%d UNMAPPED_VC_DT: VC:%d DT:%d WC:%d not mapped to any csid paths",
-			csid_hw->hw_intf->hw_idx, (val >> 22),
-			((val >> 16) & 0x3F), (val & 0xFFFF));
+		CAM_ERR(CAM_ISP,
+			"CSID:%d UNMAPPED_VC_DT: VC: %u DT: %u WC: %u not mapped to any csid paths",
+			csid_hw->hw_intf->hw_idx,
+			((val & csi2_reg->vc_mask) >> csi2_reg->vc_shift),
+			((val & csi2_reg->dt_mask) >> csi2_reg->dt_shift),
+			((val & csi2_reg->wc_mask) >> csi2_reg->wc_shift));
 
 		csid_hw->counters.error_irq_count++;
 
 		CAM_DBG(CAM_ISP, "CSID[%u] Recoverable Error Count:%u",
 			csid_hw->hw_intf->hw_idx,
 			csid_hw->counters.error_irq_count);
+
+		/* Update reset unmapped long pkt strobe */
+		*rst_strobe_val |= (1 << csi2_reg->unmapped_pkt_strobe_rst_shift);
 		break;
 	default:
-		CAM_INFO_RATE_LIMIT(CAM_ISP,
+		CAM_DBG(CAM_ISP,
 			"CSID[%d] RX_IRQ: %s",
 			csid_hw->hw_intf->hw_idx,
 			csid_reg->rx_irq_desc[bit_pos].desc);
@@ -875,7 +903,8 @@ static int cam_ife_csid_ver2_rx_top_half(
 	const struct cam_ife_csid_csi2_rx_reg_info *csi2_reg;
 	struct cam_ife_csid_ver2_reg_info          *csid_reg;
 	uint32_t                                    irq_status;
-	uint32_t                                    bit_pos = 0;
+	uint32_t                                    rst_strobe_val = 0;
+	uint32_t                                    bit_pos = 0, bit_set = 0;
 
 	csid_hw = th_payload->handler_priv;
 
@@ -891,15 +920,21 @@ static int cam_ife_csid_ver2_rx_top_half(
 	csi2_reg = csid_reg->csi2_reg;
 
 	while (irq_status) {
-
-		if ((BIT(bit_pos)) &
-				csid_hw->debug_info.rx_mask)
+		bit_set = irq_status & 1;
+		if ((bit_set) && (BIT(bit_pos) & csid_hw->debug_info.rx_mask))
 			cam_ife_csid_ver2_handle_rx_debug_event(csid_hw,
-				bit_pos);
+				bit_pos, &rst_strobe_val);
 		bit_pos++;
 		irq_status >>= 1;
 	}
 
+	/* Reset strobes for next set of pkts */
+	if (rst_strobe_val && csid_hw->debug_info.rst_capture_strobes) {
+		struct cam_hw_soc_info *soc_info = &csid_hw->hw_info->soc_info;
+
+		cam_io_w_mb(rst_strobe_val, soc_info->reg_map[0].mem_base +
+			csi2_reg->rst_strobes_addr);
+	}
 	return 0;
 }
 
@@ -1383,16 +1418,15 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	}
 
 	if (len)
-		CAM_ERR_RATE_LIMIT(CAM_ISP, "CSID[%d] %s status: 0x%x Errors:%s",
+		CAM_ERR(CAM_ISP, "CSID[%d] %s status: 0x%x Errors:%s",
 			csid_hw->hw_intf->hw_idx, irq_reg_tag[index],
 			irq_status, log_buf);
 
 	status = irq_status & csid_hw->debug_info.path_mask;
 	bit_pos = 0;
 	while (status) {
-
 		if (status & 0x1)
-			CAM_INFO_RATE_LIMIT(CAM_ISP, "CSID[%d] IRQ %s %s ",
+			CAM_INFO(CAM_ISP, "CSID[%d] IRQ %s %s ",
 				csid_hw->hw_intf->hw_idx, irq_reg_tag[index],
 				csid_reg->path_irq_desc[bit_pos].desc);
 
@@ -1401,8 +1435,7 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	}
 
 	if (csid_hw->flags.sof_irq_triggered) {
-
-		if (irq_status & IFE_CSID_VER2_PATH_INFO_INPUT_SOF)
+		if ((irq_status & IFE_CSID_VER2_PATH_INFO_INPUT_SOF))
 			csid_hw->counters.irq_debug_cnt++;
 
 		if (csid_hw->counters.irq_debug_cnt >=
@@ -2841,7 +2874,6 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 		cfg0 |= 1 << path_reg->sof_retiming_dis_shift;
 
 	cam_io_w_mb(cfg0, mem_base + path_reg->cfg0_addr);
-
 	CAM_DBG(CAM_ISP, "CSID[%d] %s cfg0_addr 0x%x",
 		csid_hw->hw_intf->hw_idx, res->res_name, cfg0);
 
@@ -2858,6 +2890,8 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 				csid_reg->cmn_reg->decode_format1_shift_val);
 
 		cam_io_w_mb(val, mem_base + path_reg->multi_vcdt_cfg0_addr);
+		CAM_DBG(CAM_ISP, "CSID:%u RDI:%u multi_vcdt_cfg0:0x%x",
+			csid_hw->hw_intf->hw_idx, res->res_id, val);
 	}
 
 	/*configure cfg1 addr
@@ -2899,6 +2933,9 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 		cfg1 |= 1 << path_reg->pix_store_en_shift_val;
 
 	cam_io_w_mb(cfg1, mem_base + path_reg->cfg1_addr);
+
+	CAM_DBG(CAM_ISP, "CSID:%u RDI:%u cfg1:0x%x",
+		csid_hw->hw_intf->hw_idx, res->res_id, cfg1);
 
 	/* set frame drop pattern to 0 and period to 1 */
 	cam_io_w_mb(1, mem_base + path_reg->frm_drop_period_addr);
@@ -3662,9 +3699,13 @@ static int cam_ife_csid_ver2_rx_capture_config(
 	}
 
 	rx_cfg = &csid_hw->rx_cfg;
-
-	vc  = csid_hw->cid_data[i].vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].vc;
-	dt  = csid_hw->cid_data[i].vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].dt;
+	if (csid_hw->debug_info.rx_capture_debug_set) {
+		vc = csid_hw->debug_info.rx_capture_vc;
+		dt = csid_hw->debug_info.rx_capture_dt;
+	} else {
+		vc  = csid_hw->cid_data[i].vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].vc;
+		dt  = csid_hw->cid_data[i].vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].dt;
+	}
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *) csid_hw->core_info->csid_reg;
 	soc_info = &csid_hw->hw_info->soc_info;
@@ -5149,7 +5190,7 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 		break;
 	case CAM_IFE_CSID_SET_CSID_DEBUG:
 		rc = cam_ife_csid_ver2_set_debug(csid_hw,
-			*((uint32_t *)cmd_args));
+			(struct cam_ife_csid_debug_cfg_args *)cmd_args);
 		break;
 	case CAM_IFE_CSID_SOF_IRQ_DEBUG:
 		rc = cam_ife_csid_ver2_sof_irq_debug(csid_hw, cmd_args);

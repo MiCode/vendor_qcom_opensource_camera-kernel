@@ -6440,6 +6440,76 @@ end:
 	return 0;
 }
 
+static void cam_ife_hw_mgr_set_hw_debug_config(
+	struct cam_ife_hw_mgr_ctx *ctx)
+{
+	int i, rc;
+	uint32_t hw_idx = 0;
+	struct cam_ife_hw_mgr *hw_mgr = ctx->hw_mgr;
+	struct cam_ife_csid_debug_cfg_args csid_debug_args;
+	struct cam_sfe_debug_cfg_params sfe_debug_args;
+	bool ife_bus_debug_args;
+
+	/* Set CSID debug args */
+	csid_debug_args.csid_debug = hw_mgr->debug_cfg.csid_debug;
+	csid_debug_args.csid_rx_capture_debug = hw_mgr->debug_cfg.rx_capture_debug;
+	csid_debug_args.rx_capture_debug_set = hw_mgr->debug_cfg.rx_capture_debug_set;
+
+	/* Set SFE debug args */
+	sfe_debug_args.cache_config = false;
+	sfe_debug_args.u.dbg_cfg.sfe_debug_cfg = hw_mgr->debug_cfg.sfe_debug;
+	sfe_debug_args.u.dbg_cfg.sfe_sensor_sel = hw_mgr->debug_cfg.sfe_sensor_diag_cfg;
+
+	/* Set IFE bus debug args */
+	ife_bus_debug_args = hw_mgr->debug_cfg.disable_ife_mmu_prefetch;
+
+	/* Iterate over HW acquired for this stream and update debug config */
+	for (i = 0; i < ctx->num_base; i++) {
+		hw_idx = ctx->base[i].idx;
+
+		switch (ctx->base[i].hw_type) {
+		case CAM_ISP_HW_TYPE_VFE:
+			if (hw_mgr->ife_devices[hw_idx]) {
+				rc = hw_mgr->ife_devices[hw_idx]->hw_intf->hw_ops.process_cmd(
+					hw_mgr->ife_devices[hw_idx]->hw_intf->hw_priv,
+					CAM_ISP_HW_CMD_IFE_BUS_DEBUG_CFG,
+					&ife_bus_debug_args, sizeof(ife_bus_debug_args));
+				if (rc)
+					CAM_DBG(CAM_ISP,
+						"Failed to set IFE_%u bus wr debug cfg rc: %d",
+						hw_idx, rc);
+			}
+			break;
+		case CAM_ISP_HW_TYPE_SFE:
+			if (hw_mgr->sfe_devices[hw_idx]) {
+				rc = hw_mgr->sfe_devices[hw_idx]->hw_intf->hw_ops.process_cmd(
+					hw_mgr->sfe_devices[hw_idx]->hw_intf->hw_priv,
+					CAM_ISP_HW_CMD_SET_SFE_DEBUG_CFG,
+					&sfe_debug_args, sizeof(sfe_debug_args));
+				if (rc)
+					CAM_DBG(CAM_ISP,
+						"Failed to set SFE_%u debug cfg rc: %d",
+						hw_idx, rc);
+			}
+			break;
+		case CAM_ISP_HW_TYPE_CSID:
+			if (hw_mgr->csid_devices[hw_idx]) {
+				rc = hw_mgr->csid_devices[hw_idx]->hw_ops.process_cmd(
+					hw_mgr->csid_devices[hw_idx]->hw_priv,
+					CAM_IFE_CSID_SET_CSID_DEBUG,
+					&csid_debug_args, sizeof(csid_debug_args));
+				if (rc)
+					CAM_DBG(CAM_ISP,
+						"Failed to set CSID_%u debug cfg rc: %d",
+						hw_idx, rc);
+			}
+			break;
+		default:
+			break;
+		}
+	}
+}
+
 static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 {
 	int                                  rc = -1;
@@ -6500,46 +6570,8 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 		goto start_only;
 	}
 
-	/* set current csid debug information to CSID HW */
-	for (i = 0; i < CAM_IFE_CSID_HW_NUM_MAX; i++) {
-		if (g_ife_hw_mgr.csid_devices[i]) {
-			rc = g_ife_hw_mgr.csid_devices[i]->hw_ops.process_cmd(
-				g_ife_hw_mgr.csid_devices[i]->hw_priv,
-				CAM_IFE_CSID_SET_CSID_DEBUG,
-				&g_ife_hw_mgr.debug_cfg.csid_debug,
-				sizeof(g_ife_hw_mgr.debug_cfg.csid_debug));
-		}
-	}
-
-	/* set current SFE debug information to SFE HW */
-	for (i = 0; i < CAM_SFE_HW_NUM_MAX; i++) {
-		struct cam_sfe_debug_cfg_params debug_cfg;
-
-		debug_cfg.cache_config = false;
-		debug_cfg.u.dbg_cfg.sfe_debug_cfg = g_ife_hw_mgr.debug_cfg.sfe_debug;
-		debug_cfg.u.dbg_cfg.sfe_sensor_sel = g_ife_hw_mgr.debug_cfg.sfe_sensor_diag_cfg;
-		if (g_ife_hw_mgr.sfe_devices[i]) {
-			rc = g_ife_hw_mgr.sfe_devices[i]->hw_intf->hw_ops.process_cmd(
-				g_ife_hw_mgr.sfe_devices[i]->hw_intf->hw_priv,
-				CAM_ISP_HW_CMD_SET_SFE_DEBUG_CFG,
-				&debug_cfg,
-				sizeof(debug_cfg));
-		}
-	}
-
-	/* set IFE bus WR MMU config */
-	for (i = 0; i < CAM_IFE_HW_NUM_MAX; i++) {
-		if (g_ife_hw_mgr.ife_devices[i]) {
-			rc = g_ife_hw_mgr.ife_devices[i]->hw_intf->hw_ops.process_cmd(
-				g_ife_hw_mgr.ife_devices[i]->hw_intf->hw_priv,
-				CAM_ISP_HW_CMD_IFE_BUS_DEBUG_CFG,
-				&g_ife_hw_mgr.debug_cfg.disable_ife_mmu_prefetch,
-				sizeof(g_ife_hw_mgr.debug_cfg.disable_ife_mmu_prefetch));
-			if (rc)
-				CAM_DBG(CAM_ISP,
-					"Failed to set IFE_%d bus wr debug cfg", i);
-		}
-	}
+	/* Update debug config for acquired HW */
+	cam_ife_hw_mgr_set_hw_debug_config(ctx);
 
 	if (ctx->flags.need_csid_top_cfg) {
 		list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid,
@@ -12985,6 +13017,33 @@ DEFINE_DEBUGFS_ATTRIBUTE(cam_ife_sfe_sensor_diag_debug,
 	cam_ife_get_sfe_sensor_diag_debug,
 	cam_ife_set_sfe_sensor_diag_debug, "%16llu");
 
+static int cam_ife_set_csid_rx_pkt_capture_debug(void *data, u64 val)
+{
+	if (val >= 0xFFFFF) {
+		g_ife_hw_mgr.debug_cfg.rx_capture_debug_set = false;
+		g_ife_hw_mgr.debug_cfg.rx_capture_debug = 0;
+	} else {
+		g_ife_hw_mgr.debug_cfg.rx_capture_debug_set = true;
+		g_ife_hw_mgr.debug_cfg.rx_capture_debug = val;
+	}
+
+	CAM_DBG(CAM_ISP, "Set CSID RX capture Debug value :%lld", val);
+	return 0;
+}
+
+static int cam_ife_get_csid_rx_pkt_capture_debug(void *data, u64 *val)
+{
+	*val = g_ife_hw_mgr.debug_cfg.rx_capture_debug;
+	CAM_DBG(CAM_ISP, "Get CSID RX capture Debug value :%lld",
+		g_ife_hw_mgr.debug_cfg.rx_capture_debug);
+
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(cam_ife_csid_rx_capture_debug,
+	cam_ife_get_csid_rx_pkt_capture_debug,
+	cam_ife_set_csid_rx_pkt_capture_debug, "%16llu");
+
 static int cam_ife_hw_mgr_debug_register(void)
 {
 	int rc = 0;
@@ -13001,6 +13060,8 @@ static int cam_ife_hw_mgr_debug_register(void)
 
 	debugfs_create_file("ife_csid_debug", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_csid_debug);
+	dbgfileptr = debugfs_create_file("ife_csid_rx_capture_debug", 0644,
+		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_csid_rx_capture_debug);
 	debugfs_create_u32("enable_recovery", 0644, g_ife_hw_mgr.debug_cfg.dentry,
 		&g_ife_hw_mgr.debug_cfg.enable_recovery);
 	debugfs_create_bool("enable_req_dump", 0644,
