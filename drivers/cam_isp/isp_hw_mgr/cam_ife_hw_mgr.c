@@ -10971,13 +10971,25 @@ static void cam_ife_mgr_print_io_bufs(struct cam_ife_hw_mgr  *hw_mgr,
 		}
 }
 
-static void cam_ife_mgr_pf_dump(uint32_t res_id,
-	struct cam_ife_hw_mgr_ctx *ctx)
+static int cam_ife_hw_mgr_dump_bus_info(
+	uint32_t res_id,
+	struct cam_isp_hw_intf_data *hw_intf_data)
+{
+	struct cam_isp_hw_event_info event_info;
+
+	event_info.res_id = res_id;
+
+	return hw_intf_data->hw_intf->hw_ops.process_cmd(
+		hw_intf_data->hw_intf->hw_priv,
+		CAM_ISP_HW_CMD_DUMP_BUS_INFO,
+		&event_info, sizeof(struct cam_isp_hw_event_info));
+}
+
+static void cam_ife_mgr_pf_dump(
+	struct cam_ife_hw_mgr_ctx   *ctx)
 {
 	struct cam_isp_hw_mgr_res      *hw_mgr_res;
 	struct cam_hw_intf             *hw_intf;
-	struct cam_isp_hw_event_info    event_info;
-	uint32_t                        res_id_out;
 	int  i, rc = 0;
 
 	/* dump the registers  */
@@ -11008,29 +11020,6 @@ static void cam_ife_mgr_pf_dump(uint32_t res_id,
 						"csid acquire data dump failed");
 			} else
 				CAM_ERR(CAM_ISP, "NULL hw_intf!");
-		}
-	}
-
-	event_info.res_id = res_id;
-	res_id_out = res_id & 0xFF;
-
-	if (res_id_out >= max_ife_out_res) {
-		CAM_ERR(CAM_ISP, "Invalid out resource id :%x",
-			res_id);
-		return;
-	}
-
-	hw_mgr_res = &ctx->res_list_ife_out[res_id_out];
-	for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-		if (!hw_mgr_res->hw_res[i])
-			continue;
-		hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
-		if (hw_intf->hw_ops.process_cmd) {
-			rc = hw_intf->hw_ops.process_cmd(
-				hw_intf->hw_priv,
-				CAM_ISP_HW_CMD_DUMP_BUS_INFO,
-				(void *)&event_info,
-				sizeof(struct cam_isp_hw_event_info));
 		}
 	}
 }
@@ -11119,6 +11108,11 @@ static void cam_ife_mgr_dump_pf_data(
 					ctx->base[i].hw_type == CAM_ISP_HW_TYPE_VFE ? "VFE" : "SFE",
 					ctx->base[i].idx, hw_cmd_args->u.pf_args.pid);
 				cam_ife_mgr_pf_dump_mid_info(ctx, hw_cmd_args, hw_intf_data);
+
+				/* If MID found - dump client info */
+				if (ctx->flags.pf_mid_found)
+					cam_ife_hw_mgr_dump_bus_info(ctx->pf_info.out_port_id,
+						hw_intf_data);
 				break;
 			}
 		}
@@ -11131,7 +11125,8 @@ static void cam_ife_mgr_dump_pf_data(
 		CAM_INFO(CAM_ISP,
 			"This context does not cause pf:pid:%d ctx_id:%d",
 			hw_cmd_args->u.pf_args.pid, ctx->ctx_index);
-	cam_ife_mgr_pf_dump(ctx->pf_info.out_port_id, ctx);
+
+	cam_ife_mgr_pf_dump(ctx);
 
 outportlog:
 	cam_ife_mgr_print_io_bufs(hw_mgr, *resource_type, packet,
