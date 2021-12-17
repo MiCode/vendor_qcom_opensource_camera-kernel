@@ -3629,7 +3629,7 @@ static int cam_ife_csid_ver2_program_ppp_path(
 				csid_hw->csid_irq_controller,
 				CAM_IRQ_PRIORITY_1,
 				irq_mask,
-				csid_hw,
+				res,
 				cam_ife_csid_ver2_path_top_half,
 				cam_ife_csid_ver2_ppp_bottom_half,
 				csid_hw->tasklet,
@@ -3661,7 +3661,7 @@ static int cam_ife_csid_ver2_program_ppp_path(
 					irq_mask,
 					res,
 					cam_ife_csid_ver2_path_err_top_half,
-					cam_ife_csid_ver2_ipp_bottom_half,
+					cam_ife_csid_ver2_ppp_bottom_half,
 					csid_hw->tasklet,
 					&tasklet_bh_api,
 					CAM_IRQ_EVT_GROUP_0);

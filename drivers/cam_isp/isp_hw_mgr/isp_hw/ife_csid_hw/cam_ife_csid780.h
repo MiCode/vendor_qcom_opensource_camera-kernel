@@ -467,6 +467,9 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.non_fatal_err_mask               = 0x10000000,
 		.camif_irq_mask                   = 0x800000,
 		.rup_aup_mask                     = 0x10001,
+		.top_irq_mask                     = 0x10,
+		.epoch0_shift_val                 = 16,
+		.epoch1_shift_val                 = 0,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -565,7 +568,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.fatal_err_mask                   = 0x186007,
 		.non_fatal_err_mask               = 0x10000000,
 		.rup_aup_mask                     = 0x40004,
-		.top_irq_mask                     = 0x10,
+		.top_irq_mask                     = 0x40,
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
 		.sof_retiming_dis_shift           = 5,
