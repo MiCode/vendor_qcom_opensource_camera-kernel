@@ -5473,7 +5473,7 @@ static void cam_icp_mgr_print_io_bufs(struct cam_packet *packet,
 				break;
 
 			if (GET_FD_FROM_HANDLE(io_cfg[i].mem_handle[j]) ==
-				GET_FD_FROM_HANDLE(pf_buf_info)) {
+				pf_buf_info) {
 				CAM_INFO(CAM_ICP,
 					"Found PF at port: %d mem %x fd: %x",
 					io_cfg[i].resource_type,
