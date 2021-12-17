@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_SENSOR_H__
@@ -694,7 +695,10 @@ struct tpg_global_config_t {
  * @vc               : virtual channel of this stream
  * @dt               : data type of this stream
  * @skip_pattern     : skip pattern for this stream
- * @reserved         : reserved for future use
+ * @xcfa_debug       : for xcfa debug;
+ * @shdr_line_offset0 : for shdr line offset0
+ * @shdr_line_offset1 : for shdr line offset1
+ * @reserved          : reserved for future use
  */
 struct tpg_stream_config_t {
 	struct tpg_command_header_t header;
@@ -712,6 +716,9 @@ struct tpg_stream_config_t {
 	uint16_t dt;
 	uint32_t skip_pattern;
 	uint32_t rotate_period;
+	uint32_t xcfa_debug;
+	uint32_t shdr_line_offset0;
+	uint32_t shdr_line_offset1;
 	uint32_t reserved[4];
 } __attribute__((packed));
 
