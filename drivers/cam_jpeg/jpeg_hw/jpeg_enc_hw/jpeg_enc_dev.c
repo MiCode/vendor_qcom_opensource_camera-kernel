@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -98,6 +98,7 @@ static int cam_jpeg_enc_component_bind(struct device *dev,
 	jpeg_enc_dev_intf->hw_ops.stop = cam_jpeg_enc_stop_hw;
 	jpeg_enc_dev_intf->hw_ops.reset = cam_jpeg_enc_reset_hw;
 	jpeg_enc_dev_intf->hw_ops.process_cmd = cam_jpeg_enc_process_cmd;
+	jpeg_enc_dev_intf->hw_ops.test_irq_line = cam_jpeg_enc_test_irq_line;
 	jpeg_enc_dev_intf->hw_type = CAM_JPEG_DEV_ENC;
 
 	platform_set_drvdata(pdev, jpeg_enc_dev_intf);

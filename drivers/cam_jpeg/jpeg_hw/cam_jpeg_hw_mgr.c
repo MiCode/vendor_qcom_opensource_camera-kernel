@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -42,6 +43,8 @@
 #define CAM_JPEG_CFG_CMD_BUFF_IDX                     1
 #define CAM_JPEG_PARAM_CMD_BUFF_IDX                   2
 #define CAM_JPEG_THUBMNAIL_SIZE_CMD_BUFF_IDX          3
+
+#define CAM_JPEG_DEV_TYPE(type) ((type) == CAM_JPEG_DEV_TYPE_ENC ? "ENC" : "DMA")
 
 static struct cam_jpeg_hw_mgr g_jpeg_hw_mgr;
 
@@ -324,7 +327,7 @@ static int cam_jpeg_process_next_hw_update(void *priv, void *data,
 	}
 
 	CAM_TRACE(CAM_JPEG, "Start JPEG %s ctx %lld Req %llu Pass %d",
-		(dev_type == CAM_JPEG_DEV_TYPE_ENC) ? "ENC" : "DMA",
+		CAM_JPEG_DEV_TYPE(dev_type),
 		(uint64_t) ctx_data,
 		config_args->request_id, pass_num);
 
@@ -2122,6 +2125,69 @@ static int cam_jpeg_get_bug_on_misr(void *data, u64 *val)
 DEFINE_DEBUGFS_ATTRIBUTE(bug_on_misr_mismatch, cam_jpeg_get_bug_on_misr,
 	cam_jpeg_set_bug_on_misr, "%08llu");
 
+#ifdef CONFIG_CAM_TEST_IRQ_LINE
+
+static int cam_jpeg_test_irq_line(void)
+{
+	struct cam_hw_intf *hw_intf;
+	int rc = -EINVAL, i, j;
+
+	for (i = 0; i < CAM_JPEG_DEV_PER_TYPE_MAX; i++) {
+		for (j = 0; j < CAM_JPEG_DEV_MAX; j++) {
+			hw_intf = g_jpeg_hw_mgr.devices[j][i];
+			if (hw_intf && hw_intf->hw_ops.test_irq_line) {
+				rc = hw_intf->hw_ops.test_irq_line(hw_intf->hw_priv);
+				if (rc)
+					CAM_ERR(CAM_JPEG,
+						"failed to verify IRQ line for JPEG-%s[%d]",
+						CAM_JPEG_DEV_TYPE(j), i);
+			}
+		}
+	}
+
+	return rc;
+}
+
+#else
+
+static int cam_jpeg_test_irq_line(void)
+{
+	CAM_ERR(CAM_JPEG, "IRQ line verification disabled!");
+	return -EPERM;
+}
+
+#endif
+
+#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+
+static int cam_jpeg_test_irq_line_at_probe(void)
+{
+	return cam_jpeg_test_irq_line();
+}
+
+#else
+
+static int cam_jpeg_test_irq_line_at_probe(void)
+{
+	return 0;
+}
+
+#endif
+
+static int cam_jpeg_set_irq_line_test(void *data, u64 val)
+{
+	cam_jpeg_test_irq_line();
+	return 0;
+}
+
+static int cam_jpeg_get_irq_line_test(void *data, u64 *val)
+{
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(cam_jpeg_irq_line_test, cam_jpeg_get_irq_line_test,
+	cam_jpeg_set_irq_line_test, "%08llu");
+
 static int cam_jpeg_mgr_create_debugfs_entry(void)
 {
 	int rc = 0;
@@ -2143,6 +2209,9 @@ static int cam_jpeg_mgr_create_debugfs_entry(void)
 
 	debugfs_create_file("bug_on_misr_mismatch", 0644, g_jpeg_hw_mgr.dentry,
 		NULL, &bug_on_misr_mismatch);
+
+	debugfs_create_file("test_irq_line", 0644, g_jpeg_hw_mgr.dentry,
+		NULL, &cam_jpeg_irq_line_test);
 
 	return rc;
 }
@@ -2236,10 +2305,10 @@ int cam_jpeg_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 		*iommu_hdl = g_jpeg_hw_mgr.iommu_hdl;
 
 	cam_common_register_mini_dump_cb(cam_jpeg_hw_mgr_mini_dump_cb, "CAM_JPEG");
+	cam_jpeg_mgr_create_debugfs_entry();
+	cam_jpeg_test_irq_line_at_probe();
 
-	rc = cam_jpeg_mgr_create_debugfs_entry();
-	if (!rc)
-		return rc;
+	return 0;
 
 cdm_iommu_failed:
 	cam_smmu_destroy_handle(g_jpeg_hw_mgr.iommu_hdl);

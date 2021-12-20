@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_JPEG_DMA_CORE_H
@@ -118,6 +119,7 @@ int cam_jpeg_dma_reset_hw(void *device_priv,
 	void *reset_hw_args, uint32_t arg_size);
 int cam_jpeg_dma_process_cmd(void *device_priv, uint32_t cmd_type,
 	void *cmd_args, uint32_t arg_size);
+int cam_jpeg_dma_test_irq_line(void *data);
 irqreturn_t cam_jpeg_dma_irq(int irq_num, void *data);
 
 /**
