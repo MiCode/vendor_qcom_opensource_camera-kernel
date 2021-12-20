@@ -558,7 +558,7 @@ static int __load_firmware(struct platform_device *pdev)
 	}
 
 	scnprintf(firmware_name, ARRAY_SIZE(firmware_name),
-		"%s.mdt", fw_name);
+		"%s.mbn", fw_name);
 
 	node = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!node) {
