@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -310,7 +311,7 @@ static int __cam_req_mgr_notify_frame_skip(
 		frame_skip.report_if_bubble = 0;
 
 		CAM_DBG(CAM_REQ,
-			"Notify_frame_skip: pd %d req_id %lld",
+			"Notify_frame_skip: link: 0x%x pd %d req_id %lld",
 			link->link_hdl, pd, apply_data[pd].req_id);
 		if ((dev->ops) && (dev->ops->notify_frame_skip))
 			dev->ops->notify_frame_skip(&frame_skip);

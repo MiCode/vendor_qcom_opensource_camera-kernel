@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -6977,23 +6978,26 @@ static int __cam_isp_ctx_handle_irq_in_activated(void *context,
 	trace_cam_isp_activated_irq(ctx, ctx_isp->substate_activated, evt_id,
 		__cam_isp_ctx_get_event_ts(evt_id, evt_data));
 
-	CAM_DBG(CAM_ISP, "Enter: State %d, Substate[%s], evt id %d",
+	CAM_DBG(CAM_ISP, "Enter: State %d, Substate[%s], evt id %d, ctx:%d",
 		ctx->state, __cam_isp_ctx_substate_val_to_type(
-		ctx_isp->substate_activated), evt_id);
+		ctx_isp->substate_activated), evt_id,
+		ctx->ctx_id);
 	irq_ops = &ctx_isp->substate_machine_irq[ctx_isp->substate_activated];
 	if (irq_ops->irq_ops[evt_id]) {
 		rc = irq_ops->irq_ops[evt_id](ctx_isp, evt_data);
 	} else {
-		CAM_DBG(CAM_ISP, "No handle function for Substate[%s]",
+		CAM_DBG(CAM_ISP,
+			"No handle function for Substate[%s], evt id %d, ctx:%d",
 			__cam_isp_ctx_substate_val_to_type(
-			ctx_isp->substate_activated));
+			ctx_isp->substate_activated), evt_id,
+			ctx->ctx_id);
 		if (isp_ctx_debug.enable_state_monitor_dump)
 			__cam_isp_ctx_dump_state_monitor_array(ctx_isp);
 	}
 
-	CAM_DBG(CAM_ISP, "Exit: State %d Substate[%s]",
+	CAM_DBG(CAM_ISP, "Exit: State %d Substate[%s], ctx:%d",
 		ctx->state, __cam_isp_ctx_substate_val_to_type(
-		ctx_isp->substate_activated));
+		ctx_isp->substate_activated), ctx->ctx_id);
 
 	spin_unlock(&ctx->lock);
 	return rc;

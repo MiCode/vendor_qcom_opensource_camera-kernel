@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -495,7 +496,7 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 		    common_data->common_reg->bus_violation_status);
 
 	CAM_ERR(CAM_ISP, "VFE[%d] sof_cnt:%d src_clk:%luMHz overflow:%s violation:%s",
-		top_priv->sof_cnt, soc_info->index, soc_info->applied_src_clk_rate / 1000000,
+		soc_info->index, top_priv->sof_cnt, soc_info->applied_src_clk_rate / 1000000,
 		CAM_BOOL_TO_YESNO(bus_overflow_status), CAM_BOOL_TO_YESNO(violation_status));
 
 	if (bus_overflow_status)

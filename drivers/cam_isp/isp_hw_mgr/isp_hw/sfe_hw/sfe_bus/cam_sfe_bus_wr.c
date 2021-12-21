@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -1831,7 +1832,7 @@ static int cam_sfe_bus_handle_sfe_out_done_bottom_half(
 	rc = cam_sfe_bus_handle_comp_done_bottom_half(
 		rsrc_data->comp_grp, evt_payload_priv, &comp_mask);
 	CAM_DBG(CAM_SFE, "SFE:%d out_type:0x%X rc:%d",
-		rsrc_data->common_data->core_index, rsrc_data->out_type,
+		rsrc_data->common_data->core_index,
 		rsrc_data->out_type, rc);
 
 	ctx = rsrc_data->priv;
