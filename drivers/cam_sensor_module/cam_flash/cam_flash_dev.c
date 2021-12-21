@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -191,7 +192,11 @@ static int32_t cam_flash_driver_cmd(struct cam_flash_ctrl *fctrl,
 		CAM_DBG(CAM_FLASH, "CAM_CONFIG_DEV");
 		rc = fctrl->func_tbl.parser(fctrl, arg);
 		if (rc) {
-			CAM_ERR(CAM_FLASH, "Failed Flash Config: rc=%d\n", rc);
+			if (rc == -EBADR)
+				CAM_INFO(CAM_FLASH,
+					"Failed Flash Config: rc=%d\n, it has been flushed", rc);
+			else
+				CAM_ERR(CAM_FLASH, "Failed Flash Config: rc=%d\n", rc);
 			goto release_mutex;
 		}
 		break;
@@ -287,9 +292,14 @@ static long cam_flash_subdev_ioctl(struct v4l2_subdev *sd,
 	case VIDIOC_CAM_CONTROL: {
 		rc = cam_flash_driver_cmd(fctrl, arg,
 			soc_private);
-		if (rc)
-			CAM_ERR(CAM_FLASH,
-				"Failed in driver cmd: %d", rc);
+		if (rc) {
+			if (rc == -EBADR)
+				CAM_INFO(CAM_FLASH,
+					"Failed in driver cmd: %d, it has been flushed", rc);
+			else
+				CAM_ERR(CAM_FLASH,
+					"Failed in driver cmd: %d", rc);
+		}
 		break;
 	}
 	case CAM_SD_SHUTDOWN:

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -30,9 +31,14 @@ static int cam_sensor_update_req_mgr(
 		s_ctrl->bridge_intf.crm_cb->add_req) {
 		rc = s_ctrl->bridge_intf.crm_cb->add_req(&add_req);
 		if (rc) {
-			CAM_ERR(CAM_SENSOR,
-				"Adding request: %llu failed with request manager rc: %d",
-				csl_packet->header.request_id, rc);
+			if (rc == -EBADR)
+				CAM_INFO(CAM_SENSOR,
+					"Adding request: %llu failed with request manager rc: %d, it has been flushed",
+					csl_packet->header.request_id, rc);
+			else
+				CAM_ERR(CAM_SENSOR,
+					"Adding request: %llu failed with request manager rc: %d",
+					csl_packet->header.request_id, rc);
 			return rc;
 		}
 	}
@@ -1125,8 +1131,14 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	case CAM_CONFIG_DEV: {
 		rc = cam_sensor_i2c_pkt_parse(s_ctrl, arg);
 		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR, "%s:Failed i2c pkt parse. rc: %d",
-				s_ctrl->sensor_name, rc);
+			if (rc == -EBADR)
+				CAM_INFO(CAM_SENSOR,
+					"%s:Failed i2c pkt parse. rc: %d, it has been flushed",
+					s_ctrl->sensor_name, rc);
+			else
+				CAM_ERR(CAM_SENSOR,
+					"%s:Failed i2c pkt parse. rc: %d",
+					s_ctrl->sensor_name, rc);
 			goto release_mutex;
 		}
 		if (s_ctrl->i2c_data.init_settings.is_settings_valid &&

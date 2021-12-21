@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -518,7 +519,7 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 	}
 
 	if (packet->header.request_id <= ctx->last_flush_req) {
-		CAM_ERR(CAM_CORE,
+		CAM_INFO(CAM_CORE,
 			"request %lld has been flushed, reject packet",
 			packet->header.request_id);
 		rc = -EBADR;

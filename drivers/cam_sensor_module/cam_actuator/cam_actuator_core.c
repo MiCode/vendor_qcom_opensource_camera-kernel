@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -383,9 +384,14 @@ static int cam_actuator_update_req_mgr(
 		a_ctrl->bridge_intf.crm_cb->add_req) {
 		rc = a_ctrl->bridge_intf.crm_cb->add_req(&add_req);
 		if (rc) {
-			CAM_ERR(CAM_ACTUATOR,
-				"Adding request: %llu failed: rc: %d",
-				csl_packet->header.request_id, rc);
+			if (rc == -EBADR)
+				CAM_INFO(CAM_ACTUATOR,
+					"Adding request: %llu failed: rc: %d, it has been flushed",
+					csl_packet->header.request_id, rc);
+			else
+				CAM_ERR(CAM_ACTUATOR,
+					"Adding request: %llu failed: rc: %d",
+					csl_packet->header.request_id, rc);
 			return rc;
 		}
 		CAM_DBG(CAM_ACTUATOR, "Request Id: %lld added to CRM",
@@ -983,7 +989,12 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl,
 			ACT_APPLY_SETTINGS_LATER;
 		rc = cam_actuator_i2c_pkt_parse(a_ctrl, arg);
 		if (rc < 0) {
-			CAM_ERR(CAM_ACTUATOR, "Failed in actuator Parsing");
+			if (rc == -EBADR)
+				CAM_INFO(CAM_ACTUATOR,
+					"Failed in actuator Parsing, it has been flushed");
+			else
+				CAM_ERR(CAM_ACTUATOR,
+					"Failed in actuator Parsing");
 			goto release_mutex;
 		}
 

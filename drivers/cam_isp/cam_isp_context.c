@@ -5751,8 +5751,13 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 			add_req.req_id   = req->request_id;
 			rc = ctx->ctx_crm_intf->add_req(&add_req);
 			if (rc) {
-				CAM_ERR(CAM_ISP, "Add req failed: req id=%llu",
-					req->request_id);
+				if (rc == -EBADR)
+					CAM_INFO(CAM_ISP,
+						"Add req failed: req id=%llu, it has been flushed",
+						req->request_id);
+				else
+					CAM_ERR(CAM_ISP, "Add req failed: req id=%llu",
+						req->request_id);
 			} else {
 				__cam_isp_ctx_enqueue_request_in_order(
 					ctx, req);

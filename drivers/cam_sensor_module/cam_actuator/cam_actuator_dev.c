@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_actuator_dev.h"
@@ -52,9 +53,15 @@ static long cam_actuator_subdev_ioctl(struct v4l2_subdev *sd,
 	switch (cmd) {
 	case VIDIOC_CAM_CONTROL:
 		rc = cam_actuator_driver_cmd(a_ctrl, arg);
-		if (rc)
-			CAM_ERR(CAM_ACTUATOR,
-				"Failed for driver_cmd: %d", rc);
+		if (rc) {
+			if (rc == -EBADR)
+				CAM_INFO(CAM_ACTUATOR,
+					"Failed for driver_cmd: %d, it has been flushed",
+					rc);
+			else
+				CAM_ERR(CAM_ACTUATOR,
+					"Failed for driver_cmd: %d", rc);
+		}
 		break;
 	case CAM_SD_SHUTDOWN:
 		if (!cam_req_mgr_is_shutdown()) {

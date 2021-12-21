@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -227,7 +228,7 @@ int cam_context_handle_crm_flush_req(struct cam_context *ctx,
 			rc = ctx->state_machine[ctx->state].crm_ops.flush_req(ctx,
 				flush);
 		} else {
-			CAM_ERR(CAM_CORE, "No crm flush req in dev %d, state %d, name %s",
+			CAM_INFO(CAM_CORE, "No crm flush req in dev %d, state %d, name %s",
 				ctx->dev_hdl, ctx->state, ctx->dev_name);
 			rc = -EPROTO;
 		}
@@ -513,7 +514,7 @@ int cam_context_handle_config_dev(struct cam_context *ctx,
 		rc = ctx->state_machine[ctx->state].ioctl_ops.config_dev(
 			ctx, cmd);
 	} else {
-		CAM_ERR(CAM_CORE, "No config device in dev %d, state %d",
+		CAM_INFO(CAM_CORE, "No config device in dev %d, state %d",
 			ctx->dev_hdl, ctx->state);
 		rc = -EPROTO;
 	}

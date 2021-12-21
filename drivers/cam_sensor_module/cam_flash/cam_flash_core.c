@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1272,9 +1273,14 @@ update_req_mgr:
 			fctrl->bridge_intf.crm_cb->add_req) {
 			rc = fctrl->bridge_intf.crm_cb->add_req(&add_req);
 			if  (rc) {
-				CAM_ERR(CAM_FLASH,
-					"Failed in adding request: %llu to request manager",
-					csl_packet->header.request_id);
+				if (rc == -EBADR)
+					CAM_INFO(CAM_FLASH,
+						"Failed in adding request: %llu to request manager, it has been flushed",
+						csl_packet->header.request_id);
+				else
+					CAM_ERR(CAM_FLASH,
+						"Failed in adding request: %llu to request manager",
+						csl_packet->header.request_id);
 				return rc;
 			}
 			CAM_DBG(CAM_FLASH,
@@ -1765,10 +1771,15 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 		if (fctrl->bridge_intf.crm_cb &&
 			fctrl->bridge_intf.crm_cb->add_req) {
 			rc = fctrl->bridge_intf.crm_cb->add_req(&add_req);
-			if  (rc) {
-				CAM_ERR(CAM_FLASH,
-					"Failed in adding request: %llu to request manager",
-					csl_packet->header.request_id);
+			if (rc) {
+				if (rc == -EBADR)
+					CAM_INFO(CAM_FLASH,
+						"Failed in adding request: %llu to request manager, it has been flushed",
+						csl_packet->header.request_id);
+				else
+					CAM_ERR(CAM_FLASH,
+						"Failed in adding request: %llu to request manager",
+						csl_packet->header.request_id);
 				return rc;
 			}
 			CAM_DBG(CAM_FLASH,
