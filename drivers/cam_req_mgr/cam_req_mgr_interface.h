@@ -147,6 +147,7 @@ enum cam_req_status {
  * @PAGE_FAULT : Page fault while accessing memory
  * @OVERFLOW   : Bus Overflow for IFE/VFE
  * @TIMEOUT    : Timeout from cci or bus.
+ * @RECOVERY   : Internal recovery for bus overflow
  * @MAX        : Invalid error value
  */
 enum cam_req_mgr_device_error {
@@ -157,6 +158,7 @@ enum cam_req_mgr_device_error {
 	CRM_KMD_ERR_OVERFLOW,
 	CRM_KMD_ERR_TIMEOUT,
 	CRM_KMD_ERR_STOPPED,
+	CRM_KMD_WARN_INTERNAL_RECOVERY,
 	CRM_KMD_ERR_MAX,
 };
 

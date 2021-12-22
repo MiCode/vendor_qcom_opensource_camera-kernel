@@ -523,7 +523,11 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 	struct cam_vfe_soc_private *soc_private = NULL;
 	uint32_t                             violation_status = 0, bus_overflow_status = 0, tmp;
 	uint32_t                             i = 0;
-	int                                  res_id = *((int *)(cmd_args));
+	int                                  res_id;
+	struct cam_isp_hw_overflow_info     *overflow_info = NULL;
+
+	overflow_info = (struct cam_isp_hw_overflow_info *)cmd_args;
+	res_id = overflow_info->res_id;
 
 	common_data = &top_priv->common_data;
 	soc_info = top_priv->top_common.soc_info;
@@ -538,9 +542,11 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 		soc_info->index, top_priv->sof_cnt, soc_info->applied_src_clk_rate / 1000000,
 		CAM_BOOL_TO_YESNO(bus_overflow_status), CAM_BOOL_TO_YESNO(violation_status));
 
-	if (bus_overflow_status)
+	if (bus_overflow_status) {
+		overflow_info->is_bus_overflow = true;
 		CAM_INFO(CAM_ISP, "VFE[%d] Bus overflow status: 0x%x",
 			soc_info->index, bus_overflow_status);
+	}
 
 	tmp = bus_overflow_status;
 	while (tmp) {

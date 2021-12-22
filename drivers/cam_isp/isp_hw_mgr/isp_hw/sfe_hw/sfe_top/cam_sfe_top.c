@@ -810,13 +810,15 @@ static int cam_sfe_set_top_debug(
 }
 
 static int cam_sfe_top_handle_overflow(
-	struct cam_sfe_top_priv *top_priv, uint32_t cmd_type)
+	struct cam_sfe_top_priv *top_priv, void *cmd_args)
 {
 	struct cam_sfe_top_common_data      *common_data;
 	struct cam_hw_soc_info              *soc_info;
 	uint32_t                             bus_overflow_status, violation_status, tmp;
 	uint32_t                             i = 0;
+	struct cam_isp_hw_overflow_info     *overflow_info = NULL;
 
+	overflow_info = (struct cam_isp_hw_overflow_info *)cmd_args;
 	common_data = &top_priv->common_data;
 	soc_info = common_data->soc_info;
 
@@ -843,8 +845,10 @@ static int cam_sfe_top_handle_overflow(
 		cam_sfe_top_print_ipp_violation_info(top_priv, violation_status);
 	cam_sfe_top_print_debug_reg_info(top_priv);
 
-	if (bus_overflow_status)
+	if (bus_overflow_status) {
 		cam_cpas_log_votes();
+		overflow_info->is_bus_overflow = true;
+	}
 
 	return 0;
 }
@@ -1105,7 +1109,7 @@ int cam_sfe_top_process_cmd(void *priv, uint32_t cmd_type,
 		rc = cam_sfe_set_top_debug(top_priv, cmd_args);
 		break;
 	case CAM_ISP_HW_NOTIFY_OVERFLOW:
-		rc = cam_sfe_top_handle_overflow(top_priv, cmd_type);
+		rc = cam_sfe_top_handle_overflow(top_priv, cmd_args);
 		break;
 	case CAM_ISP_HW_CMD_APPLY_CLK_BW_UPDATE:
 		rc = cam_sfe_top_apply_clk_bw_update(top_priv, cmd_args, arg_size);

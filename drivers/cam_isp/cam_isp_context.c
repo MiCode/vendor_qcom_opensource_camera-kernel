@@ -848,7 +848,7 @@ static int cam_isp_ctx_dump_req(
 }
 
 static int __cam_isp_ctx_enqueue_request_in_order(
-	struct cam_context *ctx, struct cam_ctx_request *req)
+	struct cam_context *ctx, struct cam_ctx_request *req, bool lock)
 {
 	struct cam_ctx_request           *req_current;
 	struct cam_ctx_request           *req_prev;
@@ -856,7 +856,8 @@ static int __cam_isp_ctx_enqueue_request_in_order(
 	struct cam_isp_context           *ctx_isp;
 
 	INIT_LIST_HEAD(&temp_list);
-	spin_lock_bh(&ctx->lock);
+	if (lock)
+		spin_lock_bh(&ctx->lock);
 	if (list_empty(&ctx->pending_req_list)) {
 		list_add_tail(&req->list, &ctx->pending_req_list);
 	} else {
@@ -887,7 +888,8 @@ static int __cam_isp_ctx_enqueue_request_in_order(
 	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
 	__cam_isp_ctx_update_event_record(ctx_isp,
 		CAM_ISP_CTX_EVENT_SUBMIT, req);
-	spin_unlock_bh(&ctx->lock);
+	if (lock)
+		spin_unlock_bh(&ctx->lock);
 	return 0;
 }
 
@@ -3193,6 +3195,113 @@ static void get_notification_evt_params(uint32_t hw_error, uint32_t *fence_evt_c
 	*recovery_type = recovery_type_temp;
 }
 
+static bool __cam_isp_ctx_request_can_reapply(
+	struct cam_isp_ctx_req *req_isp)
+{
+	int i;
+
+	for (i = 0; i < req_isp->num_fence_map_out; i++)
+		if (req_isp->fence_map_out[i].sync_id == -1)
+			return false;
+
+	return true;
+}
+
+static int __cam_isp_ctx_trigger_error_req_reapply(
+	struct cam_isp_context *ctx_isp)
+{
+	int                             rc = 0;
+	struct cam_ctx_request          *req = NULL;
+	struct cam_ctx_request          *req_to_reapply = NULL;
+	struct cam_ctx_request          *req_temp;
+	struct cam_isp_ctx_req          *req_isp = NULL;
+	struct cam_context              *ctx = ctx_isp->base;
+
+	/*
+	 * For errors that can be recoverable within kmd, we
+	 * try to do internal hw stop, restart and notify CRM
+	 * to do reapply with the help of bubble control flow.
+	 */
+	if (list_empty(&ctx->active_req_list)) {
+		CAM_DBG(CAM_ISP,
+			"handling error with no active request");
+		if (list_empty(&ctx->wait_req_list)) {
+			CAM_WARN(CAM_ISP,
+				"Reapply with no active/wait request");
+			rc = -EINVAL;
+			goto end;
+		}
+	}
+
+	if (!list_empty(&ctx->active_req_list)) {
+		list_for_each_entry_safe_reverse(req, req_temp,
+			&ctx->active_req_list, list) {
+			/*
+			 * If some fences of the active request are already
+			 * signalled, we shouldn't do recovery for the buffer
+			 * and timestamp consistency.
+			 */
+			req_isp = (struct cam_isp_ctx_req *)req->req_priv;
+			if (!__cam_isp_ctx_request_can_reapply(req_isp)) {
+				CAM_INFO(CAM_ISP,
+					"ctx:%u fence has partially signaled, cannot do recovery for req %llu",
+					ctx->ctx_id, req->request_id);
+				rc = -EINVAL;
+				goto end;
+			}
+			list_del_init(&req->list);
+			__cam_isp_ctx_enqueue_request_in_order(ctx, req, false);
+			ctx_isp->active_req_cnt--;
+			CAM_DBG(CAM_ISP, "ctx:%u move active req %llu to pending",
+				ctx->ctx_id, req->request_id);
+		}
+	}
+
+	if (!list_empty(&ctx->wait_req_list)) {
+		list_for_each_entry_safe_reverse(req, req_temp,
+			&ctx->wait_req_list, list) {
+			list_del_init(&req->list);
+			__cam_isp_ctx_enqueue_request_in_order(ctx, req, false);
+			CAM_DBG(CAM_ISP, "ctx:%u move wait req %llu to pending",
+				ctx->ctx_id, req->request_id);
+		}
+	}
+
+	req_to_reapply = list_first_entry(&ctx->pending_req_list,
+		struct cam_ctx_request, list);
+	req_isp = (struct cam_isp_ctx_req *)req_to_reapply->req_priv;
+	ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_EPOCH;
+	ctx_isp->recovery_req_id = req_to_reapply->request_id;
+	atomic_set(&ctx_isp->internal_recovery_set, 1);
+
+	CAM_INFO(CAM_ISP, "ctx:%u notify CRM to reapply req %llu",
+		ctx->ctx_id, req_to_reapply->request_id);
+
+	rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF,
+		CRM_KMD_WARN_INTERNAL_RECOVERY,
+		req_to_reapply->request_id,
+		ctx_isp);
+	if (rc) {
+		/* Unable to notify CRM to do reapply back to normal */
+		CAM_WARN(CAM_ISP,
+			"ctx:%u unable to notify CRM for req %llu",
+			ctx->ctx_id, ctx_isp->recovery_req_id);
+		ctx_isp->recovery_req_id = 0;
+		atomic_set(&ctx_isp->internal_recovery_set, 0);
+		goto end;
+	}
+
+	/* Notify userland that KMD has done internal recovery */
+	__cam_isp_ctx_notify_v4l2_error_event(CAM_REQ_MGR_WARN_TYPE_KMD_RECOVERY,
+		0, req_to_reapply->request_id, ctx);
+
+	CAM_DBG(CAM_ISP, "ctx:%u handling reapply done for req %llu",
+		ctx->ctx_id, req_to_reapply->request_id);
+
+end:
+	return rc;
+}
+
 static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 	void *evt_data)
 {
@@ -3216,6 +3325,12 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 			(struct cam_isp_hw_error_event_data *)evt_data;
 
 	CAM_DBG(CAM_ISP, "Enter HW error_type = %d", error_event_data->error_type);
+
+	if (error_event_data->try_internal_recovery) {
+		rc = __cam_isp_ctx_trigger_error_req_reapply(ctx_isp);
+		if (!rc)
+			goto exit;
+	}
 
 	if (!ctx_isp->offline_context)
 		__cam_isp_ctx_pause_crm_timer(ctx);
@@ -4083,6 +4198,19 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 			"ctx_id:%d Processing bubble cannot apply Request Id %llu",
 			ctx->ctx_id,
 			apply->request_id);
+		rc = -EFAULT;
+		goto end;
+	}
+
+	/*
+	 * When isp processing internal recovery, the crm may still apply
+	 * req to isp ctx. In this case, we should reject this req apply.
+	 */
+	if (atomic_read(&ctx_isp->internal_recovery_set)) {
+		CAM_INFO_RATE_LIMIT(CAM_ISP,
+			"ctx_id:%d Processing recovery cannot apply Request Id %lld",
+			ctx->ctx_id,
+			apply->request_id);
 		rc = -EAGAIN;
 		goto end;
 	}
@@ -4165,7 +4293,10 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 		ctx_isp->substate_activated = next_state;
 		ctx_isp->last_applied_req_id = apply->request_id;
 		list_del_init(&req->list);
-		list_add_tail(&req->list, &ctx->wait_req_list);
+		if (atomic_read(&ctx_isp->internal_recovery_set))
+			__cam_isp_ctx_enqueue_request_in_order(ctx, req, false);
+		else
+			list_add_tail(&req->list, &ctx->wait_req_list);
 		CAM_DBG(CAM_ISP, "new substate Substate[%s], applied req %lld",
 			__cam_isp_ctx_substate_val_to_type(next_state),
 			ctx_isp->last_applied_req_id);
@@ -5865,7 +5996,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		}
 
 		if (ctx_isp->offline_context) {
-			__cam_isp_ctx_enqueue_request_in_order(ctx, req);
+			__cam_isp_ctx_enqueue_request_in_order(ctx, req, true);
 		} else if (ctx->ctx_crm_intf->add_req) {
 			memset(&add_req, 0, sizeof(add_req));
 			add_req.link_hdl = ctx->link_hdl;
@@ -5882,7 +6013,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 						req->request_id);
 			} else {
 				__cam_isp_ctx_enqueue_request_in_order(
-					ctx, req);
+					ctx, req, true);
 			}
 		} else {
 			CAM_ERR(CAM_ISP, "Unable to add request: req id=%llu", req->request_id);
@@ -7304,7 +7435,7 @@ static int __cam_isp_ctx_apply_default_settings(
 	struct cam_isp_context *ctx_isp =
 		(struct cam_isp_context *) ctx->ctx_priv;
 
-	if (!ctx_isp->use_default_apply)
+	if ((!ctx_isp->use_default_apply) && !(atomic_read(&ctx_isp->internal_recovery_set)))
 		return 0;
 
 	if (!(apply->trigger_point & ctx_isp->subscribe_event)) {
@@ -7318,7 +7449,7 @@ static int __cam_isp_ctx_apply_default_settings(
 	if (apply->trigger_point != CAM_TRIGGER_POINT_SOF)
 		return 0;
 
-	if ((ctx_isp->aeb_enabled) && (atomic_read(&ctx_isp->internal_recovery_set)))
+	if (atomic_read(&ctx_isp->internal_recovery_set))
 		return __cam_isp_ctx_reset_and_recover(false, ctx);
 
 	CAM_DBG(CAM_ISP,

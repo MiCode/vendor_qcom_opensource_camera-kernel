@@ -334,12 +334,14 @@ struct cam_isp_hw_eof_event_data {
  * @recovery_enabled:      Identifies if the context needs to recover & reapply
  *                         this request
  * @enable_req_dump:       Enable request dump on HW errors
+ * @try_internal_recovery: Enable internal recovery on HW errors
  */
 struct cam_isp_hw_error_event_data {
 	uint32_t             error_type;
 	uint64_t             timestamp;
 	bool                 recovery_enabled;
 	bool                 enable_req_dump;
+	bool                 try_internal_recovery;
 };
 
 /**

@@ -282,6 +282,8 @@ struct cam_ife_cdm_user_data {
  * @current_mup:            Current MUP val, scratch will then apply the same as previously
  *                          applied request
  * @curr_num_exp:           Current num of exposures
+ * @try_recovery_cnt:       Retry count for overflow recovery
+ * @recovery_req_id:        The request id on which overflow recovery happens
  *
  */
 struct cam_ife_hw_mgr_ctx {
@@ -339,6 +341,8 @@ struct cam_ife_hw_mgr_ctx {
 	atomic_t                                   recovery_id;
 	uint32_t                                   current_mup;
 	uint32_t                                   curr_num_exp;
+	uint32_t                                   try_recovery_cnt;
+	uint64_t                                   recovery_req_id;
 };
 
 /**

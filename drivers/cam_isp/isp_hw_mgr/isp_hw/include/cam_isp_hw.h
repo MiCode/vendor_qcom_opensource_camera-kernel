@@ -536,4 +536,17 @@ struct cam_isp_hw_init_config_update {
 	struct cam_isp_init_config     *init_config;
 };
 
+/*
+ * struct cam_isp_hw_overflow_info:
+ *
+ * @Brief:                  ISP hw bus overflow info
+ *
+ * @res_id:                 Resource type
+ * @is_bus_overflow:        Indicate whether bus overflow happened
+ */
+struct cam_isp_hw_overflow_info {
+	int                     res_id;
+	bool                    is_bus_overflow;
+};
+
 #endif /* _CAM_ISP_HW_H_ */

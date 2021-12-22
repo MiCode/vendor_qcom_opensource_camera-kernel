@@ -43,6 +43,11 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_MAX               \
 	(CAM_ISP_GENERIC_BLOB_TYPE_CSID_QCFA_CONFIG + 1)
 
+#define MAX_RETRY_ATTEMPTS 1
+
+#define CAM_ISP_CSID_ERROR_CAN_RECOVERY             \
+	CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW
+
 static uint32_t blob_type_hw_cmd_map[CAM_ISP_GENERIC_BLOB_TYPE_MAX] = {
 	CAM_ISP_HW_CMD_GET_HFR_UPDATE,
 	CAM_ISP_HW_CMD_CLOCK_UPDATE,
@@ -584,9 +589,10 @@ static inline bool cam_ife_hw_mgr_is_sfe_out_port(uint32_t res_id)
 	return is_sfe_out;
 }
 
-static int cam_ife_hw_mgr_notify_overflow(
+static int cam_ife_hw_mgr_check_and_notify_overflow(
 	struct cam_isp_hw_event_info    *evt,
-	void                            *ctx)
+	void                            *ctx,
+	bool                            *is_bus_overflow)
 {
 	int                             i;
 	int                             res_id;
@@ -594,6 +600,7 @@ static int cam_ife_hw_mgr_notify_overflow(
 	int                             sfe_res_id = -1;
 	struct cam_hw_intf             *hw_if = NULL;
 	struct cam_ife_hw_mgr_ctx      *hw_mgr_ctx = ctx;
+	struct cam_isp_hw_overflow_info overflow_info;
 
 	switch(evt->res_id) {
 	case  CAM_IFE_PIX_PATH_RES_IPP:
@@ -648,10 +655,22 @@ static int cam_ife_hw_mgr_notify_overflow(
 			return -EINVAL;
 		}
 
-		if (hw_if->hw_ops.process_cmd)
+		if (hw_if->hw_ops.process_cmd) {
+			overflow_info.res_id = res_id;
 			hw_if->hw_ops.process_cmd(hw_if->hw_priv,
 				CAM_ISP_HW_NOTIFY_OVERFLOW,
-				&res_id, sizeof(int));
+				&overflow_info,
+				sizeof(struct cam_isp_hw_overflow_info));
+
+			CAM_DBG(CAM_ISP,
+				"check and notify hw idx %d type %d bus overflow happened %d",
+				hw_mgr_ctx->base[i].idx,
+				hw_mgr_ctx->base[i].hw_type,
+				overflow_info.is_bus_overflow);
+
+			if (overflow_info.is_bus_overflow)
+				*is_bus_overflow = true;
+		}
 	}
 
 	return 0;
@@ -4978,6 +4997,8 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->hw_mgr = ife_hw_mgr;
 	ife_ctx->cdm_ops =  cam_cdm_publish_ops();
 	ife_ctx->common.sec_pf_evt_cb = acquire_args->sec_pf_evt_cb;
+	ife_ctx->try_recovery_cnt = 0;
+	ife_ctx->recovery_req_id = 0;
 
 	acquire_hw_info =
 		(struct cam_isp_acquire_hw_info *)acquire_args->acquire_info;
@@ -6025,6 +6046,20 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 			"Ctx[%pK][%d] Overflow pending, cannot apply req %llu",
 			ctx, ctx->ctx_index, cfg->request_id);
 		return -EPERM;
+	}
+
+	/*
+	 * Assuming overflow recovery happens on req N, and we may
+	 * haven't got all the result for req N while apply N + 1,
+	 * so we reset try_recovery_cnt while apply N + 2.
+	 */
+	if (ctx->try_recovery_cnt &&
+		(cfg->request_id > (ctx->recovery_req_id + 1))) {
+		ctx->try_recovery_cnt = 0;
+		ctx->recovery_req_id = 0;
+		CAM_DBG(CAM_ISP,
+			"Ctx[%pK][%d] Reset overflow recovery count for req %llu",
+			ctx, ctx->ctx_index, cfg->request_id);
 	}
 
 	hw_update_data = (struct cam_isp_prepare_hw_update_data  *) cfg->priv;
@@ -7193,6 +7228,8 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	kfree(ctx->scratch_buf_info.ife_scratch_config);
 	ctx->scratch_buf_info.sfe_scratch_config = NULL;
 	ctx->scratch_buf_info.ife_scratch_config = NULL;
+	ctx->try_recovery_cnt = 0;
+	ctx->recovery_req_id = 0;
 
 	memset(&ctx->flags, 0, sizeof(struct cam_ife_hw_mgr_ctx_flags));
 	atomic_set(&ctx->overflow_pending, 0);
@@ -12180,8 +12217,6 @@ static int cam_ife_mgr_recover_hw(void *priv, void *data)
 			ctx =  recovery_data->affected_ctx[i];
 			start_args.ctxt_to_hw_map = ctx;
 
-			atomic_set(&ctx->overflow_pending, 0);
-
 			rc = cam_ife_mgr_restart_hw(&start_args);
 			if (rc) {
 				CAM_ERR(CAM_ISP, "CTX start failed(%d)", rc);
@@ -12189,6 +12224,8 @@ static int cam_ife_mgr_recover_hw(void *priv, void *data)
 			}
 			CAM_DBG(CAM_ISP, "Started resources rc (%d)", rc);
 		}
+
+		atomic_set(&ctx->overflow_pending, 0);
 		CAM_DBG(CAM_ISP, "Recovery Done rc (%d)", rc);
 
 		break;
@@ -12398,6 +12435,7 @@ static int cam_ife_hw_mgr_handle_csid_error(
 	struct cam_isp_hw_error_event_info      *err_evt_info;
 	struct cam_isp_hw_error_event_data       error_event_data = {0};
 	struct cam_ife_hw_event_recovery_data    recovery_data = {0};
+	bool                                     is_bus_overflow = false;
 
 	if (!event_info->event_data) {
 		CAM_ERR(CAM_ISP,
@@ -12437,7 +12475,28 @@ static int cam_ife_hw_mgr_handle_csid_error(
 		CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW |
 		CAM_ISP_HW_ERROR_CSID_FRAME_SIZE)) {
 
-		cam_ife_hw_mgr_notify_overflow(event_info, ctx);
+		cam_ife_hw_mgr_check_and_notify_overflow(event_info,
+			ctx, &is_bus_overflow);
+
+		/*
+		 * When CSID overflow IRQ comes, we need read bus overflow
+		 * status, to check if it's a bus overflow issue,
+		 * only do recovery in bus overflow cases.
+		 */
+		if ((err_type & CAM_ISP_CSID_ERROR_CAN_RECOVERY) &&
+			is_bus_overflow) {
+			if (ctx->try_recovery_cnt < MAX_RETRY_ATTEMPTS) {
+				error_event_data.try_internal_recovery = true;
+				if (!atomic_read(&ctx->overflow_pending))
+					ctx->try_recovery_cnt++;
+				if (!ctx->recovery_req_id)
+					ctx->recovery_req_id = ctx->applied_req_id;
+			}
+			CAM_DBG(CAM_ISP, "CSID[%u] Try recovery count %u on req %llu",
+				event_info->hw_idx,
+				ctx->try_recovery_cnt,
+				ctx->recovery_req_id);
+		}
 
 		error_event_data.error_type |= err_type;
 		recovery_data.error_type = err_type;
@@ -12450,7 +12509,8 @@ end:
 	if (rc || !recovery_data.no_of_context)
 		goto skip_recovery;
 
-	cam_ife_hw_mgr_do_error_recovery(&recovery_data);
+	if (!error_event_data.try_internal_recovery)
+		cam_ife_hw_mgr_do_error_recovery(&recovery_data);
 	CAM_DBG(CAM_ISP, "Exit CSID[%u] error %d", event_info->hw_idx,
 		err_type);
 

@@ -1961,7 +1961,8 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 			max_retry++;
 
 		if (!link->wq_congestion && dev) {
-			link->retry_cnt++;
+			if (rc != -EAGAIN)
+				link->retry_cnt++;
 			if (link->retry_cnt == max_retry) {
 				CAM_DBG(CAM_CRM,
 					"Max retry attempts (count %d) reached on link[0x%x] for req [%lld]",
@@ -3016,6 +3017,7 @@ int cam_req_mgr_process_error(void *priv, void *data)
 	mutex_lock(&link->req.lock);
 	switch (err_info->error) {
 	case CRM_KMD_ERR_BUBBLE:
+	case CRM_KMD_WARN_INTERNAL_RECOVERY:
 		idx = __cam_req_mgr_find_slot_for_req(in_q, err_info->req_id);
 		if (idx < 0) {
 			CAM_ERR_RATE_LIMIT(CAM_CRM,
