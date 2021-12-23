@@ -144,7 +144,7 @@ static int cam_sensor_init_subdev_params(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_SENSOR_DEVICE_TYPE;
 	s_ctrl->v4l2_dev_str.token = s_ctrl;
 	s_ctrl->v4l2_dev_str.close_seq_prior =
-		CAM_SD_CLOSE_MEDIUM_PRIORITY;
+		CAM_SD_CLOSE_MEDIUM_LOW_PRIORITY;
 
 	rc = cam_register_subdev(&(s_ctrl->v4l2_dev_str));
 	if (rc)
