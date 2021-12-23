@@ -12,6 +12,7 @@
 #include <media/cam_icp.h>
 #include <linux/iopoll.h>
 
+#include "cam_presil_hw_access.h"
 #include "cam_io_util.h"
 #include "hfi_reg.h"
 #include "hfi_sys_defs.h"
@@ -20,6 +21,7 @@
 #include "cam_icp_hw_mgr_intf.h"
 #include "cam_debug_util.h"
 #include "cam_compat.h"
+#include "cam_soc_util.h"
 
 #define HFI_VERSION_INFO_MAJOR_VAL  1
 #define HFI_VERSION_INFO_MINOR_VAL  1
@@ -42,11 +44,16 @@ unsigned int g_icp_mmu_hdl;
 static DEFINE_MUTEX(hfi_cmd_q_mutex);
 static DEFINE_MUTEX(hfi_msg_q_mutex);
 
+static int cam_hfi_presil_setup(struct hfi_mem_info *hfi_mem);
+static int cam_hfi_presil_set_init_request(void);
+
+#ifndef CONFIG_CAM_PRESIL
 static void hfi_irq_raise(struct hfi_info *hfi)
 {
 	if (hfi->ops.irq_raise)
 		hfi->ops.irq_raise(hfi->priv);
 }
+#endif
 
 static void hfi_irq_enable(struct hfi_info *hfi)
 {
@@ -162,6 +169,7 @@ void cam_hfi_queue_dump(void)
 	hfi_queue_dump(dwords, num_dwords);
 }
 
+#ifndef CONFIG_CAM_PRESIL
 int hfi_write_cmd(void *cmd_ptr)
 {
 	uint32_t size_in_words, empty_space, new_write_idx, read_idx, temp;
@@ -348,6 +356,7 @@ err:
 	mutex_unlock(&hfi_msg_q_mutex);
 	return rc;
 }
+#endif /* #ifndef CONFIG_CAM_PRESIL */
 
 int hfi_cmd_ubwc_config(uint32_t *ubwc_cfg)
 {
@@ -932,8 +941,6 @@ int cam_hfi_init(struct hfi_mem_info *hfi_mem, const struct hfi_ops *hfi_ops,
 		icp_base + HFI_REG_FWUNCACHED_REGION_IOVA);
 	cam_io_w_mb((uint32_t)hfi_mem->fw_uncached.len,
 		icp_base + HFI_REG_FWUNCACHED_REGION_SIZE);
-	cam_io_w_mb((uint32_t)ICP_INIT_REQUEST_SET,
-		icp_base + HFI_REG_HOST_ICP_INIT_REQUEST);
 
 	CAM_DBG(CAM_HFI, "IO1 : [0x%x 0x%x] IO2 [0x%x 0x%x]",
 		hfi_mem->io_mem.iova, hfi_mem->io_mem.len,
@@ -950,6 +957,15 @@ int cam_hfi_init(struct hfi_mem_info *hfi_mem, const struct hfi_ops *hfi_ops,
 	CAM_DBG(CAM_HFI, "QTbl : [0x%x 0x%x] Sfr [0x%x 0x%x]",
 		hfi_mem->qtbl.iova, hfi_mem->qtbl.len,
 		hfi_mem->sfr_buf.iova, hfi_mem->sfr_buf.len);
+
+	if (cam_presil_mode_enabled())
+		cam_hfi_presil_setup(hfi_mem);
+
+	cam_io_w_mb((uint32_t)ICP_INIT_REQUEST_SET,
+		icp_base + HFI_REG_HOST_ICP_INIT_REQUEST);
+
+	if (cam_presil_mode_enabled())
+		cam_hfi_presil_set_init_request();
 
 	if (cam_common_read_poll_timeout(icp_base +
 		    HFI_REG_ICP_HOST_INIT_RESPONSE,
@@ -985,6 +1001,11 @@ alloc_fail:
 
 void cam_hfi_deinit(void)
 {
+	if (cam_presil_mode_enabled()) {
+		CAM_DBG(CAM_HFI, "SYS_RESET Needed in presil for back to back hfi_init success");
+		hfi_send_system_cmd(HFI_CMD_SYS_RESET, 0, 0);
+	}
+
 	mutex_lock(&hfi_cmd_q_mutex);
 	mutex_lock(&hfi_msg_q_mutex);
 
@@ -1003,3 +1024,103 @@ err:
 	mutex_unlock(&hfi_cmd_q_mutex);
 	mutex_unlock(&hfi_msg_q_mutex);
 }
+
+
+#ifdef CONFIG_CAM_PRESIL
+static int cam_hfi_presil_setup(struct hfi_mem_info *hfi_mem)
+{
+	/**
+	 * The pchost maintains its own set of queue structures and
+	 * needs additional info to accomplish this. Use the set of
+	 * dummy registers to pass along this info.
+	 */
+	/**
+	 * IOVA region length for each queue is currently hardcoded in
+	 * pchost (except for SFR). No need to send for now.
+	 */
+	cam_presil_send_event(CAM_PRESIL_EVENT_HFI_REG_CMD_Q_IOVA, hfi_mem->cmd_q.iova);
+	cam_presil_send_event(CAM_PRESIL_EVENT_HFI_REG_MSG_Q_IOVA, hfi_mem->msg_q.iova);
+	cam_presil_send_event(CAM_PRESIL_EVENT_HFI_REG_DBG_Q_IOVA, hfi_mem->dbg_q.iova);
+	cam_presil_send_event(CAM_PRESIL_EVENT_HFI_REG_SFR_LEN, hfi_mem->sfr_buf.len);
+
+	return 0;
+}
+
+static int cam_hfi_presil_set_init_request(void)
+{
+	CAM_DBG(CAM_PRESIL, "notifying pchost to start HFI init...");
+	cam_presil_send_event(CAM_PRESIL_EVENT_HFI_REG_A5_HW_VERSION_TO_START_HFI_INIT, 0xFF);
+	CAM_DBG(CAM_PRESIL, "got done with PCHOST HFI init...");
+
+	return 0;
+}
+
+int hfi_write_cmd(void *cmd_ptr)
+{
+	int presil_rc = CAM_PRESIL_BLOCKED;
+	int rc = 0;
+
+	if (!cmd_ptr) {
+		CAM_ERR(CAM_HFI, "command is null");
+		return -EINVAL;
+	}
+
+	mutex_lock(&hfi_cmd_q_mutex);
+
+	presil_rc = cam_presil_hfi_write_cmd(cmd_ptr, (*(uint32_t *)cmd_ptr));
+
+	if ((presil_rc != CAM_PRESIL_SUCCESS) && (presil_rc != CAM_PRESIL_BLOCKED)) {
+		CAM_ERR(CAM_HFI, "failed presil rc %d", presil_rc);
+		rc = -EINVAL;
+	} else {
+		CAM_DBG(CAM_HFI, "presil rc %d", presil_rc);
+	}
+
+	mutex_unlock(&hfi_cmd_q_mutex);
+	return rc;
+}
+
+int hfi_read_message(uint32_t *pmsg, uint8_t q_id,
+	uint32_t *words_read)
+{
+	int presil_rc = CAM_PRESIL_BLOCKED;
+	int rc = 0;
+
+	if (!pmsg) {
+		CAM_ERR(CAM_HFI, "Invalid msg");
+		return -EINVAL;
+	}
+
+	if (q_id > Q_DBG) {
+		CAM_ERR(CAM_HFI, "Invalid q :%u", q_id);
+		return -EINVAL;
+	}
+	mutex_lock(&hfi_msg_q_mutex);
+
+	memset(pmsg, 0x0, sizeof(uint32_t) * 256 /* ICP_MSG_BUF_SIZE */);
+	*words_read = 0;
+
+	presil_rc = cam_presil_hfi_read_message(pmsg, q_id, words_read);
+
+	if ((presil_rc != CAM_PRESIL_SUCCESS) && (presil_rc != CAM_PRESIL_BLOCKED)) {
+		CAM_ERR(CAM_HFI, "failed presil rc %d", presil_rc);
+		rc = -EINVAL;
+	} else {
+		CAM_DBG(CAM_HFI, "presil rc %d", presil_rc);
+	}
+
+	mutex_unlock(&hfi_msg_q_mutex);
+	return rc;
+}
+#else
+/* when presil mode not enabled */
+static int cam_hfi_presil_setup(struct hfi_mem_info *hfi_mem)
+{
+	return 0;
+}
+
+static int cam_hfi_presil_set_init_request(void)
+{
+	return 0;
+}
+#endif /* #ifdef CONFIG_CAM_PRESIL */

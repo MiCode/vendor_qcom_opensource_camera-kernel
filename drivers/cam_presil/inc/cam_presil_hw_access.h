@@ -8,6 +8,17 @@
 
 #include <linux/interrupt.h>
 
+/* presil events to carry shared values from HW-KMD to PC-HOST CSim Wrapper */
+#define CAM_PRESIL_EVENT_HFI_REG_BASE                             0x600
+#define CAM_PRESIL_EVENT_HFI_REG(n) (CAM_PRESIL_EVENT_HFI_REG_BASE + (n * 4))
+#define CAM_PRESIL_EVENT_HFI_REG_CMD_Q_IOVA                      CAM_PRESIL_EVENT_HFI_REG(1)
+#define CAM_PRESIL_EVENT_HFI_REG_MSG_Q_IOVA                      CAM_PRESIL_EVENT_HFI_REG(2)
+#define CAM_PRESIL_EVENT_HFI_REG_DBG_Q_IOVA                      CAM_PRESIL_EVENT_HFI_REG(3)
+#define CAM_PRESIL_EVENT_HFI_REG_SFR_LEN                         CAM_PRESIL_EVENT_HFI_REG(4)
+#define CAM_PRESIL_EVENT_HFI_REG_A5_HW_VERSION_TO_START_HFI_INIT CAM_PRESIL_EVENT_HFI_REG(13)
+#define CAM_PRESIL_EVENT_HFI_REG_ON_FIRST_REG_START_FW_DOWNLOAD    0x638   /* write FF to start */
+
+
 /*
  * enum cam_presil_err - return code from presil apis
  *
@@ -195,4 +206,17 @@ int cam_presil_hfi_read_message(uint32_t *pmsg, uint8_t q_id,
  * @return true or false.
  */
 bool cam_presil_mode_enabled(void);
+
+/*
+ *  cam_presil_send_event()
+ *
+ * @brief   :  send event to pchost.
+ *
+ * @event_id :  Event Id
+ * @value  :  Value with additional information
+ *
+ * @return:  Success or Failure
+ */
+int cam_presil_send_event(uint32_t event_id, uint32_t value);
+
 #endif /* _CAM_PRESIL_HW_ACCESS_H_ */

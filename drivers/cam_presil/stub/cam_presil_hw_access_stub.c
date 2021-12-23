@@ -60,3 +60,9 @@ int cam_presil_hfi_read_message(uint32_t *pmsg, uint8_t q_id,
 {
 	return CAM_PRESIL_SUCCESS;
 }
+
+int cam_presil_send_event(uint32_t event_id, uint32_t value)
+{
+	return CAM_PRESIL_SUCCESS;
+}
+
