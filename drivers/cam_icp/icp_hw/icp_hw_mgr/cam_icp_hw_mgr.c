@@ -2096,6 +2096,7 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 	struct cam_hw_done_event_data buf_data;
 	uint32_t clk_type;
 	uint32_t event_id;
+	struct cam_hangdump_mem_regions *mem_regions = NULL;
 
 	ioconfig_ack = (struct hfi_msg_ipebps_async_ack *)msg_ptr;
 	request_id = ioconfig_ack->user_data2;
@@ -2158,6 +2159,23 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 		}
 	} else {
 		event_id = CAM_CTX_EVT_ID_SUCCESS;
+	}
+
+	if (cam_presil_mode_enabled()) {
+		mem_regions = &hfi_frame_process->hangdump_mem_regions[idx];
+		CAM_INFO(CAM_ICP, "Hangdump Num Regions %d",
+			mem_regions->num_mem_regions);
+		for (i = 0; i < mem_regions->num_mem_regions; i++) {
+			CAM_INFO(CAM_PRESIL, "Hangdump Mem %d handle 0x%08x offset 0x%08x len %u",
+				i, mem_regions->mem_info_array[i].mem_handle,
+				mem_regions->mem_info_array[i].offset,
+				mem_regions->mem_info_array[i].size);
+			cam_mem_mgr_retrieve_buffer_from_presil(
+				mem_regions->mem_info_array[i].mem_handle,
+				mem_regions->mem_info_array[i].size,
+				mem_regions->mem_info_array[i].offset,
+				icp_hw_mgr.iommu_hdl);
+		}
 	}
 
 	buf_data.request_id = hfi_frame_process->request_id[idx];
@@ -4860,6 +4878,48 @@ end:
 	return rc;
 }
 
+static int cam_icp_process_presil_hangdump_info(
+	struct cam_icp_hw_ctx_data *ctx_data,
+	struct cam_cmd_mem_regions *cmd_mem_regions,
+	uint32_t index)
+{
+	int i = 0;
+	struct cam_hangdump_mem_regions *mem_regions = NULL;
+
+	if (!ctx_data || !cmd_mem_regions) {
+		CAM_ERR(CAM_ICP, "Invalid hangdump info blob ctx %pK mem_region %pK",
+			ctx_data, cmd_mem_regions);
+		return -EINVAL;
+	}
+
+	if ((cmd_mem_regions->num_regions == 0) ||
+		(cmd_mem_regions->num_regions > HANG_DUMP_REGIONS_MAX)) {
+		CAM_ERR(CAM_ICP, "Invalid num hangdump mem regions %d ",
+			cmd_mem_regions->num_regions);
+		return -EINVAL;
+	}
+
+	mem_regions = &ctx_data->hfi_frame_process.hangdump_mem_regions[index];
+	CAM_INFO(CAM_ICP, "Hangdump Mem Num Regions %d index %d  mem_regions 0x%pK",
+		cmd_mem_regions->num_regions, index, mem_regions);
+
+	for (i = 0; i < cmd_mem_regions->num_regions; i++) {
+		mem_regions->mem_info_array[i].mem_handle =
+			cmd_mem_regions->map_info_array[i].mem_handle;
+		mem_regions->mem_info_array[i].offset =
+			cmd_mem_regions->map_info_array[i].offset;
+		mem_regions->mem_info_array[i].size =
+			cmd_mem_regions->map_info_array[i].size;
+		CAM_INFO(CAM_ICP, "Hangdump Mem Region %u mem_handle 0x%08x iova 0x%08x len %u",
+			i, cmd_mem_regions->map_info_array[i].mem_handle,
+			(uint32_t)cmd_mem_regions->map_info_array[i].offset,
+			(uint32_t)cmd_mem_regions->map_info_array[i].size);
+	}
+	mem_regions->num_mem_regions = cmd_mem_regions->num_regions;
+
+	return 0;
+}
+
 static int cam_icp_packet_generic_blob_handler(void *user_data,
 	uint32_t blob_type, uint32_t blob_size, uint8_t *blob_data)
 {
@@ -5053,6 +5113,21 @@ static int cam_icp_packet_generic_blob_handler(void *user_data,
 				cmd_mem_regions->num_regions);
 			rc = cam_icp_process_stream_settings(ctx_data,
 				cmd_mem_regions, false);
+		}
+		break;
+
+	case CAM_ICP_CMD_GENERIC_BLOB_PRESIL_HANGDUMP:
+		if (cam_presil_mode_enabled()) {
+			cmd_mem_regions = (struct cam_cmd_mem_regions *)blob_data;
+			if (cmd_mem_regions->num_regions <= 0) {
+				CAM_INFO(CAM_ICP, "Pre-sil Hangdump disabled %u",
+					cmd_mem_regions->num_regions);
+			} else {
+				CAM_INFO(CAM_ICP, "Pre-sil Hangdump enabled %u entries index %d",
+					cmd_mem_regions->num_regions, index);
+				rc = cam_icp_process_presil_hangdump_info(ctx_data,
+					cmd_mem_regions, index);
+			}
 		}
 		break;
 
@@ -6564,6 +6639,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	struct cam_hw_mgr_intf *hw_mgr_intf;
 	struct cam_cpas_query_cap query;
 	uint32_t cam_caps, camera_hw_version;
+	uint32_t size = 0;
 
 	hw_mgr_intf = (struct cam_hw_mgr_intf *)hw_mgr_hdl;
 	if (!of_node || !hw_mgr_intf) {
@@ -6591,8 +6667,14 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	mutex_init(&icp_hw_mgr.hw_mgr_mutex);
 	spin_lock_init(&icp_hw_mgr.hw_mgr_lock);
 
-	for (i = 0; i < CAM_ICP_CTX_MAX; i++)
+	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
 		mutex_init(&icp_hw_mgr.ctx_data[i].ctx_mutex);
+		if (cam_presil_mode_enabled()) {
+			size = CAM_FRAME_CMD_MAX * sizeof(struct cam_hangdump_mem_regions);
+			icp_hw_mgr.ctx_data[i].hfi_frame_process.hangdump_mem_regions =
+				kzalloc(size, GFP_KERNEL);
+		}
+	}
 
 	rc = cam_cpas_get_hw_info(&query.camera_family,
 			&query.camera_version, &query.cpas_version,
@@ -6670,8 +6752,11 @@ icp_get_hdl_failed:
 	cam_icp_mgr_free_devs();
 destroy_mutex:
 	mutex_destroy(&icp_hw_mgr.hw_mgr_mutex);
-	for (i = 0; i < CAM_ICP_CTX_MAX; i++)
+	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
 		mutex_destroy(&icp_hw_mgr.ctx_data[i].ctx_mutex);
+		if (cam_presil_mode_enabled())
+			kfree(icp_hw_mgr.ctx_data[i].hfi_frame_process.hangdump_mem_regions);
+	}
 
 	return rc;
 }
@@ -6685,6 +6770,9 @@ void cam_icp_hw_mgr_deinit(void)
 	cam_icp_mgr_destroy_wq();
 	cam_icp_mgr_free_devs();
 	mutex_destroy(&icp_hw_mgr.hw_mgr_mutex);
-	for (i = 0; i < CAM_ICP_CTX_MAX; i++)
+	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
 		mutex_destroy(&icp_hw_mgr.ctx_data[i].ctx_mutex);
+		if (cam_presil_mode_enabled())
+			kfree(icp_hw_mgr.ctx_data[i].hfi_frame_process.hangdump_mem_regions);
+	}
 }
