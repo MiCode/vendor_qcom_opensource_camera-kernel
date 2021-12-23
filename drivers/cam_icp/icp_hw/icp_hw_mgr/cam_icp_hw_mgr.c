@@ -1920,6 +1920,42 @@ static int cam_icp_get_icp_fw_dump_lvl(void *data, u64 *val)
 DEFINE_SIMPLE_ATTRIBUTE(cam_icp_debug_fw_dump, cam_icp_get_icp_fw_dump_lvl,
 	cam_icp_set_icp_fw_dump_lvl, "%08llu");
 
+#ifdef CONFIG_CAM_TEST_ICP_FW_DOWNLOAD
+static ssize_t cam_icp_hw_mgr_fw_load_unload(
+	struct file *file, const char __user *ubuf,
+	size_t size, loff_t *loff_t)
+{
+	int rc = 0;
+	char input_buf[16];
+
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf)))
+		return -EFAULT;
+
+	if (strcmp(input_buf, "load\n") == 0) {
+		rc = cam_mem_mgr_init();
+		if (rc) {
+			CAM_ERR(CAM_ICP, "memmgr init failed rc: %d", rc);
+			goto end;
+		}
+		cam_icp_mgr_hw_open(&icp_hw_mgr, NULL);
+	} else if (strcmp(input_buf, "unload\n") == 0) {
+		cam_icp_mgr_hw_close(&icp_hw_mgr, NULL);
+		cam_mem_mgr_deinit();
+	} else {
+		CAM_WARN(CAM_ICP, "Invalid input: %s", input_buf);
+	}
+
+end:
+	return size;
+}
+
+static const struct file_operations cam_icp_hw_mgr_fw_load_options = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.write = cam_icp_hw_mgr_fw_load_unload,
+};
+#endif
+
 static int cam_icp_hw_mgr_create_debugfs_entry(void)
 {
 	int rc = 0;
@@ -1957,6 +1993,12 @@ static int cam_icp_hw_mgr_create_debugfs_entry(void)
 
 	debugfs_create_bool("disable_ubwc_comp", 0644,
 		icp_hw_mgr.dentry, &icp_hw_mgr.disable_ubwc_comp);
+
+	#ifdef CONFIG_CAM_TEST_ICP_FW_DOWNLOAD
+		debugfs_create_file("icp_fw_load_unload", 0644,
+			icp_hw_mgr.dentry, NULL, &cam_icp_hw_mgr_fw_load_options);
+	#endif
+
 end:
 	/* Set default hang dump lvl */
 	icp_hw_mgr.icp_fw_dump_lvl = HFI_FW_DUMP_ON_FAILURE;

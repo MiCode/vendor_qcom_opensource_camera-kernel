@@ -191,6 +191,9 @@ int cam_mem_mgr_init(void)
 	int bitmap_size;
 	int rc = 0;
 
+	if (atomic_read(&cam_mem_mgr_state))
+		return 0;
+
 	memset(tbl.bufq, 0, sizeof(tbl.bufq));
 
 	if (cam_smmu_need_force_alloc_cached(&tbl.force_cache_allocs)) {
@@ -1316,6 +1319,9 @@ static int cam_mem_mgr_cleanup_table(void)
 
 void cam_mem_mgr_deinit(void)
 {
+	if (!atomic_read(&cam_mem_mgr_state))
+		return;
+
 	atomic_set(&cam_mem_mgr_state, CAM_MEM_MGR_UNINITIALIZED);
 	cam_mem_mgr_cleanup_table();
 	debugfs_remove_recursive(tbl.dentry);
