@@ -345,11 +345,15 @@ int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
 	struct dma_buf_map mapping;
 	int error_code = dma_buf_vmap(dmabuf, &mapping);
 
-	if (error_code)
+	if (error_code) {
 		*vaddr = 0;
-	else
+	} else {
 		*vaddr = (mapping.is_iomem) ?
 			(uintptr_t)mapping.vaddr_iomem : (uintptr_t)mapping.vaddr;
+		CAM_DBG(CAM_MEM,
+			"dmabuf=%p, *vaddr=%p, is_iomem=%d, vaddr_iomem=%p, vaddr=%p",
+			dmabuf, *vaddr, mapping.is_iomem, mapping.vaddr_iomem, mapping.vaddr);
+	}
 
 	return error_code;
 }

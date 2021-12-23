@@ -742,6 +742,8 @@ static inline int cam_lx7_download_fw(
 {
 	int rc;
 
+	CAM_INFO(CAM_ICP, "Loading Secure PIL : %s", CAM_BOOL_TO_YESNO(args->use_sec_pil));
+
 	if (args->use_sec_pil)
 		rc = cam_lx7_boot(
 			lx7_info, args, arg_size);
