@@ -260,15 +260,15 @@ static struct cam_vfe_top_ver4_module_desc vfe780_ipp_mod_desc[] = {
 	},
 	{
 		.id = 61,
-		.desc = "Reserved",
-	},
-	{
-		.id = 62,
 		.desc = "CLC_STATS_RS",
 	},
 	{
-		.id = 63,
+		.id = 62,
 		.desc = "CLC_STATS_IHIST",
+	},
+	{
+		.id = 63,
+		.desc = "Reserved",
 	},
 	{
 		.id = 64,
