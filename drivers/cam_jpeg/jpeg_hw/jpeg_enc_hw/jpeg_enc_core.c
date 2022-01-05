@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -659,11 +660,6 @@ int cam_jpeg_enc_config_cmanoc_hw_misr(struct cam_jpeg_enc_device_hw_info *hw_in
 	uint32_t                             *camnoc_misr_test = NULL;
 	int val = 0;
 
-	if (!hw_info->camnoc_misr_support) {
-		CAM_DBG(CAM_JPEG, "camnoc misr is not supported");
-		return 0;
-	}
-
 	enc_mem_base = soc_info->reg_map[0].mem_base;
 	camnoc_mem_base = soc_info->reg_map[1].mem_base;
 	if (!camnoc_mem_base) {
@@ -821,15 +817,22 @@ int cam_jpeg_enc_process_cmd(void *device_priv, uint32_t cmd_type,
 	}
 	case CAM_JPEG_CMD_CONFIG_HW_MISR:
 	{
-		rc = cam_jpeg_enc_config_cmanoc_hw_misr(hw_info, soc_info, cmd_args);
+		if (hw_info->camnoc_misr_support)
+			rc = cam_jpeg_enc_config_cmanoc_hw_misr(hw_info, soc_info, cmd_args);
+		else
+			CAM_DBG(CAM_JPEG, "camnoc misr is not supported");
 		break;
 	}
 	case CAM_JPEG_CMD_DUMP_HW_MISR_VAL:
 	{
-		rc = cam_jpeg_enc_dump_hw_misr_val(hw_info, soc_info, cmd_args);
-		if (rc)
-			break;
-		rc = cam_jpeg_enc_dump_camnoc_misr_val(hw_info, soc_info, cmd_args);
+		if (hw_info->camnoc_misr_support) {
+			rc = cam_jpeg_enc_dump_hw_misr_val(hw_info, soc_info, cmd_args);
+			if (rc)
+				break;
+			rc = cam_jpeg_enc_dump_camnoc_misr_val(hw_info, soc_info, cmd_args);
+		} else {
+			CAM_DBG(CAM_JPEG, "camnoc misr is not supported");
+		}
 		break;
 	}
 	default:
