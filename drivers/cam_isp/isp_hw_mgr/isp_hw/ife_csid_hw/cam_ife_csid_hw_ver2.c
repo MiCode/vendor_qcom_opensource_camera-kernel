@@ -5467,6 +5467,8 @@ int cam_ife_csid_ver2_irq_line_test(void *hw_priv)
 	struct cam_ife_csid_ver2_hw *csid_hw;
 	struct cam_hw_soc_info *soc_info;
 	int rc = 0;
+	void __iomem *mem_base;
+	struct cam_ife_csid_ver2_reg_info *csid_reg;
 
 	if (!hw_priv) {
 		CAM_ERR(CAM_ISP, "CSID: Invalid args");
@@ -5476,11 +5478,17 @@ int cam_ife_csid_ver2_irq_line_test(void *hw_priv)
 	csid_hw = ((struct cam_hw_info *)hw_priv)->core_info;
 	soc_info = &csid_hw->hw_info->soc_info;
 
+	mem_base = csid_hw->hw_info->soc_info.reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
+	csid_reg = csid_hw->core_info->csid_reg;
 	rc = cam_ife_csid_enable_soc_resources(soc_info, CAM_LOWSVS_VOTE);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "CSID[%d] Enable soc failed", csid_hw->hw_intf->hw_idx);
 		return rc;
 	}
+
+	CAM_DBG(CAM_ISP, "CSID[%d] hw-version:0x%x",
+		csid_hw->hw_intf->hw_idx,
+		cam_io_r_mb(mem_base + csid_reg->cmn_reg->hw_version_addr));
 
 	rc = cam_irq_controller_test_irq_line(csid_hw->csid_irq_controller, "CSID:%d",
 		csid_hw->hw_intf->hw_idx);

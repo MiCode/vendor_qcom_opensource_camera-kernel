@@ -3049,6 +3049,18 @@ static int cam_sfe_bus_wr_stop_hw(void *hw_priv,
 static int cam_sfe_bus_wr_init_hw(void *hw_priv,
 	void *init_hw_args, uint32_t arg_size)
 {
+	struct cam_sfe_bus_wr_priv *bus_priv = hw_priv;
+
+	if (!hw_priv) {
+		CAM_ERR(CAM_SFE, "Invalid args");
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_SFE, "SFE:%d bus-wr hw-version:0x%x",
+		bus_priv->common_data.core_index,
+		cam_io_r_mb(bus_priv->common_data.mem_base +
+			bus_priv->common_data.common_reg->hw_version));
+
 	return 0;
 }
 

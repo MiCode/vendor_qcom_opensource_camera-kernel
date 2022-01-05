@@ -4074,6 +4074,11 @@ static int cam_vfe_bus_ver3_init_hw(void *hw_priv,
 
 	bus_priv->common_data.hw_init = true;
 
+	CAM_DBG(CAM_ISP, "VFE:%d bus-wr hw-version:0x%x",
+		bus_priv->common_data.core_index,
+		cam_io_r_mb(bus_priv->common_data.mem_base +
+			bus_priv->common_data.common_reg->hw_version));
+
 	return 0;
 }
 

@@ -1019,7 +1019,7 @@ static int cam_irq_controller_test_irq_line_top_half(uint32_t evt_id,
 
 	test_priv = th_payload->handler_priv;
 	complete(&test_priv->complete);
-	CAM_DBG(CAM_IRQ_CTRL, "%s IRQ line verified", test_priv->msg);
+	CAM_INFO(CAM_IRQ_CTRL, "%s IRQ line verified", test_priv->msg);
 
 	return 0;
 }
