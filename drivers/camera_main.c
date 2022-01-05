@@ -288,6 +288,8 @@ static int camera_init(void)
 	if (rc)
 		goto end_init;
 
+	cam_debugfs_init();
+
 	/* For Probing all available submodules */
 	for (i = 0; i < ARRAY_SIZE(submodule_table); i++) {
 		num_inits = submodule_table[i].num_component;
@@ -316,6 +318,7 @@ end_init:
 static void camera_exit(void)
 {
 	__camera_exit(ARRAY_SIZE(submodule_table), 0);
+	cam_debugfs_deinit();
 
 	CAM_INFO(CAM_UTIL, "Spectra camera driver exited!");
 }

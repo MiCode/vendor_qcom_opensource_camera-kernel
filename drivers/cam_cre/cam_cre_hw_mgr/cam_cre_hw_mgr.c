@@ -2888,38 +2888,22 @@ DEFINE_DEBUGFS_ATTRIBUTE(cam_cre_debug_default_clk,
 
 static int cam_cre_create_debug_fs(void)
 {
-	struct dentry *dbgfileptr = NULL;
-	int rc = 0;
-	cre_hw_mgr->dentry = debugfs_create_dir("camera_cre",
-		NULL);
+	if (!cam_debugfs_available())
+		return 0;
 
+	cam_debugfs_create_subdir("cre", &cre_hw_mgr->dentry);
 	if (!cre_hw_mgr->dentry) {
 		CAM_ERR(CAM_CRE, "failed to create dentry");
 		return -ENOMEM;
 	}
 
-	if (!debugfs_create_bool("dump_req_data_enable",
-		0644,
-		cre_hw_mgr->dentry,
-		&cre_hw_mgr->dump_req_data_enable)) {
-		CAM_ERR(CAM_CRE,
-			"failed to create dump_enable_debug");
-		goto err;
-	}
+	debugfs_create_bool("dump_req_data_enable", 0644, cre_hw_mgr->dentry,
+		&cre_hw_mgr->dump_req_data_enable);
 
-	dbgfileptr = debugfs_create_file("cre_debug_clk", 0644,
-		cre_hw_mgr->dentry, NULL, &cam_cre_debug_default_clk);
+	debugfs_create_file("cre_debug_clk", 0644, cre_hw_mgr->dentry,
+		NULL, &cam_cre_debug_default_clk);
 
-	if (IS_ERR(dbgfileptr)) {
-		if (PTR_ERR(dbgfileptr) == -ENODEV)
-			CAM_WARN(CAM_CRE, "DebugFS not enabled in kernel!");
-		else
-			rc = PTR_ERR(dbgfileptr);
-	}
 	return 0;
-err:
-	debugfs_remove_recursive(cre_hw_mgr->dentry);
-	return -ENOMEM;
 }
 
 int cam_cre_hw_mgr_init(struct device_node *of_node, void *hw_mgr,

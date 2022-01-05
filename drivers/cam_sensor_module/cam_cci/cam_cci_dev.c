@@ -405,44 +405,31 @@ DEFINE_DEBUGFS_ATTRIBUTE(cam_cci_debug,
 
 static int cam_cci_create_debugfs_entry(struct cci_device *cci_dev)
 {
-	int rc = 0;
+	int rc = 0, idx;
 	struct dentry *dbgfileptr = NULL;
+	static char * const filename[] = { "en_dump_cci0", "en_dump_cci1", "en_dump_cci2"};
+
+	if (!cam_debugfs_available())
+		return 0;
 
 	if (!debugfs_root) {
-		dbgfileptr = debugfs_create_dir("cam_cci", NULL);
-		if (!dbgfileptr) {
+		rc = cam_debugfs_create_subdir("cci", &dbgfileptr);
+		if (rc) {
 			CAM_ERR(CAM_CCI, "debugfs directory creation fail");
-			rc = -ENOENT;
-			goto end;
+			return rc;
 		}
 		debugfs_root = dbgfileptr;
 	}
 
-	if (cci_dev->soc_info.index == 0) {
-		dbgfileptr = debugfs_create_file("en_dump_cci0", 0644,
-			debugfs_root, cci_dev, &cam_cci_debug);
-		if (IS_ERR(dbgfileptr)) {
-			if (PTR_ERR(dbgfileptr) == -ENODEV)
-				CAM_WARN(CAM_CCI, "DebugFS not enabled");
-			else {
-				rc = PTR_ERR(dbgfileptr);
-				goto end;
-			}
-		}
-	} else {
-		dbgfileptr = debugfs_create_file("en_dump_cci1", 0644,
-			debugfs_root, cci_dev, &cam_cci_debug);
-		if (IS_ERR(dbgfileptr)) {
-			if (PTR_ERR(dbgfileptr) == -ENODEV)
-				CAM_WARN(CAM_CCI, "DebugFS not enabled");
-			else {
-				rc = PTR_ERR(dbgfileptr);
-				goto end;
-			}
-		}
+	idx = cci_dev->soc_info.index;
+	if (idx >= ARRAY_SIZE(filename)) {
+		CAM_ERR(CAM_CCI, "cci-dev %d invalid", idx);
+		return -ENODEV;
 	}
-end:
-	return rc;
+
+	debugfs_create_file(filename[idx], 0644, debugfs_root, cci_dev, &cam_cci_debug);
+
+	return 0;
 }
 
 static int cam_cci_component_bind(struct device *dev,
@@ -547,7 +534,6 @@ static void cam_cci_component_unbind(struct device *dev,
 		v4l2_get_subdevdata(subdev);
 
 	cam_cpas_unregister_client(cci_dev->cpas_handle);
-	debugfs_remove_recursive(debugfs_root);
 	debugfs_root = NULL;
 	cam_cci_soc_remove(pdev, cci_dev);
 	rc = cam_unregister_subdev(&(cci_dev->v4l2_dev_str));

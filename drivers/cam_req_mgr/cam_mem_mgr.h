@@ -84,8 +84,6 @@ struct cam_mem_buf_queue {
  * @bitmap: bitmap of the mem mgr utility
  * @bits: max bits of the utility
  * @bufq: array of buffers
- * @dentry: Debugfs entry
- * @alloc_profile_enable: Whether to enable alloc profiling
  * @dbg_buf_idx: debug buffer index to get usecases info
  * @force_cache_allocs: Force all internal buffer allocations with cache
  * @need_shared_buffer_padding: Whether padding is needed for shared buffer
@@ -101,8 +99,6 @@ struct cam_mem_table {
 	void *bitmap;
 	size_t bits;
 	struct cam_mem_buf_queue bufq[CAM_MEM_BUFQ_MAX];
-	struct dentry *dentry;
-	bool alloc_profile_enable;
 	size_t dbg_buf_idx;
 	bool force_cache_allocs;
 	bool need_shared_buffer_padding;

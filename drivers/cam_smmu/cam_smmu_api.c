@@ -4450,8 +4450,11 @@ static int cam_smmu_create_debug_fs(void)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("camera_smmu", NULL);
-	if (!dbgfileptr) {
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("smmu", &dbgfileptr);
+	if (rc) {
 		CAM_ERR(CAM_SMMU,"DebugFS could not create directory!");
 		rc = -ENOENT;
 		goto end;
@@ -4586,7 +4589,6 @@ static void cam_smmu_component_unbind(struct device *dev,
 	}
 
 	cam_smmu_release_cb(pdev);
-	debugfs_remove_recursive(iommu_cb_set.dentry);
 	iommu_cb_set.dentry = NULL;
 }
 

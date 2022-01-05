@@ -5732,14 +5732,16 @@ DEFINE_DEBUGFS_ATTRIBUTE(cam_tfe_camif_debug,
 	cam_tfe_get_camif_debug,
 	cam_tfe_set_camif_debug, "%16llu");
 
-#if IS_ENABLED(CONFIG_DEBUG_FS)
 static int cam_tfe_hw_mgr_debug_register(void)
 {
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("camera_tfe", NULL);
-	if (!dbgfileptr) {
+	if (!cam_debugfs_available())
+		goto end;
+
+	rc = cam_debugfs_create_subdir("tfe", &dbgfileptr);
+	if (rc) {
 		CAM_ERR(CAM_ISP,"DebugFS could not create directory!");
 		rc = -ENOENT;
 		goto end;
@@ -5773,14 +5775,6 @@ end:
 	g_tfe_hw_mgr.debug_cfg.enable_recovery = 0;
 	return rc;
 }
-#else
-static inline int cam_tfe_hw_mgr_debug_register(void)
-{
-	g_tfe_hw_mgr.debug_cfg.enable_recovery = 0;
-	CAM_WARN(CAM_ISP, "DebugFS not enabled in kernel");
-	return 0;
-}
-#endif
 
 static void cam_req_mgr_process_tfe_worker(struct work_struct *w)
 {
@@ -5995,7 +5989,6 @@ void cam_tfe_hw_mgr_deinit(void)
 	int i = 0;
 
 	cam_req_mgr_workq_destroy(&g_tfe_hw_mgr.workq);
-	debugfs_remove_recursive(g_tfe_hw_mgr.debug_cfg.dentry);
 	g_tfe_hw_mgr.debug_cfg.dentry = NULL;
 
 	for (i = 0; i < CAM_TFE_CTX_MAX; i++) {

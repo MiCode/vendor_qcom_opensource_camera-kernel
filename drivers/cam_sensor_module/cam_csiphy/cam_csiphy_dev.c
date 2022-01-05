@@ -55,13 +55,16 @@ static int cam_csiphy_debug_register(struct csiphy_device *csiphy_dev)
 		return -EINVAL;
 	}
 
+	if (!cam_debugfs_available())
+		return 0;
+
 	if (!root_dentry) {
-		root_dentry = debugfs_create_dir("camera_csiphy", NULL);
-		if (IS_ERR(root_dentry)) {
-			CAM_ERR(CAM_CSIPHY, "Debugfs could not create root directory. rc: %ld",
-				root_dentry);
+		if (cam_debugfs_create_subdir("csiphy", &dbgfileptr)) {
+			CAM_ERR(CAM_CSIPHY,
+				"Debugfs could not create directory!");
 			return -ENOENT;
 		}
+		root_dentry = dbgfileptr;
 	}
 
 	/* Create the CSIPHY directory for this csiphy */
@@ -88,7 +91,6 @@ static int cam_csiphy_debug_register(struct csiphy_device *csiphy_dev)
 
 static void cam_csiphy_debug_unregister(void)
 {
-	debugfs_remove_recursive(root_dentry);
 	root_dentry = NULL;
 }
 

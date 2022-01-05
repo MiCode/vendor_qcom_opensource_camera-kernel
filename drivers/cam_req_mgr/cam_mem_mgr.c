@@ -30,6 +30,16 @@
 static struct cam_mem_table tbl;
 static atomic_t cam_mem_mgr_state = ATOMIC_INIT(CAM_MEM_MGR_UNINITIALIZED);
 
+/* cam_mem_mgr_debug - global struct to keep track of debug settings for mem mgr
+ *
+ * @dentry               : Directory entry to the mem mgr root folder
+ * @alloc_profile_enable : Whether to enable alloc profiling
+ */
+static struct {
+	struct dentry *dentry;
+	bool alloc_profile_enable;
+} g_cam_mem_mgr_debug;
+
 #if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
 static void cam_mem_mgr_put_dma_heaps(void);
 static int cam_mem_mgr_get_dma_heaps(void);
@@ -65,7 +75,7 @@ static unsigned long cam_mem_mgr_mini_dump_cb(void *dst, unsigned long len)
 	md = (struct cam_mem_table_mini_dump *)dst;
 	memcpy(md->bufq, tbl.bufq, CAM_MEM_BUFQ_MAX * sizeof(struct cam_mem_buf_queue));
 	md->dbg_buf_idx = tbl.dbg_buf_idx;
-	md->alloc_profile_enable = tbl.alloc_profile_enable;
+	md->alloc_profile_enable = g_cam_mem_mgr_debug.alloc_profile_enable;
 	md->force_cache_allocs = tbl.force_cache_allocs;
 	md->need_shared_buffer_padding = tbl.need_shared_buffer_padding;
 	return sizeof(*md);
@@ -170,17 +180,20 @@ static int cam_mem_mgr_create_debug_fs(void)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("camera_memmgr", NULL);
-	if (!dbgfileptr) {
-		CAM_ERR(CAM_MEM,"DebugFS could not create directory!");
+	if (!cam_debugfs_available() || g_cam_mem_mgr_debug.dentry)
+		return 0;
+
+	rc = cam_debugfs_create_subdir("memmgr", &dbgfileptr);
+	if (rc) {
+		CAM_ERR(CAM_MEM, "DebugFS could not create directory!");
 		rc = -ENOENT;
 		goto end;
 	}
-	/* Store parent inode for cleanup in caller */
-	tbl.dentry = dbgfileptr;
 
-	debugfs_create_bool("alloc_profile_enable", 0644,
-		tbl.dentry, &tbl.alloc_profile_enable);
+	g_cam_mem_mgr_debug.dentry = dbgfileptr;
+
+	debugfs_create_bool("alloc_profile_enable", 0644, g_cam_mem_mgr_debug.dentry,
+		&g_cam_mem_mgr_debug.alloc_profile_enable);
 end:
 	return rc;
 }
@@ -559,7 +572,7 @@ static int cam_mem_util_get_dma_buf(size_t len,
 		return -EINVAL;
 	}
 
-	if (tbl.alloc_profile_enable)
+	if (g_cam_mem_mgr_debug.alloc_profile_enable)
 		CAM_GET_TIMESTAMP(ts1);
 
 	if ((cam_flags & CAM_MEM_FLAG_CACHE) ||
@@ -670,7 +683,7 @@ static int cam_mem_util_get_dma_buf(size_t len,
 
 	CAM_DBG(CAM_MEM, "Allocate success, len=%zu, *buf=%pK, i_ino=%lu", len, *buf, *i_ino);
 
-	if (tbl.alloc_profile_enable) {
+	if (g_cam_mem_mgr_debug.alloc_profile_enable) {
 		CAM_GET_TIMESTAMP(ts2);
 		CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts1, ts2, microsec);
 		trace_cam_log_event("IONAllocProfile", "size and time in micro",
@@ -699,7 +712,7 @@ static int cam_mem_util_get_dma_buf(size_t len,
 		return -EINVAL;
 	}
 
-	if (tbl.alloc_profile_enable)
+	if (g_cam_mem_mgr_debug.alloc_profile_enable)
 		CAM_GET_TIMESTAMP(ts1);
 
 	if ((cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) &&
@@ -729,7 +742,7 @@ static int cam_mem_util_get_dma_buf(size_t len,
 
 	*i_ino = file_inode((*buf)->file)->i_ino;
 
-	if (tbl.alloc_profile_enable) {
+	if (g_cam_mem_mgr_debug.alloc_profile_enable) {
 		CAM_GET_TIMESTAMP(ts2);
 		CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts1, ts2, microsec);
 		trace_cam_log_event("IONAllocProfile", "size and time in micro",
@@ -1324,7 +1337,6 @@ void cam_mem_mgr_deinit(void)
 
 	atomic_set(&cam_mem_mgr_state, CAM_MEM_MGR_UNINITIALIZED);
 	cam_mem_mgr_cleanup_table();
-	debugfs_remove_recursive(tbl.dentry);
 	mutex_lock(&tbl.m_lock);
 	bitmap_zero(tbl.bitmap, tbl.bits);
 	kfree(tbl.bitmap);

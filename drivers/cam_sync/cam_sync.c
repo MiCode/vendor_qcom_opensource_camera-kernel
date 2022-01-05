@@ -1068,8 +1068,11 @@ static int cam_sync_create_debugfs(void)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("camera_sync", NULL);
-	if (!dbgfileptr) {
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("sync", &dbgfileptr);
+	if (rc) {
 		CAM_ERR(CAM_SYNC,"DebugFS could not create directory!");
 		rc = -ENOENT;
 		goto end;
@@ -1263,7 +1266,6 @@ static void cam_sync_component_unbind(struct device *dev,
 #endif
 	video_unregister_device(sync_dev->vdev);
 	video_device_release(sync_dev->vdev);
-	debugfs_remove_recursive(sync_dev->dentry);
 	sync_dev->dentry = NULL;
 
 	for (i = 0; i < CAM_SYNC_MAX_OBJS; i++)

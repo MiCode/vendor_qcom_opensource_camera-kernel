@@ -1961,8 +1961,11 @@ static int cam_icp_hw_mgr_create_debugfs_entry(void)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("camera_icp", NULL);
-	if (!dbgfileptr) {
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("icp", &dbgfileptr);
+	if (rc) {
 		CAM_ERR(CAM_ICP,"DebugFS could not create directory!");
 		rc = -ENOENT;
 		goto end;
@@ -6807,7 +6810,6 @@ void cam_icp_hw_mgr_deinit(void)
 {
 	int i = 0;
 
-	debugfs_remove_recursive(icp_hw_mgr.dentry);
 	icp_hw_mgr.dentry = NULL;
 	cam_icp_mgr_destroy_wq();
 	cam_icp_mgr_free_devs();

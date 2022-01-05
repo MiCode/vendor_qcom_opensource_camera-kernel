@@ -2916,8 +2916,11 @@ static int cam_cpas_util_create_debugfs(struct cam_cpas *cpas_core)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
-	dbgfileptr = debugfs_create_dir("camera_cpas", NULL);
-	if (!dbgfileptr) {
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("cpas", &dbgfileptr);
+	if (rc) {
 		CAM_ERR(CAM_CPAS,"DebugFS could not create directory!");
 		rc = -ENOENT;
 		goto end;
@@ -3138,7 +3141,6 @@ int cam_cpas_hw_remove(struct cam_hw_intf *cpas_hw_intf)
 	cam_cpas_util_unregister_bus_client(&cpas_core->ahb_bus_client);
 	cam_cpas_util_client_cleanup(cpas_hw);
 	cam_cpas_soc_deinit_resources(&cpas_hw->soc_info);
-	debugfs_remove_recursive(cpas_core->dentry);
 	cpas_core->dentry = NULL;
 	flush_workqueue(cpas_core->work_queue);
 	destroy_workqueue(cpas_core->work_queue);
