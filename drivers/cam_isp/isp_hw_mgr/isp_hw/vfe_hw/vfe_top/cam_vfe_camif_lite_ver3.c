@@ -231,10 +231,10 @@ int cam_vfe_camif_lite_ver3_acquire_resource(
 		camif_lite_res->res_priv;
 	acquire_data = (struct cam_vfe_acquire_args *)acquire_param;
 
-	camif_lite_data->sync_mode   = acquire_data->vfe_in.sync_mode;
-	camif_lite_data->event_cb    = acquire_data->event_cb;
-	camif_lite_data->priv        = acquire_data->priv;
-	camif_lite_res->rdi_only_ctx = 0;
+	camif_lite_data->sync_mode         = acquire_data->vfe_in.sync_mode;
+	camif_lite_data->event_cb          = acquire_data->event_cb;
+	camif_lite_data->priv              = acquire_data->priv;
+	camif_lite_res->is_rdi_primary_res = false;
 	CAM_DBG(CAM_ISP, "Acquired VFE:%d CAMIF LITE:%d %s sync_mode=%d",
 		camif_lite_res->hw_intf->hw_idx,
 		camif_lite_res->res_id,
@@ -329,7 +329,7 @@ skip_core_cfg:
 	cam_io_w_mb(rsrc_data->reg_data->top_debug_cfg_en, rsrc_data->mem_base +
 		rsrc_data->common_reg->top_debug_cfg);
 
-	if (!camif_lite_res->rdi_only_ctx)
+	if (!camif_lite_res->is_rdi_primary_res)
 		goto subscribe_err;
 
 	irq_mask[CAM_IFE_IRQ_CAMIF_REG_STATUS1] =
@@ -1179,7 +1179,7 @@ static int cam_vfe_camif_lite_handle_irq_bottom_half(
 			camif_lite_priv->error_ts.tv_sec,
 			camif_lite_priv->error_ts.tv_nsec);
 
-		if (camif_lite_node->rdi_only_ctx)
+		if (camif_lite_node->is_rdi_primary_res)
 			CAM_INFO(CAM_ISP,
 				"SOF %lld:%lld EPOCH %lld:%lld EOF %lld:%lld",
 				camif_lite_priv->sof_ts.tv_sec,

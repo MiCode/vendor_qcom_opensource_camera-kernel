@@ -2040,7 +2040,7 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	mutex_unlock(&rsrc_data->common_data->bus_mutex);
 
 	ver3_bus_priv->tasklet_info = acq_args->tasklet;
-	rsrc_node->rdi_only_ctx = 0;
+	rsrc_node->is_rdi_primary_res = false;
 	rsrc_node->res_id = out_acquire_args->out_port_info->res_type;
 	rsrc_node->tasklet_info = acq_args->tasklet;
 	rsrc_node->cdm_ops = out_acquire_args->cdm_ops;
@@ -2239,7 +2239,7 @@ static int cam_vfe_bus_ver3_start_vfe_out(
 	}
 
 	if ((common_data->is_lite || source_group > CAM_VFE_BUS_VER3_SRC_GRP_0)
-		&& !vfe_out->rdi_only_ctx)
+		&& !vfe_out->is_rdi_primary_res)
 		goto end;
 
 	if ((common_data->supported_irq & CAM_VFE_HW_IRQ_CAP_RUP) &&

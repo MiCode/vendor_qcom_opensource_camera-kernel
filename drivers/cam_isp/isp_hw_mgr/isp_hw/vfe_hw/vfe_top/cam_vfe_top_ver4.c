@@ -440,9 +440,9 @@ int cam_vfe_top_ver4_dump_timestamps(
 			if (res->res_id == res_id)
 				break;
 		} else {
-			if (res->rdi_only_ctx && res->res_id == res_id) {
+			if (res->is_rdi_primary_res && res->res_id == res_id) {
 				break;
-			} else if (!res->rdi_only_ctx && camif_res) {
+			} else if (!res->is_rdi_primary_res && camif_res) {
 				vfe_priv  = camif_res->res_priv;
 				break;
 			}
@@ -1115,7 +1115,7 @@ static enum cam_vfe_top_ver4_fsm_state cam_vfe_top_ver4_fsm_next_state(
 {
 	switch (state) {
 	case VFE_TOP_VER4_FSM_SOF:
-		return (res->rdi_only_ctx) ? VFE_TOP_VER4_FSM_EOF : VFE_TOP_VER4_FSM_EPOCH;
+		return (res->is_rdi_primary_res) ? VFE_TOP_VER4_FSM_EOF : VFE_TOP_VER4_FSM_EPOCH;
 	case VFE_TOP_VER4_FSM_EPOCH:
 		return VFE_TOP_VER4_FSM_EOF;
 	case VFE_TOP_VER4_FSM_EOF:
@@ -1500,7 +1500,7 @@ skip_core_cfg:
 	 *     2. Resource is not primary RDI
 	 */
 	if (((rsrc_data->sync_mode == CAM_ISP_HW_SYNC_SLAVE) && rsrc_data->is_dual) ||
-		(!rsrc_data->is_pixel_path && !vfe_res->rdi_only_ctx))
+		(!rsrc_data->is_pixel_path && !vfe_res->is_rdi_primary_res))
 		goto subscribe_err;
 
 	irq_mask[CAM_IFE_IRQ_CAMIF_REG_STATUS1] = rsrc_data->reg_data->sof_irq_mask |
