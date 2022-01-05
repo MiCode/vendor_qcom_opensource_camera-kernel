@@ -13,6 +13,8 @@
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
 
+#define CAM_IRQ_LINE_TEST_TIMEOUT_MS 1000
+
 /**
  * struct cam_irq_evt_handler:
  * @Brief:                  Event handler information
@@ -56,6 +58,9 @@ struct cam_irq_evt_handler {
  * @mask_reg_offset:        Offset of IRQ MASK register
  * @clear_reg_offset:       Offset of IRQ CLEAR register
  * @status_reg_offset:      Offset of IRQ STATUS register
+ * @set_reg_offset:         Offset of IRQ SET register
+ * @test_set_val:           Value to write to IRQ SET register to trigger IRQ
+ * @test_sub_val:           Value to write to IRQ MASK register to receive test IRQ
  * @top_half_enable_mask:   Array of enabled bit_mask sorted by priority
  * @aggr_mask:              Aggregate mask to keep track of the overall mask
  *                          after subscribe/unsubscribe calls
@@ -67,6 +72,9 @@ struct cam_irq_register_obj {
 	uint32_t                     mask_reg_offset;
 	uint32_t                     clear_reg_offset;
 	uint32_t                     status_reg_offset;
+	uint32_t                     set_reg_offset;
+	uint32_t                     test_set_val;
+	uint32_t                     test_sub_val;
 	uint32_t                     top_half_enable_mask[CAM_IRQ_PRIORITY_MAX];
 	uint32_t                     aggr_mask;
 	uint32_t                     dependent_read_mask[CAM_IRQ_MAX_DEPENDENTS];
@@ -84,11 +92,13 @@ struct cam_irq_register_obj {
  * @irq_register_arr:       Array of Register object associated with this
  *                          Controller
  * @irq_status_arr:         Array of IRQ Status values
- * @global_clear_offset:    Offset of Global IRQ Clear register. This register
+ * @global_irq_cmd_offset:  Offset of Global IRQ Clear register. This register
  *                          contains the BIT that needs to be set for the CLEAR
  *                          to take effect
- * @global_clear_bitmask:   Bitmask needed to be used in Global Clear register
+ * @global_clear_bitmask:   Bitmask needed to be used in Global IRQ command register
  *                          for Clear IRQ cmd to take effect
+ * @global_set_bitmask:     Bitmask needed to be used in Global IRQ command register
+ *                          for Set IRQ cmd to take effect
  * @clear_all_bitmask:      Bitmask that specifies which bits should be written to clear register
  *                          when it is to be cleared forcefully
  * @evt_handler_list_head:  List of all event handlers
@@ -109,8 +119,9 @@ struct cam_irq_controller {
 	uint32_t                        num_registers;
 	struct cam_irq_register_obj    *irq_register_arr;
 	uint32_t                       *irq_status_arr;
-	uint32_t                        global_clear_offset;
+	uint32_t                        global_irq_cmd_offset;
 	uint32_t                        global_clear_bitmask;
+	uint32_t                        global_set_bitmask;
 	uint32_t                        clear_all_bitmask;
 	struct list_head                evt_handler_list_head;
 	struct list_head                th_list_head[CAM_IRQ_PRIORITY_MAX];
@@ -263,9 +274,9 @@ int cam_irq_controller_register_dependent(void *primary_controller, void *second
 
 	/**
 	 * NOTE: For dependent controllers that should not issue global clear command,
-	 * set their global_clear_offset to 0
+	 * set their global_irq_cmd_offset to 0
 	 */
-	if (!ctrl_secondary->global_clear_offset)
+	if (!ctrl_secondary->global_irq_cmd_offset)
 		ctrl_primary->delayed_global_clear = true;
 
 	CAM_DBG(CAM_IRQ_CTRL, "successfully registered %s as dependent of %s", ctrl_secondary->name,
@@ -293,10 +304,10 @@ static inline void cam_irq_controller_clear_irq(
 				irq_register->clear_reg_offset);
 	}
 
-	if (controller->global_clear_offset)
+	if (controller->global_irq_cmd_offset)
 		cam_io_w_mb(controller->global_clear_bitmask,
 				controller->mem_base +
-				controller->global_clear_offset);
+				controller->global_irq_cmd_offset);
 }
 
 int cam_irq_controller_deinit(void **irq_controller)
@@ -387,24 +398,33 @@ int cam_irq_controller_init(const char       *name,
 			register_info->irq_reg_set[i].clear_reg_offset;
 		controller->irq_register_arr[i].status_reg_offset =
 			register_info->irq_reg_set[i].status_reg_offset;
+		controller->irq_register_arr[i].set_reg_offset =
+			register_info->irq_reg_set[i].set_reg_offset;
+		controller->irq_register_arr[i].test_set_val =
+			register_info->irq_reg_set[i].test_set_val;
+		controller->irq_register_arr[i].test_sub_val =
+			register_info->irq_reg_set[i].test_sub_val;
 		CAM_DBG(CAM_IRQ_CTRL, "i %d mask_reg_offset: 0x%x", i,
 			controller->irq_register_arr[i].mask_reg_offset);
 		CAM_DBG(CAM_IRQ_CTRL, "i %d clear_reg_offset: 0x%x", i,
 			controller->irq_register_arr[i].clear_reg_offset);
 		CAM_DBG(CAM_IRQ_CTRL, "i %d status_reg_offset: 0x%x", i,
 			controller->irq_register_arr[i].status_reg_offset);
+		CAM_DBG(CAM_IRQ_CTRL, "i %d set_reg_offset: 0x%x", i,
+			controller->irq_register_arr[i].set_reg_offset);
 	}
 	controller->num_registers        = register_info->num_registers;
 	controller->global_clear_bitmask = register_info->global_clear_bitmask;
-	controller->global_clear_offset  = register_info->global_clear_offset;
+	controller->global_irq_cmd_offset  = register_info->global_irq_cmd_offset;
+	controller->global_set_bitmask   = register_info->global_set_bitmask;
 	controller->clear_all_bitmask    = register_info->clear_all_bitmask;
 	controller->mem_base             = mem_base;
 	controller->is_dependent         = false;
 
 	CAM_DBG(CAM_IRQ_CTRL, "global_clear_bitmask: 0x%x",
 		controller->global_clear_bitmask);
-	CAM_DBG(CAM_IRQ_CTRL, "global_clear_offset: 0x%x",
-		controller->global_clear_offset);
+	CAM_DBG(CAM_IRQ_CTRL, "global_irq_cmd_offset: 0x%x",
+		controller->global_irq_cmd_offset);
 	CAM_DBG(CAM_IRQ_CTRL, "mem_base: %pK",
 		(void __iomem *)controller->mem_base);
 
@@ -813,9 +833,9 @@ void cam_irq_controller_disable_all(void *priv)
 			irq_register->clear_reg_offset);
 	}
 
-	if (controller->global_clear_offset && !controller->delayed_global_clear) {
+	if (controller->global_irq_cmd_offset && !controller->delayed_global_clear) {
 		cam_io_w_mb(controller->global_clear_bitmask,
-			controller->mem_base + controller->global_clear_offset);
+			controller->mem_base + controller->global_irq_cmd_offset);
 		CAM_DBG(CAM_IRQ_CTRL, "Global Clear done from %s",
 			controller->name);
 	}
@@ -846,9 +866,9 @@ static void __cam_irq_controller_read_registers(struct cam_irq_controller *contr
 			controller->mem_base + irq_register->clear_reg_offset);
 	}
 
-	if (controller->global_clear_offset && !controller->delayed_global_clear) {
+	if (controller->global_irq_cmd_offset && !controller->delayed_global_clear) {
 		cam_io_w_mb(controller->global_clear_bitmask,
-			controller->mem_base + controller->global_clear_offset);
+			controller->mem_base + controller->global_irq_cmd_offset);
 		CAM_DBG(CAM_IRQ_CTRL, "Global Clear done from %s",
 			controller->name);
 	}
@@ -884,9 +904,9 @@ static void cam_irq_controller_read_registers(struct cam_irq_controller *control
 		}
 	}
 
-	if (controller->global_clear_offset && controller->delayed_global_clear) {
+	if (controller->global_irq_cmd_offset && controller->delayed_global_clear) {
 		cam_io_w_mb(controller->global_clear_bitmask,
-			controller->mem_base + controller->global_clear_offset);
+			controller->mem_base + controller->global_irq_cmd_offset);
 		CAM_DBG(CAM_IRQ_CTRL, "Delayed Global Clear done from %s",
 			controller->name);
 	}
@@ -979,3 +999,134 @@ end:
 
 	return rc;
 }
+
+#ifdef CONFIG_CAM_TEST_IRQ_LINE
+
+struct cam_irq_line_test_priv {
+	char msg[256];
+	struct completion complete;
+};
+
+static int cam_irq_controller_test_irq_line_top_half(uint32_t evt_id,
+	struct cam_irq_th_payload *th_payload)
+{
+	struct cam_irq_line_test_priv *test_priv;
+
+	if (!th_payload || !th_payload->handler_priv) {
+		CAM_ERR(CAM_IRQ_CTRL, "invalid payload");
+		return -EINVAL;
+	}
+
+	test_priv = th_payload->handler_priv;
+	complete(&test_priv->complete);
+	CAM_DBG(CAM_IRQ_CTRL, "%s IRQ line verified", test_priv->msg);
+
+	return 0;
+}
+
+
+int cam_irq_controller_test_irq_line(void *irq_controller, const char *fmt, ...)
+{
+	struct cam_irq_controller *controller = irq_controller;
+	struct cam_irq_register_obj *irq_reg;
+	struct cam_irq_line_test_priv *test_priv;
+	uint32_t *mask = NULL;
+	va_list args;
+	bool can_test = false;
+	int rc = 0, i, handle;
+
+	if (!irq_controller) {
+		CAM_ERR(CAM_IRQ_CTRL, "invalid argument");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < controller->num_registers; i++) {
+		irq_reg = &controller->irq_register_arr[i];
+		if (irq_reg->set_reg_offset != 0 && irq_reg->test_set_val != 0 &&
+			irq_reg->test_sub_val)
+			can_test = true;
+		CAM_DBG(CAM_IRQ_CTRL, "[%d] offset:0x%x val:0x%x can-test:%s",
+			i, irq_reg->set_reg_offset, irq_reg->test_set_val,
+			CAM_BOOL_TO_YESNO(can_test));
+	}
+
+	if (controller->global_irq_cmd_offset == 0 || controller->global_set_bitmask == 0)
+		can_test = false;
+
+	CAM_DBG(CAM_IRQ_CTRL, "global offset:0x%x mask:0x%x",
+			controller->global_irq_cmd_offset,
+			controller->global_set_bitmask);
+
+	if (!can_test) {
+		CAM_ERR(CAM_IRQ_CTRL, "%s not configured properly for testing",
+			controller->name);
+		return -EINVAL;
+	}
+
+	mask = kcalloc(controller->num_registers, sizeof(uint32_t), GFP_KERNEL);
+	if (!mask) {
+		CAM_ERR(CAM_IRQ_CTRL, "%s: cannot allocate mask array of length %d",
+			controller->name, controller->num_registers);
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < controller->num_registers; i++)
+		mask[i] = controller->irq_register_arr[i].test_sub_val;
+
+	test_priv = kzalloc(sizeof(struct cam_irq_line_test_priv), GFP_KERNEL);
+	if (!test_priv) {
+		CAM_ERR(CAM_IRQ_CTRL, "%s: cannot allocate test-priv", controller->name);
+		rc = -ENOMEM;
+		goto kfree_exit;
+	}
+
+	va_start(args, fmt);
+	vscnprintf(test_priv->msg, 256, fmt, args);
+	va_end(args);
+
+	init_completion(&test_priv->complete);
+
+	handle = cam_irq_controller_subscribe_irq(controller, CAM_IRQ_PRIORITY_0,
+		mask, test_priv, cam_irq_controller_test_irq_line_top_half,
+		NULL, NULL, NULL, CAM_IRQ_EVT_GROUP_0);
+	if (handle < 0) {
+		CAM_ERR(CAM_IRQ_CTRL, "%s: failed to subscribe to test irq line",
+			controller->name);
+		rc = -EINVAL;
+		goto kfree_exit;
+	}
+
+	for (i = 0; i < controller->num_registers; i++) {
+		irq_reg = &controller->irq_register_arr[i];
+		if (irq_reg->test_set_val && irq_reg->set_reg_offset) {
+			cam_io_w_mb(irq_reg->test_set_val,
+				controller->mem_base + irq_reg->set_reg_offset);
+			CAM_DBG(CAM_IRQ_CTRL, "%s[%d] offset:0x%08x val:0x%08x", controller->name,
+				i, irq_reg->set_reg_offset, irq_reg->test_set_val);
+		}
+	}
+
+	cam_io_w_mb(controller->global_set_bitmask,
+		controller->mem_base + controller->global_irq_cmd_offset);
+	CAM_DBG(CAM_IRQ_CTRL, "%s[SET-CMD] addr:0x%08x value:0x%08x", controller->name,
+		controller->mem_base + controller->global_irq_cmd_offset,
+		controller->global_set_bitmask);
+
+	if (!cam_common_wait_for_completion_timeout(&test_priv->complete,
+		msecs_to_jiffies(CAM_IRQ_LINE_TEST_TIMEOUT_MS))) {
+		CAM_ERR(CAM_IRQ_CTRL, "%s: IRQ line verification timed out", controller->name);
+		rc = -ETIMEDOUT;
+		goto unsub_exit;
+	}
+
+	CAM_DBG(CAM_IRQ_CTRL, "%s: verified IRQ line successfully", controller->name);
+
+unsub_exit:
+	cam_irq_controller_unsubscribe_irq(controller, handle);
+kfree_exit:
+	kfree(mask);
+	kfree(test_priv);
+	return rc;
+}
+
+#endif

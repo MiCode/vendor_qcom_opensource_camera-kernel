@@ -61,6 +61,9 @@ static struct cam_irq_register_set vfe68x_top_irq_reg_set[3] = {
 		.mask_reg_offset   = 0x00001024,
 		.clear_reg_offset  = 0x0000102C,
 		.status_reg_offset = 0x0000101C,
+		.set_reg_offset    = 0x00001034,
+		.test_set_val      = BIT(0),
+		.test_sub_val      = BIT(0),
 	},
 	{
 		.mask_reg_offset   = 0x00001028,
@@ -72,9 +75,10 @@ static struct cam_irq_register_set vfe68x_top_irq_reg_set[3] = {
 static struct cam_irq_controller_reg_info vfe68x_top_irq_reg_info = {
 	.num_registers = 2,
 	.irq_reg_set = vfe68x_top_irq_reg_set,
-	.global_clear_offset  = 0x00001038,
-	.global_clear_bitmask = 0x00000001,
-	.clear_all_bitmask = 0xFFFFFFFF,
+	.global_irq_cmd_offset = 0x00001038,
+	.global_clear_bitmask  = 0x00000001,
+	.global_set_bitmask    = 0x00000010,
+	.clear_all_bitmask     = 0xFFFFFFFF,
 };
 
 static struct cam_vfe_top_ver4_reg_offset_common vfe68x_top_common_reg = {
@@ -273,7 +277,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe680x_bus_hw_info = {
 		.irq_reg_info = {
 			.num_registers            = 2,
 			.irq_reg_set              = vfe680x_bus_irq_reg,
-			.global_clear_offset      = 0x00001230,
+			.global_irq_cmd_offset    = 0x00001230,
 			.global_clear_bitmask     = 0x00000001,
 		},
 	},

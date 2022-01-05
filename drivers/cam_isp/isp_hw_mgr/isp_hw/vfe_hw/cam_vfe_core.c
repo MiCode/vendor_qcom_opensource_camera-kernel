@@ -577,6 +577,35 @@ irqreturn_t cam_vfe_irq(int irq_num, void *data)
 		core_info->vfe_irq_controller, CAM_IRQ_EVT_GROUP_0);
 }
 
+int cam_vfe_test_irq_line(void *hw_priv)
+{
+	struct cam_hw_info *vfe_hw = hw_priv;
+	void *vfe_irq_ctrl;
+	int rc;
+
+	if (!hw_priv) {
+		CAM_ERR(CAM_ISP, "invalid argument");
+		return -EINVAL;
+	}
+
+	vfe_irq_ctrl = ((struct cam_vfe_hw_core_info *)vfe_hw->core_info)->vfe_irq_controller;
+	rc = cam_vfe_init_hw(vfe_hw, NULL, 0);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "VFE:%d failed to init hw", vfe_hw->soc_info.index);
+		return rc;
+	}
+
+	rc = cam_irq_controller_test_irq_line(vfe_irq_ctrl, "VFE:%d", vfe_hw->soc_info.index);
+	if (rc)
+		CAM_ERR(CAM_ISP, "VFE:%d IRQ line test failed", vfe_hw->soc_info.index);
+
+	rc = cam_vfe_deinit_hw(vfe_hw, NULL, 0);
+	if (rc)
+		CAM_ERR(CAM_ISP, "VFE:%d failed to deinit hw", vfe_hw->soc_info.index);
+
+	return rc;
+}
+
 int cam_vfe_core_init(struct cam_vfe_hw_core_info  *core_info,
 	struct cam_hw_soc_info                     *soc_info,
 	struct cam_hw_intf                         *hw_intf,

@@ -13127,6 +13127,102 @@ DEFINE_DEBUGFS_ATTRIBUTE(cam_ife_csid_rx_capture_debug,
 	cam_ife_get_csid_rx_pkt_capture_debug,
 	cam_ife_set_csid_rx_pkt_capture_debug, "%16llu");
 
+#ifdef CONFIG_CAM_TEST_IRQ_LINE
+static int __cam_ife_mgr_test_irq_line(struct cam_hw_intf *hw_intf, int *n_intf, int *n_success,
+	const char *hw_name, int idx)
+{
+	int rc = -EINVAL;
+
+	if (!hw_intf) {
+		CAM_ERR(CAM_ISP, "%s:%d hw-intf is null", hw_name, idx);
+		return -EINVAL;
+	}
+
+	(*n_intf)++;
+
+	if (hw_intf->hw_ops.test_irq_line)
+		rc = hw_intf->hw_ops.test_irq_line(hw_intf->hw_priv);
+
+	if (!rc) {
+		(*n_success)++;
+		CAM_INFO(CAM_ISP, "%s:%u IRQ line verified successfully", hw_name, hw_intf->hw_idx);
+	} else {
+		CAM_ERR(CAM_ISP, "%s:%u failed to verify IRQ line", hw_name, hw_intf->hw_idx);
+	}
+
+	return rc;
+}
+
+static int cam_ife_mgr_test_irq_lines(struct cam_ife_hw_mgr *hw_mgr)
+{
+	int i, rc, n_intf = 0, n_success = 0;
+
+	for (i = 0; i < CAM_IFE_CSID_HW_NUM_MAX; i++) {
+		if (hw_mgr->csid_devices[i]) {
+			rc = __cam_ife_mgr_test_irq_line(hw_mgr->csid_devices[i], &n_intf,
+				&n_success, "CSID", i);
+		}
+	}
+
+	for (i = 0; i < CAM_IFE_HW_NUM_MAX; i++) {
+		if (hw_mgr->ife_devices[i] && hw_mgr->ife_devices[i]->hw_intf) {
+			rc = __cam_ife_mgr_test_irq_line(hw_mgr->ife_devices[i]->hw_intf, &n_intf,
+				&n_success, "IFE", i);
+		}
+	}
+
+	for (i = 0; i < CAM_SFE_HW_NUM_MAX; i++) {
+		if (hw_mgr->sfe_devices[i] && hw_mgr->sfe_devices[i]->hw_intf) {
+			rc = __cam_ife_mgr_test_irq_line(hw_mgr->sfe_devices[i]->hw_intf, &n_intf,
+				&n_success, "SFE", i);
+		}
+	}
+
+	if (n_intf) {
+		if (n_intf == n_success)
+			CAM_INFO(CAM_ISP, "verified IRQ lines for all %d hw-intf", n_intf);
+		else
+			CAM_ERR(CAM_ISP, "verified %d/%d IRQ lines", n_success, n_intf);
+	} else {
+		CAM_ERR(CAM_ISP, "no valid hw-intf to test IRQ lines");
+	}
+
+	return 0;
+}
+#else
+static int cam_ife_mgr_test_irq_lines(struct cam_ife_hw_mgr *hw_mgr)
+{
+	return 0;
+}
+#endif
+
+#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+static int cam_ife_mgr_test_irq_lines_at_probe(struct cam_ife_hw_mgr *hw_mgr)
+{
+	return cam_ife_mgr_test_irq_lines(hw_mgr);
+}
+#else
+static int cam_ife_mgr_test_irq_lines_at_probe(struct cam_ife_hw_mgr *hw_mgr)
+{
+	return 0;
+}
+#endif
+
+static int cam_isp_set_test_irq_line(void *data, u64 val)
+{
+	cam_ife_mgr_test_irq_lines(&g_ife_hw_mgr);
+	return 0;
+}
+
+static int cam_isp_get_test_irq_line(void *data, u64 *val)
+{
+	*val = 0;
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(cam_isp_test_irq_line, cam_isp_get_test_irq_line,
+	cam_isp_set_test_irq_line, "%16llu");
+
 static int cam_ife_hw_mgr_debug_register(void)
 {
 	int rc = 0;
@@ -13173,6 +13269,8 @@ static int cam_ife_hw_mgr_debug_register(void)
 		&g_ife_hw_mgr.debug_cfg.disable_ife_mmu_prefetch);
 	debugfs_create_file("sfe_cache_debug", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_sfe_cache_debug);
+	dbgfileptr = debugfs_create_file("test_irq_line", 0644,
+		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_isp_test_irq_line);
 end:
 	g_ife_hw_mgr.debug_cfg.enable_csid_recovery = 1;
 	return rc;
@@ -13564,6 +13662,7 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 	cam_ife_mgr_count_ife();
 	cam_common_register_mini_dump_cb(cam_ife_hw_mgr_mini_dump_cb,
 		"CAM_ISP");
+	cam_ife_mgr_test_irq_lines_at_probe(&g_ife_hw_mgr);
 
 	CAM_DBG(CAM_ISP, "Exit");
 

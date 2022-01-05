@@ -32,9 +32,9 @@ static struct cam_irq_register_set vfe48x_top_irq_reg_set[3] = {
 static struct cam_irq_controller_reg_info vfe48x_top_irq_reg_info = {
 	.num_registers = 3,
 	.irq_reg_set = vfe48x_top_irq_reg_set,
-	.global_clear_offset  = 0x00000024,
-	.global_clear_bitmask = 0x00000001,
-	.clear_all_bitmask = 0xFFFFFFFF,
+	.global_irq_cmd_offset = 0x00000024,
+	.global_clear_bitmask  = 0x00000001,
+	.clear_all_bitmask     = 0xFFFFFFFF,
 };
 
 static struct cam_vfe_top_ver3_reg_offset_common vfe48x_top_common_reg = {
@@ -244,7 +244,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe48x_bus_hw_info = {
 		.irq_reg_info = {
 			.num_registers            = 2,
 			.irq_reg_set              = vfe48x_bus_irq_reg,
-			.global_clear_offset      = 0x00001A30,
+			.global_irq_cmd_offset    = 0x00001A30,
 			.global_clear_bitmask     = 0x00000001,
 		},
 	},

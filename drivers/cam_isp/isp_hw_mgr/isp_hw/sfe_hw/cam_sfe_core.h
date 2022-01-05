@@ -76,6 +76,7 @@ int cam_sfe_stop(void *device_priv,
 	void *stop_args, uint32_t arg_size);
 int cam_sfe_process_cmd(void *device_priv, uint32_t cmd_type,
 	void *cmd_args, uint32_t arg_size);
+int cam_sfe_test_irq_line(void *hw_priv);
 
 irqreturn_t cam_sfe_irq(int irq_num, void *data);
 

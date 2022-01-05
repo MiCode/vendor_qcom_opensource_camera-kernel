@@ -38,6 +38,7 @@ enum cam_clk_bw_state {
  * @write:                 Function pointer for Write hardware registers
  * @process_cmd:           Function pointer for additional hardware controls
  * @flush_cmd:             Function pointer for flush requests
+ * @test_irq_line:         Function pointer for testing irq line
  *
  */
 struct cam_hw_ops {
@@ -65,6 +66,7 @@ struct cam_hw_ops {
 		uint32_t cmd_type, void *cmd_args, uint32_t arg_size);
 	int (*flush)(void *hw_priv,
 		void *flush_args, uint32_t arg_size);
+	int (*test_irq_line)(void *hw_priv);
 };
 
 /**

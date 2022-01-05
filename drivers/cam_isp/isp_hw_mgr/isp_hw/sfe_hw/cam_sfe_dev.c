@@ -61,6 +61,7 @@ static int cam_sfe_component_bind(struct device *dev,
 	sfe_hw_intf->hw_ops.read = cam_sfe_read;
 	sfe_hw_intf->hw_ops.write = cam_sfe_write;
 	sfe_hw_intf->hw_ops.process_cmd = cam_sfe_process_cmd;
+	sfe_hw_intf->hw_ops.test_irq_line = cam_sfe_test_irq_line;
 	sfe_hw_intf->hw_type = CAM_ISP_HW_TYPE_SFE;
 
 	CAM_DBG(CAM_SFE, "SFE component bind type %d index %d",
