@@ -6,17 +6,12 @@
 #ifndef _CPASTOP_V545_100_H_
 #define _CPASTOP_V545_100_H_
 
-#define TEST_IRQ_ENABLE 0
-
 static struct cam_camnoc_irq_sbm cam_cpas_v545_100_irq_sbm = {
 	.sbm_enable = {
 		.access_type = CAM_REG_TYPE_READ_WRITE,
 		.enable = true,
 		.offset = 0xA40, /* SBM_FAULTINEN0_LOW */
-		.value = 0x1 | /* SBM_FAULTINEN0_LOW_PORT0_MASK*/
-			(TEST_IRQ_ENABLE ?
-			0x2 : /* SBM_FAULTINEN0_LOW_PORT6_MASK */
-			0x0) /* SBM_FAULTINEN0_LOW_PORT1_MASK */,
+		.value = 0x1,    /* SBM_FAULTINEN0_LOW_PORT0_MASK*/
 	},
 	.sbm_status = {
 		.access_type = CAM_REG_TYPE_READ,
@@ -27,7 +22,7 @@ static struct cam_camnoc_irq_sbm cam_cpas_v545_100_irq_sbm = {
 		.access_type = CAM_REG_TYPE_WRITE,
 		.enable = true,
 		.offset = 0xA80, /* SBM_FLAGOUTCLR0_LOW */
-		.value = TEST_IRQ_ENABLE ? 0x3 : 0x1,
+		.value = 0x1,
 	}
 };
 
@@ -57,7 +52,7 @@ static struct cam_camnoc_irq_err
 	},
 	{
 		.irq_type = CAM_CAMNOC_HW_IRQ_CAMNOC_TEST,
-		.enable = TEST_IRQ_ENABLE ? true : false,
+		.enable = false,
 		.sbm_port = 0x2, /* SBM_FAULTINSTATUS0_LOW_PORT6_MASK */
 		.err_enable = {
 			.access_type = CAM_REG_TYPE_READ_WRITE,
@@ -346,6 +341,10 @@ static struct cam_camnoc_info cam545_cpas100_camnoc_info = {
 	.irq_err_size = ARRAY_SIZE(cam_cpas_v545_100_irq_err),
 	.err_logger = &cam545_cpas100_err_logger_offsets,
 	.errata_wa_list = NULL,
+	.test_irq_info = {
+		.sbm_enable_mask = 0x2,
+		.sbm_clear_mask = 0x2,
+	}
 };
 
 static struct cam_cpas_camnoc_qchannel cam545_cpas100_qchannel_info = {

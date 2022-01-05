@@ -333,6 +333,18 @@ struct cam_camnoc_err_logger_info {
 };
 
 /**
+ * struct cam_cpas_test_irq_info : CAMNOC Test IRQ mask information
+ *
+ * @sbm_enable_mask: sbm mask to enable camnoc test irq
+ * @sbm_clear_mask: sbm mask to clear camnoc test irq
+ *
+ */
+struct cam_cpas_test_irq_info {
+	uint32_t sbm_enable_mask;
+	uint32_t sbm_clear_mask;
+};
+
+/**
  * struct cam_camnoc_info : Overall CAMNOC settings info
  *
  * @specific: Pointer to CAMNOC SPECIFICTONTTPTR settings
@@ -342,6 +354,7 @@ struct cam_camnoc_err_logger_info {
  * @irq_err_size: Array size of IRQ Error settings
  * @err_logger: Pointer to CAMNOC IRQ Error logger read registers
  * @errata_wa_list: HW Errata workaround info
+ * @test_irq_info: CAMNOC Test IRQ info
  *
  */
 struct cam_camnoc_info {
@@ -352,6 +365,7 @@ struct cam_camnoc_info {
 	int irq_err_size;
 	struct cam_camnoc_err_logger_info *err_logger;
 	struct cam_cpas_hw_errata_wa_list *errata_wa_list;
+	struct cam_cpas_test_irq_info test_irq_info;
 };
 
 /**
