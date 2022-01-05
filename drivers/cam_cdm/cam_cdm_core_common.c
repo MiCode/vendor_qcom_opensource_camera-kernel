@@ -18,6 +18,38 @@
 #include "cam_cdm_soc.h"
 #include "cam_cdm_core_common.h"
 
+int cam_cdm_util_cpas_start(struct cam_hw_info *cdm_hw)
+{
+	struct cam_cdm *core = NULL;
+	struct cam_ahb_vote ahb_vote;
+	struct cam_axi_vote axi_vote = {0};
+	int rc = 0;
+
+	if (!cdm_hw) {
+		CAM_ERR(CAM_CDM, "Invalid cdm hw");
+		return -EINVAL;
+	}
+
+	core = (struct cam_cdm *)cdm_hw->core_info;
+
+	ahb_vote.type = CAM_VOTE_ABSOLUTE;
+	ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+	axi_vote.num_paths = 1;
+	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_ALL;
+	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_READ;
+	axi_vote.axi_path[0].camnoc_bw = CAM_CPAS_DEFAULT_AXI_BW;
+	axi_vote.axi_path[0].mnoc_ab_bw = CAM_CPAS_DEFAULT_AXI_BW;
+	axi_vote.axi_path[0].mnoc_ib_bw = CAM_CPAS_DEFAULT_AXI_BW;
+
+	rc = cam_cpas_start(core->cpas_handle, &ahb_vote, &axi_vote);
+	if (rc) {
+		CAM_ERR(CAM_CDM, "CDM[%d] CPAS start failed rc=%d", core->index, rc);
+		return rc;
+	}
+
+	return rc;
+}
+
 static void cam_cdm_get_client_refcount(struct cam_cdm_client *client)
 {
 	mutex_lock(&client->lock);
@@ -341,25 +373,7 @@ int cam_cdm_stream_ops_internal(void *hw_priv,
 
 	if (operation == true) {
 		if (!cdm_hw->open_count) {
-			struct cam_ahb_vote ahb_vote;
-			struct cam_axi_vote axi_vote = {0};
-
-			ahb_vote.type = CAM_VOTE_ABSOLUTE;
-			ahb_vote.vote.level = CAM_LOWSVS_VOTE;
-			axi_vote.num_paths = 1;
-			axi_vote.axi_path[0].path_data_type =
-				CAM_AXI_PATH_DATA_ALL;
-			axi_vote.axi_path[0].transac_type =
-				CAM_AXI_TRANSACTION_READ;
-			axi_vote.axi_path[0].camnoc_bw =
-				CAM_CPAS_DEFAULT_AXI_BW;
-			axi_vote.axi_path[0].mnoc_ab_bw =
-				CAM_CPAS_DEFAULT_AXI_BW;
-			axi_vote.axi_path[0].mnoc_ib_bw =
-				CAM_CPAS_DEFAULT_AXI_BW;
-
-			rc = cam_cpas_start(core->cpas_handle,
-				&ahb_vote, &axi_vote);
+			rc = cam_cdm_util_cpas_start(cdm_hw);
 			if (rc != 0) {
 				CAM_ERR(CAM_CDM, "CPAS start failed");
 				goto end;

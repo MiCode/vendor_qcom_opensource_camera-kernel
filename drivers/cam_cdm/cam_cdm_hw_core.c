@@ -2135,6 +2135,65 @@ int cam_hw_cdm_deinit(void *hw_priv,
 	return rc;
 }
 
+#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+static int cam_cdm_test_irq_line(void *hw_priv)
+{
+	struct cam_hw_info *cdm_hw = hw_priv;
+	struct cam_cdm *core = NULL;
+	int rc = 0;
+
+	if (!cdm_hw) {
+		CAM_ERR(CAM_CDM, "Invalid cdm hw");
+		return -EINVAL;
+	}
+
+	core = (struct cam_cdm *)cdm_hw->core_info;
+
+	rc = cam_cdm_util_cpas_start(cdm_hw);
+	if (rc) {
+		CAM_ERR(CAM_CDM, "CDM[%d] Failed in cpas start rc", core->index, rc);
+		goto done;
+	}
+
+	rc = cam_hw_cdm_init(cdm_hw, NULL, 0);
+	if (rc) {
+		CAM_ERR(CAM_CDM, "CDM[%d] Failed in cdm init rc", core->index, rc);
+		goto cpas_stop;
+	}
+
+	rc = cam_hw_cdm_deinit(cdm_hw, NULL, 0);
+	if (rc) {
+		CAM_ERR(CAM_CDM, "CDM[%d] Failed in cdm deinit rc", core->index, rc);
+		goto cpas_stop;
+	}
+
+cpas_stop:
+	rc = cam_cpas_stop(core->cpas_handle);
+	if (rc)
+		CAM_ERR(CAM_CDM, "CDM[%d] Failed in cpas stop rc", core->index, rc);
+done:
+	return rc;
+}
+#else
+static int cam_cdm_test_irq_line(void *hw_priv)
+{
+	return -EPERM;
+}
+#endif
+
+
+#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+static int cam_cdm_test_irq_line_at_probe(struct cam_hw_info *cdm_hw)
+{
+	return cam_cdm_test_irq_line(cdm_hw);
+}
+#else
+static int cam_cdm_test_irq_line_at_probe(struct cam_hw_info *cdm_hw)
+{
+	return -EPERM;
+}
+#endif
+
 static int cam_hw_cdm_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
 {
@@ -2144,8 +2203,6 @@ static int cam_hw_cdm_component_bind(struct device *dev,
 	struct cam_cdm *cdm_core = NULL;
 	struct cam_cdm_private_dt_data *soc_private = NULL;
 	struct cam_cpas_register_params cpas_parms;
-	struct cam_ahb_vote ahb_vote;
-	struct cam_axi_vote axi_vote = {0};
 	char cdm_name[128], work_q_name[128];
 	struct platform_device *pdev = to_platform_device(dev);
 
@@ -2213,6 +2270,7 @@ static int cam_hw_cdm_component_bind(struct device *dev,
 	cdm_hw_intf->hw_ops.read = NULL;
 	cdm_hw_intf->hw_ops.write = NULL;
 	cdm_hw_intf->hw_ops.process_cmd = cam_cdm_process_cmd;
+	cdm_hw_intf->hw_ops.test_irq_line = cam_cdm_test_irq_line;
 	mutex_lock(&cdm_hw->hw_mutex);
 
 	CAM_DBG(CAM_CDM, "type %d index %d", cdm_hw_intf->hw_type,
@@ -2285,16 +2343,7 @@ static int cam_hw_cdm_component_bind(struct device *dev,
 		cpas_parms.client_handle);
 	cdm_core->cpas_handle = cpas_parms.client_handle;
 
-	ahb_vote.type = CAM_VOTE_ABSOLUTE;
-	ahb_vote.vote.level = CAM_LOWSVS_VOTE;
-	axi_vote.num_paths = 1;
-	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_ALL;
-	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_READ;
-	axi_vote.axi_path[0].camnoc_bw = CAM_CPAS_DEFAULT_AXI_BW;
-	axi_vote.axi_path[0].mnoc_ab_bw = CAM_CPAS_DEFAULT_AXI_BW;
-	axi_vote.axi_path[0].mnoc_ib_bw = CAM_CPAS_DEFAULT_AXI_BW;
-
-	rc = cam_cpas_start(cdm_core->cpas_handle, &ahb_vote, &axi_vote);
+	rc = cam_cdm_util_cpas_start(cdm_hw);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "CPAS start failed");
 		goto cpas_unregister;
@@ -2357,6 +2406,8 @@ static int cam_hw_cdm_component_bind(struct device *dev,
 		CAM_ERR(CAM_CDM, "HW CDM Interface registration failed");
 		goto cpas_unregister;
 	}
+
+	cam_cdm_test_irq_line_at_probe(cdm_hw);
 	mutex_unlock(&cdm_hw->hw_mutex);
 
 	CAM_DBG(CAM_CDM, "%s component bound successfully", cdm_core->name);
