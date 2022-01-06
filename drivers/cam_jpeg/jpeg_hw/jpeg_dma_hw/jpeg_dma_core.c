@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -200,6 +200,8 @@ irqreturn_t cam_jpeg_dma_irq(int irq_num, void *data)
 		if (core_info->core_state == CAM_JPEG_DMA_CORE_RESETTING) {
 			core_info->core_state = CAM_JPEG_DMA_CORE_READY;
 			complete(&jpeg_dma_dev->hw_complete);
+			CAM_DBG(CAM_JPEG, "JPEG DMA %s reset done",
+				jpeg_dma_dev->soc_info.dev_name);
 		} else if (core_info->core_state == CAM_JPEG_DMA_CORE_RESETTING_ON_DONE) {
 			if (core_info->irq_cb.jpeg_hw_mgr_cb) {
 				core_info->irq_cb.jpeg_hw_mgr_cb(irq_status, 1,
@@ -241,6 +243,7 @@ int cam_jpeg_dma_reset_hw(void *data,
 	struct cam_jpeg_dma_device_hw_info *hw_info = NULL;
 	void __iomem *mem_base;
 	unsigned long rem_jiffies;
+	int rc = 0;
 
 	if (!jpeg_dma_dev) {
 		CAM_ERR(CAM_JPEG, "Invalid args");
@@ -282,9 +285,43 @@ int cam_jpeg_dma_reset_hw(void *data,
 	if (!rem_jiffies) {
 		CAM_ERR(CAM_JPEG, "dma error Reset Timeout");
 		core_info->core_state = CAM_JPEG_DMA_CORE_NOT_READY;
+		rc = -ETIMEDOUT;
 	}
 
 	mutex_unlock(&core_info->core_mutex);
+	return rc;
+}
+
+int cam_jpeg_dma_test_irq_line(void *data)
+{
+	struct cam_hw_info *jpeg_dma_dev = data;
+	struct cam_jpeg_dma_device_core_info *core_info = NULL;
+	int rc;
+
+	if (!data) {
+		CAM_ERR(CAM_JPEG, "invalid args");
+		return -EINVAL;
+	}
+
+	core_info = jpeg_dma_dev->core_info;
+
+	rc = cam_jpeg_dma_init_hw(data, NULL, 0);
+	if (rc) {
+		CAM_ERR(CAM_JPEG, "failed to init hw (rc=%d)", rc);
+		return rc;
+	}
+
+	rc = cam_jpeg_dma_reset_hw(data, NULL, 0);
+	if (rc)
+		CAM_ERR(CAM_JPEG, "failed to trigger reset irq (rc=%d)", rc);
+	else
+		CAM_INFO(CAM_JPEG, "verified JPEG DMA (%s) IRQ line",
+			jpeg_dma_dev->soc_info.dev_name);
+
+	rc = cam_jpeg_dma_deinit_hw(data, NULL, 0);
+	if (rc)
+		CAM_ERR(CAM_JPEG, "failed to de-init hw (rc=%d)", rc);
+
 	return 0;
 }
 
