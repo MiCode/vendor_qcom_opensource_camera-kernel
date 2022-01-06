@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_LX7_CORE_H_
@@ -25,6 +26,7 @@ struct cam_lx7_core_info {
 	uint32_t cpas_handle;
 	bool cpas_start;
 	bool use_sec_pil;
+	bool is_irq_test;
 	struct {
 		const struct firmware *fw_elf;
 		void *fw;
@@ -38,6 +40,7 @@ int cam_lx7_hw_init(void *priv, void *args, uint32_t arg_size);
 int cam_lx7_hw_deinit(void *priv, void *args, uint32_t arg_size);
 int cam_lx7_process_cmd(void *priv, uint32_t cmd_type,
 			void *args, uint32_t arg_size);
+int cam_lx7_test_irq_line(void *priv);
 
 int cam_lx7_cpas_register(struct cam_hw_intf *lx7_intf);
 int cam_lx7_cpas_unregister(struct cam_hw_intf *lx7_intf);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_address.h>
@@ -32,6 +33,8 @@
 
 #define PC_POLL_DELAY_US 100
 #define PC_POLL_TIMEOUT_US 10000
+
+#define LX7_IRQ_TEST_TIMEOUT 1000
 
 static int cam_lx7_ubwc_configure(struct cam_hw_soc_info *soc_info)
 {
@@ -904,12 +907,20 @@ irqreturn_t cam_lx7_handle_irq(int irq_num, void *data)
 		return IRQ_NONE;
 	}
 
+	core_info = lx7_info->core_info;
 	cirq_base = lx7_info->soc_info.reg_map[LX7_CIRQ_BASE].mem_base;
 
 	status = cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_OB_STATUS);
 
 	cam_io_w_mb(status, cirq_base + ICP_LX7_CIRQ_OB_CLEAR);
 	cam_io_w_mb(LX7_IRQ_CLEAR_CMD, cirq_base + ICP_LX7_CIRQ_OB_IRQ_CMD);
+
+	if (core_info->is_irq_test) {
+		CAM_INFO(CAM_ICP, "LX7 IRQ verified (status=0x%x)", status);
+		core_info->is_irq_test = false;
+		complete(&lx7_info->hw_complete);
+		return IRQ_HANDLED;
+	}
 
 	if (status & LX7_WDT_BITE_WS0) {
 		/* WD clear sequence - SW listens only to WD0 */
@@ -922,8 +933,6 @@ irqreturn_t cam_lx7_handle_irq(int irq_num, void *data)
 		CAM_ERR_RATE_LIMIT(CAM_ICP, "Fatal: Watchdog Bite from LX7");
 		recover = true;
 	}
-
-	core_info = lx7_info->core_info;
 
 	spin_lock(&lx7_info->hw_lock);
 	if (core_info->irq_cb.cb)
@@ -960,6 +969,43 @@ void cam_lx7_irq_enable(void *priv)
 	cam_io_w_mb(LX7_WDT_BITE_WS0 | LX7_ICP2HOSTINT,
 		lx7_info->soc_info.reg_map[LX7_CIRQ_BASE].mem_base +
 		ICP_LX7_CIRQ_OB_MASK);
+}
+
+int cam_lx7_test_irq_line(void *priv)
+{
+	struct cam_hw_info *lx7_info = priv;
+	struct cam_lx7_core_info *core_info = NULL;
+	void __iomem *cirq_membase;
+	unsigned long rem_jiffies;
+
+	if (!lx7_info) {
+		CAM_ERR(CAM_ICP, "invalid LX7 device info");
+		return -EINVAL;
+	}
+
+	core_info = lx7_info->core_info;
+	cirq_membase = lx7_info->soc_info.reg_map[LX7_CIRQ_BASE].mem_base;
+
+	reinit_completion(&lx7_info->hw_complete);
+	core_info->is_irq_test = true;
+
+	cam_lx7_hw_init(priv, NULL, 0);
+
+	cam_io_w_mb(LX7_WDT_BARK_WS0, cirq_membase + ICP_LX7_CIRQ_OB_MASK);
+	cam_io_w_mb(LX7_WDT_BARK_WS0, cirq_membase + ICP_LX7_CIRQ_OB_SET);
+	cam_io_w_mb(LX7_IRQ_SET_CMD, cirq_membase + ICP_LX7_CIRQ_OB_IRQ_CMD);
+
+	rem_jiffies = cam_common_wait_for_completion_timeout(&lx7_info->hw_complete,
+		msecs_to_jiffies(LX7_IRQ_TEST_TIMEOUT));
+	if (!rem_jiffies)
+		CAM_ERR(CAM_ICP, "LX7 IRQ verification timed out");
+
+	cam_io_w_mb(0, cirq_membase + ICP_LX7_CIRQ_OB_MASK);
+	cam_lx7_hw_deinit(priv, NULL, 0);
+
+	core_info->is_irq_test = false;
+
+	return 0;
 }
 
 void __iomem *cam_lx7_iface_addr(void *priv)
