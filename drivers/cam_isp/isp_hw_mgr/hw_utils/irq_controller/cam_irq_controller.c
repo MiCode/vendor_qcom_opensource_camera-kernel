@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -14,6 +15,8 @@
 #include "cam_common_util.h"
 
 #define CAM_IRQ_LINE_TEST_TIMEOUT_MS 1000
+#define CAM_IRQ_MAX_DEPENDENTS 9
+#define CAM_IRQ_CTRL_NAME_LEN 16
 
 /**
  * struct cam_irq_evt_handler:
@@ -114,7 +117,7 @@ struct cam_irq_register_obj {
  *                          and spinlock in regular case
  */
 struct cam_irq_controller {
-	const char                     *name;
+	char                            name[CAM_IRQ_CTRL_NAME_LEN];
 	void __iomem                   *mem_base;
 	uint32_t                        num_registers;
 	struct cam_irq_register_obj    *irq_register_arr;
@@ -386,7 +389,7 @@ int cam_irq_controller_init(const char       *name,
 		goto evt_mask_alloc_error;
 	}
 
-	controller->name = name;
+	strscpy(controller->name, name, CAM_IRQ_CTRL_NAME_LEN);
 
 	CAM_DBG(CAM_IRQ_CTRL, "num_registers: %d",
 		register_info->num_registers);

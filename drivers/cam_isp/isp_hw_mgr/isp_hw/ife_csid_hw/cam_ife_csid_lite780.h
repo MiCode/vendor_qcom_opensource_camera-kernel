@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_LITE_780_H_
@@ -322,14 +323,50 @@ static struct cam_irq_register_set cam_ife_csid_lite_780_irq_reg_set[7] = {
 	},
 };
 
-static struct cam_irq_controller_reg_info cam_ife_csid_lite_780_irq_reg_info = {
-	.num_registers = 7,
-	.irq_reg_set = cam_ife_csid_lite_780_irq_reg_set,
+static struct cam_irq_controller_reg_info cam_ife_csid_lite_780_top_irq_reg_info = {
+	.num_registers = 1,
+	.irq_reg_set = &cam_ife_csid_lite_780_irq_reg_set[CAM_IFE_CSID_IRQ_REG_TOP],
 	.global_irq_cmd_offset = 0x00000014,
-	.global_clear_bitmask  = 0x00000001,
 	.global_set_bitmask    = 0x00000010,
+	.global_clear_bitmask  = 0x00000001,
 	.clear_all_bitmask     = 0xFFFFFFFF,
 };
+
+static struct cam_irq_controller_reg_info cam_ife_csid_lite_780_rx_irq_reg_info = {
+	.num_registers = 1,
+	.irq_reg_set = &cam_ife_csid_lite_780_irq_reg_set[CAM_IFE_CSID_IRQ_REG_RX], /* RX */
+	.global_irq_cmd_offset = 0,
+};
+
+static struct cam_irq_controller_reg_info cam_ife_csid_lite_780_path_irq_reg_info[6] = {
+	{
+		.num_registers = 1,
+		.irq_reg_set = &cam_ife_csid_lite_780_irq_reg_set[CAM_IFE_CSID_IRQ_REG_RDI_0],
+		.global_irq_cmd_offset = 0,
+	},
+	{
+		.num_registers = 1,
+		.irq_reg_set = &cam_ife_csid_lite_780_irq_reg_set[CAM_IFE_CSID_IRQ_REG_RDI_1],
+		.global_irq_cmd_offset = 0,
+	},
+	{
+		.num_registers = 1,
+		.irq_reg_set = &cam_ife_csid_lite_780_irq_reg_set[CAM_IFE_CSID_IRQ_REG_RDI_2],
+		.global_irq_cmd_offset = 0,
+	},
+	{
+		.num_registers = 1,
+		.irq_reg_set = &cam_ife_csid_lite_780_irq_reg_set[CAM_IFE_CSID_IRQ_REG_RDI_3],
+		.global_irq_cmd_offset = 0,
+	},
+	{}, /* no RDI4 */
+	{
+		.num_registers = 1,
+		.irq_reg_set = &cam_ife_csid_lite_780_irq_reg_set[CAM_IFE_CSID_IRQ_REG_IPP],
+		.global_irq_cmd_offset = 0,
+	},
+};
+
 
 static struct cam_irq_register_set cam_ife_csid_lite_780_buf_done_irq_reg_set[1] = {
 	{
@@ -943,7 +980,17 @@ static struct cam_ife_csid_ver2_path_reg_info
 };
 
 static struct cam_ife_csid_ver2_reg_info cam_ife_csid_lite_780_reg_info = {
-	.irq_reg_info          = &cam_ife_csid_lite_780_irq_reg_info,
+	.top_irq_reg_info      = &cam_ife_csid_lite_780_top_irq_reg_info,
+	.rx_irq_reg_info       = &cam_ife_csid_lite_780_rx_irq_reg_info,
+	.path_irq_reg_info     = {
+		&cam_ife_csid_lite_780_path_irq_reg_info[CAM_IFE_PIX_PATH_RES_RDI_0],
+		&cam_ife_csid_lite_780_path_irq_reg_info[CAM_IFE_PIX_PATH_RES_RDI_1],
+		&cam_ife_csid_lite_780_path_irq_reg_info[CAM_IFE_PIX_PATH_RES_RDI_2],
+		&cam_ife_csid_lite_780_path_irq_reg_info[CAM_IFE_PIX_PATH_RES_RDI_3],
+		NULL,
+		&cam_ife_csid_lite_780_path_irq_reg_info[CAM_IFE_PIX_PATH_RES_IPP],
+		},
+	.buf_done_irq_reg_info = &cam_ife_csid_lite_780_buf_done_irq_reg_info,
 	.cmn_reg               = &cam_ife_csid_lite_780_cmn_reg_info,
 	.csi2_reg              = &cam_ife_csid_lite_780_csi2_reg_info,
 	.buf_done_irq_reg_info = &cam_ife_csid_lite_780_buf_done_irq_reg_info,
