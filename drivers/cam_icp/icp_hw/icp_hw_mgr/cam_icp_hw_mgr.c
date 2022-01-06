@@ -5763,17 +5763,19 @@ static int cam_icp_mgr_enqueue_abort(
 static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 {
 	int                              rc;
-	int                              i;
+	int                              i, j;
 	size_t                           remain_len;
 	uint8_t                         *dst;
 	uint32_t                         min_len;
 	uint64_t                         diff;
 	uint64_t                        *addr, *start;
+	uint64_t                        *clk_addr, *clk_start;
+	uint32_t                        *mgr_addr, *mgr_start;
 	struct timespec64                cur_ts;
 	struct timespec64                req_ts;
 	ktime_t                          cur_time;
 	struct cam_hw_intf              *icp_dev_intf;
-	struct cam_icp_hw_mgr           *hw_mgr;
+	struct cam_icp_hw_mgr           *hw_mgr, *icp_mgr;
 	struct cam_hw_dump_args         *dump_args;
 	struct cam_icp_hw_ctx_data      *ctx_data;
 	struct cam_icp_dump_header      *hdr;
@@ -5843,6 +5845,52 @@ hw_dump:
 		return -ENOSPC;
 	}
 
+	/* Dumping clock and bandwidth info */
+	dst = (uint8_t *)icp_dump_args.cpu_addr + dump_args->offset;
+	hdr = (struct cam_icp_dump_header *)dst;
+	scnprintf(hdr->tag, CAM_ICP_DUMP_TAG_MAX_LEN, "ICP_HW_CLK:");
+	hdr->word_size = sizeof(uint64_t);
+	clk_addr = (uint64_t *)(dst + sizeof(struct cam_icp_dump_header));
+	clk_start = clk_addr;
+	*clk_addr++ = hw_mgr->clk_info[ICP_CLK_HW_BPS].prev_clk;
+	*clk_addr++ = hw_mgr->clk_info[ICP_CLK_HW_BPS].curr_clk;
+	*clk_addr++ = hw_mgr->clk_info[ICP_CLK_HW_IPE].prev_clk;
+	*clk_addr++ = hw_mgr->clk_info[ICP_CLK_HW_IPE].curr_clk;
+	for (j = 0; j < ctx_data->clk_info.num_paths; j++) {
+		*clk_addr++ = ctx_data->clk_info.axi_path[j].camnoc_bw;
+		*clk_addr++ = ctx_data->clk_info.axi_path[j].mnoc_ab_bw;
+		*clk_addr++ = ctx_data->clk_info.axi_path[j].mnoc_ib_bw;
+		*clk_addr++ = ctx_data->clk_info.axi_path[j].ddr_ab_bw;
+		*clk_addr++ = ctx_data->clk_info.axi_path[j].ddr_ib_bw;
+	}
+	hdr->size = hdr->word_size * (clk_addr - clk_start);
+	dump_args->offset += (hdr->size + sizeof(struct cam_icp_dump_header));
+
+	/* Dumping hw mgr info */
+	icp_mgr = &icp_hw_mgr;
+	dst = (uint8_t *)icp_dump_args.cpu_addr + dump_args->offset;
+	hdr = (struct cam_icp_dump_header *)dst;
+	scnprintf(hdr->tag, CAM_ICP_DUMP_TAG_MAX_LEN, "ICP_HW_MGR.%s:",
+		cam_icp_dev_type_to_name(ctx_data->icp_dev_acquire_info->dev_type));
+	hdr->word_size = sizeof(uint32_t);
+	mgr_addr = (uint32_t *)(dst + sizeof(struct cam_icp_dump_header));
+	mgr_start = mgr_addr;
+	*mgr_addr++ = atomic_read(&hw_mgr->recovery);
+	*mgr_addr++ = icp_mgr->icp_booted;
+	*mgr_addr++ = icp_mgr->icp_resumed;
+	*mgr_addr++ = icp_mgr->ipe_clk_state;
+	*mgr_addr++ = icp_mgr->bps_clk_state;
+	*mgr_addr++ = icp_mgr->disable_ubwc_comp;
+	*mgr_addr++ = icp_mgr->ipe0_enable;
+	*mgr_addr++ = icp_mgr->ipe1_enable;
+	*mgr_addr++ = icp_mgr->bps_enable;
+	*mgr_addr++ = icp_mgr->icp_pc_flag;
+	*mgr_addr++ = icp_mgr->ipe_bps_pc_flag;
+	*mgr_addr++ = icp_mgr->icp_use_pil;
+	hdr->size = hdr->word_size * (mgr_addr - mgr_start);
+	dump_args->offset += (hdr->size + sizeof(struct cam_icp_dump_header));
+
+	/* Dumping time info */
 	dst = (uint8_t *)icp_dump_args.cpu_addr + dump_args->offset;
 	hdr = (struct cam_icp_dump_header *)dst;
 	scnprintf(hdr->tag, CAM_ICP_DUMP_TAG_MAX_LEN, "ICP_REQ:");
@@ -5851,11 +5899,12 @@ hw_dump:
 	start = addr;
 	*addr++ = frm_process->request_id[i];
 	*addr++ = req_ts.tv_sec;
-	*addr++ = req_ts.tv_nsec/NSEC_PER_USEC;
+	*addr++ = req_ts.tv_nsec / NSEC_PER_USEC;
 	*addr++ = cur_ts.tv_sec;
-	*addr++ = cur_ts.tv_nsec/NSEC_PER_USEC;
+	*addr++ = cur_ts.tv_nsec / NSEC_PER_USEC;
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset += (hdr->size + sizeof(struct cam_icp_dump_header));
+
 	/* Dumping the fw image*/
 	icp_dump_args.offset = dump_args->offset;
 	icp_dev_intf = hw_mgr->icp_dev_intf;

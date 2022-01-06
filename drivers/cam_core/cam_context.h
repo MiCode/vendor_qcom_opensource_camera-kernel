@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CONTEXT_H_
@@ -27,7 +28,7 @@ struct cam_context;
 #define CAM_CTX_RES_MAX              20
 
 /* max tag  dump header string length*/
-#define CAM_CTXT_DUMP_TAG_MAX_LEN 32
+#define CAM_CTXT_DUMP_TAG_MAX_LEN 64
 
 /* Number of words to be dumped for context*/
 #define CAM_CTXT_DUMP_NUM_WORDS 10
