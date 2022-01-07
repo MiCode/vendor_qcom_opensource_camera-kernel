@@ -907,6 +907,26 @@ static void __cam_irq_controller_read_registers(struct cam_irq_controller *contr
 	}
 }
 
+static void __cam_irq_controller_sanitize_clear_registers(struct cam_irq_controller *controller)
+{
+	struct cam_irq_register_obj *irq_register;
+	int i;
+
+	for (i = 0; i < controller->num_registers; i++) {
+		irq_register = &controller->irq_register_arr[i];
+		if (!irq_register->dirty_clear)
+			continue;
+
+		irq_register->dirty_clear = false;
+
+		CAM_DBG(CAM_IRQ_CTRL, "(%s) Write irq clear%d (0x%x) = 0x%x (dirty=%s)",
+			controller->name, i, controller->irq_register_arr[i].clear_reg_offset,
+			0x0, CAM_BOOL_TO_YESNO(irq_register->dirty_clear));
+
+		cam_io_w(0x0, controller->mem_base + irq_register->clear_reg_offset);
+	}
+}
+
 static void cam_irq_controller_read_registers(struct cam_irq_controller *controller)
 {
 	struct cam_irq_register_obj *irq_register;
@@ -927,14 +947,21 @@ static void cam_irq_controller_read_registers(struct cam_irq_controller *control
 	}
 
 	for (j = 0; j < CAM_IRQ_MAX_DEPENDENTS; j++) {
+		dep_controller = controller->dependent_controller[j];
+		if (!dep_controller)
+			continue;
+
+		cam_irq_controller_lock(dep_controller);
 		if (need_reg_read[j]) {
-			dep_controller = controller->dependent_controller[j];
 			CAM_DBG(CAM_IRQ_CTRL, "Reading dependent registers for %s",
 				dep_controller->name);
-			cam_irq_controller_lock(dep_controller);
 			__cam_irq_controller_read_registers(dep_controller);
-			cam_irq_controller_unlock(dep_controller);
+		} else {
+			CAM_DBG(CAM_IRQ_CTRL, "Sanitize registers for %s",
+				dep_controller->name);
+			__cam_irq_controller_sanitize_clear_registers(dep_controller);
 		}
+		cam_irq_controller_unlock(dep_controller);
 	}
 
 	if (controller->global_irq_cmd_offset && controller->delayed_global_clear) {
