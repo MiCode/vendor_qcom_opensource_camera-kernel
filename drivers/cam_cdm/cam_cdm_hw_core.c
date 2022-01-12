@@ -801,34 +801,41 @@ bool cam_hw_cdm_commit_bl_write(struct cam_hw_info *cdm_hw, uint32_t fifo_idx)
 int cam_hw_cdm_submit_gen_irq(
 	struct cam_hw_info *cdm_hw,
 	struct cam_cdm_hw_intf_cmd_submit_bl *req,
-	uint32_t fifo_idx, bool set_arb)
+	uint32_t fifo_idx)
 {
 	struct cam_cdm_bl_cb_request_entry *node;
 	struct cam_cdm *core = (struct cam_cdm *)cdm_hw->core_info;
-	uint32_t len;
+	struct cam_cdm_bl_request *cdm_cmd = req->data;
+	dma_addr_t hw_vaddr_ptr = 0;
 	int rc;
 	bool bit_wr_enable = false;
+	size_t len, genirq_cmd_size;
 
-	if (core->bl_fifo[fifo_idx].bl_tag >
-		(core->bl_fifo[fifo_idx].bl_depth - 1)) {
-		CAM_ERR(CAM_CDM,
-			"Invalid bl_tag=%d bl_depth=%d fifo_idx=%d",
+	if (core->bl_fifo[fifo_idx].bl_tag > (core->bl_fifo[fifo_idx].bl_depth - 1)) {
+		CAM_ERR(CAM_CDM, "Invalid BL Tag: %d, BL Depth: %d Fifo_idx: %d",
 			core->bl_fifo[fifo_idx].bl_tag,
 			core->bl_fifo[fifo_idx].bl_depth,
 			fifo_idx);
-		rc = -EINVAL;
-		goto end;
+		return -EINVAL;
 	}
-	CAM_DBG(CAM_CDM, "CDM write BL last cmd tag=%x total=%d cookie=%d",
-		core->bl_fifo[fifo_idx].bl_tag,
-		req->data->cmd_arrary_count,
-		req->data->cookie);
+
+	genirq_cmd_size = 4 * core->ops->cdm_required_size_genirq();
+
+	CAM_DBG(CAM_CDM, "Last Tag: 0x%x Total BLs: %d, Cookie: %d",
+		core->bl_fifo[fifo_idx].bl_tag, cdm_cmd->cmd_arrary_count, cdm_cmd->cookie);
+
+	rc = cam_mem_get_io_buf(cdm_cmd->genirq_buff->handle, core->iommu_hdl.non_secure,
+		&hw_vaddr_ptr, &len, NULL);
+	if (rc) {
+		CAM_ERR(CAM_CDM, "Getting a hwva from mem_hdl failed. rc: %d", rc);
+		return -EINVAL;
+	}
 
 	node = kzalloc(sizeof(struct cam_cdm_bl_cb_request_entry),
 			GFP_KERNEL);
 	if (!node) {
-		rc = -ENOMEM;
-		goto end;
+		CAM_ERR(CAM_CDM, "Failed while getting memory for the Node");
+		return -ENOMEM;
 	}
 
 	if (core->offsets->reg_data->num_bl_fifo > 1)
@@ -836,49 +843,48 @@ int cam_hw_cdm_submit_gen_irq(
 
 	node->request_type = CAM_HW_CDM_BL_CB_CLIENT;
 	node->client_hdl = req->handle;
-	node->cookie = req->data->cookie;
+	node->cookie = cdm_cmd->cookie;
 	node->bl_tag = core->bl_fifo[fifo_idx].bl_tag;
-	node->userdata = req->data->userdata;
+	node->userdata = cdm_cmd->userdata;
 	list_add_tail(&node->entry, &core->bl_fifo[fifo_idx].bl_request_list);
-	len = core->ops->cdm_required_size_genirq() *
-		core->bl_fifo[fifo_idx].bl_tag;
+
 	core->ops->cdm_write_genirq(
-		((uint32_t *)core->gen_irq[fifo_idx].kmdvaddr + len),
-		core->bl_fifo[fifo_idx].bl_tag,
-		bit_wr_enable, fifo_idx);
+		cdm_cmd->genirq_buff->cpu_addr + (cdm_cmd->genirq_buff->used_bytes / 4),
+		core->bl_fifo[fifo_idx].bl_tag, bit_wr_enable, fifo_idx);
 	rc = cam_hw_cdm_bl_write(cdm_hw,
-		(core->gen_irq[fifo_idx].vaddr + (4*len)),
-		((4 * core->ops->cdm_required_size_genirq()) - 1),
-		core->bl_fifo[fifo_idx].bl_tag,
-		set_arb, fifo_idx);
+		(uint32_t)(hw_vaddr_ptr + cdm_cmd->genirq_buff->offset),
+		genirq_cmd_size - 1,
+		core->bl_fifo[fifo_idx].bl_tag, cdm_cmd->gen_irq_arb, fifo_idx);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "CDM hw bl write failed for gen irq bltag=%d",
 			core->bl_fifo[fifo_idx].bl_tag);
 		list_del_init(&node->entry);
 		kfree(node);
 		node = NULL;
-		rc = -EIO;
-		goto end;
+		return -EIO;
 	}
+
+	cdm_cmd->genirq_buff->used_bytes += genirq_cmd_size;
+	cdm_cmd->genirq_buff->offset += genirq_cmd_size;
 
 	if (cam_presil_mode_enabled()) {
 		CAM_DBG(CAM_PRESIL,
 			"Sending CDM gen irq cmd buffer:%d with iommu_hdl:%d",
-			core->gen_irq[fifo_idx].handle, core->iommu_hdl.non_secure);
+			cdm_cmd->genirq_buff->handle, core->iommu_hdl.non_secure);
 
 		rc = cam_mem_mgr_send_buffer_to_presil(core->iommu_hdl.non_secure,
-			core->gen_irq[fifo_idx].handle);
+			0);
 		if (rc) {
 			CAM_ERR(CAM_PRESIL,
 				"Failed to send CDM gen irq cmd buffer fifo_idx:%d mem_handle:%d rc:%d",
-				fifo_idx, core->gen_irq[fifo_idx].handle, rc);
-			goto end;
+				fifo_idx, cdm_cmd->genirq_buff->handle, rc);
+			return rc;
 		}
 	}
 
 	if (cam_hw_cdm_commit_bl_write(cdm_hw, fifo_idx)) {
 		CAM_ERR(CAM_CDM,
-			"Cannot commit the genirq BL with tag tag=%d",
+			"Cannot commit the genirq BL with Tag: %d",
 			core->bl_fifo[fifo_idx].bl_tag);
 		list_del_init(&node->entry);
 		kfree(node);
@@ -886,55 +892,74 @@ int cam_hw_cdm_submit_gen_irq(
 		rc = -EIO;
 	}
 
-	trace_cam_log_event("CDM_START", "CDM_START_IRQ", req->data->cookie, 0);
+	trace_cam_log_event("CDM_START", "CDM_START_IRQ", cdm_cmd->cookie, 0);
 
-end:
 	return rc;
 }
 
 int cam_hw_cdm_submit_debug_gen_irq(
 	struct cam_hw_info *cdm_hw,
+	struct cam_cdm_hw_intf_cmd_submit_bl *req,
 	uint32_t            fifo_idx)
 {
 	struct cam_cdm *core = (struct cam_cdm *)cdm_hw->core_info;
-	uint32_t len;
+	struct cam_cdm_bl_request *cdm_cmd = req->data;
+	dma_addr_t hw_vaddr_ptr = 0;
 	int rc;
 	bool bit_wr_enable = false;
+	size_t len, genirq_cmd_size;
 
-	CAM_DBG(CAM_CDM,
-		"CDM write BL last cmd tag=0x%x",
-		core->bl_fifo[fifo_idx].bl_tag);
+	genirq_cmd_size = 4 * core->ops->cdm_required_size_genirq();
+
+	if (core->bl_fifo[fifo_idx].bl_tag > (core->bl_fifo[fifo_idx].bl_depth - 1)) {
+		CAM_ERR(CAM_CDM, "Invalid BL Tag: %d, BL Depth: %d Fifo_idx: %d",
+			core->bl_fifo[fifo_idx].bl_tag,
+			core->bl_fifo[fifo_idx].bl_depth,
+			fifo_idx);
+		return -EINVAL;
+	}
+
+	if ((cdm_cmd->genirq_buff->size - cdm_cmd->genirq_buff->used_bytes) < genirq_cmd_size) {
+		CAM_ERR(CAM_CDM, "Insufficient memory for GenIRQ Command");
+		return -ENOMEM;
+	}
+
+	CAM_DBG(CAM_CDM, "Last Tag: 0x%x Total BLs: %d, Cookie: %d",
+		core->bl_fifo[fifo_idx].bl_tag, cdm_cmd->cmd_arrary_count, cdm_cmd->cookie);
+
+	rc = cam_mem_get_io_buf(cdm_cmd->genirq_buff->handle, core->iommu_hdl.non_secure,
+		&hw_vaddr_ptr, &len, NULL);
+	if (rc) {
+		CAM_ERR(CAM_CDM, "Getting a hwva from mem_hdl failed. rc: %d", rc);
+		return -EINVAL;
+	}
 
 	if (core->offsets->reg_data->num_bl_fifo > 1)
 		bit_wr_enable = true;
 
-	len = core->ops->cdm_required_size_genirq() *
-		core->bl_fifo[fifo_idx].bl_tag;
 	core->ops->cdm_write_genirq(
-		((uint32_t *)core->gen_irq[fifo_idx].kmdvaddr + len),
+		cdm_cmd->genirq_buff->cpu_addr + (cdm_cmd->genirq_buff->used_bytes / 4),
 		CAM_CDM_DBG_GEN_IRQ_USR_DATA, bit_wr_enable, fifo_idx);
 	rc = cam_hw_cdm_bl_write(cdm_hw,
-		(core->gen_irq[fifo_idx].vaddr + (4*len)),
-		((4 * core->ops->cdm_required_size_genirq()) - 1),
+		(uint32_t)(hw_vaddr_ptr + cdm_cmd->genirq_buff->offset),
+		genirq_cmd_size - 1,
 		core->bl_fifo[fifo_idx].bl_tag,
 		false, fifo_idx);
 	if (rc) {
-		CAM_ERR(CAM_CDM,
-			"CDM hw bl write failed for dbggenirq USRdata=%d tag 0x%x",
-			CAM_CDM_DBG_GEN_IRQ_USR_DATA,
-			core->bl_fifo[fifo_idx].bl_tag);
-		rc = -EIO;
-		goto end;
-	}
-	if (cam_hw_cdm_commit_bl_write(cdm_hw, fifo_idx)) {
-		CAM_ERR(CAM_CDM,
-			"Cannot commit the dbggenirq BL with tag tag=0x%x",
-			core->bl_fifo[fifo_idx].bl_tag);
-		rc = -EIO;
-		goto end;
+		CAM_ERR(CAM_CDM, "CDM hw bl write failed for Debug GenIRQ USRdata: %d, Tag: 0x%x",
+			CAM_CDM_DBG_GEN_IRQ_USR_DATA, core->bl_fifo[fifo_idx].bl_tag);
+		return -EIO;
 	}
 
-end:
+	cdm_cmd->genirq_buff->used_bytes += genirq_cmd_size;
+	cdm_cmd->genirq_buff->offset += genirq_cmd_size;
+
+	if (cam_hw_cdm_commit_bl_write(cdm_hw, fifo_idx)) {
+		CAM_ERR(CAM_CDM, "Cannot commit the Debug GenIRQ BL with Tag: 0x%x",
+			core->bl_fifo[fifo_idx].bl_tag);
+		return -EIO;
+	}
+
 	return rc;
 }
 
@@ -958,6 +983,13 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 		rc = -EINVAL;
 		CAM_ERR(CAM_CDM, "Invalid handle 0x%x, rc = %d",
 			client->handle, rc);
+		goto end;
+	}
+
+	if ((cdm_cmd->genirq_buff->size - cdm_cmd->genirq_buff->used_bytes) <
+		(core->ops->cdm_required_size_genirq() * 4)) {
+		CAM_ERR(CAM_CDM, "Insufficient memory for GenIRQ Command");
+		rc = -ENOMEM;
 		goto end;
 	}
 
@@ -1104,7 +1136,7 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 					}
 				}
 
-				rc = cam_hw_cdm_submit_debug_gen_irq(cdm_hw, fifo_idx);
+				rc = cam_hw_cdm_submit_debug_gen_irq(cdm_hw, req, fifo_idx);
 				if (!rc) {
 					CAM_DBG(CAM_CDM,
 						"Commit success for Dbg_GenIRQ_BL, Tag: %d",
@@ -1138,8 +1170,7 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 				else
 					cdm_cmd->gen_irq_arb = false;
 
-				rc = cam_hw_cdm_submit_gen_irq(cdm_hw, req, fifo_idx,
-					cdm_cmd->gen_irq_arb);
+				rc = cam_hw_cdm_submit_gen_irq(cdm_hw, req, fifo_idx);
 				if (!rc) {
 					CAM_DBG(CAM_CDM, "Commit success for GenIRQ_BL, Tag: %d",
 						core->bl_fifo[fifo_idx].bl_tag);
@@ -1253,9 +1284,7 @@ static void cam_hw_cdm_work(struct work_struct *work)
 	if (payload->irq_status &
 		CAM_CDM_IRQ_STATUS_INLINE_IRQ_MASK) {
 		CAM_DBG(CAM_CDM, "inline IRQ data=0x%x last tag: 0x%x",
-			payload->irq_data,
-			core->bl_fifo[payload->fifo_idx]
-				.last_bl_tag_done);
+			payload->irq_data, core->bl_fifo[payload->fifo_idx].last_bl_tag_done);
 
 		if (payload->irq_data == 0xff) {
 			CAM_INFO(CAM_CDM, "%s%u Debug genirq received",
@@ -1272,53 +1301,42 @@ static void cam_hw_cdm_work(struct work_struct *work)
 		if (atomic_read(&core->bl_fifo[fifo_idx].work_record))
 			atomic_dec(&core->bl_fifo[fifo_idx].work_record);
 
-		if (list_empty(&core->bl_fifo[fifo_idx]
-				.bl_request_list)) {
-			CAM_INFO(CAM_CDM,
-				"Fifo list empty, idx %d tag %d arb %d",
-				fifo_idx, payload->irq_data,
-				core->arbitration);
-			mutex_unlock(&core->bl_fifo[fifo_idx]
-					.fifo_lock);
+		if (list_empty(&core->bl_fifo[fifo_idx].bl_request_list)) {
+			CAM_INFO(CAM_CDM, "Fifo list empty, idx %d tag %d arb %d",
+				fifo_idx, payload->irq_data, core->arbitration);
+			mutex_unlock(&core->bl_fifo[fifo_idx].fifo_lock);
 			mutex_unlock(&cdm_hw->hw_mutex);
 			return;
 		}
 
-		if (core->bl_fifo[fifo_idx].last_bl_tag_done !=
-			payload->irq_data) {
-			core->bl_fifo[fifo_idx].last_bl_tag_done =
-				payload->irq_data;
+		if (core->bl_fifo[fifo_idx].last_bl_tag_done != payload->irq_data) {
+			core->bl_fifo[fifo_idx].last_bl_tag_done = payload->irq_data;
 			list_for_each_entry_safe(node, tnode,
-				&core->bl_fifo[fifo_idx].bl_request_list,
-				entry) {
-				if (node->request_type ==
-					CAM_HW_CDM_BL_CB_CLIENT) {
+				&core->bl_fifo[fifo_idx].bl_request_list, entry) {
+				if (node->request_type == CAM_HW_CDM_BL_CB_CLIENT) {
 					cam_cdm_notify_clients(cdm_hw,
-					CAM_CDM_CB_STATUS_BL_SUCCESS,
-					(void *)node);
-				} else if (node->request_type ==
-					CAM_HW_CDM_BL_CB_INTERNAL) {
-					CAM_ERR(CAM_CDM,
-						"Invalid node=%pK %d",
-						node,
-						node->request_type);
+						CAM_CDM_CB_STATUS_BL_SUCCESS, (void *)node);
+				} else if (node->request_type == CAM_HW_CDM_BL_CB_INTERNAL) {
+					CAM_ERR(CAM_CDM, "Invalid node=%pK %d",
+						node, node->request_type);
 				}
+
 				list_del_init(&node->entry);
 				if (node->bl_tag == payload->irq_data) {
 					kfree(node);
 					node = NULL;
 					break;
 				}
+
 				kfree(node);
 				node = NULL;
 			}
 		} else {
-			CAM_INFO(CAM_CDM,
-				"Skip GenIRQ, tag 0x%x fifo %d",
+			CAM_INFO(CAM_CDM, "Skip GenIRQ, tag 0x%x fifo %d",
 				payload->irq_data, payload->fifo_idx);
 		}
-		mutex_unlock(&core->bl_fifo[payload->fifo_idx]
-			.fifo_lock);
+
+		mutex_unlock(&core->bl_fifo[payload->fifo_idx].fifo_lock);
 		mutex_unlock(&cdm_hw->hw_mutex);
 	}
 
@@ -1326,18 +1344,15 @@ static void cam_hw_cdm_work(struct work_struct *work)
 		CAM_CDM_IRQ_STATUS_BL_DONE_MASK) {
 		if (test_bit(payload->fifo_idx, &core->cdm_status)) {
 			CAM_DBG(CAM_CDM, "%s%u HW BL done IRQ",
-				cdm_hw->soc_info.label_name,
-				cdm_hw->soc_info.index);
-			complete(&core->bl_fifo[payload->fifo_idx]
-				.bl_complete);
+				cdm_hw->soc_info.label_name, cdm_hw->soc_info.index);
+			complete(&core->bl_fifo[payload->fifo_idx].bl_complete);
 		}
 	}
 	if (payload->irq_status &
 		CAM_CDM_IRQ_STATUS_ERRORS) {
 		int reset_hw_hdl = 0x0;
 
-		CAM_ERR_RATE_LIMIT(CAM_CDM,
-			"%s%u Error IRQ status %d\n",
+		CAM_ERR_RATE_LIMIT(CAM_CDM, "%s%u Error IRQ status %d\n",
 			cdm_hw->soc_info.label_name,
 			cdm_hw->soc_info.index, payload->irq_status);
 		set_bit(CAM_CDM_ERROR_HW_STATUS, &core->cdm_status);
@@ -1383,6 +1398,7 @@ static void cam_hw_cdm_work(struct work_struct *work)
 			clear_bit(CAM_CDM_ERROR_HW_STATUS,
 				&core->cdm_status);
 	}
+
 	kfree(payload);
 	payload = NULL;
 
@@ -1537,8 +1553,7 @@ irqreturn_t cam_hw_cdm_irq(int irq_num, void *data)
 			payload[i]->irq_data = (user_data >> (i * 0x8)) &
 				CAM_CDM_IRQ_STATUS_USR_DATA_MASK;
 
-			if (payload[i]->irq_data ==
-				CAM_CDM_DBG_GEN_IRQ_USR_DATA)
+			if (payload[i]->irq_data == CAM_CDM_DBG_GEN_IRQ_USR_DATA)
 				CAM_INFO(CAM_CDM, "Debug gen_irq received");
 
 			atomic_inc(&cdm_core->bl_fifo[i].work_record);
@@ -1596,71 +1611,6 @@ irqreturn_t cam_hw_cdm_irq(int irq_num, void *data)
 			soc_info->index, rst_done_cnt,
 			cdm_core->offsets->reg_data->num_bl_fifo_irq);
 	return IRQ_HANDLED;
-}
-
-int cam_hw_cdm_alloc_genirq_mem(void *hw_priv)
-{
-	struct cam_hw_info *cdm_hw = hw_priv;
-	struct cam_mem_mgr_request_desc genirq_alloc_cmd;
-	struct cam_mem_mgr_memory_desc genirq_alloc_out;
-	struct cam_cdm *cdm_core = NULL;
-	int rc = -EINVAL, i;
-
-	if (!hw_priv)
-		return rc;
-
-	cdm_core = (struct cam_cdm *)cdm_hw->core_info;
-	genirq_alloc_cmd.align = 0;
-	genirq_alloc_cmd.smmu_hdl = cdm_core->iommu_hdl.non_secure;
-	genirq_alloc_cmd.flags = CAM_MEM_FLAG_HW_READ_WRITE;
-	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
-		if (!cdm_core->bl_fifo[i].bl_depth)
-			continue;
-
-		genirq_alloc_cmd.size = (8 *
-				cdm_core->bl_fifo[i].bl_depth);
-		rc = cam_mem_mgr_request_mem(&genirq_alloc_cmd,
-				&genirq_alloc_out);
-		if (rc) {
-			CAM_ERR(CAM_CDM,
-				"Failed to get genirq cmd space rc=%d",
-				rc);
-			goto end;
-		}
-		cdm_core->gen_irq[i].handle = genirq_alloc_out.mem_handle;
-		cdm_core->gen_irq[i].vaddr = (genirq_alloc_out.iova &
-			0xFFFFFFFF);
-		cdm_core->gen_irq[i].kmdvaddr = genirq_alloc_out.kva;
-		cdm_core->gen_irq[i].size = genirq_alloc_out.len;
-	}
-end:
-	return rc;
-}
-
-int cam_hw_cdm_release_genirq_mem(void *hw_priv)
-{
-	struct cam_hw_info *cdm_hw = hw_priv;
-	struct cam_cdm *cdm_core = NULL;
-	struct cam_mem_mgr_memory_desc genirq_release_cmd;
-	int rc = -EINVAL, i;
-
-	if (!hw_priv)
-		return rc;
-
-	cdm_core = (struct cam_cdm *)cdm_hw->core_info;
-	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
-		if (!cdm_core->bl_fifo[i].bl_depth)
-			continue;
-
-		genirq_release_cmd.mem_handle = cdm_core->gen_irq[i].handle;
-		rc = cam_mem_mgr_release_mem(&genirq_release_cmd);
-		if (rc)
-			CAM_ERR(CAM_CDM,
-				"Failed to put genirq cmd space for hw rc %d",
-				rc);
-	}
-
-	return rc;
 }
 
 int cam_hw_cdm_reset_hw(struct cam_hw_info *cdm_hw, uint32_t handle)

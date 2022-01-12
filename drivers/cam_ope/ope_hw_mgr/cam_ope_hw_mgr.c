@@ -1747,7 +1747,8 @@ int32_t cam_ope_hw_mgr_cb(uint32_t irq_status, void *data)
 static int cam_ope_mgr_create_kmd_buf(struct cam_ope_hw_mgr *hw_mgr,
 	struct cam_packet *packet,
 	struct cam_hw_prepare_update_args *prepare_args,
-	struct cam_ope_ctx *ctx_data, uint32_t req_idx,
+	struct cam_ope_ctx *ctx_data,
+	struct cam_ope_request *ope_req,
 	uintptr_t   ope_cmd_buf_addr)
 {
 	int i, rc = 0;
@@ -1757,12 +1758,12 @@ static int cam_ope_mgr_create_kmd_buf(struct cam_ope_hw_mgr *hw_mgr,
 	prepare_req.hw_mgr = hw_mgr;
 	prepare_req.packet = packet;
 	prepare_req.prepare_args = prepare_args;
-	prepare_req.req_idx = req_idx;
+	prepare_req.req_idx = ope_req->req_idx;
 	prepare_req.kmd_buf_offset = 0;
 	prepare_req.frame_process =
 		(struct ope_frame_process *)ope_cmd_buf_addr;
 
-	for (i = 0; i < ope_hw_mgr->num_ope; i++)
+	for (i = 0; i < ope_hw_mgr->num_ope; i++) {
 		rc = hw_mgr->ope_dev_intf[i]->hw_ops.process_cmd(
 			hw_mgr->ope_dev_intf[i]->hw_priv,
 			OPE_HW_PREPARE, &prepare_req, sizeof(prepare_req));
@@ -1770,6 +1771,19 @@ static int cam_ope_mgr_create_kmd_buf(struct cam_ope_hw_mgr *hw_mgr,
 			CAM_ERR(CAM_OPE, "OPE Dev prepare failed: %d", rc);
 			goto end;
 		}
+	}
+
+	ope_req->genirq_buff_info.handle         = ope_req->ope_kmd_buf.mem_handle;
+	ope_req->genirq_buff_info.cpu_addr       = (uint32_t *)ope_req->ope_kmd_buf.cpu_addr;
+	ope_req->genirq_buff_info.offset         = prepare_req.kmd_buf_offset;
+	ope_req->genirq_buff_info.used_bytes     = 0;
+	ope_req->genirq_buff_info.size           = ope_req->ope_kmd_buf.size -
+		ope_req->ope_kmd_buf.len - prepare_req.kmd_buf_offset;
+
+	if (!ope_req->genirq_buff_info.size) {
+		CAM_ERR(CAM_OPE, "Not enough memory available for CDM GenIRQ Command");
+		return -ENOMEM;
+	}
 
 end:
 	return rc;
@@ -1900,7 +1914,7 @@ static void cam_ope_mgr_print_stripe_info(uint32_t batch,
 
 static int cam_ope_mgr_process_cmd_io_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 	struct cam_packet *packet, struct cam_ope_ctx *ctx_data,
-	uintptr_t frame_process_addr, size_t length, uint32_t req_idx)
+	uintptr_t frame_process_addr, size_t length, struct cam_ope_request *ope_request)
 {
 	int rc = 0;
 	int i, j, k, l;
@@ -1910,7 +1924,6 @@ static int cam_ope_mgr_process_cmd_io_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 	struct ope_frame_set *in_frame_set;
 	struct ope_io_buf_info *in_io_buf;
 	struct ope_stripe_info *in_stripe_info;
-	struct cam_ope_request *ope_request;
 	struct ope_io_buf *io_buf;
 	struct ope_stripe_io *stripe_info;
 	uint32_t alignment;
@@ -1923,7 +1936,6 @@ static int cam_ope_mgr_process_cmd_io_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 
 	in_frame_process = (struct ope_frame_process *)frame_process_addr;
 
-	ope_request = ctx_data->req_list[req_idx];
 	ope_request->num_batch = in_frame_process->batch_size;
 
 	for (i = 0; i < in_frame_process->batch_size; i++) {
@@ -2079,7 +2091,7 @@ static int cam_ope_mgr_process_cmd_io_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 
 static int cam_ope_mgr_process_cmd_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 	struct cam_packet *packet, struct cam_ope_ctx *ctx_data,
-	uintptr_t frame_process_addr, size_t length, uint32_t req_idx)
+	uintptr_t frame_process_addr, size_t length, struct cam_ope_request *ope_request)
 {
 	int rc = 0;
 	int i, j;
@@ -2089,7 +2101,6 @@ static int cam_ope_mgr_process_cmd_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 	size_t len;
 	struct ope_frame_process *frame_process;
 	struct ope_cmd_buf_info *cmd_buf;
-	struct cam_ope_request *ope_request;
 	bool is_kmd_buf_valid = false;
 
 	frame_process = (struct ope_frame_process *)frame_process_addr;
@@ -2128,7 +2139,6 @@ static int cam_ope_mgr_process_cmd_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 		}
 	}
 
-	ope_request = ctx_data->req_list[req_idx];
 	ope_request->num_batch = frame_process->batch_size;
 
 	for (i = 0; i < frame_process->batch_size; i++) {
@@ -2247,7 +2257,7 @@ end:
 
 static int cam_ope_mgr_process_cmd_desc(struct cam_ope_hw_mgr *hw_mgr,
 	struct cam_packet *packet, struct cam_ope_ctx *ctx_data,
-	uintptr_t *ope_cmd_buf_addr, uint32_t req_idx)
+	uintptr_t *ope_cmd_buf_addr, struct cam_ope_request *ope_request)
 {
 	int rc = 0;
 	int i;
@@ -2255,7 +2265,6 @@ static int cam_ope_mgr_process_cmd_desc(struct cam_ope_hw_mgr *hw_mgr,
 	size_t len;
 	struct cam_cmd_buf_desc *cmd_desc = NULL;
 	uintptr_t cpu_addr = 0;
-	struct cam_ope_request *ope_request;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
 		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
@@ -2266,8 +2275,7 @@ static int cam_ope_mgr_process_cmd_desc(struct cam_ope_hw_mgr *hw_mgr,
 			cmd_desc[i].meta_data == OPE_CMD_META_GENERIC_BLOB)
 			continue;
 
-		rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle,
-			&cpu_addr, &len);
+		rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle, &cpu_addr, &len);
 		if (rc || !cpu_addr) {
 			CAM_ERR(CAM_OPE, "get cmd buf failed %x",
 				hw_mgr->iommu_hdl);
@@ -2290,19 +2298,17 @@ static int cam_ope_mgr_process_cmd_desc(struct cam_ope_hw_mgr *hw_mgr,
 		return -EINVAL;
 	}
 
-	ope_request = ctx_data->req_list[req_idx];
 	ope_request->request_id = packet->header.request_id;
-	ope_request->req_idx = req_idx;
 
 	rc = cam_ope_mgr_process_cmd_buf_req(hw_mgr, packet, ctx_data,
-		cpu_addr, len, req_idx);
+		cpu_addr, len, ope_request);
 	if (rc) {
 		CAM_ERR(CAM_OPE, "Process OPE cmd request is failed: %d", rc);
 		goto end;
 	}
 
 	rc = cam_ope_mgr_process_cmd_io_buf_req(hw_mgr, packet, ctx_data,
-		cpu_addr, len, req_idx);
+		cpu_addr, len, ope_request);
 	if (rc) {
 		CAM_ERR(CAM_OPE, "Process OPE cmd io request is failed: %d",
 			rc);
@@ -3240,6 +3246,7 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 	}
 
 	ope_req = ctx_data->req_list[request_idx];
+	ope_req->req_idx = request_idx;
 	ope_req->cdm_cmd =
 		kzalloc(((sizeof(struct cam_cdm_bl_request)) +
 			((OPE_MAX_CDM_BLS - 1) *
@@ -3253,7 +3260,7 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 	}
 
 	rc = cam_ope_mgr_process_cmd_desc(hw_mgr, packet,
-		ctx_data, &ope_cmd_buf_addr, request_idx);
+		ctx_data, &ope_cmd_buf_addr, ope_req);
 	if (rc) {
 		CAM_ERR(CAM_OPE,
 			"cmd desc processing failed :%d ctx: %d req_id:%d",
@@ -3271,7 +3278,7 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 	}
 
 	rc = cam_ope_mgr_create_kmd_buf(hw_mgr, packet, prepare_args,
-		ctx_data, request_idx, ope_cmd_buf_addr);
+		ctx_data, ope_req, ope_cmd_buf_addr);
 	if (rc) {
 		CAM_ERR(CAM_OPE,
 			"create kmd buf failed: %d ctx: %d request_id:%d",
@@ -3287,17 +3294,19 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 			request_idx);
 		goto end;
 	}
-	prepare_args->num_hw_update_entries = 1;
-	prepare_args->hw_update_entries[0].addr =
-		(uintptr_t)ctx_data->req_list[request_idx]->cdm_cmd;
-	prepare_args->priv = ctx_data->req_list[request_idx];
-	prepare_args->pf_data->packet = packet;
-	prepare_args->pf_data->req    = ope_req;
+
+	ope_req->cdm_cmd->genirq_buff             = &ope_req->genirq_buff_info;
+	ope_req->hang_data.packet                 = packet;
+	prepare_args->num_hw_update_entries       = 1;
+	prepare_args->hw_update_entries[0].addr   = (uintptr_t)ope_req->cdm_cmd;
+	prepare_args->priv                        = ope_req;
+	prepare_args->pf_data->packet             = packet;
+	prepare_args->pf_data->req                = ope_req;
+
 	CAM_INFO(CAM_REQ, "OPE req %x num_batch %d", ope_req, ope_req->num_batch);
-	ope_req->hang_data.packet = packet;
+
 	ktime_get_boottime_ts64(&ts);
-	ctx_data->last_req_time = (uint64_t)((ts.tv_sec * 1000000000) +
-		ts.tv_nsec);
+	ctx_data->last_req_time = (uint64_t)((ts.tv_sec * 1000000000) + ts.tv_nsec);
 	CAM_DBG(CAM_REQ, "req_id= %llu ctx_id= %d lrt=%llu",
 		packet->header.request_id, ctx_data->ctx_id,
 		ctx_data->last_req_time);
@@ -3415,8 +3424,7 @@ static int cam_ope_mgr_config_hw(void *hw_priv, void *hw_config_args)
 	}
 
 	ope_req = config_args->priv;
-	cdm_cmd = (struct cam_cdm_bl_request *)
-		config_args->hw_update_entries->addr;
+	cdm_cmd = (struct cam_cdm_bl_request *) config_args->hw_update_entries->addr;
 	cdm_cmd->cookie = ope_req->req_idx;
 
 	cam_ope_mgr_ope_clk_update(hw_mgr, ctx_data, ope_req->req_idx);

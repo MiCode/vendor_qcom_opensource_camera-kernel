@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_OPE_HW_MGR_H
@@ -405,6 +406,7 @@ struct cam_ope_request {
 	uint8_t num_stripe_cmd_bufs[OPE_MAX_BATCH_SIZE][OPE_MAX_STRIPES];
 	struct ope_kmd_buffer ope_kmd_buf;
 	struct ope_debug_buffer ope_debug_buf;
+	struct cam_kmd_buf_info genirq_buff_info;
 	struct ope_io_buf *io_buf[OPE_MAX_BATCH_SIZE][OPE_MAX_IO_BUFS];
 	struct cam_cdm_bl_request *cdm_cmd;
 	struct cam_ope_clk_bw_request clk_info;

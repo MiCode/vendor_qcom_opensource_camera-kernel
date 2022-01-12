@@ -312,19 +312,10 @@ static int cam_cdm_stream_handle_init(void *hw_priv, bool init)
 			CAM_ERR(CAM_CDM, "CDM HW init failed");
 			return rc;
 		}
-
-		rc = cam_hw_cdm_alloc_genirq_mem(hw_priv);
-		if (rc) {
-			CAM_ERR(CAM_CDM, "Genirqalloc failed");
-			cam_hw_cdm_deinit(hw_priv, NULL, 0);
-		}
 	} else {
 		rc = cam_hw_cdm_deinit(hw_priv, NULL, 0);
 		if (rc)
 			CAM_ERR(CAM_CDM, "Deinit failed in streamoff");
-
-		if (cam_hw_cdm_release_genirq_mem(hw_priv))
-			CAM_ERR(CAM_CDM, "Genirq release fail");
 	}
 
 	return rc;

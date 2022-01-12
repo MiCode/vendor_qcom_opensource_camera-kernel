@@ -12,6 +12,7 @@
 #include <linux/list.h>
 #include <media/cam_isp.h>
 #include "cam_hw_mgr_intf.h"
+#include "cam_packet_util.h"
 
 /* MAX IFE instance */
 #define CAM_IFE_HW_NUM_MAX       8
@@ -256,6 +257,7 @@ struct cam_isp_prepare_hw_update_data {
 						CAM_REG_DUMP_MAX_BUF_ENTRIES];
 	uint32_t                              num_reg_dump_buf;
 	struct cam_packet                    *packet;
+	struct cam_kmd_buf_info               kmd_cmd_buff_info;
 	uint32_t                              mup_val;
 	uint32_t                              num_exp;
 	bool                                  mup_en;

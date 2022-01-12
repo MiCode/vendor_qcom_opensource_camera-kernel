@@ -15,7 +15,7 @@
  * @handle:                Memory handle
  * @cpu_addr:              Cpu address
  * @offset:                Offset from the start of the buffer
- * @size:                  Size of the buffer
+ * @size:                  Size of the buffer in bytes
  * @used_bytes:            Used memory in bytes
  *
  */

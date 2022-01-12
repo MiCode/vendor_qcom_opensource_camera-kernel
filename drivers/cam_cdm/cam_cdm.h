@@ -497,14 +497,6 @@ struct cam_cdm_hw_intf_cmd_submit_bl {
 	struct cam_cdm_bl_request *data;
 };
 
-/* struct cam_cdm_hw_mem - CDM hw memory struct */
-struct cam_cdm_hw_mem {
-	int32_t handle;
-	uint32_t vaddr;
-	uintptr_t kmdvaddr;
-	size_t size;
-};
-
 /* struct cam_cdm_bl_fifo - CDM hw memory struct */
 struct cam_cdm_bl_fifo {
 	struct completion bl_complete;
@@ -562,7 +554,6 @@ struct cam_cdm {
 	struct cam_cdm_bl_fifo bl_fifo[CAM_CDM_BL_FIFO_MAX];
 	unsigned long cdm_status;
 	uint8_t bl_tag;
-	struct cam_cdm_hw_mem gen_irq[CAM_CDM_BL_FIFO_MAX];
 	uint32_t cpas_handle;
 	enum cam_cdm_arbitration arbitration;
 	uint8_t num_active_clients;
