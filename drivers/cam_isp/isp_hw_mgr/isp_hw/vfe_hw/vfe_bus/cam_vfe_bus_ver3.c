@@ -3025,7 +3025,7 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 
 	if (ccif_violation) {
 		status = evt_payload->ccif_violation_status;
-		cam_vfe_print_violations("CCIF", status, NULL);
+		cam_vfe_print_violations("CCIF", status, bus_priv);
 	}
 
 	cam_vfe_bus_ver3_put_evt_payload(common_data, &evt_payload);
