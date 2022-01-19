@@ -4395,12 +4395,12 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 	struct cam_ife_hw_mgr_ctx           *ife_ctx,
 	struct cam_isp_in_port_generic_info *in_port,
 	uint32_t *acquired_hw_id,
-	uint32_t *acquired_hw_path)
+	uint32_t *acquired_hw_path,
+	uint32_t *acquired_rdi_res)
 {
 	int rc                                    = -1;
 	int is_dual_isp                           = 0;
 	bool crop_enable                          = true;
-	uint32_t  acquired_rdi_res                = 0;
 
 	is_dual_isp = in_port->usage_type;
 	ife_ctx->flags.dsp_enabled = (bool)in_port->dsp_mode;
@@ -4474,7 +4474,7 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 	if (in_port->rdi_count) {
 		/* get ife csid RDI resource */
 		rc = cam_ife_hw_mgr_acquire_res_ife_csid_rdi(ife_ctx, in_port,
-			acquired_hw_path, &acquired_rdi_res);
+			acquired_hw_path, acquired_rdi_res);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Acquire IFE CSID RDI resource Failed");
@@ -4488,7 +4488,7 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 	 */
 	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE) {
 		rc = cam_ife_hw_mgr_get_csid_rdi_for_sfe_ipp_input(ife_ctx, in_port,
-			acquired_rdi_res, acquired_hw_path);
+			*acquired_rdi_res, acquired_hw_path);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Acquire RDI for SFE IPP failed Ctx: %d rc %d",
 				ife_ctx->ctx_index, rc);
@@ -4898,6 +4898,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	uint32_t                           total_lite_port = 0;
 	struct cam_isp_acquire_hw_info    *acquire_hw_info = NULL;
 	uint32_t                           input_size = 0;
+	uint32_t                           acquired_rdi_res = 0;
 
 	CAM_DBG(CAM_ISP, "Enter...");
 
@@ -5017,7 +5018,8 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 			rc = cam_ife_mgr_acquire_hw_for_ctx(ife_ctx,
 				&in_port[i],
 				&acquire_args->acquired_hw_id[i],
-				acquire_args->acquired_hw_path[i]);
+				acquire_args->acquired_hw_path[i],
+				&acquired_rdi_res);
 
 		if (rc) {
 			cam_ife_hw_mgr_print_acquire_info(ife_ctx,
@@ -5228,6 +5230,7 @@ static int cam_ife_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 	uint32_t                               total_pix_port = 0;
 	uint32_t                               total_rdi_port = 0;
 	uint32_t                               in_port_length = 0;
+	uint32_t                               acquired_rdi_res = 0;
 
 	CAM_DBG(CAM_ISP, "Enter...");
 
@@ -5355,7 +5358,8 @@ static int cam_ife_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 		rc = cam_ife_mgr_acquire_hw_for_ctx(ife_ctx,
 			&gen_port_info[i],
 			&acquire_args->acquired_hw_id[i],
-			acquire_args->acquired_hw_path[i]);
+			acquire_args->acquired_hw_path[i],
+			&acquired_rdi_res);
 
 		if (rc) {
 			cam_ife_hw_mgr_print_acquire_info(ife_ctx,
