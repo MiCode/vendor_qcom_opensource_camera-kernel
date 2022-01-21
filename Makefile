@@ -6,6 +6,17 @@ KBUILD_OPTIONS += MODNAME=camera
 
 all: modules
 
+CAMERA_COMPILE_TIME = $(shell date)
+CAMERA_COMPILE_BY = $(shell whoami | sed 's/\\/\\\\/')
+CAMERA_COMPILE_HOST = $(shell uname -n)
+
+cam_generated_h: $(shell find . -iname "*.c") $(shell find . -iname "*.h") $(shell find . -iname "*.mk")
+	echo '#define CAMERA_COMPILE_TIME "$(CAMERA_COMPILE_TIME)"' > cam_generated_h
+	echo '#define CAMERA_COMPILE_BY "$(CAMERA_COMPILE_BY)"' >> cam_generated_h
+	echo '#define CAMERA_COMPILE_HOST "$(CAMERA_COMPILE_HOST)"' >> cam_generated_h
+
+modules: cam_generated_h
+
 modules dtbs:
 	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules $(KBUILD_OPTIONS)
 
