@@ -3616,8 +3616,8 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 				wm_data->hw_regs->addr_cfg, iova_offset);
 
-			CAM_DBG(CAM_ISP, "WM:%d image address 0x%X 0x%X",
-				wm_data->index, reg_val_pair[j-2], reg_val_pair[j-1]);
+			CAM_DBG(CAM_ISP, "WM:%d image address:0x%X image offset: 0x%X",
+				wm_data->index, reg_val_pair[j-3], reg_val_pair[j-1]);
 		} else {
 			iova_addr = iova;
 
