@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_COMMON_H_
@@ -34,12 +35,7 @@
 #define CAM_IFE_CSID_LOG_BUF_LEN                          512
 
 #define CAM_IFE_CSID_CAP_INPUT_LCR                        0x1
-#define CAM_IFE_CSID_CAP_MIPI8_UNPACK                     0x2
-#define CAM_IFE_CSID_CAP_MIPI10_UNPACK                    0x4
-#define CAM_IFE_CSID_CAP_MIPI12_UNPACK                    0x8
-#define CAM_IFE_CSID_CAP_MIPI14_UNPACK                    0x10
-#define CAM_IFE_CSID_CAP_MIPI16_UNPACK                    0x20
-#define CAM_IFE_CSID_CAP_MIPI20_UNPACK                    0x40
+#define CAM_IFE_CSID_CAP_RDI_UNPACK_MSB                   0x2
 #define CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI            0x80
 #define CAM_IFE_CSID_CAP_SOF_RETIME_DIS                   0x100
 

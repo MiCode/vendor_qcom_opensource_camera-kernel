@@ -649,9 +649,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.resume_frame_boundary            = 1,
 		.overflow_ctrl_en                 = 1,
 		.capabilities                     = CAM_IFE_CSID_CAP_INPUT_LCR |
-							CAM_IFE_CSID_CAP_MIPI10_UNPACK |
-							CAM_IFE_CSID_CAP_MIPI12_UNPACK |
-							CAM_IFE_CSID_CAP_MIPI14_UNPACK |
+							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
 							CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
 		.overflow_ctrl_mode_val           = 0x8,
@@ -752,9 +750,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.resume_frame_boundary            = 1,
 		.overflow_ctrl_en                 = 1,
 		.capabilities                     = CAM_IFE_CSID_CAP_INPUT_LCR |
-							CAM_IFE_CSID_CAP_MIPI10_UNPACK |
-							CAM_IFE_CSID_CAP_MIPI12_UNPACK |
-							CAM_IFE_CSID_CAP_MIPI14_UNPACK |
+							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
 							CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
 		.overflow_ctrl_mode_val           = 0x8,
@@ -854,9 +850,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.resume_frame_boundary            = 1,
 		.overflow_ctrl_en                 = 1,
 		.capabilities                     = CAM_IFE_CSID_CAP_INPUT_LCR |
-							CAM_IFE_CSID_CAP_MIPI10_UNPACK |
-							CAM_IFE_CSID_CAP_MIPI12_UNPACK |
-							CAM_IFE_CSID_CAP_MIPI14_UNPACK |
+							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
 							CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
 		.overflow_ctrl_mode_val           = 0x8,

@@ -2209,23 +2209,20 @@ static bool cam_ife_csid_hw_ver2_need_unpack_mipi(
 	bool  need_unpack = false;
 
 	switch(format) {
-	case CAM_FORMAT_MIPI_RAW_8:
-		need_unpack = (bool)(path_reg->capabilities & CAM_IFE_CSID_CAP_MIPI8_UNPACK);
-		break;
 	case CAM_FORMAT_MIPI_RAW_10:
-		need_unpack = (bool)(path_reg->capabilities & CAM_IFE_CSID_CAP_MIPI10_UNPACK);
-		break;
 	case CAM_FORMAT_MIPI_RAW_12:
-		need_unpack = (bool)(path_reg->capabilities & CAM_IFE_CSID_CAP_MIPI12_UNPACK);
-		break;
 	case CAM_FORMAT_MIPI_RAW_14:
-		need_unpack = (bool)(path_reg->capabilities & CAM_IFE_CSID_CAP_MIPI14_UNPACK);
-		break;
-	case CAM_FORMAT_MIPI_RAW_16:
-		need_unpack = (bool)(path_reg->capabilities & CAM_IFE_CSID_CAP_MIPI16_UNPACK);
-		break;
-	case CAM_FORMAT_MIPI_RAW_20:
-		need_unpack = (bool)(path_reg->capabilities & CAM_IFE_CSID_CAP_MIPI20_UNPACK);
+	case CAM_FORMAT_PLAIN16_10:
+	case CAM_FORMAT_PLAIN16_12:
+	case CAM_FORMAT_PLAIN16_14:
+	 /*
+	  * CAM_FORMAT_PLAIN16_16 : can be removed? double check why default_out_format has it.
+	  * default_out_format is used in xCFA usecases without real RDI0 out buffer.
+	  * We still need to set need_unpack here so that we unpack incoming data (say MIPI10)
+	  * into MSB. If default_out_format can be set to 16_10/16_12/16_14 - then we can remove
+	  */
+	case CAM_FORMAT_PLAIN16_16:
+		need_unpack = (bool)(path_reg->capabilities & CAM_IFE_CSID_CAP_RDI_UNPACK_MSB);
 		break;
 	default:
 		need_unpack = false;
@@ -2333,6 +2330,8 @@ static int cam_ife_csid_hw_ver2_config_path_data(
 		 */
 		reserve->use_wm_pack = cam_ife_csid_hw_ver2_need_unpack_mipi(csid_hw,
 			reserve, path_reg, path_cfg->out_format);
+		path_cfg->use_wm_pack = reserve->use_wm_pack;
+
 		rc = cam_ife_csid_get_format_rdi(
 			path_cfg->in_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0],
 			path_cfg->out_format,
@@ -2918,6 +2917,11 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 
 	cfg1 |= (path_cfg->path_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].plain_fmt <<
 			path_reg->plain_fmt_shift_val);
+
+	/* Keep the data in MSB, IFE/SFE  pipeline, BUS expects data in MSB */
+	if (path_cfg->use_wm_pack &&
+		path_cfg->path_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].plain_fmt)
+		cfg1 |= (1 << path_reg->plain_alignment_shift_val);
 
 	if (csid_hw->debug_info.debug_val &
 		CAM_IFE_CSID_DEBUG_ENABLE_HBI_VBI_INFO)

@@ -209,6 +209,7 @@ struct cam_ife_csid_ver2_path_cfg {
 	bool                                 skip_discard_frame_cfg;
 	bool                                 sfe_shdr;
 	bool                                 lcr_en;
+	bool                                 use_wm_pack;
 };
 
 struct cam_ife_csid_ver2_top_reg_info {

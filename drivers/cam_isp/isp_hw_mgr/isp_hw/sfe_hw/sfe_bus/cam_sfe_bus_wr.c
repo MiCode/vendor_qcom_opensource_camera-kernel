@@ -657,6 +657,33 @@ static int cam_sfe_bus_config_rdi_wm(
 			CAM_WARN(CAM_SFE, "No index mode support for SFE WM: %u",
 				rsrc_data->index);
 		}
+
+		if (rsrc_data->use_wm_pack) {
+			switch (rsrc_data->format) {
+			case CAM_FORMAT_PLAIN16_10:
+				rsrc_data->pack_fmt = PACKER_FMT_PLAIN_16_10BPP;
+				break;
+			case CAM_FORMAT_PLAIN16_12:
+				rsrc_data->pack_fmt = PACKER_FMT_PLAIN_16_12BPP;
+				break;
+			case CAM_FORMAT_PLAIN16_14:
+				rsrc_data->pack_fmt = PACKER_FMT_PLAIN_16_14BPP;
+				break;
+			case CAM_FORMAT_PLAIN16_16:
+				rsrc_data->pack_fmt = PACKER_FMT_PLAIN_16_16BPP;
+				break;
+			default:
+				CAM_ERR(CAM_SFE, "Not possible");
+				break;
+			}
+
+			/* LSB aligned */
+			rsrc_data->pack_fmt |=
+				(1 << rsrc_data->common_data->pack_align_shift);
+
+			if (rsrc_data->wm_mode == CAM_SFE_WM_LINE_BASED_MODE)
+				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 16);
+		}
 		break;
 	case CAM_FORMAT_PLAIN64:
 		if (rsrc_data->wm_mode == CAM_SFE_WM_LINE_BASED_MODE) {
