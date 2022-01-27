@@ -55,7 +55,7 @@ static long cam_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 			if (rc == -EBADR)
 				CAM_INFO(CAM_SENSOR,
 					"Failed in Driver cmd: %d, it has been flushed", rc);
-			else
+			else if (rc != -ENODEV)
 				CAM_ERR(CAM_SENSOR,
 					"Failed in Driver cmd: %d", rc);
 		}

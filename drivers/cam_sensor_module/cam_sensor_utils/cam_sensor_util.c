@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -912,7 +913,8 @@ int32_t cam_sensor_i2c_read_data(
 					reg_setting->reg_addr,
 					&reg_setting->reg_data,
 					i2c_list->i2c_settings.addr_type,
-					i2c_list->i2c_settings.data_type);
+					i2c_list->i2c_settings.data_type,
+					false);
 				if (rc < 0) {
 					CAM_ERR(CAM_SENSOR,
 					"Failed: random read I2C settings: %d",

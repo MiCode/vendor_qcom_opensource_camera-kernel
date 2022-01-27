@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1421,8 +1422,14 @@ static int32_t cam_cci_read(struct v4l2_subdev *sd,
 	}
 
 	if (cci_dev->cci_master_info[master].status) {
-		CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d_Q%d ERROR with Slave 0x%x",
-			cci_dev->soc_info.index, master, queue, (c_ctrl->cci_info->sid << 1));
+		if (cci_dev->is_probing)
+			CAM_INFO(CAM_CCI, "CCI%d_I2C_M%d_Q%d ERROR with Slave 0x%x",
+				cci_dev->soc_info.index, master, queue,
+				(c_ctrl->cci_info->sid << 1));
+		else
+			CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d_Q%d ERROR with Slave 0x%x",
+				cci_dev->soc_info.index, master, queue,
+				(c_ctrl->cci_info->sid << 1));
 		rc = -EINVAL;
 		cci_dev->cci_master_info[master].status = 0;
 		goto rel_mutex_q;
@@ -1686,8 +1693,12 @@ static int32_t cam_cci_read_bytes_v_1_2(struct v4l2_subdev *sd,
 		cci_dev->is_burst_read[master] = false;
 		rc = cam_cci_read(sd, c_ctrl);
 		if (rc) {
-			CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d failed to read rc: %d",
-				cci_dev->soc_info.index, master, rc);
+			if (cci_dev->is_probing)
+				CAM_INFO(CAM_CCI, "CCI%d_I2C_M%d failed to read rc: %d",
+					cci_dev->soc_info.index, master, rc);
+			else
+				CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d failed to read rc: %d",
+					cci_dev->soc_info.index, master, rc);
 			goto ERROR;
 		}
 
@@ -1739,6 +1750,8 @@ static int32_t cam_cci_read_bytes(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
+	cci_dev->is_probing = c_ctrl->is_probing;
+
 	master = c_ctrl->cci_info->cci_i2c_master;
 	read_cfg = &c_ctrl->cfg.cci_i2c_read_cfg;
 	if ((!read_cfg->num_byte) || (read_cfg->num_byte > CCI_I2C_MAX_READ)) {
@@ -1774,8 +1787,12 @@ static int32_t cam_cci_read_bytes(struct v4l2_subdev *sd,
 			rc = cam_cci_read(sd, c_ctrl);
 		}
 		if (rc) {
-			CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d Failed to read rc:%d",
-				cci_dev->soc_info.index, master, rc);
+			if (cci_dev->is_probing)
+				CAM_INFO(CAM_CCI, "CCI%d_I2C_M%d Failed to read rc:%d",
+					cci_dev->soc_info.index, master, rc);
+			else
+				CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d Failed to read rc:%d",
+					cci_dev->soc_info.index, master, rc);
 			goto ERROR;
 		}
 
@@ -1925,6 +1942,7 @@ int32_t cam_cci_core_cfg(struct v4l2_subdev *sd,
 		CAM_WARN(CAM_CCI, "CCI hardware is resetting");
 		return -EAGAIN;
 	}
+	cci_dev->is_probing = false;
 	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d cmd = %d", cci_dev->soc_info.index, master, cci_ctrl->cmd);
 
 	switch (cci_ctrl->cmd) {

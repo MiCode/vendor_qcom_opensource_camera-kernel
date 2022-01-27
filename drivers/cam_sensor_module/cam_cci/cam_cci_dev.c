@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_cci_dev.h"
@@ -289,18 +290,28 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_ERROR_BMSK) {
 		cci_dev->cci_master_info[MASTER_0].status = -EINVAL;
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q0_NACK_ERROR_BMSK) {
-			CAM_ERR(CAM_CCI,
-				"Base:%pK,cci: %d, M0_Q0 NACK ERROR: 0x%x",
-				base, cci_dev->soc_info.index, irq_status0);
+			if (cci_dev->is_probing)
+				CAM_INFO(CAM_CCI,
+					"Base:%pK,cci: %d, M0_Q0 NACK ERROR: 0x%x",
+					base, cci_dev->soc_info.index, irq_status0);
+			else
+				CAM_ERR(CAM_CCI,
+					"Base:%pK,cci: %d, M0_Q0 NACK ERROR: 0x%x",
+					base, cci_dev->soc_info.index, irq_status0);
 			cam_cci_dump_registers(cci_dev, MASTER_0,
 					QUEUE_0);
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
 				.report_q[QUEUE_0]);
 		}
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q1_NACK_ERROR_BMSK) {
-			CAM_ERR(CAM_CCI,
-				"Base:%pK,cci: %d, M0_Q1 NACK ERROR: 0x%x",
-				base, cci_dev->soc_info.index, irq_status0);
+			if (cci_dev->is_probing)
+				CAM_INFO(CAM_CCI,
+					"Base:%pK,cci: %d, M0_Q1 NACK ERROR: 0x%x",
+					base, cci_dev->soc_info.index, irq_status0);
+			else
+				CAM_ERR(CAM_CCI,
+					"Base:%pK,cci: %d, M0_Q1 NACK ERROR: 0x%x",
+					base, cci_dev->soc_info.index, irq_status0);
 			cam_cci_dump_registers(cci_dev, MASTER_0,
 					QUEUE_1);
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
@@ -321,18 +332,28 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_ERROR_BMSK) {
 		cci_dev->cci_master_info[MASTER_1].status = -EINVAL;
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q0_NACK_ERROR_BMSK) {
-			CAM_ERR(CAM_CCI,
-				"Base:%pK, cci: %d, M1_Q0 NACK ERROR: 0x%x",
-				base, cci_dev->soc_info.index, irq_status0);
+			if (cci_dev->is_probing)
+				CAM_INFO(CAM_CCI,
+					"Base:%pK, cci: %d, M1_Q0 NACK ERROR: 0x%x",
+					base, cci_dev->soc_info.index, irq_status0);
+			else
+				CAM_ERR(CAM_CCI,
+					"Base:%pK, cci: %d, M1_Q0 NACK ERROR: 0x%x",
+					base, cci_dev->soc_info.index, irq_status0);
 			cam_cci_dump_registers(cci_dev, MASTER_1,
 					QUEUE_0);
 			complete_all(&cci_dev->cci_master_info[MASTER_1]
 			.report_q[QUEUE_0]);
 		}
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q1_NACK_ERROR_BMSK) {
-			CAM_ERR(CAM_CCI,
-				"Base:%pK, cci: %d, M1_Q1 NACK ERROR: 0x%x",
-				base, cci_dev->soc_info.index, irq_status0);
+			if (cci_dev->is_probing)
+				CAM_INFO(CAM_CCI,
+					"Base:%pK, cci: %d, M1_Q1 NACK ERROR: 0x%x",
+					base, cci_dev->soc_info.index, irq_status0);
+			else
+				CAM_ERR(CAM_CCI,
+					"Base:%pK, cci: %d, M1_Q1 NACK ERROR: 0x%x",
+					base, cci_dev->soc_info.index, irq_status0);
 			cam_cci_dump_registers(cci_dev, MASTER_1,
 				QUEUE_1);
 			complete_all(&cci_dev->cci_master_info[MASTER_1]

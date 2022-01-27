@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2018, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_cmn_header.h"
@@ -10,7 +11,8 @@
 int32_t cam_cci_i2c_read(struct cam_sensor_cci_client *cci_client,
 	uint32_t addr, uint32_t *data,
 	enum camera_sensor_i2c_type addr_type,
-	enum camera_sensor_i2c_type data_type)
+	enum camera_sensor_i2c_type data_type,
+	bool is_probing)
 {
 	int32_t rc = -EINVAL;
 	unsigned char buf[CAMERA_SENSOR_I2C_TYPE_DWORD];
@@ -22,6 +24,7 @@ int32_t cam_cci_i2c_read(struct cam_sensor_cci_client *cci_client,
 		|| data_type >= CAMERA_SENSOR_I2C_TYPE_MAX)
 		return rc;
 
+	cci_ctrl.is_probing = is_probing;
 	cci_ctrl.cmd = MSM_CCI_I2C_READ;
 	cci_ctrl.cci_info = cci_client;
 	cci_ctrl.cfg.cci_i2c_read_cfg.addr = addr;
@@ -32,7 +35,10 @@ int32_t cam_cci_i2c_read(struct cam_sensor_cci_client *cci_client,
 	rc = v4l2_subdev_call(cci_client->cci_subdev,
 		core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
 	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "rc = %d", rc);
+		if (is_probing)
+			CAM_INFO(CAM_SENSOR, "rc = %d", rc);
+		else
+			CAM_ERR(CAM_SENSOR, "rc = %d", rc);
 		return rc;
 	}
 
@@ -168,7 +174,7 @@ static int32_t cam_cci_i2c_compare(struct cam_sensor_cci_client *client,
 	uint32_t reg_data = 0;
 
 	rc = cam_cci_i2c_read(client, addr, &reg_data,
-		addr_type, data_type);
+		addr_type, data_type, false);
 	if (rc < 0)
 		return rc;
 
