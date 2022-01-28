@@ -2212,9 +2212,6 @@ static bool cam_ife_csid_hw_ver2_need_unpack_mipi(
 	case CAM_FORMAT_MIPI_RAW_10:
 	case CAM_FORMAT_MIPI_RAW_12:
 	case CAM_FORMAT_MIPI_RAW_14:
-	case CAM_FORMAT_PLAIN16_10:
-	case CAM_FORMAT_PLAIN16_12:
-	case CAM_FORMAT_PLAIN16_14:
 	 /*
 	  * CAM_FORMAT_PLAIN16_16 : can be removed? double check why default_out_format has it.
 	  * default_out_format is used in xCFA usecases without real RDI0 out buffer.
@@ -2323,20 +2320,21 @@ static int cam_ife_csid_hw_ver2_config_path_data(
 	case CAM_IFE_PIX_PATH_RES_RDI_2:
 	case CAM_IFE_PIX_PATH_RES_RDI_3:
 	case CAM_IFE_PIX_PATH_RES_RDI_4:
+		path_cfg->csid_out_unpack_msb = cam_ife_csid_hw_ver2_need_unpack_mipi(csid_hw,
+			reserve, path_reg, path_cfg->out_format);
+
 		/*
-		 * if csid gives unpacked out, packing needs to be done at
+		 * if csid gives unpacked msb out, packing needs to be done at
 		 * WM side if needed, based on the format the decision is
 		 * taken at WM side
 		 */
-		reserve->use_wm_pack = cam_ife_csid_hw_ver2_need_unpack_mipi(csid_hw,
-			reserve, path_reg, path_cfg->out_format);
-		path_cfg->use_wm_pack = reserve->use_wm_pack;
+		reserve->use_wm_pack = path_cfg->csid_out_unpack_msb;
 
 		rc = cam_ife_csid_get_format_rdi(
 			path_cfg->in_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0],
 			path_cfg->out_format,
 			&path_cfg->path_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0],
-			path_reg->mipi_pack_supported, reserve->use_wm_pack);
+			path_reg->mipi_pack_supported, path_cfg->csid_out_unpack_msb);
 		if (rc)
 			goto end;
 
@@ -2347,7 +2345,7 @@ static int cam_ife_csid_hw_ver2_config_path_data(
 				path_cfg->in_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_1],
 				path_cfg->out_format,
 				&path_cfg->path_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_1],
-				path_reg->mipi_pack_supported, reserve->use_wm_pack);
+				path_reg->mipi_pack_supported, path_cfg->csid_out_unpack_msb);
 			if (rc)
 				goto end;
 		}
@@ -2919,7 +2917,7 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 			path_reg->plain_fmt_shift_val);
 
 	/* Keep the data in MSB, IFE/SFE  pipeline, BUS expects data in MSB */
-	if (path_cfg->use_wm_pack &&
+	if (path_cfg->csid_out_unpack_msb &&
 		path_cfg->path_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].plain_fmt)
 		cfg1 |= (1 << path_reg->plain_alignment_shift_val);
 
@@ -5240,13 +5238,20 @@ static int cam_ife_csid_ver2_rdi_lcr_cfg(
 
 	/*
 	 * LCR should not be on for a resource if CSID is giving packed data
-	 * this case would come for formats which are not supported
-	 * */
+	 * this case would come for formats which are not supported.
+	 */
 	if (path_cfg->path_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].packing_fmt) {
-		CAM_ERR(CAM_ISP, "LCR enabled for %s, csid out packed not supported",
-			res->res_name);
+		CAM_ERR(CAM_ISP, "[%s] LCR not supported in_format %d out_format %d",
+			res->res_name, path_cfg->in_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0],
+			path_cfg->out_format);
 		return -EINVAL;
 	}
+
+	/* if CSID unpacked data is not in MSB, we loose few bits going into PDAF, warn for now */
+	if (!path_cfg->csid_out_unpack_msb)
+		CAM_WARN(CAM_ISP, "[%s] Input data to LCR is in LSB, in_format %d out_format %d",
+			res->res_name, path_cfg->in_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0],
+			path_cfg->out_format);
 
 	if (csid_hw->flags.sfe_en)
 		csid_hw->top_cfg.rdi_lcr |= BIT(res->res_id) <<

@@ -995,32 +995,6 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 		rsrc_data->width =
 			ALIGNUP(rsrc_data->width * 2, 16) / 16;
 		rsrc_data->en_cfg = 0x1;
-
-		if (rsrc_data->use_wm_pack) {
-			switch (rsrc_data->format) {
-			case CAM_FORMAT_PLAIN16_10:
-				rsrc_data->pack_fmt = PACKER_FMT_VER3_PLAIN_16_10BPP;
-				break;
-			case CAM_FORMAT_PLAIN16_12:
-				rsrc_data->pack_fmt = PACKER_FMT_VER3_PLAIN_16_12BPP;
-				break;
-			case CAM_FORMAT_PLAIN16_14:
-				rsrc_data->pack_fmt = PACKER_FMT_VER3_PLAIN_16_14BPP;
-				break;
-			case CAM_FORMAT_PLAIN16_16:
-				rsrc_data->pack_fmt = PACKER_FMT_VER3_PLAIN_16_16BPP;
-				break;
-			default:
-				CAM_ERR(CAM_SFE, "Not possible");
-				break;
-			}
-
-			/* LSB aligned */
-			rsrc_data->pack_fmt |= (1 << rsrc_data->common_data->pack_align_shift);
-
-			if (rsrc_data->default_line_based)
-				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 16);
-		}
 		break;
 	case CAM_FORMAT_PLAIN64:
 		rsrc_data->width =
