@@ -989,7 +989,7 @@ static int cam_jpeg_mgr_prepare_hw_update(void *hw_mgr_priv,
 		return -EINVAL;
 	}
 
-	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_hdl, -1);
+	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_hdl, -1, false);
 	if (rc) {
 		CAM_ERR(CAM_JPEG, "Patch processing failed %d", rc);
 		return rc;

@@ -5511,7 +5511,7 @@ static int cam_icp_mgr_prepare_hw_update(void *hw_mgr_priv,
 		packet->header.request_id, ctx_data->ctx_id);
 	/* Update Buffer Address from handles and patch information */
 	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_hdl,
-		hw_mgr->iommu_sec_hdl);
+		hw_mgr->iommu_sec_hdl, true);
 	if (rc) {
 		mutex_unlock(&ctx_data->ctx_mutex);
 		return rc;

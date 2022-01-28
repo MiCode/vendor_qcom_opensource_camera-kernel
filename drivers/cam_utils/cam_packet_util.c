@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/types.h>
@@ -281,7 +282,7 @@ static int cam_packet_util_get_patch_iova(
 }
 
 int cam_packet_util_process_patches(struct cam_packet *packet,
-	int32_t iommu_hdl, int32_t sec_mmu_hdl)
+	int32_t iommu_hdl, int32_t sec_mmu_hdl, bool exp_mem)
 {
 	struct cam_patch_desc *patch_desc = NULL;
 	dma_addr_t iova_addr;
@@ -354,15 +355,19 @@ int cam_packet_util_process_patches(struct cam_packet *packet,
 			patch_desc[i].dst_offset);
 		temp += patch_desc[i].src_offset;
 
-		if ((flags & CAM_MEM_FLAG_HW_SHARED_ACCESS) ||
-			(flags & CAM_MEM_FLAG_CMD_BUF_TYPE))
+		if (exp_mem && cam_smmu_is_expanded_memory()) {
+			if ((flags & CAM_MEM_FLAG_HW_SHARED_ACCESS) ||
+				(flags & CAM_MEM_FLAG_CMD_BUF_TYPE)) {
+				*dst_cpu_addr = temp;
+			} else {
+				*dst_cpu_addr = CAM_36BIT_INTF_GET_IOVA_BASE(temp);
+			}
+		} else {
 			*dst_cpu_addr = temp;
-		else
-			*dst_cpu_addr = cam_smmu_is_expanded_memory() ?
-				CAM_36BIT_INTF_GET_IOVA_BASE(temp) : temp;
+		}
 
 		CAM_DBG(CAM_UTIL,
-			"patch is done for dst %pk with src 0x%llx value 0x%llx",
+			"patch is done for dst %pK with src 0x%llx value 0x%llx",
 			dst_cpu_addr, iova_addr, *((uint64_t *)dst_cpu_addr));
 	}
 

@@ -10852,11 +10852,11 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 	if (ctx->flags.internal_cdm)
 		rc = cam_packet_util_process_patches(prepare->packet,
 			hw_mgr->mgr_common.img_iommu_hdl,
-			hw_mgr->mgr_common.img_iommu_hdl_secure);
+			hw_mgr->mgr_common.img_iommu_hdl_secure, true);
 	else
 		rc = cam_packet_util_process_patches(prepare->packet,
 			hw_mgr->mgr_common.cmd_iommu_hdl,
-			hw_mgr->mgr_common.cmd_iommu_hdl_secure);
+			hw_mgr->mgr_common.cmd_iommu_hdl_secure, true);
 
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Patch ISP packet failed.");
