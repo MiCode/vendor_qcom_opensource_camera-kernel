@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_LX7_REG_H_
@@ -18,6 +19,7 @@
 
 #define ICP_LX7_CIRQ_OB_MASK   0x0
 #define ICP_LX7_CIRQ_OB_CLEAR  0x4
+#define ICP_LX7_CIRQ_OB_SET    0x8
 #define ICP_LX7_CIRQ_OB_STATUS 0xc
 
 /* ICP WD reg space */
@@ -33,6 +35,7 @@
 
 #define ICP_LX7_CIRQ_OB_IRQ_CMD 0x10
 #define LX7_IRQ_CLEAR_CMD       (1 << 1)
+#define LX7_IRQ_SET_CMD         (1 << 0)
 
 #define ICP_LX7_CIRQ_IB_STATUS0   0x70
 #define ICP_LX7_CIRQ_IB_STATUS1   0x74

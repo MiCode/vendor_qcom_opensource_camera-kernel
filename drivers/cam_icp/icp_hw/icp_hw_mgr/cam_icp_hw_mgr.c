@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -1956,6 +1957,62 @@ static const struct file_operations cam_icp_hw_mgr_fw_load_options = {
 };
 #endif
 
+#ifdef CONFIG_CAM_TEST_IRQ_LINE
+
+static int cam_icp_test_irq_line(void)
+{
+	int rc = -EINVAL;
+
+	if (icp_hw_mgr.icp_dev_intf->hw_ops.test_irq_line)
+		rc = icp_hw_mgr.icp_dev_intf->hw_ops.test_irq_line(
+			icp_hw_mgr.icp_dev_intf->hw_priv);
+
+	if (rc)
+		CAM_ERR(CAM_ICP, "failed to verify IRQ line for ICP");
+
+	return 0;
+}
+
+#else
+
+static int cam_icp_test_irq_line(void)
+{
+	CAM_ERR(CAM_ICP, "IRQ line verification disabled!");
+	return -EPERM;
+}
+
+#endif
+
+#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+
+static int cam_icp_test_irq_line_at_probe(void)
+{
+	return cam_icp_test_irq_line();
+}
+
+#else
+
+static int cam_icp_test_irq_line_at_probe(void)
+{
+	return 0;
+}
+
+#endif
+
+static int cam_icp_set_irq_line_test(void *data, u64 val)
+{
+	cam_icp_test_irq_line();
+	return 0;
+}
+
+static int cam_icp_get_irq_line_test(void *data, u64 *val)
+{
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(cam_icp_irq_line_test, cam_icp_get_irq_line_test,
+	cam_icp_set_irq_line_test, "%08llu");
+
 static int cam_icp_hw_mgr_create_debugfs_entry(void)
 {
 	int rc = 0;
@@ -2001,6 +2058,8 @@ static int cam_icp_hw_mgr_create_debugfs_entry(void)
 		debugfs_create_file("icp_fw_load_unload", 0644,
 			icp_hw_mgr.dentry, NULL, &cam_icp_hw_mgr_fw_load_options);
 	#endif
+	debugfs_create_file("test_irq_line", 0644,
+		icp_hw_mgr.dentry, NULL, &cam_icp_irq_line_test);
 
 end:
 	/* Set default hang dump lvl */
@@ -6785,6 +6844,9 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	init_completion(&icp_hw_mgr.icp_complete);
 	cam_common_register_mini_dump_cb(
 		cam_icp_hw_mgr_mini_dump_cb, "cam_icp");
+
+	cam_icp_test_irq_line_at_probe();
+
 	return rc;
 
 icp_wq_create_failed:
