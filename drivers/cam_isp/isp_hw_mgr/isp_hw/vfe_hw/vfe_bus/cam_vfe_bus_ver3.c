@@ -4271,7 +4271,7 @@ static int cam_vfe_bus_ver3_process_cmd(
 	int rc = -EINVAL;
 	struct cam_vfe_bus_ver3_priv		 *bus_priv;
 	uint32_t top_mask_0 = 0;
-	struct cam_isp_hw_bus_cap *vfe_bus_cap;
+	struct cam_isp_hw_cap *vfe_bus_cap;
 
 
 	if (!priv || !cmd_args) {
@@ -4344,22 +4344,27 @@ static int cam_vfe_bus_ver3_process_cmd(
 		bus_priv = (struct cam_vfe_bus_ver3_priv *) priv;
 		rc = cam_vfe_bus_get_res_for_mid(bus_priv, cmd_args, arg_size);
 		break;
-	case CAM_ISP_HW_CMD_QUERY_BUS_CAP:
+	case CAM_ISP_HW_CMD_QUERY_CAP:
 		bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
-		vfe_bus_cap = (struct cam_isp_hw_bus_cap *) cmd_args;
+		vfe_bus_cap = (struct cam_isp_hw_cap *) cmd_args;
 		vfe_bus_cap->max_out_res_type = bus_priv->max_out_res;
 		vfe_bus_cap->support_consumed_addr =
 			bus_priv->common_data.support_consumed_addr;
 		break;
-	case CAM_ISP_HW_CMD_IFE_BUS_DEBUG_CFG:
+	case CAM_ISP_HW_CMD_IFE_DEBUG_CFG: {
+		struct cam_vfe_generic_debug_config *debug_cfg;
+
 		bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
+		debug_cfg = (struct cam_vfe_generic_debug_config *)cmd_args;
 		bus_priv->common_data.disable_mmu_prefetch =
-			(*((bool *)cmd_args));
+			debug_cfg->disable_ife_mmu_prefetch;
+
 		CAM_DBG(CAM_ISP, "IFE: %u bus WR prefetch %s",
 			bus_priv->common_data.core_index,
 			bus_priv->common_data.disable_mmu_prefetch ?
 			"disabled" : "enabled");
 		rc = 0;
+	}
 		break;
 	case CAM_ISP_HW_CMD_BUF_UPDATE:
 		rc = cam_vfe_bus_ver3_config_wm(priv, cmd_args, arg_size);

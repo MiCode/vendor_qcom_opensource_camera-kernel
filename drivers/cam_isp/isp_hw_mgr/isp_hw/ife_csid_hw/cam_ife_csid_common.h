@@ -297,7 +297,9 @@ struct cam_ife_csid_hw_counters {
  * @rst_capture_strobes:   rx packet capture rst strobes
  * @rx_mask:               Debug mask for rx irq
  * @path_mask:             Debug mask for path irq
+ * @test_bus_val:          CSID test bus value
  * @rx_capture_debug_set:  rx pkt capture debug set
+ * @test_bus_enabled:      test bus enabled
  */
 struct cam_ife_csid_debug_info {
 	uint32_t                          debug_val;
@@ -306,7 +308,9 @@ struct cam_ife_csid_debug_info {
 	uint32_t                          rst_capture_strobes;
 	uint32_t                          rx_mask;
 	uint32_t                          path_mask;
+	uint32_t                          test_bus_val;
 	bool                              rx_capture_debug_set;
+	bool                              test_bus_enabled;
 };
 
 /*

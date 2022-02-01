@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_680_H_
@@ -1110,6 +1111,8 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.buf_done_irq_mask_addr                  = 0x90,
 	.buf_done_irq_clear_addr                 = 0x94,
 	.buf_done_irq_set_addr                   = 0x98,
+	.test_bus_ctrl                           = 0x1E8,
+	.test_bus_debug                          = 0x1EC,
 
 	/*configurations */
 	.major_version                           = 6,

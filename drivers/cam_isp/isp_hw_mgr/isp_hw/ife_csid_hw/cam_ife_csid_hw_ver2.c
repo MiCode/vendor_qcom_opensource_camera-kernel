@@ -88,6 +88,8 @@ static int cam_ife_csid_ver2_set_debug(
 	memset(&csid_hw->debug_info, 0,
 		sizeof(struct cam_ife_csid_debug_info));
 	csid_hw->debug_info.debug_val = debug_args->csid_debug;
+	csid_hw->debug_info.test_bus_val = debug_args->csid_testbus_debug;
+
 	/*
 	 * RX capture debug
 	 * [0:3]   = rst strobes
@@ -1358,7 +1360,7 @@ static void cam_ife_csid_ver2_print_debug_reg_status(
 	struct cam_hw_soc_info                   *soc_info;
 	void __iomem *mem_base;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg = NULL;
-	uint32_t val0 = 0, val1 = 0, val2 = 0;
+	uint32_t val0 = 0, val1 = 0, val2 = 0, val3 = 0;
 
 	soc_info = &csid_hw->hw_info->soc_info;
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
@@ -1375,9 +1377,15 @@ static void cam_ife_csid_ver2_print_debug_reg_status(
 	val2 = cam_io_r_mb(mem_base +
 		path_reg->debug_halt_status_addr);
 
+	/* Read test bus if enabled */
+	if (csid_hw->debug_info.test_bus_enabled)
+		val3 = cam_io_r_mb(mem_base +
+			csid_reg->cmn_reg->test_bus_debug);
+
 	CAM_INFO(CAM_ISP,
-		"debug_camif_0: 0x%x debug_camif_1: 0x%x halt_status: 0x%x for res: %s ",
-		 val0, val1, val2, res->res_name);
+		"debug_camif_0: 0x%x debug_camif_1: 0x%x halt_status: 0x%x test_bus: %s test_bus_val: 0x%x for res: %s ",
+		 val0, val1, val2, CAM_BOOL_TO_YESNO(csid_hw->debug_info.test_bus_enabled),
+		 val3, res->res_name);
 }
 
 static int cam_ife_csid_ver2_parse_path_irq_status(
@@ -1939,10 +1947,21 @@ static int cam_ife_csid_ver2_wait_for_reset(
 
 	if (rem_jiffies == 0) {
 		rc = -ETIMEDOUT;
-		CAM_ERR(CAM_ISP,
-			"CSID[%d], sync-mode[%d] reset time out",
-			csid_hw->hw_intf->hw_idx,
-			csid_hw->sync_mode);
+		if (csid_hw->debug_info.test_bus_enabled) {
+			struct cam_hw_soc_info *soc_info = &csid_hw->hw_info->soc_info;
+			struct cam_ife_csid_ver2_reg_info *csid_reg =
+				(struct cam_ife_csid_ver2_reg_info *) csid_hw->core_info->csid_reg;
+
+			CAM_ERR(CAM_ISP,
+				"CSID[%d], sync-mode[%d] test_bus: 0x%x reset timed out",
+				csid_hw->hw_intf->hw_idx, csid_hw->sync_mode,
+				cam_io_r_mb(
+					soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base +
+					csid_reg->cmn_reg->test_bus_debug));
+		} else {
+			CAM_ERR(CAM_ISP, "CSID[%d], sync-mode[%d] reset timed out",
+				csid_hw->hw_intf->hw_idx, csid_hw->sync_mode);
+		}
 	} else {
 		CAM_DBG(CAM_ISP,
 		"CSID[%d], sync-mode[%d] reset success",
@@ -4307,6 +4326,18 @@ disable_hw:
 	return rc;
 }
 
+static void cam_ife_csid_ver2_testbus_config(
+	struct cam_ife_csid_ver2_hw *csid_hw, uint32_t val)
+{
+	struct cam_hw_soc_info *soc_info = &csid_hw->hw_info->soc_info;
+	struct cam_ife_csid_ver2_reg_info *csid_reg =
+		(struct cam_ife_csid_ver2_reg_info *) csid_hw->core_info->csid_reg;
+
+	cam_io_w_mb(val, soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base +
+		csid_reg->cmn_reg->test_bus_ctrl);
+	CAM_DBG(CAM_ISP, "CSID [%u] test_bus_ctrl: 0x%x", csid_hw->hw_intf->hw_idx, val);
+}
+
 int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 			uint32_t arg_size)
 {
@@ -4414,6 +4445,11 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 		cam_ife_csid_ver2_enable_path(csid_hw, res);
 	}
 
+	if (csid_hw->debug_info.test_bus_val) {
+		cam_ife_csid_ver2_testbus_config(csid_hw, csid_hw->debug_info.test_bus_val);
+		csid_hw->debug_info.test_bus_enabled = true;
+	}
+
 	csid_hw->flags.reset_awaited = false;
 end:
 	mutex_unlock(&csid_hw->hw_info->hw_mutex);
@@ -4495,6 +4531,10 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 	}
 
 	cam_ife_csid_ver2_disable_csi2(csid_hw);
+	if (csid_hw->debug_info.test_bus_enabled)
+		cam_ife_csid_ver2_testbus_config(csid_hw, 0x0);
+
+	csid_hw->debug_info.test_bus_enabled = false;
 	mutex_unlock(&csid_hw->hw_info->hw_mutex);
 
 	return rc;

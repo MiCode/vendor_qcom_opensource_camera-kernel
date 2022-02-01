@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SFE_HW_INTF_H_
@@ -12,6 +13,7 @@
 
 #define SFE_CORE_BASE_IDX           0
 #define CAM_SFE_HW_NUM_MAX          2
+#define CAM_SFE_PERF_CNT_MAX        2
 
 enum cam_sfe_core_id {
 	CAM_SFE_CORE_0,
@@ -55,12 +57,16 @@ enum cam_sfe_bus_rd_irq_regs {
 /*
  * struct cam_sfe_generic_debug_config:
  *
- * @sfe_debug_cfg : SFE debug cfg value
- * @sfe_sensor_sel: SFE sensor sel for diag data
+ * @sfe_debug_cfg       : SFE debug cfg value
+ * @sfe_sensor_sel      : SFE sensor sel for diag data
+ * @num_counters        : Number of perf counters configured
+ * @sfe_perf_counter_val: SFE perf counter values
  */
 struct cam_sfe_generic_debug_config {
-	uint32_t sfe_debug_cfg;
-	uint32_t sfe_sensor_sel;
+	uint32_t  sfe_debug_cfg;
+	uint32_t  sfe_sensor_sel;
+	uint32_t  num_counters;
+	uint32_t  sfe_perf_counter_val[CAM_SFE_PERF_CNT_MAX];
 };
 
 /*
@@ -80,11 +86,11 @@ struct cam_sfe_sys_cache_debug_config {
  * @cache_config: If the config is for cache
  */
 struct cam_sfe_debug_cfg_params {
-	bool cache_config;
 	union {
 		struct cam_sfe_generic_debug_config   dbg_cfg;
 		struct cam_sfe_sys_cache_debug_config cache_cfg;
 	} u;
+	bool cache_config;
 };
 
 /*

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE_HW_INTF_H_
@@ -23,6 +24,8 @@
 #define VFE_BUS_BASE_IDX              1
 
 #define CAM_VFE_MAX_UBWC_PORTS        4
+
+#define CAM_VFE_PERF_CNT_MAX          2
 
 enum cam_isp_hw_vfe_in_mux {
 	CAM_ISP_HW_VFE_IN_CAMIF       = 0,
@@ -369,6 +372,20 @@ struct cam_vfe_generic_ubwc_config {
 	uint32_t   api_version;
 	struct cam_vfe_generic_ubwc_plane_config
 		ubwc_plane_cfg[CAM_PACKET_MAX_PLANES - 1];
+};
+
+
+/*
+ * struct cam_vfe_generic_debug_config:
+ *
+ * @num_counters            : Number of perf counters configured
+ * @vfe_perf_counter_val    : VFE perf counter values
+ * @disable_ife_mmu_prefetch: Disable IFE mmu prefetch
+ */
+struct cam_vfe_generic_debug_config {
+	uint32_t  num_counters;
+	uint32_t  vfe_perf_counter_val[CAM_VFE_PERF_CNT_MAX];
+	bool      disable_ife_mmu_prefetch;
 };
 
 /*

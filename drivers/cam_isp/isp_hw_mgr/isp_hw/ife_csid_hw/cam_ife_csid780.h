@@ -1171,6 +1171,8 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.buf_done_irq_mask_addr                  = 0x90,
 	.buf_done_irq_clear_addr                 = 0x94,
 	.buf_done_irq_set_addr                   = 0x98,
+	.test_bus_ctrl                           = 0x1E8,
+	.test_bus_debug                          = 0x1EC,
 
 	/*configurations */
 	.major_version                           = 6,

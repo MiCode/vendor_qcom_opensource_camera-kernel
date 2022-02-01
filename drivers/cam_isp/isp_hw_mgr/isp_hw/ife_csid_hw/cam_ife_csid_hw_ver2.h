@@ -378,6 +378,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t buf_done_irq_mask_addr;
 	uint32_t buf_done_irq_clear_addr;
 	uint32_t buf_done_irq_set_addr;
+	uint32_t test_bus_ctrl;
+	uint32_t test_bus_debug;
 
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;

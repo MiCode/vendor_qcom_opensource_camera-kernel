@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE780_H_
@@ -547,6 +548,25 @@ static struct cam_vfe_top_ver4_reg_offset_common vfe780_top_common_reg = {
 	.epoch_height_cfg         = 0x0000009C,
 	.bus_violation_status     = 0x00000C64,
 	.bus_overflow_status      = 0x00000C68,
+	.num_perf_counters        = 2,
+	.perf_count_reg = {
+		{
+			.perf_count_cfg    = 0x00000100,
+			.perf_pix_count    = 0x00000104,
+			.perf_line_count   = 0x00000108,
+			.perf_stall_count  = 0x0000010C,
+			.perf_always_count = 0x00000110,
+			.perf_count_status = 0x00000114,
+		},
+		{
+			.perf_count_cfg    = 0x00000118,
+			.perf_pix_count    = 0x0000011C,
+			.perf_line_count   = 0x00000120,
+			.perf_stall_count  = 0x00000124,
+			.perf_always_count = 0x00000128,
+			.perf_count_status = 0x0000012C,
+		},
+	},
 	.top_debug_cfg            = 0x000000FC,
 	.num_top_debug_reg        = CAM_VFE_780_NUM_DBG_REG,
 	.pdaf_input_cfg_0         = 0x00000130,

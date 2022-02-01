@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE_TOP_VER4_H_
@@ -13,6 +14,16 @@
 #define CAM_VFE_RDI_VER2_MAX                           4
 #define CAM_VFE_CAMIF_LITE_EVT_MAX                     256
 #define CAM_VFE_TOP_DBG_REG_MAX                        17
+#define CAM_VFE_PERF_COUNTER_MAX                       2
+
+struct cam_vfe_top_ver4_perf_count_reg_offset {
+	uint32_t perf_count_cfg;
+	uint32_t perf_pix_count;
+	uint32_t perf_line_count;
+	uint32_t perf_stall_count;
+	uint32_t perf_always_count;
+	uint32_t perf_count_status;
+};
 
 struct cam_vfe_top_ver4_reg_offset_common {
 	uint32_t hw_version;
@@ -56,6 +67,9 @@ struct cam_vfe_top_ver4_reg_offset_common {
 	uint32_t epoch0_pattern_cfg;
 	uint32_t epoch1_pattern_cfg;
 	uint32_t epoch_height_cfg;
+	uint32_t num_perf_counters;
+	struct cam_vfe_top_ver4_perf_count_reg_offset
+		perf_count_reg[CAM_VFE_PERF_COUNTER_MAX];
 	uint32_t top_debug_cfg;
 	uint32_t pdaf_input_cfg_0;
 	uint32_t pdaf_input_cfg_1;

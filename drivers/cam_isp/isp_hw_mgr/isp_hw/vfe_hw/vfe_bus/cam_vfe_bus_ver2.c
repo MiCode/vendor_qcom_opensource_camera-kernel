@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/ratelimit.h>
@@ -3805,7 +3806,7 @@ static int cam_vfe_bus_process_cmd(
 	int rc = -EINVAL;
 	struct cam_vfe_bus_ver2_priv		 *bus_priv;
 	uint32_t top_mask_0 = 0;
-	struct cam_isp_hw_bus_cap *vfe_bus_cap;
+	struct cam_isp_hw_cap *vfe_bus_cap;
 
 
 	if (!priv || !cmd_args) {
@@ -3857,9 +3858,9 @@ static int cam_vfe_bus_process_cmd(
 		bus_priv = (struct cam_vfe_bus_ver2_priv *) priv;
 		rc = cam_vfe_bus_get_res_for_mid(bus_priv, cmd_args, arg_size);
 		break;
-	case CAM_ISP_HW_CMD_QUERY_BUS_CAP:
+	case CAM_ISP_HW_CMD_QUERY_CAP:
 		bus_priv = (struct cam_vfe_bus_ver2_priv  *) priv;
-		vfe_bus_cap = (struct cam_isp_hw_bus_cap *) cmd_args;
+		vfe_bus_cap = (struct cam_isp_hw_cap *) cmd_args;
 		vfe_bus_cap->max_out_res_type = bus_priv->max_out_res;
 		vfe_bus_cap->support_consumed_addr =
 			bus_priv->common_data.support_consumed_addr;
