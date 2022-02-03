@@ -228,6 +228,75 @@ int dump_stream_configs(int hw_idx,
 	return 0;
 }
 
+int dump_stream_configs_v3(int hw_idx,
+		int stream_idx,
+		struct tpg_stream_config_v3_t *stream)
+{
+#ifdef __TPG_DEBUG_DUMP__
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] pattern_type    : %s",
+			hw_idx,
+			stream_idx,
+			tpg_pattern_type_strings[stream->pattern_type]);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] cb_mode         : %s",
+			hw_idx,
+			stream_idx,
+			tpg_color_bar_mode_strings[stream->cb_mode]);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] frame_count     : %d",
+			hw_idx,
+			stream_idx,
+			stream->frame_count);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] stream_type     : %s",
+			hw_idx,
+			stream_idx,
+			tpg_stream_type_strings[stream->stream_type]);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] left            : %d",
+			hw_idx,
+			stream_idx,
+			stream->stream_dimension.left);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] top             : %d",
+			hw_idx,
+			stream_idx,
+			stream->stream_dimension.top);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] width           : %d",
+			hw_idx,
+			stream_idx,
+			stream->stream_dimension.width);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] height          : %d",
+			hw_idx,
+			stream_idx,
+			stream->stream_dimension.height);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] pixel_depth     : %d",
+			hw_idx,
+			stream_idx,
+			stream->pixel_depth);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] cfa_arrangement : %d",
+			hw_idx,
+			stream_idx,
+			stream->cfa_arrangement);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] output_format   : %s",
+			hw_idx,
+			stream_idx,
+		tpg_image_format_type_strings[stream->output_format]);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] vc              : 0x%x",
+			hw_idx,
+			stream_idx,
+			stream->vc);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] dt              : 0x%x",
+			hw_idx,
+			stream_idx,
+			stream->dt);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] hbi             : %d",
+			hw_idx,
+			stream_idx,
+			stream->hbi);
+	CAM_DBG(CAM_TPG, "TPG[%d][%d] vbi             : %d",
+			hw_idx,
+			stream_idx,
+			stream->vbi);
+#endif
+	return 0;
+}
+
 
 static int tpg_hw_soc_disable(struct tpg_hw *hw)
 {
@@ -239,13 +308,15 @@ static int tpg_hw_soc_disable(struct tpg_hw *hw)
 	}
 
 	rc = cam_soc_util_disable_platform_resource(hw->soc_info, true, false);
-	if (rc)
+	if (rc) {
 		CAM_ERR(CAM_TPG, "TPG[%d] Disable platform failed %d",
-				hw->hw_idx, rc);
-
+			hw->hw_idx, rc);
+		return rc;
+	}
 	if ((rc = cam_cpas_stop(hw->cpas_handle))) {
 		CAM_ERR(CAM_TPG, "TPG[%d] CPAS stop failed",
-				hw->hw_idx);
+			hw->hw_idx);
+		return rc;
 	} else {
 		hw->state = TPG_HW_STATE_HW_DISABLED;
 	}
@@ -280,7 +351,7 @@ static int tpg_hw_soc_enable(
 	rc = cam_cpas_start(hw->cpas_handle, &ahb_vote, &axi_vote);
 	if (rc) {
 		CAM_ERR(CAM_TPG, "TPG[%d] CPAS start failed",
-				hw->hw_idx);
+			hw->hw_idx);
 		rc = -EFAULT;
 		goto end;
 	}
@@ -289,7 +360,7 @@ static int tpg_hw_soc_enable(
 		clk_level, false);
 	if (rc) {
 		CAM_ERR(CAM_TPG, "TPG[%d] enable platform failed",
-				hw->hw_idx);
+			hw->hw_idx);
 		goto stop_cpas;
 	}
 	hw->state = TPG_HW_STATE_HW_ENABLED;
@@ -354,12 +425,67 @@ static int tpg_hw_start_default_new(struct tpg_hw *hw)
 	return 0;
 }
 
+static int tpg_hw_start_default_new_v3(struct tpg_hw *hw)
+{
+	int i = 0;
+	uint32_t stream_idx = 0;
+	int num_vcs = 0;
+	struct global_config_args globalargs = {0};
+
+	if (!hw || !hw->hw_info ||
+		!hw->hw_info->ops || !hw->hw_info->ops->process_cmd) {
+		CAM_ERR(CAM_TPG, "Invalid argument");
+		return -EINVAL;
+	}
+
+	dump_global_configs(hw->hw_idx, &hw->global_config);
+	for (i = 0; i < hw->hw_info->max_vc_channels; i++) {
+		int dt_slot = 0;
+		struct vc_config_args_v3 vc_config = {0};
+		struct list_head *pos = NULL, *pos_next = NULL;
+		struct tpg_hw_stream_v3 *entry = NULL, *vc_stream_entry = NULL;
+
+		if (hw->vc_slots[i].vc == -1)
+			break;
+		num_vcs++;
+		vc_config.vc_slot = i;
+		vc_config.num_dts = hw->vc_slots[i].stream_count;
+		vc_stream_entry = list_first_entry(&hw->vc_slots[i].head,
+			struct tpg_hw_stream_v3, list);
+		vc_config.stream  = &vc_stream_entry->stream;
+		hw->hw_info->ops->process_cmd(hw,
+				TPG_CONFIG_VC, &vc_config);
+
+		list_for_each_safe(pos, pos_next, &hw->vc_slots[i].head) {
+			struct dt_config_args_v3 dt_config = {0};
+
+			entry = list_entry(pos, struct tpg_hw_stream_v3, list);
+			dump_stream_configs_v3(hw->hw_idx,
+				stream_idx++,
+				&entry->stream);
+			dt_config.vc_slot = i;
+			dt_config.dt_slot = dt_slot++;
+			dt_config.stream  = &entry->stream;
+			hw->hw_info->ops->process_cmd(hw, TPG_CONFIG_DT, &dt_config);
+		}
+	}
+
+	globalargs.num_vcs      = num_vcs;
+	globalargs.globalconfig = &hw->global_config;
+	hw->hw_info->ops->process_cmd(hw,
+		TPG_CONFIG_CTRL, &globalargs);
+
+	return 0;
+}
+
+
 int tpg_hw_dump_status(struct tpg_hw *hw)
 {
 	if (!hw || !hw->hw_info || !hw->hw_info->ops)
 		return -EINVAL;
 	switch (hw->hw_info->version) {
 	case TPG_HW_VERSION_1_3:
+	case TPG_HW_VERSION_1_3_1:
 		if (hw->hw_info->ops->dump_status)
 			hw->hw_info->ops->dump_status(hw, NULL);
 		break;
@@ -385,14 +511,18 @@ int tpg_hw_start(struct tpg_hw *hw)
 		break;
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
+	case TPG_HW_VERSION_1_3_1:
 		if (hw->hw_info->ops->start)
 			hw->hw_info->ops->start(hw, NULL);
-		tpg_hw_start_default_new(hw);
+		if (hw->stream_version == 1)
+			tpg_hw_start_default_new(hw);
+		else if (hw->stream_version == 3)
+			tpg_hw_start_default_new_v3(hw);
 		cam_tpg_mem_dmp(hw->soc_info);
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
-				hw->hw_idx);
+			hw->hw_idx);
 		rc = -EINVAL;
 		break;
 	}
@@ -412,13 +542,25 @@ int tpg_hw_stop(struct tpg_hw *hw)
 	case TPG_HW_VERSION_1_1:
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
-		if (hw->hw_info->ops->stop)
+	case TPG_HW_VERSION_1_3_1:
+		if (hw->hw_info->ops->stop) {
 			rc = hw->hw_info->ops->stop(hw, NULL);
+			if (rc) {
+				CAM_ERR(CAM_TPG, "TPG[%d] hw stop failed %d",
+					hw->hw_idx, rc);
+				return rc;
+			}
+		}
 		rc = tpg_hw_soc_disable(hw);
+		if (rc) {
+			CAM_ERR(CAM_TPG, "TPG[%d] hw soc disable failed %d",
+				hw->hw_idx, rc);
+			return rc;
+		}
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
-				hw->hw_idx);
+			hw->hw_idx);
 		rc = -EINVAL;
 		break;
 	}
@@ -441,11 +583,12 @@ int tpg_hw_acquire(struct tpg_hw *hw,
 	case TPG_HW_VERSION_1_1:
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
+	case TPG_HW_VERSION_1_3_1:
 		// Start Cpas and enable required clocks
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
-				hw->hw_idx);
+			hw->hw_idx);
 		rc = -EINVAL;
 		break;
 	}
@@ -465,10 +608,11 @@ int tpg_hw_release(struct tpg_hw *hw)
 	case TPG_HW_VERSION_1_1:
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
+	case TPG_HW_VERSION_1_3_1:
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
-				hw->hw_idx);
+			hw->hw_idx);
 		rc = -EINVAL;
 		break;
 	}
@@ -526,20 +670,73 @@ static int tpg_hw_configure_init_settings(
 	case TPG_HW_VERSION_1_1:
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
+	case TPG_HW_VERSION_1_3_1:
 		clk_level = get_tpg_clk_level(hw);
 		rc = tpg_hw_soc_enable(hw, clk_level);
-		if (hw->hw_info->ops->init)
+		if (rc) {
+			CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
+				hw->hw_idx, rc);
+			return rc;
+		}
+		if (hw->hw_info->ops->init) {
 			rc = hw->hw_info->ops->init(hw, settings);
+			if (rc) {
+				CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
+					hw->hw_idx, rc);
+				return rc;
+			}
+		}
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
-				hw->hw_idx);
+			hw->hw_idx);
 		rc = -EINVAL;
 		break;
 	}
 	mutex_unlock(&hw->mutex);
 	return rc;
 }
+
+static int tpg_hw_configure_init_settings_v3(
+		struct tpg_hw *hw,
+		struct tpg_hw_initsettings_v3 *settings)
+{
+	int rc = 0;
+
+	if (!hw || !hw->hw_info || !hw->hw_info->ops)
+		return -EINVAL;
+	mutex_lock(&hw->mutex);
+	switch (hw->hw_info->version) {
+	case TPG_HW_VERSION_1_0:
+	case TPG_HW_VERSION_1_1:
+	case TPG_HW_VERSION_1_2:
+	case TPG_HW_VERSION_1_3:
+	case TPG_HW_VERSION_1_3_1:
+		rc = tpg_hw_soc_enable(hw, CAM_SVS_VOTE);
+		if (rc) {
+			CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
+				hw->hw_idx, rc);
+			return rc;
+		}
+		if (hw->hw_info->ops->init) {
+			rc = hw->hw_info->ops->init(hw, settings);
+			if (rc) {
+				CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
+					hw->hw_idx, rc);
+				return rc;
+			}
+		}
+		break;
+	default:
+		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
+			hw->hw_idx);
+		rc = -EINVAL;
+		break;
+	}
+	mutex_unlock(&hw->mutex);
+	return rc;
+}
+
 
 int tpg_hw_config(
 	struct tpg_hw *hw,
@@ -553,12 +750,17 @@ int tpg_hw_config(
 	switch (config_cmd) {
 	case TPG_HW_CMD_INIT_CONFIG:
 		//validate_stream_list(hw);
-		tpg_hw_configure_init_settings(hw,
-			(struct tpg_hw_initsettings *)config_args);
+		if (hw->stream_version == 1) {
+			tpg_hw_configure_init_settings(hw,
+				(struct tpg_hw_initsettings *)config_args);
+		} else if (hw->stream_version == 3) {
+			tpg_hw_configure_init_settings_v3(hw,
+				(struct tpg_hw_initsettings_v3 *)config_args);
+		}
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported hw config command",
-				hw->hw_idx);
+			hw->hw_idx);
 		rc = -EINVAL;
 		break;
 	}
@@ -569,6 +771,7 @@ int tpg_hw_free_streams(struct tpg_hw *hw)
 {
 	struct list_head *pos = NULL, *pos_next = NULL;
 	struct tpg_hw_stream *entry;
+	struct tpg_hw_stream_v3 *entry_v3;
 	int i = 0;
 
 	if (!hw)
@@ -583,10 +786,19 @@ int tpg_hw_free_streams(struct tpg_hw *hw)
 		hw->vc_slots[i].slot_id      =  i;
 		hw->vc_slots[i].vc           = -1;
 		hw->vc_slots[i].stream_count =  0;
-		list_for_each_safe(pos, pos_next, &hw->vc_slots[i].head) {
-			entry = list_entry(pos, struct tpg_hw_stream, list);
-			list_del(pos);
-			kfree(entry);
+
+		if (hw->stream_version == 1) {
+			list_for_each_safe(pos, pos_next, &hw->vc_slots[i].head) {
+				entry = list_entry(pos, struct tpg_hw_stream, list);
+				list_del(pos);
+				kfree(entry);
+			}
+		} else if (hw->stream_version == 3) {
+			list_for_each_safe(pos, pos_next, &hw->vc_slots[i].head) {
+				entry_v3 = list_entry(pos, struct tpg_hw_stream_v3, list);
+				list_del(pos);
+				kfree(entry_v3);
+			}
 		}
 		INIT_LIST_HEAD(&(hw->vc_slots[i].head));
 	}
@@ -671,6 +883,65 @@ static int assign_vc_slot(
 	return rc;
 }
 
+static int assign_vc_slot_v3(
+	struct tpg_hw *hw,
+	int  vc,
+	struct tpg_hw_stream_v3 *stream
+	)
+{
+	int rc = -EINVAL, i = 0, slot_matched = 0;
+
+	if (!hw || !stream)
+		return -EINVAL;
+
+	for (i = 0; i < hw->hw_info->max_vc_channels; i++) {
+		/* Found a matching slot */
+		if (hw->vc_slots[i].vc == vc) {
+			slot_matched = 1;
+			if (hw->vc_slots[i].stream_count
+					< hw->hw_info->max_dt_channels_per_vc) {
+				list_add_tail(&stream->list, &hw->vc_slots[i].head);
+				hw->vc_slots[i].stream_count++;
+				hw->vc_slots[i].vc = vc;
+				rc = 0;
+				CAM_DBG(CAM_TPG, "vc[%d]dt[%d]=>slot[%d]",
+					vc,
+					stream->stream.dt,
+					i);
+			} else {
+
+				/**
+				 * already slot was assigned for this vc
+				 * however this slot have been filled with
+				 * full streams
+				 */
+				rc = -EINVAL;
+				CAM_ERR(CAM_TPG, "vc[%d]dt[%d]=>slot[%d] is overlfown",
+					vc, stream->stream.dt, i);
+			}
+			break;
+		}
+
+		/**
+		 * none of the above slots matched, and now found an empty slot
+		 * so assigning stream to that slot
+		 */
+		if (hw->vc_slots[i].vc == -1) {
+			list_add_tail(&stream->list, &hw->vc_slots[i].head);
+			hw->vc_slots[i].stream_count++;
+			hw->vc_slots[i].vc = vc;
+			hw->vc_count++;
+			rc = 0;
+			CAM_DBG(CAM_TPG, "vc[%d]dt[%d]=>slot[%d]", vc, stream->stream.dt, i);
+			break;
+		}
+	}
+	if ((slot_matched == 0) && (rc != 0))
+		CAM_ERR(CAM_TPG, "No slot matched");
+
+	return rc;
+}
+
 int tpg_hw_reset(struct tpg_hw *hw)
 {
 	int rc = 0;
@@ -686,13 +957,15 @@ int tpg_hw_reset(struct tpg_hw *hw)
 	mutex_lock(&hw->mutex);
 	if (hw->state != TPG_HW_STATE_HW_DISABLED) {
 		rc = cam_soc_util_disable_platform_resource(hw->soc_info, true, false);
-		if (rc)
+		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] Disable platform failed %d", hw->hw_idx, rc);
-
+			return rc;
+		}
 		rc = cam_cpas_stop(hw->cpas_handle);
-		if (rc)
+		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] CPAS stop failed", hw->hw_idx);
-
+			return rc;
+		}
 		hw->state = TPG_HW_STATE_HW_DISABLED;
 	}
 	mutex_unlock(&hw->mutex);
@@ -711,11 +984,12 @@ int tpg_hw_add_stream(
 		return -EINVAL;
 	}
 
+	hw->stream_version = 1;
 	mutex_lock(&hw->mutex);
 	stream = kzalloc(sizeof(struct tpg_hw_stream), GFP_KERNEL);
 	if (!stream) {
 		CAM_ERR(CAM_TPG, "TPG[%d] stream allocation failed",
-				hw->hw_idx);
+			hw->hw_idx);
 		mutex_unlock(&hw->mutex);
 		return -ENOMEM;
 	}
@@ -727,3 +1001,33 @@ int tpg_hw_add_stream(
 	mutex_unlock(&hw->mutex);
 	return rc;
 }
+int tpg_hw_add_stream_v3(
+	struct tpg_hw *hw,
+	struct tpg_stream_config_v3_t *cmd)
+{
+	int rc = 0;
+	struct tpg_hw_stream_v3 *stream = NULL;
+
+	if (!hw || !cmd) {
+		CAM_ERR(CAM_TPG, "Invalid params");
+		return -EINVAL;
+	}
+
+	hw->stream_version = 3;
+	mutex_lock(&hw->mutex);
+	stream = kzalloc(sizeof(struct tpg_hw_stream_v3), GFP_KERNEL);
+	if (!stream) {
+		CAM_ERR(CAM_TPG, "TPG[%d] stream allocation failed",
+			hw->hw_idx);
+		mutex_unlock(&hw->mutex);
+		return -ENOMEM;
+	}
+	memcpy(&stream->stream,
+		cmd,
+		sizeof(struct tpg_stream_config_v3_t));
+
+	rc = assign_vc_slot_v3(hw, stream->stream.vc, stream);
+	mutex_unlock(&hw->mutex);
+	return rc;
+}
+

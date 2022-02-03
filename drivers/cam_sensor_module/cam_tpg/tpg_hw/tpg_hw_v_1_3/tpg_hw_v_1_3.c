@@ -15,10 +15,19 @@ enum tpg_hw_v_1_3_encode_fomat_t {
 };
 
 
-#define  FRAME_INTERLEAVE  0x0
-#define  LINE_INTERLEAVE   0x1
-#define  SHDR_INTERLEAVE   0x2
-#define  SPARSE_PD_INTERLEAVE 0x3
+#define  FRAME_INTERLEAVE           0x0
+#define  LINE_INTERLEAVE            0x1
+#define  SHDR_INTERLEAVE            0x2
+#define  SPARSE_PD_INTERLEAVE       0x3
+#define  CFA_PATTERN_ROW_WIDTH      8
+#define  CFA_PATTERN_BITS_PER_INDEX 2
+#define  Invalid 0x0
+#define  Red     0x0
+#define  Green   0x1
+#define  Blue    0x2
+#define  IR      0x3
+#define  Mono    0x3
+
 static int get_tpg_vc_dt_pattern_id(
 		enum tpg_interleaving_format_t vc_dt_pattern)
 {
@@ -82,7 +91,6 @@ static int configure_global_configs(
 		(1 << tpg_reg->tpg_en_shift_val);
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base + tpg_reg->tpg_ctrl);
 	CAM_DBG(CAM_TPG, "tpg[%d] tpg_ctrl=0x%x", hw->hw_idx, val);
-
 	return 0;
 }
 
@@ -127,6 +135,149 @@ static int get_tpg_payload_mode(enum tpg_pattern_t pattern)
 		return COLOR_BARS;
 	}
 	return COLOR_BARS;
+}
+
+static int get_pixel_coordinate(
+	int cfa_pattern_start_index,
+	int cfa_pattern_end_index,
+	uint32_t *val,
+	struct tpg_stream_config_v3_t *configs)
+{
+	uint32_t shift = 0;
+	int idx = 0;
+	int i = 0;
+	int j = 0;
+	*val = 0;
+	for (i = cfa_pattern_start_index; i < cfa_pattern_end_index; i++) {
+		for (j = 0; j < configs->cfa_info.pattern_width; j++) {
+			shift = ((i * CFA_PATTERN_ROW_WIDTH) + j) *
+				CFA_PATTERN_BITS_PER_INDEX;
+			idx = i * configs->cfa_info.pattern_height + j;
+			*val |= (configs->cfa_info.pixel_coordinate[idx].pixel_type) << shift;
+		}
+	}
+	return 0;
+}
+
+static int configure_xcfa_array_v3(
+	struct tpg_hw *hw,
+	struct tpg_stream_config_v3_t *configs)
+{
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = NULL;
+	uint32_t val = 0;
+
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
+		CAM_ERR(CAM_TPG, "invalid params");
+		return -EINVAL;
+	}
+	tpg_reg  = hw->hw_info->hw_data;
+
+	soc_info = hw->soc_info;
+
+	switch (configs->xcfa_type) {
+	case XCFA_TYPE_RGBIR:
+		get_pixel_coordinate(0, 2, &val, configs);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color0);
+		get_pixel_coordinate(2, configs->cfa_info.pattern_height, &val, configs);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color1);
+		break;
+	case XCFA_TYPE_QUADCFA:
+		get_pixel_coordinate(0, 2, &val, configs);
+		CAM_DBG(CAM_TPG, "val = 0x%x", val);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color0);
+		get_pixel_coordinate(2, configs->cfa_info.pattern_height, &val, configs);
+		CAM_DBG(CAM_TPG, "val = 0x%x", val);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color1);
+		break;
+	case XCFA_TYPE_THREEXTHREECFA:
+		get_pixel_coordinate(0, 2, &val, configs);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color0);
+		get_pixel_coordinate(2, 4, &val, configs);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color1);
+		get_pixel_coordinate(4, configs->cfa_info.pattern_height, &val, configs);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color2);
+		break;
+	case XCFA_TYPE_FOURXFOURCFA:
+		get_pixel_coordinate(0, 2, &val, configs);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color0);
+		get_pixel_coordinate(2, 4, &val, configs);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color1);
+		get_pixel_coordinate(4, 6, &val, configs);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color2);
+		get_pixel_coordinate(6, configs->cfa_info.pattern_height, &val, configs);
+		cam_io_w_mb(val,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color3);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+
+static int configure_dt_v3(
+	struct tpg_hw *hw,
+	uint32_t       vc_slot,
+	uint32_t       dt_slot,
+	struct tpg_stream_config_v3_t *stream)
+{
+	uint32_t val;
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = NULL;
+
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
+		CAM_ERR(CAM_TPG, "invalid params");
+		return -EINVAL;
+	}
+
+	tpg_reg  = hw->hw_info->hw_data;
+
+	soc_info = hw->soc_info;
+
+	CAM_DBG(CAM_TPG, "TPG[%d] slot(%d,%d) <= dt:%d",
+			hw->hw_idx,
+			vc_slot,
+			dt_slot,
+			stream->dt);
+
+	val = (((stream->stream_dimension.width & 0xFFFF) << 16) |
+			(stream->stream_dimension.height & 0xFFFF));
+	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+			tpg_reg->tpg_vc0_dt_0_cfg_0 +
+			(0x60 * vc_slot) + (dt_slot * 0x0c));
+	CAM_DBG(CAM_TPG, "TPG[%d] vc%d_dt%d_cfg_0=0x%x",
+			hw->hw_idx,
+			vc_slot, dt_slot, val);
+
+	cam_io_w_mb(stream->dt,
+			soc_info->reg_map[0].mem_base +
+			tpg_reg->tpg_vc0_dt_0_cfg_1 +
+			(0x60 * vc_slot) + (dt_slot * 0x0c));
+	CAM_DBG(CAM_TPG, "TPG[%d] vc%d_dt%d_cfg_1=0x%x",
+			hw->hw_idx,
+			vc_slot, dt_slot, stream->dt);
+
+	val = ((get_tpg_encode_format(stream->pixel_depth) & 0xF) <<
+			tpg_reg->tpg_dt_encode_format_shift) |
+			get_tpg_payload_mode(stream->pattern_type);
+	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+			tpg_reg->tpg_vc0_dt_0_cfg_2 +
+			(0x60 * vc_slot) + (dt_slot * 0x0c));
+	CAM_DBG(CAM_TPG, "TPG[%d] vc%d_dt%d_cfg_2=0x%x",
+			hw->hw_idx,
+			vc_slot, dt_slot, val);
+
+	return 0;
 }
 
 static int configure_dt(
@@ -180,6 +331,100 @@ static int configure_dt(
 	CAM_DBG(CAM_TPG, "TPG[%d] vc%d_dt%d_cfg_2=0x%x",
 			hw->hw_idx,
 			vc_slot, dt_slot, val);
+
+	return 0;
+}
+
+
+
+#define VC1_GAIN   0x100
+
+static int configure_vc_v3(
+	struct tpg_hw *hw,
+	uint32_t       vc_slot,
+	int            num_dts,
+	struct tpg_stream_config_v3_t *stream)
+{
+	uint32_t val = 0;
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = NULL;
+
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
+		CAM_ERR(CAM_TPG, "invalid params");
+		return -EINVAL;
+	}
+	tpg_reg  = hw->hw_info->hw_data;
+
+	soc_info = hw->soc_info;
+	/* Use CFA pattern here */
+	if (stream->output_format == TPG_IMAGE_FORMAT_QCFA)
+		val |= (1 << tpg_reg->tpg_color_bar_qcfa_en_shift);
+
+	if (stream->cb_mode == TPG_COLOR_BAR_MODE_SPLIT)
+		val |= (1 << tpg_reg->tpg_split_en_shift);
+
+	if (stream->cfa_info_exist != 0) {
+		val |= ((stream->cfa_info.pattern_height - 1) << tpg_reg->tpg_size_y_shift);
+		val |= ((stream->cfa_info.pattern_width - 1) << tpg_reg->tpg_size_x_shift);
+		val |= (1 << tpg_reg->tpg_xcfa_en_shift);
+		configure_xcfa_array_v3(hw, stream);
+	}
+
+	CAM_DBG(CAM_TPG, "TPG[%d] period: %d", hw->hw_idx, stream->rotate_period);
+	val |= ((stream->rotate_period & 0x3F) <<
+			tpg_reg->tpg_color_bar_qcfa_rotate_period_shift);
+	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+			tpg_reg->tpg_vc0_color_bar_cfg + (0x60 * vc_slot));
+	CAM_DBG(CAM_TPG, "TPG[%d] vc%d_color_bar_cfg=0x%x",
+			hw->hw_idx,
+			vc_slot, val);
+
+	val = stream->hbi;
+	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+			tpg_reg->tpg_vc0_hbi_cfg + (0x60 * vc_slot));
+	CAM_DBG(CAM_TPG, "TPG[%d] vc%d_hbi_cfg=0x%x",
+			hw->hw_idx,
+			vc_slot, val);
+
+	val = stream->vbi;
+	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+			tpg_reg->tpg_vc0_vbi_cfg + (0x60 * vc_slot));
+	CAM_DBG(CAM_TPG, "TPG[%d] vc%d_vbi_cgf=0x%x",
+			hw->hw_idx,
+			vc_slot, val);
+
+	cam_io_w_mb(0x12345678,
+		soc_info->reg_map[0].mem_base +
+		tpg_reg->tpg_vc0_lfsr_seed + (0x60 * vc_slot));
+
+	val = ((0 << tpg_reg->tpg_num_frames_shift_val) |
+		((num_dts-1) <<	 tpg_reg->tpg_num_dts_shift_val) |
+		stream->vc);
+	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+			tpg_reg->tpg_vc0_cfg0 + (0x60 * vc_slot));
+	CAM_DBG(CAM_TPG, "TPG[%d] vc%d_cfg0=0x%x",
+			hw->hw_idx,
+			vc_slot, val);
+	if (hw->hw_info->shdr_overlap == 1) {
+		cam_io_w_mb(hw->hw_info->shdr_overlap << tpg_reg->tpg_overlap_shdr_en_shift,
+			soc_info->reg_map[0].mem_base + tpg_reg->tpg_ctrl);
+	}
+	if (hw->hw_info->shdr_offset_num_batch >= 0 && vc_slot > 0)	{
+		val =  (VC1_GAIN << tpg_reg->tpg_gain_shift);
+		val |= (hw->hw_info->shdr_offset_num_batch <<
+				tpg_reg->tpg_shdr_offset_num_batch_shift);
+		cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+					tpg_reg->tpg_vc1_gain_cfg + (0x60 * (vc_slot-1)));
+		val =  ((stream->shdr_line_offset0 * vc_slot)
+			<< tpg_reg->tpg_shdr_line_offset0_shift);
+		val |= ((stream->shdr_line_offset1 * vc_slot)
+			<< tpg_reg->tpg_shdr_line_offset1_shift);
+		cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+			tpg_reg->tpg_vc1_shdr_cfg + (0x60 * (vc_slot-1)));
+		CAM_DBG(CAM_TPG, "TPG[%d] vc%d_cfg0=0x%x shdr",
+			hw->hw_idx,
+			vc_slot, val);
+	}
 
 	return 0;
 }
@@ -258,7 +503,7 @@ static int configure_vc(
 		CAM_ERR(CAM_TPG, "invalid params");
 		return -EINVAL;
 	}
-	tpg_reg  = hw->hw_info->hw_data;
+	tpg_reg = hw->hw_info->hw_data;
 
 	soc_info = hw->soc_info;
 	/* Use CFA pattern here */
@@ -309,7 +554,7 @@ static int configure_vc(
 		tpg_reg->tpg_vc0_lfsr_seed + (0x60 * vc_slot));
 
 	val = ((0 << tpg_reg->tpg_num_frames_shift_val) |
-		((num_dts-1) <<	 tpg_reg->tpg_num_dts_shift_val) |
+		((num_dts-1) << tpg_reg->tpg_num_dts_shift_val) |
 		stream->vc);
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
 			tpg_reg->tpg_vc0_cfg0 + (0x60 * vc_slot));
@@ -320,7 +565,7 @@ static int configure_vc(
 		cam_io_w_mb(hw->hw_info->shdr_overlap << tpg_reg->tpg_overlap_shdr_en_shift,
 			soc_info->reg_map[0].mem_base + tpg_reg->tpg_ctrl);
 	}
-	if (hw->hw_info->shdr_offset_num_batch >= 0 && vc_slot > 0)	{
+	if (hw->hw_info->shdr_offset_num_batch >= 0 && vc_slot > 0) {
 		val =  (VC1_GAIN << tpg_reg->tpg_gain_shift);
 		val |= (hw->hw_info->shdr_offset_num_batch <<
 				tpg_reg->tpg_shdr_offset_num_batch_shift);
@@ -336,7 +581,6 @@ static int configure_vc(
 			hw->hw_idx,
 			vc_slot, val);
 	}
-
 	return 0;
 }
 
@@ -391,32 +635,60 @@ int tpg_hw_v_1_3_process_cmd(
 	switch(cmd) {
 	case TPG_CONFIG_VC:
 	{
-		struct vc_config_args *vc_config =
-			(struct vc_config_args *)arg;
+		if (hw->stream_version == 1) {
+			struct vc_config_args *vc_config =
+				(struct vc_config_args *)arg;
 
-		if (vc_config == NULL) {
-			CAM_ERR(CAM_TPG, "invalid argument");
-			return -EINVAL;
+			if (vc_config == NULL) {
+				CAM_ERR(CAM_TPG, "invalid argument");
+				return -EINVAL;
+			}
+			rc = configure_vc(hw,
+				vc_config->vc_slot,
+				vc_config->num_dts,
+				vc_config->stream);
+		} else if (hw->stream_version == 3) {
+			struct vc_config_args_v3 *vc_config_v3 =
+				(struct vc_config_args_v3 *)arg;
+
+			if (vc_config_v3 == NULL) {
+				CAM_ERR(CAM_TPG, "invalid argument");
+				return -EINVAL;
+			}
+			rc = configure_vc_v3(hw,
+				vc_config_v3->vc_slot,
+				vc_config_v3->num_dts,
+				vc_config_v3->stream);
 		}
-		rc = configure_vc(hw,
-			vc_config->vc_slot,
-			vc_config->num_dts,
-			vc_config->stream);
 	}
 	break;
 	case TPG_CONFIG_DT:
 	{
-		struct dt_config_args *dt_config =
-			(struct dt_config_args *)arg;
+		if (hw->stream_version == 1) {
+			struct dt_config_args *dt_config =
+				(struct dt_config_args *)arg;
 
-		if (dt_config == NULL) {
-			CAM_ERR(CAM_TPG, "invalid argument");
-			return -EINVAL;
+			if (dt_config == NULL) {
+				CAM_ERR(CAM_TPG, "invalid argument");
+				return -EINVAL;
+			}
+			rc = configure_dt(hw,
+				dt_config->vc_slot,
+				dt_config->dt_slot,
+				dt_config->stream);
+		} else if (hw->stream_version == 3) {
+			struct dt_config_args_v3 *dt_config_v3 =
+				(struct dt_config_args_v3 *)arg;
+
+			if (dt_config_v3 == NULL) {
+				CAM_ERR(CAM_TPG, "invalid argument");
+				return -EINVAL;
+			}
+			rc = configure_dt_v3(hw,
+				dt_config_v3->vc_slot,
+				dt_config_v3->dt_slot,
+				dt_config_v3->stream);
 		}
-		rc = configure_dt(hw,
-			dt_config->vc_slot,
-			dt_config->dt_slot,
-			dt_config->stream);
 	}
 	break;
 	case TPG_CONFIG_CTRL:

@@ -12,10 +12,11 @@
 #include "cam_soc_util.h"
 #include <cam_cpas_api.h>
 #include <media/cam_sensor.h>
-#define TPG_HW_VERSION_1_0 0x10000000
-#define TPG_HW_VERSION_1_1 0x10000001
-#define TPG_HW_VERSION_1_2 0x10000002
-#define TPG_HW_VERSION_1_3 0x10000003
+#define TPG_HW_VERSION_1_0   0x10000000
+#define TPG_HW_VERSION_1_1   0x10000001
+#define TPG_HW_VERSION_1_2   0x10000002
+#define TPG_HW_VERSION_1_3   0x10000003
+#define TPG_HW_VERSION_1_3_1 0x10000004
 
 
 struct tpg_hw;
@@ -110,19 +111,33 @@ struct tpg_hw_stream {
 };
 
 /**
+ * tpg_hw_stream_v3 : tpg hw stream version 2
+ *
+ * @stream : tpg stream version 2
+ * @list   : entry to tpg stream list
+ */
+struct tpg_hw_stream_v3 {
+	struct tpg_stream_config_v3_t stream;
+	struct list_head list;
+};
+
+
+/**
  * tpg_hw : tpg hw
  *
- * @hw_idx        : hw id
- * @state         : tpg hw state
- * @cpas_handle   : handle to cpas
- * @hw_info       : tp hw info
- * @soc_info      : soc info
- * @mutex         : lock
- * @stream_list   : list of tpg stream
- * @global_config : global configuration
+ * @hw_idx         : hw id
+ * @stream_version : stream version
+ * @state          : tpg hw state
+ * @cpas_handle    : handle to cpas
+ * @hw_info        : tp hw info
+ * @soc_info       : soc info
+ * @mutex          : lock
+ * @stream_list    : list of tpg stream
+ * @global_config  : global configuration
  */
 struct tpg_hw {
 	uint32_t                   hw_idx;
+	uint32_t                   stream_version;
 	uint32_t                   state;
 	uint32_t                   cpas_handle;
 	uint32_t                   vc_count;
@@ -190,6 +205,33 @@ struct dt_config_args {
 };
 
 /**
+ * @vc_config_args_v3 : arguments for vc config process cmd version 2
+ *
+ * @vc_slot : slot to configure this vc
+ * @num_dts : number of dts in this vc
+ * @stream  : output stream version 2
+ */
+struct vc_config_args_v3 {
+	uint32_t vc_slot;
+	uint32_t num_dts;
+	struct tpg_stream_config_v3_t *stream;
+};
+
+/**
+ * dt_config_args_v3 : arguments for dt config process cmd version 2
+ *
+ * @vc_slot  : vc slot to configure this dt
+ * @dt_slot  : dt slot to configure this dt
+ * @stream   : stream packet to configure for this dt version 2
+ */
+struct dt_config_args_v3 {
+	uint32_t vc_slot;
+	uint32_t dt_slot;
+	struct tpg_stream_config_v3_t *stream;
+};
+
+
+/**
  * global_config_args : tpg global config args
  *
  * @num_vcs : number of vcs to be configured
@@ -212,6 +254,20 @@ struct tpg_hw_initsettings {
 	struct tpg_stream_config_t *streamconfigs;
 	uint32_t num_streams;
 };
+
+/**
+ * tpg_hw_initsettings_v3 : initial configurations version 2
+ *
+ * @global_config : global configuration
+ * @streamconfigs : array of stream configurations version 2
+ * @num_streams   : number of streams in strea config array
+ */
+struct tpg_hw_initsettings_v3 {
+	struct tpg_global_config_t globalconfig;
+	struct tpg_stream_config_v3_t *streamconfigs;
+	uint32_t num_streams;
+};
+
 
 /**
  * @brief dump the tpg memory info
@@ -242,6 +298,18 @@ int dump_global_configs(int idx, struct tpg_global_config_t *global);
  * @return : 0 on success
  */
 int dump_stream_configs(int hw_idx, int stream_idx, struct tpg_stream_config_t *stream);
+
+/**
+ * @brief : dump stream config command version 2
+ *
+ * @param hw_idx: hw index
+ * @param stream_idx: stream index
+ * @param stream: stream config command version 2
+ *
+ * @return : 0 on success
+ */
+int dump_stream_configs_v3(int hw_idx, int stream_idx, struct tpg_stream_config_v3_t *stream);
+
 
 /**
  * @brief : dump any hw status registers
@@ -326,6 +394,17 @@ int tpg_hw_reset(struct tpg_hw *hw);
  * @return : 0 on success
  */
 int tpg_hw_add_stream(struct tpg_hw *hw, struct tpg_stream_config_t *cmd);
+
+/**
+ * @brief : tp hw add stream version 2
+ *
+ * @param hw: tpg hw instance
+ * @param cmd: tpg hw command version 2
+ *
+ * @return : 0 on success
+ */
+int tpg_hw_add_stream_v3(struct tpg_hw *hw, struct tpg_stream_config_v3_t *cmd);
+
 
 /**
  * @brief : copy global config command

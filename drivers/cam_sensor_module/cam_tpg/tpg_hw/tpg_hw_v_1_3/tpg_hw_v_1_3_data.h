@@ -35,7 +35,7 @@ struct tpg_hw_info tpg_v_1_3_hw_info = {
 };
 
 struct tpg_hw_info tpg_v_1_3_1_hw_info = {
-	.version = TPG_HW_VERSION_1_3,
+	.version = TPG_HW_VERSION_1_3_1,
 	.max_vc_channels = 4,
 	.max_dt_channels_per_vc = 4,
 	.ops = &tpg_hw_v_1_3_ops,

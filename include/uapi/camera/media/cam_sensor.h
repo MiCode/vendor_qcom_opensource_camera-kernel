@@ -163,6 +163,33 @@ enum tpg_phy_type_t {
 	TPG_PHY_TYPE_MAX,
 };
 
+enum tpg_pixel_type_t {
+	TPG_PIXEL_TYPE_INVALID = 0,
+	TPG_PIXEL_TYPE_RED,
+	TPG_PIXEL_TYPE_GREEN,
+	TPG_PIXEL_TYPE_BLUE,
+	TPG_PIXEL_TYPE_IR,
+	TPG_PIXEL_TYPE_MONO,
+};
+
+enum tpg_exposure_type_t {
+	TPG_EXPOSUREL_TYPE_INVALID = 0,
+	TPG_EXPOSURE_TYPE_LONG,
+	TPG_EXPOSURE_TYPE_MIDDLE,
+	TPG_EXPOSURE_TYPE_SHORT,
+};
+
+enum xcfa_type_t {
+	XCFA_TYPE_BAYER = 0,
+	XCFA_TYPE_QUADCFA,
+	XCFA_TYPE_THREEXTHREECFA,
+	XCFA_TYPE_FOURXFOURCFA,
+	XCFA_TYPE_RGBIR,
+	XCFA_TYPE_RGBWC,
+	XCFA_TYPE_RGBWK,
+	XCFA_TYPE_UNCONVENTIONAL_BAYER,
+};
+
 enum tpg_interleaving_format_t {
 	TPG_INTERLEAVING_FORMAT_INVALID = 0,
 	TPG_INTERLEAVING_FORMAT_FRAME,
@@ -739,6 +766,37 @@ struct tpg_command_header_t {
 } __attribute__((packed));
 
 /**
+ * tpg_pixel_coordinate_t : pixel coordinate structure
+ *
+ * @xcoordinate           : X coordinate
+ * @ycoordinate           : Y coordiante
+ * @pixel_type            : red green blue ir mono
+ */
+struct tpg_pixel_coordinate_t {
+	uint32_t xcoordinate;
+	uint32_t ycoordinate;
+	uint32_t exposure_type;
+	uint32_t pixel_type;
+} __attribute__((packed));
+
+/**
+ * tpg_cfa_information_t      : tpg cfa information structure
+ *
+ * @number_of_pixel_per_color : number of pixel per color
+ * @pattern_width             : pattern width
+ * @pattern_height            : pattern height
+ * @pixel_coordinate_count    : pixel coordinate count
+ * @pixel_coordinate          : pixel coordinate array
+ */
+struct tpg_cfa_information_t {
+	uint32_t number_of_pixel_per_color;
+	uint32_t pattern_width;
+	uint32_t pattern_height;
+	uint32_t pixel_coordinate_count;
+	struct tpg_pixel_coordinate_t pixel_coordinate[64];
+} __attribute__((packed));
+
+/**
  * tpg_global_config_t : global configuration command structure
  *
  * @header              : common header
@@ -770,6 +828,45 @@ struct tpg_global_config_t {
 } __attribute__((packed));
 
 /**
+ * tpg_old_stream_config_t : stream configuration command
+ *
+ * @header:  common tpg command header
+ * @pattern_type     : tpg pattern type used in this stream
+ * @cb_mode          : tpg color bar mode used in this stream
+ * @frame_count      : frame count in case of trigger burst mode
+ * @stream_type      : type of stream like image pdaf etc
+ * @stream_dimension : Dimension of the stream
+ * @pixel_depth      : bits per each pixel
+ * @cfa_arrangement  : color filter arragement
+ * @output_format    : output image format
+ * @hbi              : horizontal blanking intervel
+ * @vbi              : vertical   blanking intervel
+ * @vc               : virtual channel of this stream
+ * @dt               : data type of this stream
+ * @skip_pattern     : skip pattern for this stream
+ * @rotate_period    : rotate period for this stream
+ * @reserved         : reserved for future use
+ */
+struct tpg_old_stream_config_t {
+	struct tpg_command_header_t header;
+	enum tpg_pattern_t pattern_type;
+	enum tpg_color_bar_mode_t cb_mode;
+	uint32_t frame_count;
+	enum tpg_stream_t stream_type;
+	struct stream_dimension stream_dimension;
+	uint8_t pixel_depth;
+	enum tpg_cfa_arrangement_t cfa_arrangement;
+	enum tpg_image_format_t output_format;
+	uint32_t hbi;
+	uint32_t vbi;
+	uint16_t vc;
+	uint16_t dt;
+	uint32_t skip_pattern;
+	uint32_t rotate_period;
+	uint32_t reserved[4];
+} __attribute__((packed));
+
+/**
  * tpg_stream_config_t : stream configuration command
  *
  * @header:  common tpg command header
@@ -786,10 +883,11 @@ struct tpg_global_config_t {
  * @vc               : virtual channel of this stream
  * @dt               : data type of this stream
  * @skip_pattern     : skip pattern for this stream
+ * @rotate_period    : rotate period for this stream
  * @xcfa_debug       : for xcfa debug;
  * @shdr_line_offset0 : for shdr line offset0
  * @shdr_line_offset1 : for shdr line offset1
- * @reserved          : reserved for future use
+ * @reserved         : reserved for future use
  */
 struct tpg_stream_config_t {
 	struct tpg_command_header_t header;
@@ -811,6 +909,56 @@ struct tpg_stream_config_t {
 	uint32_t shdr_line_offset0;
 	uint32_t shdr_line_offset1;
 	uint32_t reserved[4];
+} __attribute__((packed));
+
+/**
+ * tpg_stream_config_t : stream configuration command
+ *
+ * @header:  common tpg command header
+ * @pattern_type     : tpg pattern type used in this stream
+ * @cb_mode          : tpg color bar mode used in this stream
+ * @frame_count      : frame count in case of trigger burst mode
+ * @stream_type      : type of stream like image pdaf etc
+ * @stream_dimension : Dimension of the stream
+ * @pixel_depth      : bits per each pixel
+ * @cfa_arrangement  : color filter arragement
+ * @output_format    : output image format
+ * @hbi              : horizontal blanking intervel
+ * @vbi              : vertical   blanking intervel
+ * @vc               : virtual channel of this stream
+ * @dt               : data type of this stream
+ * @skip_pattern     : skip pattern for this stream
+ * @rotate_period    : rotate period for this stream
+ * @shdr_line_offset0 : for shdr line offset0
+ * @shdr_line_offset1 : for shdr line offset1
+ * @cfa_info_exist    : cfa info exists
+ * @cfa_info          : cfa information
+ * @xcfa_type         : xcfa type
+ * @reserved          : reserved for future use
+ */
+struct tpg_stream_config_v3_t {
+	struct tpg_command_header_t header;
+	uint32_t pattern_type;
+	uint32_t cb_mode;
+	uint32_t frame_count;
+	uint32_t stream_type;
+	struct stream_dimension stream_dimension;
+	uint32_t pixel_depth;
+	uint32_t cfa_arrangement;
+	uint32_t output_format;
+	uint32_t hbi;
+	uint32_t vbi;
+	uint16_t vc;
+	uint16_t dt;
+	uint32_t skip_pattern;
+	uint32_t rotate_period;
+	uint32_t xcfa_debug;
+	uint32_t shdr_line_offset0;
+	uint32_t shdr_line_offset1;
+	uint32_t cfa_info_exist;
+	struct tpg_cfa_information_t cfa_info;
+	uint32_t xcfa_type;
+	uint32_t reserved[5];
 } __attribute__((packed));
 
 /**

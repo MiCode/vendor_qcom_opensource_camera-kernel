@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_tpg_core.h"
@@ -388,15 +389,31 @@ static int cam_tpg_validate_cmd_descriptor(
 		break;
 	}
 	case TPG_CMD_TYPE_STREAM_CONFIG: {
-		if (cmd_header->size != sizeof(struct tpg_stream_config_t)) {
+		if (cmd_header->cmd_version == 3 &&
+			cmd_header->size != sizeof(struct tpg_stream_config_v3_t)) {
 			CAM_ERR(CAM_TPG, "Got invalid stream config command recv: %d exp: %d",
-					cmd_header->size,
-					sizeof(struct tpg_stream_config_t));
+				cmd_header->size,
+				sizeof(struct tpg_stream_config_v3_t));
+
+			rc = -EINVAL;
+			goto end;
+		} else if (cmd_header->cmd_version == 2 &&
+			cmd_header->size != sizeof(struct tpg_stream_config_t)) {
+			CAM_ERR(CAM_TPG, "Got invalid stream config cmd recv: %d exp: %d",
+				cmd_header->size,
+				sizeof(struct tpg_stream_config_t));
+
+			rc = -EINVAL;
+			goto end;
+		} else if (cmd_header->cmd_version == 1 &&
+			cmd_header->size != sizeof(struct tpg_old_stream_config_t)) {
+			CAM_ERR(CAM_TPG, "Got invalid stream config cmd recv: %d exp: %d",
+				cmd_header->size,
+				sizeof(struct tpg_old_stream_config_t));
 
 			rc = -EINVAL;
 			goto end;
 		}
-		CAM_INFO(CAM_TPG, "Got stream config cmd");
 		*cmd_type = TPG_CMD_TYPE_STREAM_CONFIG;
 		break;
 	}
@@ -437,6 +454,7 @@ static int cam_tpg_cmd_buf_parse(
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		uint32_t cmd_type = TPG_CMD_TYPE_INVALID;
 		uintptr_t cmd_addr;
+		struct tpg_command_header_t *cmd_header = NULL;
 
 		cmd_desc = (struct cam_cmd_buf_desc *)
 			((uint32_t *)&packet->payload +
@@ -448,14 +466,24 @@ static int cam_tpg_cmd_buf_parse(
 		if (rc < 0)
 			goto end;
 
+		cmd_header = (struct tpg_command_header_t *)cmd_addr;
+
 		switch (cmd_type) {
 		case TPG_CMD_TYPE_GLOBAL_CONFIG:
 			rc = tpg_hw_copy_global_config(&tpg_dev->tpg_hw,
 				(struct tpg_global_config_t *)cmd_addr);
 			break;
 		case TPG_CMD_TYPE_STREAM_CONFIG: {
-			rc = tpg_hw_add_stream(&tpg_dev->tpg_hw,
-				(struct tpg_stream_config_t *)cmd_addr);
+			if (cmd_header->cmd_version == 3) {
+				rc = tpg_hw_add_stream_v3(&tpg_dev->tpg_hw,
+					(struct tpg_stream_config_v3_t *)cmd_addr);
+				CAM_DBG(CAM_TPG, "Stream config v3");
+			} else if (cmd_header->cmd_version == 1 ||
+				cmd_header->cmd_version == 2) {
+				rc = tpg_hw_add_stream(&tpg_dev->tpg_hw,
+					(struct tpg_stream_config_t *)cmd_addr);
+				CAM_DBG(CAM_TPG, "Stream config");
+			}
 			break;
 		}
 		case TPG_CMD_TYPE_ILLUMINATION_CONFIG:
