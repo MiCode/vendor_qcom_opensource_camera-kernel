@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/ratelimit.h>
@@ -1196,6 +1197,7 @@ static int cam_sfe_bus_rd_config_rm(void *priv, void *cmd_args,
 	struct cam_sfe_bus_cache_dbg_cfg       *cache_dbg_cfg = NULL;
 	uint32_t width = 0, height = 0, stride = 0, width_in_bytes = 0;
 	uint32_t i, img_addr = 0, img_offset = 0;
+	dma_addr_t iova;
 
 	bus_priv = (struct cam_sfe_bus_rd_priv  *) priv;
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
@@ -1224,7 +1226,7 @@ static int cam_sfe_bus_rd_config_rm(void *priv, void *cmd_args,
 		rm_data = sfe_bus_rd_data->rm_res[i]->res_priv;
 
 		stride = update_buf->rm_update->stride;
-		img_addr = update_buf->rm_update->image_buf[i] + rm_data->offset;
+		iova = update_buf->rm_update->image_buf[i] + rm_data->offset;
 		if (rm_data->width && rm_data->height)
 		{
 			width =  rm_data->width;
@@ -1235,8 +1237,10 @@ static int cam_sfe_bus_rd_config_rm(void *priv, void *cmd_args,
 		}
 
 		if (cam_smmu_is_expanded_memory()) {
-			img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(img_addr);
-			img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(img_addr);
+			img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
+			img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
+		} else {
+			img_addr = iova;
 		}
 
 		/* update size register */
@@ -1288,11 +1292,9 @@ static int cam_sfe_bus_rd_config_rm(void *priv, void *cmd_args,
 			rm_data->common_data->mem_base +
 			rm_data->hw_regs->image_addr);
 
-		CAM_DBG(CAM_SFE, "SFE:%d RM:%d image_address:0x%X offset: 0x%x",
-			rm_data->common_data->core_index,
-			rm_data->index,
-			update_buf->rm_update->image_buf[i],
-			rm_data->offset);
+		CAM_DBG(CAM_SFE, "SFE:%d RM:%d image_address:0x%x offset: 0x%x",
+			rm_data->common_data->core_index, rm_data->index,
+			img_addr, rm_data->offset);
 		if (cam_smmu_is_expanded_memory())
 			CAM_DBG(CAM_SFE, "SFE:%d RM:%d image address offset: 0x%x",
 				rm_data->common_data->core_index,
@@ -1320,6 +1322,7 @@ static int cam_sfe_bus_rd_update_rm(void *priv, void *cmd_args,
 	uint32_t num_regval_pairs = 0;
 	uint32_t width = 0, height = 0, stride = 0, width_in_bytes = 0;
 	uint32_t i, j, size = 0, img_addr = 0, img_offset = 0;
+	dma_addr_t iova;
 
 	bus_priv = (struct cam_sfe_bus_rd_priv  *) priv;
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
@@ -1373,10 +1376,12 @@ static int cam_sfe_bus_rd_update_rm(void *priv, void *cmd_args,
 			height = rm_data->height;
 		}
 
-		img_addr = update_buf->rm_update->image_buf[i] + rm_data->offset;
+		iova = update_buf->rm_update->image_buf[i] + rm_data->offset;
 		if (cam_smmu_is_expanded_memory()) {
-			img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(img_addr);
-			img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(img_addr);
+			img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
+			img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
+		} else {
+			img_addr = iova;
 		}
 
 		/* update size register */
@@ -1442,7 +1447,7 @@ skip_cache_cfg:
 		if (cam_smmu_is_expanded_memory())
 			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 				rm_data->hw_regs->addr_cfg, img_offset);
-		CAM_DBG(CAM_SFE, "SFE:%d RM:%d image_address:0x%X image_offset:0x%X",
+		CAM_DBG(CAM_SFE, "SFE:%d RM:%d image_address:0x%x image_offset:0x%x",
 			rm_data->common_data->core_index,
 			rm_data->index, img_addr, img_offset);
 	}
