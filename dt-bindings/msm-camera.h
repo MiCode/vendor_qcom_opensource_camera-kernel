@@ -112,4 +112,14 @@
 #define MAX_AON_CAM          2
 #define NOT_AON_CAM          255
 
+/* Camera DRV enable masks */
+#define CAM_DDR_DRV    0x1
+
+/* Port index for BW voting */
+#define CAM_CPAS_PORT_HLOS_DRV    0
+#define CAM_CPAS_PORT_DRV_0       1
+#define CAM_CPAS_PORT_DRV_1       2
+#define CAM_CPAS_PORT_DRV_2       3
+#define CAM_CPAS_PORT_DRV_DYN     32
+
 #endif
