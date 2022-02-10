@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -4316,6 +4317,15 @@ static int cam_populate_smmu_context_banks(struct device *dev,
 
 	dma_set_max_seg_size(dev, DMA_BIT_MASK(32));
 	dma_set_seg_boundary(dev, (unsigned long)DMA_BIT_MASK(64));
+
+	if (iommu_cb_set.is_expanded_memory) {
+		CAM_DBG(CAM_SMMU, "[%s] setting max address mask", cb->name[0]);
+		/* the largest address is the min(dma_mask, value_from_iommu-dma_addr_pool) */
+		rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+		if (rc)
+			CAM_ERR(CAM_SMMU, "[%s] Failed in setting max address mask, rc %d",
+				cb->name[0], rc);
+	}
 
 end:
 	/* increment count to next bank */
