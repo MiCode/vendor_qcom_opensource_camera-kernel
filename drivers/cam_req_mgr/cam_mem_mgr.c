@@ -884,7 +884,8 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 		/* If 36-bit enabled, check for ICP cmd buffers and map them within the shared region */
 		if (cam_smmu_is_expanded_memory() &&
 			cam_smmu_supports_shared_region(mmu_hdls[i]) &&
-			(flags & CAM_MEM_FLAG_CMD_BUF_TYPE))
+			((flags & CAM_MEM_FLAG_CMD_BUF_TYPE) ||
+			(flags & CAM_MEM_FLAG_HW_AND_CDM_OR_SHARED)))
 			region = CAM_SMMU_REGION_SHARED;
 
 		if (flags & CAM_MEM_FLAG_PROTECTED_MODE)

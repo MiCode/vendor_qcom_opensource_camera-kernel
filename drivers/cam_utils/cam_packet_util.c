@@ -360,6 +360,11 @@ int cam_packet_util_process_patches(struct cam_packet *packet,
 				(flags & CAM_MEM_FLAG_CMD_BUF_TYPE)) {
 				*dst_cpu_addr = temp;
 			} else {
+				if (CAM_36BIT_INTF_GET_IOVA_OFFSET(temp))
+					CAM_ERR(CAM_UTIL,
+						"Buffer address 0x%lx not aligned to 256bytes",
+						temp);
+
 				*dst_cpu_addr = CAM_36BIT_INTF_GET_IOVA_BASE(temp);
 			}
 		} else {
@@ -367,10 +372,11 @@ int cam_packet_util_process_patches(struct cam_packet *packet,
 		}
 
 		CAM_DBG(CAM_UTIL,
-			"patch is done for dst %pK with iova 0x%lx patched value 0x%x, shared=%d, cmd=%d",
-			dst_cpu_addr, iova_addr, *dst_cpu_addr,
-			(flags & CAM_MEM_FLAG_HW_SHARED_ACCESS),
-			(flags & CAM_MEM_FLAG_CMD_BUF_TYPE));
+			"patch is done for dst %pK with base iova 0x%lx final iova 0x%lx patched value 0x%x, shared=%s, cmd=%s, HwAndCDM %s",
+			dst_cpu_addr, iova_addr, temp, *dst_cpu_addr,
+			CAM_BOOL_TO_YESNO(flags & CAM_MEM_FLAG_HW_SHARED_ACCESS),
+			CAM_BOOL_TO_YESNO(flags & CAM_MEM_FLAG_CMD_BUF_TYPE),
+			CAM_BOOL_TO_YESNO(flags & CAM_MEM_FLAG_HW_AND_CDM_OR_SHARED));
 	}
 
 	return rc;
