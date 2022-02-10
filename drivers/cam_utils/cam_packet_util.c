@@ -178,7 +178,7 @@ void cam_packet_dump_patch_info(struct cam_packet *packet,
 	uintptr_t  cpu_addr = 0;
 	uint32_t  *dst_cpu_addr;
 	uint32_t   flags;
-	uint64_t   value = 0;
+	uint32_t   value = 0;
 
 	patch_desc = (struct cam_patch_desc *)
 			((uint32_t *) &packet->payload +
@@ -209,9 +209,9 @@ void cam_packet_dump_patch_info(struct cam_packet *packet,
 		dst_cpu_addr = (uint32_t *)cpu_addr;
 		dst_cpu_addr = (uint32_t *)((uint8_t *)dst_cpu_addr +
 			patch_desc[i].dst_offset);
-		value = *((uint64_t *)dst_cpu_addr);
+		value = *dst_cpu_addr;
 		CAM_INFO(CAM_UTIL,
-			"i = %d src_buf 0x%llx src_hdl 0x%x src_buf_with_offset 0x%llx src_size 0x%llx src_flags: %x dst %p dst_offset %u dst_hdl 0x%x value 0x%llx",
+			"i = %d src_buf 0x%llx src_hdl 0x%x src_buf_with_offset 0x%llx src_size 0x%llx src_flags: %x dst %p dst_offset %u dst_hdl 0x%x value 0x%x",
 			i, iova_addr, patch_desc[i].src_buf_hdl,
 			(iova_addr + patch_desc[i].src_offset),
 			src_buf_size, flags, dst_cpu_addr,
@@ -367,8 +367,10 @@ int cam_packet_util_process_patches(struct cam_packet *packet,
 		}
 
 		CAM_DBG(CAM_UTIL,
-			"patch is done for dst %pK with src 0x%llx value 0x%llx",
-			dst_cpu_addr, iova_addr, *((uint64_t *)dst_cpu_addr));
+			"patch is done for dst %pK with iova 0x%lx patched value 0x%x, shared=%d, cmd=%d",
+			dst_cpu_addr, iova_addr, *dst_cpu_addr,
+			(flags & CAM_MEM_FLAG_HW_SHARED_ACCESS),
+			(flags & CAM_MEM_FLAG_CMD_BUF_TYPE));
 	}
 
 	return rc;

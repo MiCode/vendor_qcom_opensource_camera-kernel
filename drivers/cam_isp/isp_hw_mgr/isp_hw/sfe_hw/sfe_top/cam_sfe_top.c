@@ -814,26 +814,26 @@ static int cam_sfe_top_handle_overflow(
 {
 	struct cam_sfe_top_common_data      *common_data;
 	struct cam_hw_soc_info              *soc_info;
-	uint32_t                             overflow_status, violation_status, tmp;
+	uint32_t                             bus_overflow_status, violation_status, tmp;
 	uint32_t                             i = 0;
 
 	common_data = &top_priv->common_data;
 	soc_info = common_data->soc_info;
 
-	overflow_status = cam_io_r(soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
+	bus_overflow_status = cam_io_r(soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
 		top_priv->common_data.common_reg->bus_overflow_status);
 	violation_status = cam_io_r(soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
 		top_priv->common_data.common_reg->ipp_violation_status);
 
 	CAM_ERR(CAM_ISP,
-		"SFE%d src_clk_rate:%luHz overflow:%s violation: %s",
+		"SFE%d src_clk_rate:%luHz bus_overflow_status:%s violation: %s",
 		soc_info->index, soc_info->applied_src_clk_rate,
-		CAM_BOOL_TO_YESNO(overflow_status), CAM_BOOL_TO_YESNO(violation_status));
+		CAM_BOOL_TO_YESNO(bus_overflow_status), CAM_BOOL_TO_YESNO(violation_status));
 
-	tmp = overflow_status;
+	tmp = bus_overflow_status;
 	while (tmp) {
 		if (tmp & 0x1)
-			CAM_ERR(CAM_ISP, "SFE Overflow %s ",
+			CAM_ERR(CAM_ISP, "SFE Bus Overflow %s ",
 				top_priv->wr_client_desc[i].desc);
 		tmp = tmp >> 1;
 		i++;
@@ -843,7 +843,7 @@ static int cam_sfe_top_handle_overflow(
 		cam_sfe_top_print_ipp_violation_info(top_priv, violation_status);
 	cam_sfe_top_print_debug_reg_info(top_priv);
 
-	if (overflow_status)
+	if (bus_overflow_status)
 		cam_cpas_log_votes();
 
 	return 0;
