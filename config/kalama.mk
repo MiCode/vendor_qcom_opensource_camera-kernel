@@ -6,6 +6,7 @@ CONFIG_SPECTRA_ICP := y
 CONFIG_SPECTRA_JPEG := y
 CONFIG_SPECTRA_CUSTOM := y
 CONFIG_SPECTRA_SENSOR := y
+CONFIG_USE_RPMH_DRV_API := n
 
 # Flags to pass into C preprocessor
 ccflags-y += -DCONFIG_SPECTRA_ISP=1

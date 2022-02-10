@@ -240,6 +240,8 @@ struct cam_isp_bw_clk_config_info {
  * @frame_header_iova:      Frame header iova
  * @frame_header_res_id:    Out port res_id corresponding to frame header
  * @bw_clk_config:          BW and clock config info
+ * @isp_drv_config:         DRV config info
+ * @bw_config_valid:        Flag indicating if DRV config is valid for current request
  * @reg_dump_buf_desc:     cmd buffer descriptors for reg dump
  * @num_reg_dump_buf:      Count of descriptors in reg_dump_buf_desc
  * @packet:                CSL packet from user mode driver
@@ -255,6 +257,8 @@ struct cam_isp_prepare_hw_update_data {
 	uint64_t                              frame_header_iova;
 	uint32_t                              frame_header_res_id;
 	struct cam_isp_bw_clk_config_info     bw_clk_config;
+	struct cam_isp_drv_config             isp_drv_config;
+	bool                                  drv_config_valid;
 	struct cam_cmd_buf_desc               reg_dump_buf_desc[
 						CAM_REG_DUMP_MAX_BUF_ENTRIES];
 	uint32_t                              num_reg_dump_buf;

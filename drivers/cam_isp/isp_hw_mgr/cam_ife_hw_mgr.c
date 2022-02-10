@@ -65,6 +65,9 @@ static struct cam_ife_hw_mgr g_ife_hw_mgr;
 static uint32_t g_num_ife, g_num_ife_lite, g_num_sfe;
 static uint32_t max_ife_out_res, max_sfe_out_res;
 
+static int cam_ife_mgr_find_core_idx(int split_id, struct cam_ife_hw_mgr_ctx *ctx,
+	enum cam_isp_hw_type hw_type, uint32_t *core_idx);
+
 static int cam_isp_blob_ife_clock_update(
 	struct cam_isp_clock_config           *clock_config,
 	struct cam_ife_hw_mgr_ctx             *ctx);
@@ -84,6 +87,88 @@ static int cam_ife_mgr_prog_default_settings(
 
 static int cam_ife_mgr_cmd_get_sof_timestamp(struct cam_ife_hw_mgr_ctx *ife_ctx,
 	uint64_t *time_stamp, uint64_t *boot_time_stamp, uint64_t *prev_time_stamp);
+
+static int cam_ife_mgr_update_core_info_to_cpas(struct cam_ife_hw_mgr_ctx           *ctx,
+	bool set_port)
+{
+	struct cam_isp_hw_mgr_res *hw_mgr_res;
+	int i, sfe_core_idx, csid_core_idx, rc = 0;
+
+	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			if (!hw_mgr_res->hw_res[i])
+				continue;
+
+			rc = cam_ife_mgr_find_core_idx(i, ctx, CAM_ISP_HW_TYPE_CSID,
+				&csid_core_idx);
+			if (rc)
+				return rc;
+
+			rc = cam_ife_mgr_find_core_idx(i, ctx, CAM_ISP_HW_TYPE_SFE, &sfe_core_idx);
+			if (rc)
+				return rc;
+
+			rc = cam_cpas_csid_input_core_info_update(csid_core_idx, sfe_core_idx,
+				set_port);
+			if (rc) {
+				CAM_ERR(CAM_PERF, "Failed in updating core info to cpas rc: %d",
+					rc);
+				return rc;
+			}
+		}
+	}
+
+	return rc;
+}
+
+static int cam_isp_blob_drv_config(struct cam_ife_hw_mgr_ctx         *ctx,
+	uint64_t request_id, struct cam_isp_prepare_hw_update_data *prepare_hw_data)
+{
+	struct cam_ife_hw_mgr                  *ife_hw_mgr;
+	struct cam_hw_intf                     *hw_intf;
+	struct cam_isp_drv_config              *drv_config;
+	struct cam_ife_csid_drv_config_args     drv_config_args = {0};
+	int i, rc = 0;
+
+	ife_hw_mgr = ctx->hw_mgr;
+	drv_config = &prepare_hw_data->isp_drv_config;
+
+	CAM_DBG(CAM_PERF,
+		"DRV config blob opcode:%u req_id:%llu disable_drv_override:%s ctx_idx:%u drv_en:%u path_idle_en:0x%x timeout_val:%u",
+		prepare_hw_data->packet_opcode_type, request_id,
+		CAM_BOOL_TO_YESNO(g_ife_hw_mgr.debug_cfg.disable_isp_drv),
+		ctx->ctx_index, drv_config->drv_en, drv_config->path_idle_en,
+		drv_config->timeout_val);
+
+	if (!g_ife_hw_mgr.cam_ddr_drv_support || g_ife_hw_mgr.debug_cfg.disable_isp_drv)
+		return rc;
+
+	if (prepare_hw_data->packet_opcode_type == CAM_ISP_PACKET_INIT_DEV)
+		drv_config_args.is_init_config = true;
+
+	drv_config_args.drv_en = drv_config->drv_en;
+	drv_config_args.path_idle_en = drv_config->path_idle_en;
+	drv_config_args.timeout_val = drv_config->timeout_val;
+	for (i = 0; i < ctx->num_base; i++) {
+		if (ctx->base[i].hw_type != CAM_ISP_HW_TYPE_CSID)
+			continue;
+
+		hw_intf = ife_hw_mgr->csid_devices[ctx->base[i].idx];
+		if (hw_intf && hw_intf->hw_ops.process_cmd) {
+			rc = hw_intf->hw_ops.process_cmd(hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_DRV_CONFIG, &drv_config_args,
+				sizeof(struct cam_ife_csid_drv_config_args));
+			if (rc) {
+				CAM_ERR(CAM_PERF,
+					"DRV config failed req_id:%d i:%d hw_idx=%d rc:%d",
+					request_id, i, ctx->base[i].idx, rc);
+				break;
+			}
+		}
+	}
+
+	return rc;
+}
 
 static bool cam_isp_is_ctx_primary_rdi(struct cam_ife_hw_mgr_ctx  *ctx)
 {
@@ -1807,6 +1892,7 @@ static int cam_ife_mgr_process_base_info(
 				res->hw_intf->hw_idx);
 		}
 	}
+
 	CAM_DBG(CAM_ISP, "ctx base num = %d", ctx->num_base);
 
 	return 0;
@@ -5190,6 +5276,12 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		goto free_res;
 	}
 
+	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE) {
+		rc = cam_ife_mgr_update_core_info_to_cpas(ife_ctx, true);
+		if (rc)
+			goto free_res;
+	}
+
 	rc = cam_ife_mgr_allocate_cdm_cmd(
 		(ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE ? true : false),
 		&ife_ctx->cdm_cmd);
@@ -5526,6 +5618,12 @@ static int cam_ife_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 		goto free_res;
 	}
 
+	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE) {
+		rc = cam_ife_mgr_update_core_info_to_cpas(ife_ctx, true);
+		if (rc)
+			goto free_res;
+	}
+
 	rc = cam_ife_mgr_allocate_cdm_cmd(false,
 		&ife_ctx->cdm_cmd);
 	if (rc)
@@ -5843,13 +5941,15 @@ static int cam_isp_classify_vote_info(
 
 	for (i = 0; i < isp_vote->num_paths; i++) {
 		CAM_DBG(CAM_PERF,
-			"CLASSIFY_VOTE [%s] [%s] [%s] [%llu] [%llu] [%llu]",
+			"CLASSIFY_VOTE [%s] [%s] [%s] [%s] [%llu] [%llu] [%llu]",
 			cam_isp_util_usage_data_to_string(
 			isp_vote->axi_path[i].usage_data),
 			cam_cpas_axi_util_path_type_to_string(
 			isp_vote->axi_path[i].path_data_type),
 			cam_cpas_axi_util_trans_type_to_string(
 			isp_vote->axi_path[i].transac_type),
+			cam_cpas_axi_util_drv_vote_lvl_to_string(
+			isp_vote->axi_path[i].vote_level),
 			isp_vote->axi_path[i].camnoc_bw,
 			isp_vote->axi_path[i].mnoc_ab_bw,
 			isp_vote->axi_path[i].mnoc_ib_bw);
@@ -5873,7 +5973,7 @@ static int cam_isp_blob_bw_update_v2(
 
 	for (i = 0; i < bw_config->num_paths; i++) {
 		CAM_DBG(CAM_PERF,
-			"ISP_BLOB usage_type=%u [%s] [%s] [%s] [%llu] [%llu] [%llu]",
+			"ISP_BLOB usage_type=%u [%s] [%s] [%s] [%s] [%llu] [%llu] [%llu]",
 			bw_config->usage_type,
 			cam_isp_util_usage_data_to_string(
 			bw_config->axi_path[i].usage_data),
@@ -5881,6 +5981,8 @@ static int cam_isp_blob_bw_update_v2(
 			bw_config->axi_path[i].path_data_type),
 			cam_cpas_axi_util_trans_type_to_string(
 			bw_config->axi_path[i].transac_type),
+			cam_cpas_axi_util_drv_vote_lvl_to_string(
+			bw_config->axi_path[i].vote_level),
 			bw_config->axi_path[i].camnoc_bw,
 			bw_config->axi_path[i].mnoc_ab_bw,
 			bw_config->axi_path[i].mnoc_ib_bw);
@@ -6166,6 +6268,14 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 		hw_update_data->bw_clk_config.bw_config_valid,
 		hw_update_data->bw_clk_config.ife_clock_config_valid,
 		hw_update_data->bw_clk_config.sfe_clock_config_valid);
+
+	if (hw_update_data->drv_config_valid) {
+		rc = cam_isp_blob_drv_config(ctx, cfg->request_id, hw_update_data);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "DRV config failed for req: %llu rc:%d", cfg->request_id,
+				rc);
+		}
+	}
 
 	/*
 	 * Update clock and bw values to top layer, the actual application of these
@@ -6780,29 +6890,27 @@ err:
 	return rc;
 }
 
-/* To find SFE core idx for CSID wrapper config */
-static int cam_ife_mgr_find_sfe_core_idx(
+static int cam_ife_mgr_find_core_idx(
 	int split_id,
 	struct cam_ife_hw_mgr_ctx *ctx,
+	enum cam_isp_hw_type hw_type,
 	uint32_t *core_idx)
 {
 	int i;
 
 	for (i = 0; i < ctx->num_base; i++) {
-		if (ctx->base[i].hw_type != CAM_ISP_HW_TYPE_SFE)
+		if (ctx->base[i].hw_type != hw_type)
 			continue;
 
 		if (ctx->base[i].split_id == split_id) {
-			CAM_DBG(CAM_ISP, "Found SFE core: %u for split_id: %d",
-				ctx->base[i].idx, split_id);
+			CAM_DBG(CAM_ISP, "Found core: %u for split_id: %d hw_type: %d",
+				ctx->base[i].idx, split_id, hw_type);
 			*core_idx = ctx->base[i].idx;
 			goto end;
 		}
 	}
 
-	CAM_ERR(CAM_ISP,
-		"Failed to find SFE core idx for split_id %d",
-		split_id);
+	CAM_ERR(CAM_ISP, "Failed to find core idx for hw_type: %d split_id %d", hw_type, split_id);
 	return -EINVAL;
 
 end:
@@ -6962,8 +7070,8 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 				if (ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE) {
 					csid_top_args.input_core_type =
 						CAM_IFE_CSID_INPUT_CORE_SFE_IFE;
-					rc = cam_ife_mgr_find_sfe_core_idx(
-						i, ctx, &csid_top_args.core_idx);
+					rc = cam_ife_mgr_find_core_idx(i, ctx, CAM_ISP_HW_TYPE_SFE,
+						&csid_top_args.core_idx);
 					if (rc)
 						goto tasklet_stop;
 				} else {
@@ -7033,6 +7141,12 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Can not start cdm (%d)", ctx->cdm_handle);
 		goto safe_disable;
+	}
+
+	rc = cam_cpas_query_drv_enable(&g_ife_hw_mgr.cam_ddr_drv_support);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed to query DRV enable rc: %d", rc);
+		goto cdm_streamoff;
 	}
 
 start_only:
@@ -7269,6 +7383,12 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 
 	/* we should called the stop hw before this already */
 	cam_ife_hw_mgr_release_hw_for_ctx(ctx);
+
+	if (ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE) {
+		rc = cam_ife_mgr_update_core_info_to_cpas(ctx, false);
+		if (rc)
+			CAM_ERR(CAM_ISP, "Failed to update core info to cpas rc:%d", rc);
+	}
 
 	/* reset base info */
 	ctx->num_base = 0;
@@ -10209,6 +10329,28 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 
 	}
 		break;
+	case CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG: {
+		struct cam_isp_drv_config *drv_config;
+		struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+
+		if (blob_size < sizeof(struct cam_isp_drv_config)) {
+			CAM_ERR(CAM_ISP, "Invalid DRV blob size %u expected %u",
+				blob_size, sizeof(struct cam_isp_drv_config));
+			return -EINVAL;
+		}
+
+		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
+			prepare->priv;
+		drv_config = (struct cam_isp_drv_config *)blob_data;
+		memcpy(&prepare_hw_data->isp_drv_config, drv_config,
+			sizeof(prepare_hw_data->isp_drv_config));
+
+		CAM_DBG(CAM_ISP, "DRV config blob en:%d timeout_val:%u path_idle_en: 0x%x",
+			drv_config->drv_en, drv_config->timeout_val, drv_config->path_idle_en);
+		prepare_hw_data->drv_config_valid = true;
+	}
+		break;
+
 	default:
 		CAM_WARN(CAM_ISP, "Invalid blob type %d", blob_type);
 		break;
@@ -14188,6 +14330,8 @@ static int cam_ife_hw_mgr_debug_register(void)
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_hw_mgr_perfcnter_debug);
 	debugfs_create_file("ife_csid_testbus", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_csid_testbus_debug);
+	debugfs_create_bool("disable_isp_drv", 0644, g_ife_hw_mgr.debug_cfg.dentry,
+		&g_ife_hw_mgr.debug_cfg.disable_isp_drv);
 end:
 	g_ife_hw_mgr.debug_cfg.enable_csid_recovery = 1;
 	return rc;

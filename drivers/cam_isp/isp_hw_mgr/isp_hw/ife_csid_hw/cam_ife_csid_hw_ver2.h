@@ -379,6 +379,9 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t test_bus_debug;
 	uint32_t path_domain_id_cfg0;
 	uint32_t path_domain_id_cfg1;
+	uint32_t drv_cfg0_addr;
+	uint32_t drv_cfg1_addr;
+	uint32_t drv_cfg2_addr;
 
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;
@@ -437,6 +440,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t shdr_slave_rdi1_shift;
 	uint32_t shdr_master_rdi0_shift;
 	uint32_t shdr_master_slave_en_shift;
+	uint32_t drv_en_shift;
+	uint32_t drv_rup_en_shift;
 	/* config Values */
 	uint32_t major_version;
 	uint32_t minor_version;
@@ -466,6 +471,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t sfe_ipp_input_rdi_res;
 	bool     timestamp_enabled_in_cfg0;
 	bool     camif_irq_support;
+	uint32_t drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_MAX];
+	uint32_t drv_path_idle_en_val_map[CAM_ISP_MAX_PATHS];
 
 	/* Masks */
 	uint32_t pxl_cnt_mask;
@@ -554,6 +561,7 @@ struct cam_ife_csid_ver2_reg_info {
  * @sync_mode:                Master/Slave modes
  * @mup:                      MUP for incoming VC of next frame
  * @discard_frame_per_path:   Count of paths dropping initial frames
+ * @drv_init_done:            Indicates if drv init config is done
  *
  */
 struct cam_ife_csid_ver2_hw {
@@ -596,6 +604,7 @@ struct cam_ife_csid_ver2_hw {
 	enum cam_isp_hw_sync_mode              sync_mode;
 	uint32_t                               mup;
 	atomic_t                               discard_frame_per_path;
+	bool                                   drv_init_done;
 };
 
 /*

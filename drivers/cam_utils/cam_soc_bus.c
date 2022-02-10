@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/msm-bus.h>
@@ -65,7 +66,8 @@ end:
 	return rc;
 }
 
-int cam_soc_bus_client_update_bw(void *client, uint64_t ab, uint64_t ib)
+int cam_soc_bus_client_update_bw(void *client, uint64_t ab, uint64_t ib,
+	enum cam_soc_bus_path_data bus_path_data)
 {
 	int idx = 0;
 	struct msm_bus_paths *path;

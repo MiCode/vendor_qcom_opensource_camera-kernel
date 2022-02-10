@@ -1241,6 +1241,9 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.buf_done_irq_set_addr                   = 0x98,
 	.test_bus_ctrl                           = 0x1E8,
 	.test_bus_debug                          = 0x1EC,
+	.drv_cfg0_addr                           = 0x13c,
+	.drv_cfg1_addr                           = 0x140,
+	.drv_cfg2_addr                           = 0x144,
 
 	/*configurations */
 	.major_version                           = 6,
@@ -1273,6 +1276,8 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.shdr_slave_rdi1_shift                   = 21,
 	.shdr_master_rdi0_shift                  = 5,
 	.shdr_master_slave_en_shift              = 0,
+	.drv_en_shift                            = 0,
+	.drv_rup_en_shift                        = 0,
 	.early_eof_supported                     = 1,
 	.vfr_supported                           = 1,
 	.multi_vcdt_supported                    = 1,
@@ -1312,6 +1317,28 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.timestamp_enabled_in_cfg0               = true,
 	.camif_irq_support                       = true,
 	.sfe_ipp_input_rdi_res                   = BIT(CAM_IFE_PIX_PATH_RES_RDI_0),
+	.drv_rup_en_val_map = {
+		2, //RDI0
+		3, //RDI1
+		4, //RDI2
+		5, //RDI3
+		6, //RDI4
+		0, //IPP
+		1, //PPP
+		0, //UDI0
+		0, //UDI1
+		0, //UDI2
+	},
+	.drv_path_idle_en_val_map = {
+		BIT(4), //CAM_ISP_PXL_PATH
+		BIT(5), //CAM_ISP_PPP_PATH
+		0,      // LCR not applicable
+		BIT(6), //CAM_ISP_RDI0_PATH
+		BIT(7), //CAM_ISP_RDI1_PATH
+		BIT(8), //CAM_ISP_RDI2_PATH
+		BIT(9), //CAM_ISP_RDI3_PATH
+		BIT(10), //CAM_ISP_RDI4_PATH
+	},
 };
 
 static struct cam_ife_csid_ver2_top_reg_info

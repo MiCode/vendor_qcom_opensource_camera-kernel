@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interconnect.h>
+#include <dt-bindings/interconnect/qcom,icc.h>
 #include "cam_soc_bus.h"
 
 /**
@@ -12,9 +14,22 @@
  * @icc_data: Bus icc path information
  */
 struct cam_soc_bus_client_data {
-	struct icc_path *icc_data;
+	struct icc_path *icc_data[CAM_SOC_BUS_PATH_DATA_MAX];
 };
 
+const char *cam_soc_bus_path_data_to_str(enum cam_soc_bus_path_data bus_path_data)
+{
+	switch (bus_path_data) {
+	case CAM_SOC_BUS_PATH_DATA_HLOS:
+		return "BUS_PATH_HLOS";
+	case CAM_SOC_BUS_PATH_DATA_DRV_HIGH:
+		return "BUS_PATH_DRV_HIGH";
+	case CAM_SOC_BUS_PATH_DATA_DRV_LOW:
+		return "BUS_PATH_DRV_LOW";
+	default:
+		return "BUS_PATH_INVALID";
+	}
+}
 int cam_soc_bus_client_update_request(void *client, unsigned int idx)
 {
 	int rc = 0;
@@ -37,7 +52,7 @@ int cam_soc_bus_client_update_request(void *client, unsigned int idx)
 	CAM_DBG(CAM_PERF, "Bus client=[%s] index[%d] ab[%llu] ib[%llu]",
 		bus_client->common_data->name, idx, ab, ib);
 
-	rc = icc_set_bw(bus_client_data->icc_data, Bps_to_icc(ab),
+	rc = icc_set_bw(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_HLOS], Bps_to_icc(ab),
 		Bps_to_icc(ib));
 	if (rc) {
 		CAM_ERR(CAM_UTIL,
@@ -50,26 +65,29 @@ end:
 	return rc;
 }
 
-int cam_soc_bus_client_update_bw(void *client, uint64_t ab, uint64_t ib)
+int cam_soc_bus_client_update_bw(void *client, uint64_t ab, uint64_t ib,
+	enum cam_soc_bus_path_data bus_path_data)
 {
-	struct cam_soc_bus_client *bus_client =
-		(struct cam_soc_bus_client *) client;
-	struct cam_soc_bus_client_data *bus_client_data =
-		(struct cam_soc_bus_client_data *) bus_client->client_data;
-	int rc = 0;
+		struct cam_soc_bus_client *bus_client =
+			(struct cam_soc_bus_client *) client;
+		struct cam_soc_bus_client_data *bus_client_data =
+			(struct cam_soc_bus_client_data *) bus_client->client_data;
+		int rc = 0;
 
-	CAM_DBG(CAM_PERF, "Bus client=[%s] :ab[%llu] ib[%llu]",
-		bus_client->common_data->name, ab, ib);
-	rc = icc_set_bw(bus_client_data->icc_data, Bps_to_icc(ab),
-		Bps_to_icc(ib));
-	if (rc) {
-		CAM_ERR(CAM_UTIL, "Update request failed, client[%s]",
-			bus_client->common_data->name);
-		goto end;
-	}
+		CAM_DBG(CAM_PERF, "Bus client=[%s] [%s] :ab[%llu] ib[%llu]",
+			bus_client->common_data->name, cam_soc_bus_path_data_to_str(bus_path_data),
+			ab, ib);
+		rc = icc_set_bw(bus_client_data->icc_data[bus_path_data], Bps_to_icc(ab),
+			Bps_to_icc(ib));
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Update request failed, client[%s]",
+				bus_client->common_data->name);
+			goto end;
+		}
 
 end:
 	return rc;
+
 }
 
 int cam_soc_bus_client_register(struct platform_device *pdev,
@@ -89,8 +107,7 @@ int cam_soc_bus_client_register(struct platform_device *pdev,
 
 	*client = bus_client;
 
-	bus_client_data = kzalloc(sizeof(struct cam_soc_bus_client_data),
-		GFP_KERNEL);
+	bus_client_data = kzalloc(sizeof(struct cam_soc_bus_client_data), GFP_KERNEL);
 	if (!bus_client_data) {
 		kfree(bus_client);
 		*client = NULL;
@@ -100,30 +117,80 @@ int cam_soc_bus_client_register(struct platform_device *pdev,
 
 	bus_client->client_data = bus_client_data;
 	bus_client->common_data = common_data;
-	bus_client_data->icc_data = icc_get(&pdev->dev,
-		bus_client->common_data->src_id,
-		bus_client->common_data->dst_id);
-	if (IS_ERR_OR_NULL(bus_client_data->icc_data)) {
-		CAM_ERR(CAM_UTIL, "failed in register bus client");
-		rc = -EINVAL;
-		goto error;
+	if (bus_client->common_data->is_drv_port) {
+		bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_HIGH] = icc_get(&pdev->dev,
+			bus_client->common_data->src_id, bus_client->common_data->dst_id);
+		if (IS_ERR_OR_NULL(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_HIGH])) {
+			CAM_ERR(CAM_UTIL,
+				"Failed to register DRV bus client Bus Client=[%s] : src=%d, dst=%d bus_path:%d",
+				bus_client->common_data->src_id, bus_client->common_data->dst_id,
+				CAM_SOC_BUS_PATH_DATA_DRV_HIGH);
+			rc = -EINVAL;
+			goto error;
+		}
+
+		bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_LOW] = icc_get(&pdev->dev,
+			bus_client->common_data->src_id, bus_client->common_data->dst_id);
+		if (IS_ERR_OR_NULL(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_LOW])) {
+			CAM_ERR(CAM_UTIL,
+				"Failed to register DRV bus client Bus Client=[%s] : src=%d, dst=%d bus_path:%d",
+				bus_client->common_data->src_id, bus_client->common_data->dst_id,
+				CAM_SOC_BUS_PATH_DATA_DRV_LOW);
+			rc = -EINVAL;
+			goto error;
+		}
+
+		/* Set appropriate tags for HIGH and LOW vote paths */
+		icc_set_tag(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_HIGH],
+			QCOM_ICC_TAG_ACTIVE_ONLY);
+		icc_set_tag(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_LOW],
+			QCOM_ICC_TAG_SLEEP);
+
+		rc = icc_set_bw(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_HIGH], 0, 0);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Bus client[%s] update request failed, rc = %d",
+				bus_client->common_data->name, rc);
+			goto fail_unregister_client;
+		}
+
+		rc = icc_set_bw(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_LOW], 0, 0);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Bus client[%s] update request failed, rc = %d",
+				bus_client->common_data->name, rc);
+			goto fail_unregister_client;
+		}
+	} else {
+		bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_HLOS] = icc_get(&pdev->dev,
+			bus_client->common_data->src_id, bus_client->common_data->dst_id);
+		if (IS_ERR_OR_NULL(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_HLOS])) {
+			CAM_ERR(CAM_UTIL, "failed to register HLOS bus client");
+			rc = -EINVAL;
+			goto error;
+		}
+
+		rc = icc_set_bw(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_HLOS], 0, 0);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Bus client[%s] update request failed, rc = %d",
+				bus_client->common_data->name, rc);
+			goto fail_unregister_client;
+		}
 	}
 
-	rc = icc_set_bw(bus_client_data->icc_data, 0, 0);
-	if (rc) {
-		CAM_ERR(CAM_UTIL, "Bus client update request failed, rc = %d",
-			rc);
-		goto fail_unregister_client;
-	}
-
-	CAM_DBG(CAM_PERF, "Register Bus Client=[%s] : src=%d, dst=%d",
+	CAM_DBG(CAM_PERF, "Register Bus Client=[%s] : src=%d, dst=%d is_drv_port:%s",
 		bus_client->common_data->name, bus_client->common_data->src_id,
-		bus_client->common_data->dst_id);
+		bus_client->common_data->dst_id,
+		CAM_BOOL_TO_YESNO(bus_client->common_data->is_drv_port));
 
 	return 0;
 
 fail_unregister_client:
-	icc_put(bus_client_data->icc_data);
+	if (bus_client->common_data->is_drv_port) {
+		icc_put(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_HIGH]);
+		icc_put(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_LOW]);
+	} else {
+		icc_put(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_HLOS]);
+	}
+
 error:
 	kfree(bus_client_data);
 	bus_client->client_data = NULL;
@@ -141,7 +208,13 @@ void cam_soc_bus_client_unregister(void **client)
 	struct cam_soc_bus_client_data *bus_client_data =
 		(struct cam_soc_bus_client_data *) bus_client->client_data;
 
-	icc_put(bus_client_data->icc_data);
+	if (bus_client->common_data->is_drv_port) {
+		icc_put(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_HIGH]);
+		icc_put(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_DRV_LOW]);
+	} else {
+		icc_put(bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_HLOS]);
+	}
+
 	kfree(bus_client_data);
 	bus_client->client_data = NULL;
 	kfree(bus_client);

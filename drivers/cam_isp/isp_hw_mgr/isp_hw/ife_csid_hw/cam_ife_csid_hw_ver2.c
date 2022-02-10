@@ -4415,6 +4415,15 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	csid_hw->flags.sof_irq_triggered = false;
 	csid_hw->counters.irq_debug_cnt = 0;
 
+	if (start_args->is_internal_start) {
+		rc = cam_cpas_csid_process_resume(csid_hw->hw_intf->hw_idx);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "CSID:%u Failed to process resume rc: %d",
+				csid_hw->hw_intf->hw_idx, rc);
+			goto end;
+		}
+	}
+
 	rc = cam_ife_csid_ver2_enable_hw(csid_hw);
 
 	for (i = 0; i < start_args->num_res; i++) {
@@ -4690,7 +4699,6 @@ static int cam_ife_csid_ver2_top_cfg(
 		hw_idx, top_args->input_core_type, top_args->core_idx);
 
 	/*config dual sync params */
-
 	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_NONE)
 		return rc;
 	else if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_MASTER)
@@ -5378,6 +5386,71 @@ static int cam_ife_csid_init_config_update(
 	return 0;
 }
 
+static int cam_ife_csid_ver2_drv_config(
+	struct cam_ife_csid_ver2_hw  *csid_hw, void *cmd_args)
+{
+	struct cam_hw_soc_info *soc_info;
+	struct cam_ife_csid_ver2_reg_info *csid_reg;
+	struct cam_ife_csid_drv_config_args *drv_config;
+	uint32_t cfg0_val = 0, cfg1_val = 0;
+	void __iomem *mem_base;
+	int i;
+
+	if (!csid_hw || !cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid params");
+		return -EINVAL;
+	}
+
+	drv_config = (struct cam_ife_csid_drv_config_args *) cmd_args;
+	soc_info = &csid_hw->hw_info->soc_info;
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *) csid_hw->core_info->csid_reg;
+	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
+
+	cfg0_val = drv_config->drv_en << csid_reg->cmn_reg->drv_en_shift;
+
+	/* Configure DRV RUP EN for init request, one time */
+	if (drv_config->is_init_config) {
+		if (csid_hw->path_res[CAM_IFE_PIX_PATH_RES_IPP].res_state >=
+			CAM_ISP_RESOURCE_STATE_RESERVED) {
+			cfg1_val = csid_reg->cmn_reg->drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_IPP];
+		} else if (csid_hw->path_res[CAM_IFE_PIX_PATH_RES_RDI_0].res_state >=
+			CAM_ISP_RESOURCE_STATE_RESERVED) {
+			cfg1_val =
+				csid_reg->cmn_reg->drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_RDI_0];
+		} else if (csid_hw->path_res[CAM_IFE_PIX_PATH_RES_PPP].res_state >=
+			CAM_ISP_RESOURCE_STATE_RESERVED) {
+			cfg1_val = csid_reg->cmn_reg->drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_PPP];
+		} else {
+			CAM_ERR(CAM_ISP, "Failed to configure rup_en for drv");
+			return -EINVAL;
+		}
+
+		cam_io_w_mb(cfg1_val, mem_base + csid_reg->cmn_reg->drv_cfg1_addr);
+		csid_hw->drv_init_done = true;
+	}
+
+	if (!csid_hw->drv_init_done) {
+		CAM_ERR(CAM_ISP, "Failed to update drv config, init config not done");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < CAM_ISP_MAX_PATHS; i++)
+		cfg0_val |= ((drv_config->path_idle_en & BIT(i)) ?
+			csid_reg->cmn_reg->drv_path_idle_en_val_map[i] : 0);
+
+	cam_io_w_mb(cfg0_val, mem_base + csid_reg->cmn_reg->drv_cfg0_addr);
+
+	cam_io_w_mb(drv_config->timeout_val, mem_base + csid_reg->cmn_reg->drv_cfg2_addr);
+
+	CAM_DBG(CAM_ISP,
+		"CSID[%u] sfe_en:%s DRV config init_req:%s cfg0_val:0x%x cfg1_val:0x%x cfg2_val:0x%x",
+		csid_hw->hw_intf->hw_idx, CAM_BOOL_TO_YESNO(csid_hw->flags.sfe_en),
+		CAM_BOOL_TO_YESNO(drv_config->is_init_config), cfg0_val, cfg1_val,
+		drv_config->timeout_val);
+
+	return 0;
+}
+
 static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 	uint32_t cmd_type, void *cmd_args, uint32_t arg_size)
 {
@@ -5467,6 +5540,9 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_INIT_CONFIG_UPDATE:
 		rc = cam_ife_csid_init_config_update(cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_DRV_CONFIG:
+		rc = cam_ife_csid_ver2_drv_config(csid_hw, cmd_args);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",
