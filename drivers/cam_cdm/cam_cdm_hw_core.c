@@ -309,7 +309,10 @@ static void cam_hw_cdm_dump_bl_fifo_data(struct cam_hw_info *cdm_hw)
 void cam_hw_cdm_dump_core_debug_registers(struct cam_hw_info *cdm_hw,
 	bool pause_core)
 {
-	uint32_t dump_reg[4], core_dbg = 0x100;
+	uint32_t dump_reg[4];
+	uint32_t core_dbg = CAM_CDM_CORE_DBG_TEST_BUS_EN_MASK |
+		CAM_CDM_CORE_DBG_LOG_AHB_MASK |
+		CAM_CDM_CORE_DBG_FIFO_RB_EN_MASK;
 	uint32_t cdm_version = 0;
 	int i;
 	bool is_core_paused_already;
@@ -1691,9 +1694,12 @@ int cam_hw_cdm_reset_hw(struct cam_hw_info *cdm_hw, uint32_t handle)
 
 	if (time_left <= 0) {
 		rc = -ETIMEDOUT;
+
 		CAM_ERR(CAM_CDM, "%s%u HW reset Wait failed rc=%d",
 			soc_info->label_name,
 			soc_info->index, rc);
+
+		cam_hw_cdm_dump_core_debug_registers(cdm_hw, false);
 		goto end;
 	}
 

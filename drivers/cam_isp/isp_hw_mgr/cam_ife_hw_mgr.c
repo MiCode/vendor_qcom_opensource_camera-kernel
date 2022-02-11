@@ -5928,7 +5928,7 @@ static int cam_isp_blob_bw_update(
 static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 					void *config_hw_args)
 {
-	int rc = -1, i, skip = 0;
+	int rc, i, skip = 0;
 	struct cam_hw_config_args *cfg;
 	struct cam_hw_update_entry *cmd;
 	struct cam_cdm_bl_request *cdm_cmd;
@@ -6131,8 +6131,11 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 				CAM_ERR(CAM_ISP,
 					"config done completion timeout for req_id=%llu ctx_index %d",
 					cfg->request_id, ctx->ctx_index);
-				if (!cam_cdm_detect_hang_error(ctx->cdm_handle))
+
+				if (!cam_cdm_detect_hang_error(ctx->cdm_handle)) {
 					CAM_ERR(CAM_ISP, "CDM Workqueue delayed");
+					cam_cdm_dump_debug_registers(ctx->cdm_handle);
+				}
 
 				rc = -ETIMEDOUT;
 			} else {
