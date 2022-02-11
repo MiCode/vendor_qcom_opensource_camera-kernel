@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -150,6 +150,10 @@
 #define CAM_SYNC_EVENT_MAX         8
 #define CAM_SYNC_EVENT_REASON_CODE_INDEX  0
 
+/* Fence types supported by the driver */
+#define CAM_GENERIC_FENCE_TYPE_SYNC_OBJ     0x1
+#define CAM_GENERIC_FENCE_TYPE_DMA_FENCE    0x2
+
 /**
  * struct cam_sync_ev_header - Event header for sync event notification
  *
@@ -238,6 +242,112 @@ struct cam_sync_wait {
 };
 
 /**
+ * struct cam_generic_fence_config - Fence config
+ *                    Based on the operation, fields could be
+ *                    input/output
+ *
+ * @version:          Struct version
+ * @name:             Optional string representation [used for create/import]
+ * @fence_sel_mask:   Fence select mask, if set for fence types other than the type
+ *                    this input is processed for, the corresponding types would be
+ *                    processed as well. For example if one wants to import a sync
+ *                    object for an existing dma fence, set mask |= CAM_GENERIC_FENCE_TYPE_SYNC_OBJ,
+ *                    a new sync object would be returned in sync_obj linked to an
+ *                    existing dma_fence_fd.
+ * @sync_obj:         Sync object
+ * @dma_fence_fd:     DMA fence fd
+ * @synx_obj:         Synx object
+ * @reason_code:      Indicates if the operation was successful or not
+ *                    for this set of fences. It is the responsibility of
+ *                    the caller to clean up any partially processed batched
+ *                    fences
+ * @num_valid_params: Valid number of params being used
+ * @valid_param_mask: Mask to indicate the field types in params
+ * @params:           Additional params
+ */
+struct cam_generic_fence_config {
+	__u32 version;
+	char name[64];
+	__u32 fence_sel_mask;
+	__s32 sync_obj;
+	__s32 dma_fence_fd;
+	__s32 synx_obj;
+	__s32 reason_code;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[4];
+};
+
+/**
+ * struct cam_dma_fence_signal - DMA fence signaling info
+ *
+ * @version:          Struct version
+ * @dma_fence_fd:     DMA fence to be signaled
+ * @status:           Any status if applicable, 0 for success
+ * @num_valid_params: Valid number of params being used
+ * @valid_param_mask: Mask to indicate the field types in params
+ * @params:           Additional params
+ */
+struct cam_dma_fence_signal {
+	__u32 version;
+	__s32 dma_fence_fd;
+	__s32 status;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__s32 params[3];
+};
+
+/**
+ * struct cam_generic_fence_input_info - Parent structure that
+ *                    provides info on fence batching
+ *
+ * @version:                Struct version
+ * @num_fences_requested:   Number of fences to process
+ * @num_fences_processed:   Number of fences processed
+ *                          If userland requests 5 fences to be created
+ *                          and it fails on the 3rd, num processed will be
+ *                          3. This can be used by userspace to clean
+ *                          partially batched fences
+ * @num_valid_params:       Valid number of params being used
+ * @valid_param_mask:       Mask to indicate the field types in params
+ * @params:                 Additional params
+ * @fence_info:             Variable length fence info input based on num_fences
+ */
+struct cam_generic_fence_input_info {
+	__u32 version;
+	__u32 num_fences_requested;
+	__u32 num_fences_processed;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__s32 params[3];
+	struct cam_generic_fence_config fence_cfg[1];
+};
+
+/**
+ * struct cam_generic_fence_cmd_args - Generic fence cmd args
+ *
+ * @version:           Struct version
+ * @fence_type:        Type of fence the ioctl cmd is for [dma/sync/synx]
+ * @input_handle_type: Type of the fence input handle [user handle is expected]
+ * @input_data_size:   Size of the data pointed to by input_handle
+ * @input_handle:      Handle to the fence input data [create/signal/import...]
+ *                     corresponding to the fence_type
+ * @num_valid_params:  Valid number of reserved params being used
+ * @valid_param_mask:  Mask to indicate the field types in params
+ * @params:            Additional params
+ */
+struct cam_generic_fence_cmd_args {
+	__u32 version;
+	__u32 fence_type;
+	__u32 input_handle_type;
+	__u32 input_data_size;
+	__u64 input_handle;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[6];
+};
+
+/**
  * struct cam_private_ioctl_arg - Sync driver ioctl argument
  *
  * @id:         IOCTL command id
@@ -257,6 +367,7 @@ struct cam_private_ioctl_arg {
 #define CAM_PRIVATE_IOCTL_CMD \
 	_IOWR('V', BASE_VIDIOC_PRIVATE, struct cam_private_ioctl_arg)
 
+/* Exclusive sync object IOCTL cmds */
 #define CAM_SYNC_CREATE                          0
 #define CAM_SYNC_DESTROY                         1
 #define CAM_SYNC_SIGNAL                          2
@@ -264,5 +375,11 @@ struct cam_private_ioctl_arg {
 #define CAM_SYNC_REGISTER_PAYLOAD                4
 #define CAM_SYNC_DEREGISTER_PAYLOAD              5
 #define CAM_SYNC_WAIT                            6
+
+/* Generic fence [sync/dma/synx] IOCTL cmds */
+#define CAM_GENERIC_FENCE_CREATE                 11
+#define CAM_GENERIC_FENCE_RELEASE                12
+#define CAM_GENERIC_FENCE_IMPORT                 13
+#define CAM_GENERIC_FENCE_SIGNAL                 14
 
 #endif /* __UAPI_CAM_SYNC_H__ */
