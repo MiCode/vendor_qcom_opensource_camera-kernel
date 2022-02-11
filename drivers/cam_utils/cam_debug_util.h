@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_DEBUG_UTIL_H_
@@ -52,6 +53,7 @@ enum cam_debug_module_id {
 	CAM_CRE,                 /* bit 31 */
 	CAM_PRESIL_CORE,         /* bit 32 */
 	CAM_TPG,                 /* bit 33 */
+	CAM_DMA_FENCE,           /* bit 34 */
 	CAM_DBG_MOD_MAX
 };
 
@@ -109,6 +111,7 @@ static const char *cam_debug_mod_name[CAM_DBG_MOD_MAX] = {
 	[CAM_CRE]         = "CAM-CRE",
 	[CAM_PRESIL_CORE] = "CAM-CORE-PRESIL",
 	[CAM_TPG]         = "CAM-TPG",
+	[CAM_DMA_FENCE]   = "CAM_DMA_FENCE",
 };
 
 #define ___CAM_DBG_MOD_NAME(module_id)                                      \
@@ -146,7 +149,8 @@ __builtin_choose_expr(((module_id) == CAM_SFE), "CAM-SFE",                  \
 __builtin_choose_expr(((module_id) == CAM_CRE), "CAM-CRE",                  \
 __builtin_choose_expr(((module_id) == CAM_PRESIL_CORE), "CAM-CORE-PRESIL",  \
 __builtin_choose_expr(((module_id) == CAM_TPG), "CAM-TPG",                  \
-"CAMERA"))))))))))))))))))))))))))))))))))
+__builtin_choose_expr(((module_id) == CAM_DMA_FENCE), "CAM-DMA-FENCE",      \
+"CAMERA")))))))))))))))))))))))))))))))))))
 
 #define CAM_DBG_MOD_NAME(module_id) \
 ((module_id < CAM_DBG_MOD_MAX) ? cam_debug_mod_name[module_id] : "CAMERA")

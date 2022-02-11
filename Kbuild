@@ -89,6 +89,7 @@ camera-y := \
 	drivers/cam_smmu/cam_smmu_api.o \
 	drivers/cam_sync/cam_sync.o \
 	drivers/cam_sync/cam_sync_util.o \
+	drivers/cam_sync/cam_sync_dma_fence.o \
 	drivers/cam_cpas/cpas_top/cam_cpastop_hw.o \
 	drivers/cam_cpas/camss_top/cam_camsstop_hw.o \
 	drivers/cam_cpas/cam_cpas_soc.o \
