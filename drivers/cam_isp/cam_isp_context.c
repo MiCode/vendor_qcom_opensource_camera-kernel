@@ -1171,7 +1171,7 @@ static int __cam_isp_ctx_get_hw_timestamp(struct cam_context *ctx, uint64_t *pre
 	return 0;
 }
 
-static int __cam_isp_ctx_recover_sof_timestamp(struct cam_context *ctx)
+static int __cam_isp_ctx_recover_sof_timestamp(struct cam_context *ctx, uint64_t request_id)
 {
 	struct cam_isp_context *ctx_isp = ctx->ctx_priv;
 	uint64_t prev_ts, curr_ts, boot_ts;
@@ -1195,21 +1195,21 @@ static int __cam_isp_ctx_recover_sof_timestamp(struct cam_context *ctx)
 	if (a == prev_ts) {
 		/* Hardware is at frame B */
 		b = curr_ts;
-		CAM_DBG(CAM_ISP, "ctx:%u recovered timestamp (last:0x%llx, curr:0x%llx)",
-			ctx->ctx_id, a, b);
+		CAM_DBG(CAM_ISP, "ctx:%u recovered timestamp (last:0x%llx, curr:0x%llx) req: %llu",
+			ctx->ctx_id, a, b, request_id);
 	} else if (a < prev_ts) {
 		/* Hardware is at frame C */
 		b = prev_ts;
 		c = curr_ts;
 
 		CAM_DBG(CAM_ISP,
-			"ctx:%u recovered timestamp (last:0x%llx, prev:0x%llx, curr:0x%llx)",
-			ctx->ctx_id, a, b, c);
+			"ctx:%u recovered timestamp (last:0x%llx, prev:0x%llx, curr:0x%llx) req: %llu",
+			ctx->ctx_id, a, b, c, request_id);
 	} else {
 		/* Hardware is at frame A (which we supposedly missed) */
-		CAM_ERR(CAM_ISP,
-			"ctx:%u erroneous call to SOF recovery (last:0x%llx, prev:0x%llx, curr:0x%llx)",
-			ctx->ctx_id, a, prev_ts, curr_ts);
+		CAM_ERR_RATE_LIMIT(CAM_ISP,
+			"ctx:%u erroneous call to SOF recovery (last:0x%llx, prev:0x%llx, curr:0x%llx) req: %llu",
+			ctx->ctx_id, a, prev_ts, curr_ts, request_id);
 		return 0;
 	}
 
@@ -1314,11 +1314,20 @@ static void __cam_isp_ctx_send_sof_timestamp(
 	uint32_t sof_event_status)
 {
 	struct cam_req_mgr_message   req_msg;
+	struct cam_context           *ctx = ctx_isp->base;
 
 	if (ctx_isp->reported_frame_id == ctx_isp->frame_id) {
-		if (__cam_isp_ctx_recover_sof_timestamp(ctx_isp->base))
+		if (__cam_isp_ctx_recover_sof_timestamp(ctx_isp->base, request_id))
 			CAM_WARN(CAM_ISP, "Missed SOF. Unable to recover SOF timestamp.");
 	}
+
+	if (request_id == 0 && (ctx_isp->reported_frame_id == ctx_isp->frame_id)) {
+		CAM_WARN_RATE_LIMIT(CAM_ISP,
+			"Missed SOF Recovery for invalid req, Skip notificaiton to userspace Ctx: %u frame_id %u",
+			ctx->ctx_id, ctx_isp->frame_id);
+		return;
+	}
+
 	ctx_isp->reported_frame_id = ctx_isp->frame_id;
 
 	if ((ctx_isp->v4l2_event_sub_ids & (1 << V4L_EVENT_CAM_REQ_MGR_SOF_UNIFIED_TS))
