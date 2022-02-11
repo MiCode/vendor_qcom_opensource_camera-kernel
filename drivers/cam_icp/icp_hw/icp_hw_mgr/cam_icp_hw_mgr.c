@@ -128,15 +128,17 @@ static const char *cam_icp_dev_type_to_name(
 
 static inline void cam_icp_dump_debug_info(bool skip_dump)
 {
+	uint32_t dump_type;
 	struct cam_hw_intf *icp_dev_intf = icp_hw_mgr.icp_dev_intf;
 
 	if (skip_dump)
 		return;
 
+	dump_type = CAM_ICP_DUMP_STATUS_REGISTERS;
 	cam_icp_mgr_process_dbg_buf(icp_hw_mgr.icp_dbg_lvl);
 	cam_hfi_queue_dump(false);
 	icp_dev_intf->hw_ops.process_cmd(
-		icp_dev_intf->hw_priv, CAM_ICP_CMD_HW_REG_DUMP, NULL, 0x0);
+		icp_dev_intf->hw_priv, CAM_ICP_CMD_HW_REG_DUMP, &dump_type, sizeof(dump_type));
 }
 
 static int cam_icp_send_ubwc_cfg(struct cam_icp_hw_mgr *hw_mgr)
@@ -4309,6 +4311,7 @@ static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args)
 {
 	struct cam_icp_hw_mgr *hw_mgr = hw_mgr_priv;
 	bool icp_pc = false;
+	uint32_t dump_type;
 	int rc = 0;
 
 	if (!hw_mgr) {
@@ -4349,6 +4352,10 @@ static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args)
 	rc = cam_icp_mgr_hfi_init(hw_mgr);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "Failed in hfi init, rc %d", rc);
+
+		dump_type = (CAM_ICP_DUMP_STATUS_REGISTERS | CAM_ICP_DUMP_CSR_REGISTERS);
+		hw_mgr->icp_dev_intf->hw_ops.process_cmd(hw_mgr->icp_dev_intf->hw_priv,
+			CAM_ICP_CMD_HW_REG_DUMP, &dump_type, sizeof(dump_type));
 		goto hfi_init_failed;
 	}
 

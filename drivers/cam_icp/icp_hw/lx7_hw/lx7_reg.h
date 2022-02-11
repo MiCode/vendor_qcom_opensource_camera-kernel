@@ -11,6 +11,7 @@
 #define LX7_GEN_PURPOSE_REG_OFFSET     0x20
 #define LX7_CSR_DBG_STATUS_REG_OFFSET  0xC0
 #define LX7_CSR_DBG_CTRL_REG_OFFSET    0xC4
+#define LX7_CSR_GP_REG_COUNT           0x18
 
 /* ICP_SYS - Protected reg space defined in AC policy */
 #define ICP_LX7_SYS_RESET      0x0

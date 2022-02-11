@@ -700,19 +700,38 @@ static int cam_lx7_shutdown(struct cam_hw_info *lx7_info)
 	return rc;
 }
 
-static inline void __cam_lx7_core_reg_dump(
-	struct cam_hw_info *lx7_info)
+static void __cam_lx7_core_reg_dump(
+	struct cam_hw_info *lx7_info, uint32_t dump_type)
 {
+	int i;
+	size_t len = 0;
+	char log_info[512];
 	void __iomem *cirq_base = lx7_info->soc_info.reg_map[LX7_CIRQ_BASE].mem_base;
 	void __iomem *csr_base = lx7_info->soc_info.reg_map[LX7_CSR_BASE].mem_base;
+	void __iomem *csr_gp_base =  csr_base + LX7_GEN_PURPOSE_REG_OFFSET;
 
-	CAM_INFO(CAM_ICP,
-		"CIRQ IB_status0:0x%x IB_Status1:0x%x PFault:0x%x CSR debug_status:0x%x debug_ctrl:0x%x",
-		cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_IB_STATUS0),
-		cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_IB_STATUS1),
-		cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_PFAULT_INFO),
-		cam_io_r_mb(csr_base + LX7_CSR_DBG_STATUS_REG_OFFSET),
-		cam_io_r_mb(csr_base + LX7_CSR_DBG_CTRL_REG_OFFSET));
+	if (dump_type & CAM_ICP_DUMP_STATUS_REGISTERS)
+		CAM_INFO(CAM_ICP,
+			"CIRQ IB_status0:0x%x IB_Status1:0x%x PFault:0x%x CSR debug_status:0x%x debug_ctrl:0x%x",
+			cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_IB_STATUS0),
+			cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_IB_STATUS1),
+			cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_PFAULT_INFO),
+			cam_io_r_mb(csr_base + LX7_CSR_DBG_STATUS_REG_OFFSET),
+			cam_io_r_mb(csr_base + LX7_CSR_DBG_CTRL_REG_OFFSET));
+
+	if (dump_type & CAM_ICP_DUMP_CSR_REGISTERS) {
+		for (i = 0; i < LX7_CSR_GP_REG_COUNT;) {
+			CAM_INFO_BUF(CAM_ICP, log_info, 512, &len,
+				"GP_%d: 0x%x GP_%d: 0x%x GP_%d: 0x%x GP_%d: 0x%x",
+				i, cam_io_r_mb(csr_gp_base + (i << 2)),
+				(i + 1), cam_io_r_mb(csr_gp_base + ((i + 1) << 2)),
+				(i + 2), cam_io_r_mb(csr_gp_base + ((i + 2) << 2)),
+				(i + 3), cam_io_r_mb(csr_gp_base + ((i + 3) << 2)));
+			i += 4;
+		}
+
+		CAM_INFO(CAM_ICP, "ICP CSR GP registers - %s", log_info);
+	}
 }
 
 /* API controls collapse/resume of ICP */
@@ -730,7 +749,7 @@ static int cam_lx7_core_control(
 			CAM_ERR(CAM_ICP,
 				"remote state set to %s failed rc=%d",
 				(state == TZ_STATE_RESUME ? "resume" : "suspend"), rc);
-			__cam_lx7_core_reg_dump(lx7_info);
+			__cam_lx7_core_reg_dump(lx7_info, CAM_ICP_DUMP_STATUS_REGISTERS);
 		}
 	} else {
 		if (state == TZ_STATE_RESUME) {
@@ -896,7 +915,15 @@ int cam_lx7_process_cmd(void *priv, uint32_t cmd_type,
 		break;
 	}
 	case CAM_ICP_CMD_HW_REG_DUMP: {
-		__cam_lx7_core_reg_dump(lx7_info);
+		uint32_t dump_type;
+
+		if (!args) {
+			CAM_ERR(CAM_ICP, "Invalid args");
+			break;
+		}
+
+		dump_type = *(uint32_t *) args;
+		__cam_lx7_core_reg_dump(lx7_info, dump_type);
 		rc = 0;
 		break;
 	}
