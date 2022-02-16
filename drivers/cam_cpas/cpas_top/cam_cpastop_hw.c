@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -922,14 +923,19 @@ static int cam_cpastop_poweroff(struct cam_hw_info *cpas_hw)
 }
 
 static int cam_cpastop_qchannel_handshake(struct cam_hw_info *cpas_hw,
-	bool power_on)
+	bool power_on, bool force_on)
 {
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 	int32_t reg_indx = cpas_core->regbase_index[CAM_CPAS_REG_CPASTOP];
 	uint32_t mask = 0;
 	uint32_t wait_data, qchannel_status, qdeny;
-	int rc = 0;
+	int rc = 0, ret = 0;
+	struct cam_cpas_private_soc *soc_private =
+		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
+	struct cam_cpas_hw_errata_wa_list *errata_wa_list =
+		camnoc_info->errata_wa_list;
+	bool icp_clk_enabled = false;
 
 	if (reg_indx == -1)
 		return -EINVAL;
@@ -937,7 +943,28 @@ static int cam_cpastop_qchannel_handshake(struct cam_hw_info *cpas_hw,
 	if (!qchannel_info)
 		return 0;
 
+	if (errata_wa_list && errata_wa_list->enable_icp_clk_for_qchannel.enable) {
+		CAM_DBG(CAM_CPAS, "Enabling ICP clk for qchannel handshake");
+
+		if (soc_private->icp_clk_index == -1) {
+			CAM_ERR(CAM_CPAS,
+				"ICP clock not added as optional clk, qchannel handshake will fail");
+		} else {
+			ret = cam_soc_util_clk_enable(soc_info, true, soc_private->icp_clk_index,
+				-1, NULL);
+			if (ret)
+				CAM_ERR(CAM_CPAS, "Error enable icp clk failed rc=%d", ret);
+			else
+				icp_clk_enabled = true;
+		}
+	}
+
 	if (power_on) {
+		if (force_on) {
+			cam_io_w_mb(0x1,
+			soc_info->reg_map[reg_indx].mem_base + qchannel_info->qchannel_ctrl);
+			CAM_DBG(CAM_CPAS, "Force qchannel on");
+		}
 		/* wait for QACCEPTN in QCHANNEL status*/
 		mask = BIT(0);
 		wait_data = 1;
@@ -957,19 +984,29 @@ static int cam_cpastop_qchannel_handshake(struct cam_hw_info *cpas_hw,
 		CAM_CPAS_POLL_MIN_USECS, CAM_CPAS_POLL_MAX_USECS);
 	if (rc) {
 		CAM_ERR(CAM_CPAS,
-			"camnoc idle sequence failed, qstat 0x%x",
+			"CPAS_%s camnoc idle sequence failed, qstat 0x%x",
+			power_on ? "START" : "STOP",
 			cam_io_r(soc_info->reg_map[reg_indx].mem_base +
 			qchannel_info->qchannel_status));
 		/* Do not return error, passthrough */
-		rc = 0;
 	}
 
 	/* check if deny bit is set */
 	qchannel_status = cam_io_r_mb(soc_info->reg_map[reg_indx].mem_base +
 				qchannel_info->qchannel_status);
+
+	CAM_DBG(CAM_CPAS, "CPAS_%s : qchannel status 0x%x", power_on ? "START" : "STOP",
+		qchannel_status);
+
 	qdeny = (qchannel_status & BIT(1));
 	if (!power_on && qdeny)
 		rc = -EBUSY;
+
+	if (icp_clk_enabled) {
+		ret = cam_soc_util_clk_disable(soc_info, true, soc_private->icp_clk_index);
+		if (ret)
+			CAM_ERR(CAM_CPAS, "Error disable icp clk failed rc=%d", rc);
+	}
 
 	return rc;
 }

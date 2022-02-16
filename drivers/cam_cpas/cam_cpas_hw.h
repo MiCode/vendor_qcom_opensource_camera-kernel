@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_HW_H_
@@ -92,7 +93,7 @@ struct cam_cpas_internal_ops {
 	int (*setup_qos_settings)(struct cam_hw_info *cpas_hw,
 		uint32_t selection_mask);
 	int (*print_poweron_settings)(struct cam_hw_info *cpas_hw);
-	int (*qchannel_handshake)(struct cam_hw_info *cpas_hw, bool power_on);
+	int (*qchannel_handshake)(struct cam_hw_info *cpas_hw, bool power_on, bool force_on);
 };
 
 /**

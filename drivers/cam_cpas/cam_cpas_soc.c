@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -19,6 +20,8 @@
 
 static uint cpas_dump;
 module_param(cpas_dump, uint, 0644);
+
+#define CAM_ICP_CLK_NAME "cam_icp_clk"
 
 void cam_cpas_dump_axi_vote_info(
 	const struct cam_cpas_client *cpas_client,
@@ -1203,6 +1206,7 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 	irq_handler_t irq_handler, struct cam_hw_info *cpas_hw)
 {
 	int rc = 0;
+	struct cam_cpas_private_soc *soc_private;
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc) {
@@ -1237,6 +1241,18 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		goto free_soc_private;
 	}
 
+	soc_private = (struct cam_cpas_private_soc *)soc_info->soc_private;
+
+	rc = cam_soc_util_get_option_clk_by_name(soc_info, CAM_ICP_CLK_NAME,
+		&soc_private->icp_clk_index);
+	if (rc) {
+		CAM_DBG(CAM_CPAS, "Option clk get failed with rc %d", rc);
+		soc_private->icp_clk_index = -1;
+		rc = 0;
+	} else {
+		CAM_DBG(CAM_CPAS, "Option clk get success index %d", soc_private->icp_clk_index);
+	}
+
 	return rc;
 
 free_soc_private:
@@ -1253,6 +1269,12 @@ int cam_cpas_soc_deinit_resources(struct cam_hw_soc_info *soc_info)
 
 	for (i = 0; i < soc_private->num_caches; i++)
 		llcc_slice_putd(soc_private->llcc_info[i].slic_desc);
+
+	if (soc_private->icp_clk_index != -1) {
+		rc = cam_soc_util_put_optional_clk(soc_info, soc_private->icp_clk_index);
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Error Put optional clk failed rc=%d", rc);
+	}
 
 	rc = cam_soc_util_release_platform_resource(soc_info);
 	if (rc)

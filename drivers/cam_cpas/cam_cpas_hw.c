@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -1633,6 +1634,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 	int rc, i = 0;
 	struct cam_cpas_private_soc *soc_private = NULL;
 	bool invalid_start = true;
+	int count;
 
 	if (!hw_priv || !start_args) {
 		CAM_ERR(CAM_CPAS, "Invalid arguments %pK %pK",
@@ -1746,12 +1748,35 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 			goto remove_ahb_vote;
 
 		atomic_set(&cpas_core->irq_count, 1);
+
+		count = cam_soc_util_regulators_enabled(&cpas_hw->soc_info);
+		if (count > 0)
+			CAM_DBG(CAM_CPAS, "Regulators already enabled %d", count);
+
 		rc = cam_cpas_soc_enable_resources(&cpas_hw->soc_info,
 			applied_level);
 		if (rc) {
 			atomic_set(&cpas_core->irq_count, 0);
 			CAM_ERR(CAM_CPAS, "enable_resorce failed, rc=%d", rc);
 			goto remove_axi_vote;
+		}
+
+		if (cpas_core->internal_ops.qchannel_handshake) {
+			rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw, true, false);
+			if (rc) {
+				CAM_WARN(CAM_CPAS, "failed in qchannel_handshake rc=%d", rc);
+				/* Do not return error, passthrough */
+
+				rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw,
+					true, true);
+				if (rc) {
+					CAM_ERR(CAM_CPAS,
+						"failed in qchannel_handshake, hw blocks may not work rc=%d",
+						rc);
+					/* Do not return error, passthrough */
+				}
+				rc = 0;
+			}
 		}
 
 		if (cpas_core->internal_ops.power_on) {
@@ -1831,7 +1856,7 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 	struct cam_ahb_vote ahb_vote;
 	struct cam_axi_vote axi_vote = {0};
 	struct cam_cpas_private_soc *soc_private = NULL;
-	int rc = 0;
+	int rc = 0, count;
 	long result;
 	int retry_camnoc_idle = 0;
 
@@ -1888,12 +1913,9 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		}
 
 		if (cpas_core->internal_ops.qchannel_handshake) {
-			rc = cpas_core->internal_ops.qchannel_handshake(
-				cpas_hw, false);
+			rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw, false, false);
 			if (rc) {
-				CAM_ERR(CAM_CPAS,
-					"failed in qchannel_handshake rc=%d",
-					rc);
+				CAM_ERR(CAM_CPAS, "failed in qchannel_handshake rc=%d", rc);
 				retry_camnoc_idle = 1;
 				/* Do not return error, passthrough */
 			}
@@ -1917,12 +1939,9 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		/* try again incase camnoc is still not idle */
 		if (cpas_core->internal_ops.qchannel_handshake &&
 			retry_camnoc_idle) {
-			rc = cpas_core->internal_ops.qchannel_handshake(
-				cpas_hw, false);
+			rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw, false, false);
 			if (rc) {
-				CAM_ERR(CAM_CPAS,
-					"failed in qchannel_handshake rc=%d",
-					rc);
+				CAM_ERR(CAM_CPAS, "failed in qchannel_handshake rc=%d", rc);
 				/* Do not return error, passthrough */
 			}
 		}
@@ -1935,6 +1954,14 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		}
 		CAM_DBG(CAM_CPAS, "Disabled all the resources: irq_count=%d",
 			atomic_read(&cpas_core->irq_count));
+
+		count = cam_soc_util_regulators_enabled(&cpas_hw->soc_info);
+		if (count > 0)
+			CAM_WARN(CAM_CPAS,
+				"Client=[%d][%s][%d] qchannel shut down while top gdsc is still on %d",
+				client_indx, cpas_client->data.identifier,
+				cpas_client->data.cell_index, count);
+
 		cpas_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
 	}
 
