@@ -646,12 +646,15 @@ int tpg_hw_reset(struct tpg_hw *hw)
 
 	/* disable the hw */
 	mutex_lock(&hw->mutex);
-	if ((hw->state != TPG_HW_STATE_HW_DISABLED) &&
-			cam_cpas_stop(hw->cpas_handle)) {
-		CAM_ERR(CAM_TPG, "TPG[%d] CPAS stop failed",
-				hw->hw_idx);
-		rc = -EINVAL;
-	} else {
+	if (hw->state != TPG_HW_STATE_HW_DISABLED) {
+		rc = cam_soc_util_disable_platform_resource(hw->soc_info, true, false);
+		if (rc)
+			CAM_ERR(CAM_TPG, "TPG[%d] Disable platform failed %d", hw->hw_idx, rc);
+
+		rc = cam_cpas_stop(hw->cpas_handle);
+		if (rc)
+			CAM_ERR(CAM_TPG, "TPG[%d] CPAS stop failed", hw->hw_idx);
+
 		hw->state = TPG_HW_STATE_HW_DISABLED;
 	}
 	mutex_unlock(&hw->mutex);
