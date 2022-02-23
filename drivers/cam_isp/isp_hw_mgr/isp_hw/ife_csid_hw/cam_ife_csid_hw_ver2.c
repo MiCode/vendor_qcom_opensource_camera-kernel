@@ -4837,7 +4837,6 @@ static int cam_ife_csid_ver2_get_time_stamp(
 	struct cam_hw_soc_info              *soc_info;
 	struct cam_csid_get_time_stamp_args *timestamp_args;
 	struct cam_ife_csid_ver2_reg_info *csid_reg;
-	uint64_t  time_delta;
 	struct timespec64 ts;
 
 	timestamp_args = (struct cam_csid_get_time_stamp_args *)cmd_args;
@@ -4881,19 +4880,15 @@ static int cam_ife_csid_ver2_get_time_stamp(
 		path_reg->timestamp_curr0_sof_addr,
 		path_reg->timestamp_curr1_sof_addr);
 
-	time_delta = timestamp_args->time_stamp_val -
-		csid_hw->timestamp.prev_sof_ts;
-
-	if (!csid_hw->timestamp.prev_boot_ts) {
+	if (qtime_to_boottime == 0) {
 		ktime_get_boottime_ts64(&ts);
-		timestamp_args->boot_timestamp =
+		qtime_to_boottime =
 			(uint64_t)((ts.tv_sec * 1000000000) +
-			ts.tv_nsec);
-	} else {
-		timestamp_args->boot_timestamp =
-			csid_hw->timestamp.prev_boot_ts + time_delta;
+			ts.tv_nsec) - (int64_t)timestamp_args->time_stamp_val;
 	}
 
+	timestamp_args->boot_timestamp = timestamp_args->time_stamp_val +
+		qtime_to_boottime;
 	CAM_DBG(CAM_ISP, "Resource[id:%d name:%s timestamp:%lld]",
 		res->res_id, res->res_name, timestamp_args->boot_timestamp);
 	csid_hw->timestamp.prev_sof_ts = timestamp_args->time_stamp_val;
