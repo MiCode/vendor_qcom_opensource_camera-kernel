@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -46,12 +46,35 @@ struct g_csiphy_data {
 	uint8_t is_3phase;
 	uint32_t cpas_handle;
 	bool is_configured_for_main;
+	uint64_t data_rate_aux_mask;
 	bool enable_aon_support;
 	struct cam_csiphy_aon_sel_params_t *aon_sel_param;
 };
 
 static struct g_csiphy_data g_phy_data[MAX_CSIPHY] = {0};
 static int active_csiphy_hw_cnt;
+
+void cam_csiphy_update_auxiliary_mask(struct csiphy_device *csiphy_dev)
+{
+	if (!csiphy_dev) {
+		CAM_ERR(CAM_CSIPHY, "Invalid param");
+		return;
+	}
+
+	if (!g_phy_data[csiphy_dev->soc_info.index].is_3phase) {
+		CAM_INFO_RATE_LIMIT(CAM_CSIPHY, "2PH Sensor is connected to the PHY");
+		return;
+	}
+
+	g_phy_data[csiphy_dev->soc_info.index].data_rate_aux_mask |=
+			BIT_ULL(csiphy_dev->curr_data_rate_idx);
+
+	CAM_DBG(CAM_CSIPHY,
+		"CSIPHY[%u] configuring aux settings curr_data_rate_idx: %u curr_data_rate: %llu curr_aux_mask: 0x%lx",
+		csiphy_dev->soc_info.index, csiphy_dev->curr_data_rate_idx,
+		csiphy_dev->current_data_rate,
+		g_phy_data[csiphy_dev->soc_info.index].data_rate_aux_mask);
+}
 
 int32_t cam_csiphy_get_instance_offset(struct csiphy_device *csiphy_dev, int32_t dev_handle)
 {
@@ -929,6 +952,18 @@ static int cam_csiphy_cphy_data_rate_config(
 				cam_io_w_mb(reg_data,
 					csiphybase + reg_addr);
 			break;
+			case CSIPHY_AUXILIARY_SETTING: {
+				uint32_t phy_idx = csiphy_device->soc_info.index;
+
+				if (g_phy_data[phy_idx].data_rate_aux_mask &
+					BIT_ULL(data_rate_idx)) {
+					cam_io_w_mb(reg_data, csiphybase + reg_addr);
+					CAM_DBG(CAM_CSIPHY,
+						"Writing new aux setting  reg_addr: 0x%x reg_val: 0x%x",
+						reg_addr, reg_data);
+				}
+			}
+			break;
 			default:
 				CAM_DBG(CAM_CSIPHY, "Do Nothing");
 			break;
@@ -937,6 +972,7 @@ static int cam_csiphy_cphy_data_rate_config(
 				usleep_range(delay, delay + 5);
 		}
 
+		csiphy_device->curr_data_rate_idx = data_rate_idx;
 		break;
 	}
 
@@ -1822,9 +1858,9 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		if (!csiphy_dev->acquire_count) {
 			g_phy_data[soc_info->index].is_3phase = csiphy_acq_params.csiphy_3phase;
 			CAM_DBG(CAM_CSIPHY,
-					"g_csiphy data is updated for index: %d is_3phase: %u",
-					soc_info->index,
-					g_phy_data[soc_info->index].is_3phase);
+				"g_csiphy data is updated for index: %d is_3phase: %u",
+				soc_info->index,
+				g_phy_data[soc_info->index].is_3phase);
 		}
 
 		if (g_phy_data[soc_info->index].enable_aon_support) {
@@ -2327,6 +2363,7 @@ int cam_csiphy_register_baseaddress(struct csiphy_device *csiphy_dev)
 		csiphy_dev->ctrl_reg->csiphy_reg->aon_sel_params;
 	g_phy_data[phy_idx].enable_aon_support = false;
 	g_phy_data[phy_idx].is_configured_for_main = false;
+	g_phy_data[phy_idx].data_rate_aux_mask = 0;
 
 	return 0;
 }
