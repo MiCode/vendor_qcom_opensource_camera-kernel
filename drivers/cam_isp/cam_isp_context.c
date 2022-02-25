@@ -1397,6 +1397,7 @@ static void __cam_isp_context_reset_internal_recovery_params(
 	atomic_set(&ctx_isp->process_bubble, 0);
 	ctx_isp->recovery_req_id = 0;
 	ctx_isp->aeb_error_cnt = 0;
+	ctx_isp->bubble_frame_cnt = 0;
 }
 
 static int __cam_isp_context_try_internal_recovery(
@@ -3202,65 +3203,83 @@ static bool __cam_isp_ctx_request_can_reapply(
 	return true;
 }
 
-static int __cam_isp_ctx_trigger_error_req_reapply(
+static int __cam_isp_ctx_validate_for_req_reapply_util(
 	struct cam_isp_context *ctx_isp)
 {
-	int                             rc = 0;
-	struct cam_ctx_request          *req = NULL;
-	struct cam_ctx_request          *req_to_reapply = NULL;
-	struct cam_ctx_request          *req_temp;
-	struct cam_isp_ctx_req          *req_isp = NULL;
-	struct cam_context              *ctx = ctx_isp->base;
+	int rc = 0;
+	struct cam_ctx_request *req_temp;
+	struct cam_ctx_request *req = NULL;
+	struct cam_isp_ctx_req *req_isp = NULL;
+	struct cam_context *ctx = ctx_isp->base;
 
-	/*
-	 * For errors that can be recoverable within kmd, we
-	 * try to do internal hw stop, restart and notify CRM
-	 * to do reapply with the help of bubble control flow.
-	 */
+	/* Check for req in active/wait lists */
 	if (list_empty(&ctx->active_req_list)) {
 		CAM_DBG(CAM_ISP,
-			"handling error with no active request");
+			"Active request list empty for ctx: %u on link: 0x%x",
+			ctx->ctx_id, ctx->link_hdl);
+
 		if (list_empty(&ctx->wait_req_list)) {
 			CAM_WARN(CAM_ISP,
-				"Reapply with no active/wait request");
+				"No active/wait req for ctx: %u on link: 0x%x",
+				ctx->ctx_id, ctx->link_hdl);
 			rc = -EINVAL;
 			goto end;
 		}
 	}
 
+	/* Validate if all fences for active requests are not signaled */
 	if (!list_empty(&ctx->active_req_list)) {
 		list_for_each_entry_safe_reverse(req, req_temp,
 			&ctx->active_req_list, list) {
 			/*
 			 * If some fences of the active request are already
-			 * signalled, we shouldn't do recovery for the buffer
+			 * signaled, we should not do recovery for the buffer
 			 * and timestamp consistency.
 			 */
 			req_isp = (struct cam_isp_ctx_req *)req->req_priv;
 			if (!__cam_isp_ctx_request_can_reapply(req_isp)) {
-				CAM_INFO(CAM_ISP,
-					"ctx:%u fence has partially signaled, cannot do recovery for req %llu",
-					ctx->ctx_id, req->request_id);
+				CAM_WARN(CAM_ISP,
+					"Req: %llu in ctx:%u on link: 0x%x fence has partially signaled, cannot do recovery",
+					req->request_id, ctx->ctx_id, ctx->link_hdl);
 				rc = -EINVAL;
 				goto end;
 			}
-			list_del_init(&req->list);
-			__cam_isp_ctx_enqueue_request_in_order(ctx, req, false);
-			ctx_isp->active_req_cnt--;
-			CAM_DBG(CAM_ISP, "ctx:%u move active req %llu to pending",
-				ctx->ctx_id, req->request_id);
 		}
 	}
 
-	if (!list_empty(&ctx->wait_req_list)) {
+	/* Move active requests to pending list */
+	if (!list_empty(&ctx->active_req_list)) {
 		list_for_each_entry_safe_reverse(req, req_temp,
-			&ctx->wait_req_list, list) {
+			&ctx->active_req_list, list) {
 			list_del_init(&req->list);
 			__cam_isp_ctx_enqueue_request_in_order(ctx, req, false);
-			CAM_DBG(CAM_ISP, "ctx:%u move wait req %llu to pending",
-				ctx->ctx_id, req->request_id);
+			ctx_isp->active_req_cnt--;
+			CAM_DBG(CAM_ISP, "ctx:%u link:0x%x move active req %llu to pending",
+				ctx->ctx_id, ctx->link_hdl, req->request_id);
 		}
 	}
+
+	/* Move wait requests to pending list */
+	if (!list_empty(&ctx->wait_req_list)) {
+		list_for_each_entry_safe_reverse(req, req_temp, &ctx->wait_req_list, list) {
+			list_del_init(&req->list);
+			__cam_isp_ctx_enqueue_request_in_order(ctx, req, false);
+			CAM_DBG(CAM_ISP, "ctx:%u link:0x%x move wait req %llu to pending",
+				ctx->ctx_id, ctx->link_hdl, req->request_id);
+		}
+	}
+
+end:
+	return rc;
+}
+
+static int __cam_isp_ctx_handle_recovery_req_util(
+	struct cam_isp_context *ctx_isp)
+{
+	int rc = 0;
+	struct cam_context *ctx = ctx_isp->base;
+	struct cam_ctx_request *req_to_reapply = NULL;
+	struct cam_isp_ctx_req *req_isp = NULL;
 
 	req_to_reapply = list_first_entry(&ctx->pending_req_list,
 		struct cam_ctx_request, list);
@@ -3269,13 +3288,12 @@ static int __cam_isp_ctx_trigger_error_req_reapply(
 	ctx_isp->recovery_req_id = req_to_reapply->request_id;
 	atomic_set(&ctx_isp->internal_recovery_set, 1);
 
-	CAM_INFO(CAM_ISP, "ctx:%u notify CRM to reapply req %llu",
-		ctx->ctx_id, req_to_reapply->request_id);
+	CAM_INFO(CAM_ISP, "Notify CRM to reapply req:%llu for ctx:%u link:0x%x",
+		req_to_reapply->request_id, ctx->ctx_id, ctx->link_hdl);
 
 	rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF,
-		CRM_KMD_WARN_INTERNAL_RECOVERY,
-		req_to_reapply->request_id,
-		ctx_isp);
+		CRM_KMD_WARN_INTERNAL_RECOVERY, req_to_reapply->request_id,
+			ctx_isp);
 	if (rc) {
 		/* Unable to notify CRM to do reapply back to normal */
 		CAM_WARN(CAM_ISP,
@@ -3283,15 +3301,33 @@ static int __cam_isp_ctx_trigger_error_req_reapply(
 			ctx->ctx_id, ctx_isp->recovery_req_id);
 		ctx_isp->recovery_req_id = 0;
 		atomic_set(&ctx_isp->internal_recovery_set, 0);
-		goto end;
 	}
 
-	/* Notify userland that KMD has done internal recovery */
-	__cam_isp_ctx_notify_v4l2_error_event(CAM_REQ_MGR_WARN_TYPE_KMD_RECOVERY,
-		0, req_to_reapply->request_id, ctx);
+	return rc;
+}
 
-	CAM_DBG(CAM_ISP, "ctx:%u handling reapply done for req %llu",
-		ctx->ctx_id, req_to_reapply->request_id);
+static int __cam_isp_ctx_trigger_error_req_reapply(
+	struct cam_isp_context *ctx_isp)
+{
+	int rc = 0;
+	struct cam_context *ctx = ctx_isp->base;
+
+	/*
+	 * For errors that can be recoverable within kmd, we
+	 * try to do internal hw stop, restart and notify CRM
+	 * to do reapply with the help of bubble control flow.
+	 */
+
+	rc = __cam_isp_ctx_validate_for_req_reapply_util(ctx_isp);
+	if (rc)
+		goto end;
+
+	rc = __cam_isp_ctx_handle_recovery_req_util(ctx_isp);
+	if (rc)
+		goto end;
+
+	CAM_DBG(CAM_ISP, "Triggered internal recovery for req:%llu ctx:%u on link 0x%x",
+		ctx_isp->recovery_req_id, ctx->ctx_id, ctx->link_hdl);
 
 end:
 	return rc;
@@ -4263,6 +4299,16 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 		goto end;
 	}
 	req_isp->bubble_report = apply->report_if_bubble;
+
+	/*
+	 * Reset all buf done/bubble flags for the req being applied
+	 * If internal recovery has led to re-apply of same
+	 * request, clear all stale entities
+	 */
+	req_isp->num_acked = 0;
+	req_isp->num_deferred_acks = 0;
+	req_isp->cdm_reset_before_apply = false;
+	req_isp->bubble_detected = false;
 
 	cfg.ctxt_to_hw_map = ctx_isp->hw_ctx;
 	cfg.request_id = req->request_id;
@@ -7261,7 +7307,6 @@ static int __cam_isp_ctx_reset_and_recover(
 	req = list_first_entry(&ctx->pending_req_list,
 		struct cam_ctx_request, list);
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-	req_isp->bubble_detected = false;
 
 	CAM_INFO(CAM_ISP,
 		"Trigger Halt, Reset & Resume for req: %llu ctx: %u in state: %d link: 0x%x",
@@ -7331,11 +7376,64 @@ static int __cam_isp_ctx_reset_and_recover(
 
 	/* IQ applied for this request, on next trigger skip IQ cfg */
 	req_isp->reapply_type = CAM_CONFIG_REAPPLY_IO;
+
+	/* Notify userland that KMD has done internal recovery */
+	__cam_isp_ctx_notify_v4l2_error_event(CAM_REQ_MGR_WARN_TYPE_KMD_RECOVERY,
+		0, req->request_id, ctx);
+
 	CAM_DBG(CAM_ISP, "Internal Start HW success ctx %u on link: 0x%x",
 		ctx->ctx_id, ctx->link_hdl);
 
 end:
 	return rc;
+}
+
+static bool __cam_isp_ctx_try_internal_recovery_for_bubble(
+	int64_t error_req_id, struct cam_context *ctx)
+{
+	int rc;
+	struct cam_isp_context *ctx_isp =
+		(struct cam_isp_context *)ctx->ctx_priv;
+
+	/* Perform recovery if bubble recovery is stalled */
+	if (!atomic_read(&ctx_isp->process_bubble))
+		return false;
+
+	/* Validate if errored request has been applied */
+	if (ctx_isp->last_applied_req_id < error_req_id) {
+		CAM_WARN(CAM_ISP,
+			"Skip trying for internal recovery last applied: %lld error_req: %lld for ctx: %u on link: 0x%x",
+			ctx_isp->last_applied_req_id, error_req_id,
+			ctx->ctx_id, ctx->link_hdl);
+		return false;
+	}
+
+	if (__cam_isp_ctx_validate_for_req_reapply_util(ctx_isp)) {
+		CAM_WARN(CAM_ISP,
+			"Internal recovery not possible for ctx: %u on link: 0x%x req: %lld [last_applied: %lld]",
+			ctx->ctx_id, ctx->link_hdl, error_req_id, ctx_isp->last_applied_req_id);
+		return false;
+	}
+
+	/* Trigger reset and recover */
+	atomic_set(&ctx_isp->internal_recovery_set, 1);
+	rc = __cam_isp_ctx_reset_and_recover(false, ctx);
+	if (rc) {
+		CAM_WARN(CAM_ISP,
+			"Internal recovery failed in ctx: %u on link: 0x%x req: %lld [last_applied: %lld]",
+			ctx->ctx_id, ctx->link_hdl, error_req_id, ctx_isp->last_applied_req_id);
+		atomic_set(&ctx_isp->internal_recovery_set, 0);
+		goto error;
+	}
+
+	CAM_DBG(CAM_ISP,
+		"Internal recovery done in ctx: %u on link: 0x%x req: %lld [last_applied: %lld]",
+		ctx->ctx_id, ctx->link_hdl, error_req_id, ctx_isp->last_applied_req_id);
+
+	return true;
+
+error:
+	return false;
 }
 
 static int __cam_isp_ctx_process_evt(struct cam_context *ctx,
@@ -7356,9 +7454,21 @@ static int __cam_isp_ctx_process_evt(struct cam_context *ctx,
 	case CAM_REQ_MGR_LINK_EVT_SOF_FREEZE:
 		rc = __cam_isp_ctx_handle_sof_freeze_evt(ctx);
 		break;
-	case CAM_REQ_MGR_LINK_EVT_STALLED:
-		if (ctx->state == CAM_CTX_ACTIVATED)
-			rc = __cam_isp_ctx_trigger_reg_dump(CAM_HW_MGR_CMD_REG_DUMP_ON_ERROR, ctx);
+	case CAM_REQ_MGR_LINK_EVT_STALLED: {
+		bool internal_recovery_skipped = false;
+
+		if (ctx->state == CAM_CTX_ACTIVATED) {
+			if (link_evt_data->try_for_recovery)
+				internal_recovery_skipped =
+					__cam_isp_ctx_try_internal_recovery_for_bubble(
+						link_evt_data->req_id, ctx);
+
+			if (!internal_recovery_skipped)
+				rc = __cam_isp_ctx_trigger_reg_dump(
+					CAM_HW_MGR_CMD_REG_DUMP_ON_ERROR, ctx);
+		}
+		link_evt_data->try_for_recovery = internal_recovery_skipped;
+	}
 		break;
 	default:
 		CAM_WARN(CAM_ISP,

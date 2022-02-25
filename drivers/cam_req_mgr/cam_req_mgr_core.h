@@ -271,6 +271,7 @@ struct cam_req_mgr_req_tbl {
  * @sync_mode          : Sync mode in which req id in this slot has to applied
  * @additional_timeout : Adjusted watchdog timeout value associated with
  * this request
+ * @recovery_counter   : Internal recovery counter
  */
 struct cam_req_mgr_slot {
 	int32_t               idx;
@@ -280,6 +281,7 @@ struct cam_req_mgr_slot {
 	int64_t               req_id;
 	int32_t               sync_mode;
 	int32_t               additional_timeout;
+	int32_t               recovery_counter;
 };
 
 /**
@@ -390,6 +392,7 @@ struct cam_req_mgr_connected_device {
  *                         case of long exposure use case
  * @last_sof_trigger_jiffies : Record the jiffies of last sof trigger jiffies
  * @wq_congestion        : Indicates if WQ congestion is detected or not
+ * @try_for_internal_recovery : If the link stalls try for RT internal recovery
  */
 struct cam_req_mgr_core_link {
 	int32_t                              link_hdl;
@@ -428,6 +431,7 @@ struct cam_req_mgr_core_link {
 	bool                                 skip_init_frame;
 	uint64_t                             last_sof_trigger_jiffies;
 	bool                                 wq_congestion;
+	bool                                 try_for_internal_recovery;
 };
 
 /**

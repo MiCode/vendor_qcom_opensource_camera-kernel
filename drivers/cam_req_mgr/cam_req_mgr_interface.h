@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_REQ_MGR_INTERFACE_H
@@ -377,11 +378,14 @@ struct cam_req_mgr_flush_request {
  * @link_hdl          : link handle
  * @req_id            : request id
  * @evt_type          : link event
+ * @try_for_recovery  : Link is stalled allow subdevices to recover if
+ *                      possible
  */
 struct cam_req_mgr_link_evt_data {
 	int32_t  link_hdl;
 	int32_t  dev_hdl;
 	uint64_t req_id;
+	bool     try_for_recovery;
 	enum cam_req_mgr_link_evt_type evt_type;
 	union {
 		enum cam_req_mgr_device_error error;

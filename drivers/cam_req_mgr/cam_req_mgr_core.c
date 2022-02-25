@@ -68,6 +68,7 @@ void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 	link->num_sync_links = 0;
 	link->last_sof_trigger_jiffies = 0;
 	link->wq_congestion = false;
+	link->try_for_internal_recovery = false;
 	atomic_set(&link->eof_event_cnt, 0);
 	__cam_req_mgr_reset_apply_data(link);
 
@@ -250,7 +251,6 @@ static void __cam_req_mgr_find_dev_name(
  * __cam_req_mgr_notify_frame_skip()
  *
  * @brief : Notify all devices of frame skipping
- * @link  : link on which we are applying these settings
  *
  */
 static int __cam_req_mgr_notify_frame_skip(
@@ -337,12 +337,16 @@ static int __cam_req_mgr_send_evt(
 	struct cam_req_mgr_core_link  *link)
 {
 	int i;
-	struct cam_req_mgr_link_evt_data     evt_data;
+	struct cam_req_mgr_link_evt_data     evt_data = {0};
 	struct cam_req_mgr_connected_device *device = NULL;
 
 	CAM_DBG(CAM_CRM,
 		"Notify event type: %d to all connected devices on link: 0x%x",
 		type, link->link_hdl);
+
+	/* Try for internal recovery */
+	if (link->try_for_internal_recovery)
+		evt_data.try_for_recovery = true;
 
 	for (i = 0; i < link->num_devs; i++) {
 		device = &link->l_dev[i];
@@ -357,6 +361,9 @@ static int __cam_req_mgr_send_evt(
 		}
 	}
 
+	/* Updated if internal recovery succeeded */
+	link->try_for_internal_recovery = evt_data.try_for_recovery;
+
 	return 0;
 }
 
@@ -369,7 +376,7 @@ static int __cam_req_mgr_send_evt(
  *
  */
 static int __cam_req_mgr_notify_error_on_link(
-	struct cam_req_mgr_core_link    *link,
+	struct cam_req_mgr_core_link *link,
 	struct cam_req_mgr_connected_device *dev)
 {
 	struct cam_req_mgr_core_session *session = NULL;
@@ -389,7 +396,18 @@ static int __cam_req_mgr_notify_error_on_link(
 	}
 
 	/* Notify all devices in the link about the error */
-	__cam_req_mgr_send_evt(0, CAM_REQ_MGR_LINK_EVT_STALLED, CRM_KMD_ERR_FATAL, link);
+	__cam_req_mgr_send_evt(link->req.apply_data[link->min_delay].req_id,
+		CAM_REQ_MGR_LINK_EVT_STALLED, CRM_KMD_ERR_FATAL, link);
+
+	/*
+	 * Internal recovery succeeded - skip userland notification
+	 * If recovery had failed subdevice will reset this flag
+	 */
+	if (link->try_for_internal_recovery) {
+		CAM_INFO(CAM_CRM, "Internal recovery succeeded on link: 0x%x",
+			link->link_hdl);
+		return 0;
+	}
 
 	CAM_ERR_RATE_LIMIT(CAM_CRM,
 		"Notifying userspace to trigger recovery on link 0x%x for session %d",
@@ -662,6 +680,7 @@ static void __cam_req_mgr_reset_req_slot(struct cam_req_mgr_core_link *link,
 	slot->skip_idx = 0;
 	slot->recover = 0;
 	slot->additional_timeout = 0;
+	slot->recovery_counter = 0;
 	slot->sync_mode = CAM_REQ_MGR_SYNC_MODE_NO_SYNC;
 	slot->status = CRM_SLOT_STATUS_NO_REQ;
 
@@ -1792,7 +1811,6 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 	struct cam_req_mgr_core_session     *session;
 	struct cam_req_mgr_connected_device *dev = NULL;
 	struct cam_req_mgr_core_link        *tmp_link = NULL;
-	uint32_t                             max_retry = 0;
 	enum crm_req_eof_trigger_type        eof_trigger_type;
 
 	session = (struct cam_req_mgr_core_session *)link->parent;
@@ -1957,17 +1975,15 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 	if (rc < 0) {
 		/* Apply req failed retry at next sof */
 		slot->status = CRM_SLOT_STATUS_REQ_PENDING;
-		max_retry = MAXIMUM_RETRY_ATTEMPTS;
-		if (link->max_delay == 1)
-			max_retry++;
 
 		if (!link->wq_congestion && dev) {
 			if (rc != -EAGAIN)
 				link->retry_cnt++;
-			if (link->retry_cnt == max_retry) {
+
+			if (link->retry_cnt >= MAXIMUM_RETRY_ATTEMPTS) {
 				CAM_DBG(CAM_CRM,
 					"Max retry attempts (count %d) reached on link[0x%x] for req [%lld]",
-					max_retry, link->link_hdl,
+					MAXIMUM_RETRY_ATTEMPTS, link->link_hdl,
 					in_q->slot[in_q->rd_idx].req_id);
 
 				cam_req_mgr_debug_delay_detect();
@@ -1978,7 +1994,21 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 					link->link_hdl,
 					CAM_DEFAULT_VALUE, rc);
 
+				/*
+				 * Try for internal recovery - primarily for IFE subdev
+				 * if it's the first instance of stall
+				 */
+				if (!slot->recovery_counter)
+					link->try_for_internal_recovery = true;
+
 				__cam_req_mgr_notify_error_on_link(link, dev);
+
+				/* Increment internal recovery counter */
+				if (link->try_for_internal_recovery) {
+					slot->recovery_counter++;
+					link->try_for_internal_recovery = false;
+				}
+
 				link->retry_cnt = 0;
 			}
 		} else
