@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_ICP_HW_INTF_H
@@ -18,6 +19,9 @@
 #define HFI_MAX_POLL_TRY 5
 #define PC_POLL_DELAY_US 100
 #define PC_POLL_TIMEOUT_US 10000
+
+#define CAM_ICP_DUMP_STATUS_REGISTERS BIT(0)
+#define CAM_ICP_DUMP_CSR_REGISTERS    BIT(1)
 
 enum cam_icp_hw_type {
 	CAM_ICP_DEV_A5,
@@ -43,6 +47,7 @@ enum cam_icp_cmd_type {
 	CAM_ICP_CMD_CLK_UPDATE,
 	CAM_ICP_CMD_HW_DUMP,
 	CAM_ICP_CMD_HW_MINI_DUMP,
+	CAM_ICP_CMD_HW_REG_DUMP,
 	CAM_ICP_CMD_MAX,
 };
 

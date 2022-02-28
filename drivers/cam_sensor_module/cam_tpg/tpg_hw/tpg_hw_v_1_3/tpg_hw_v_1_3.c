@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw_v_1_3.h"
@@ -13,113 +14,6 @@ enum tpg_hw_v_1_3_encode_fomat_t {
 	RAW_16_BIT
 };
 
-static struct cam_tpg_ver_1_3_reg_offset cam_tpg103_reg = {
-	.tpg_hw_version        = 0x0,
-	.tpg_hw_status         = 0x4,
-	.tpg_ctrl              = 0x64,
-	.tpg_vc0_cfg0          = 0x68,
-	.tpg_vc0_lfsr_seed     = 0x6C,
-	.tpg_vc0_hbi_cfg       = 0x70,
-	.tpg_vc0_vbi_cfg       = 0x74,
-	.tpg_vc0_color_bar_cfg = 0x78,
-	.tpg_vc0_dt_0_cfg_0   = 0x7C,
-	.tpg_vc0_dt_0_cfg_1   = 0x80,
-	.tpg_vc0_dt_0_cfg_2   = 0x84,
-	.tpg_vc0_dt_1_cfg_0   = 0x88,
-	.tpg_vc0_dt_1_cfg_1   = 0x8C,
-	.tpg_vc0_dt_1_cfg_2   = 0x90,
-	.tpg_vc0_dt_2_cfg_0   = 0x94,
-	.tpg_vc0_dt_2_cfg_1   = 0x98,
-	.tpg_vc0_dt_2_cfg_2   = 0x9C,
-	.tpg_vc0_dt_3_cfg_0   = 0xA0,
-	.tpg_vc0_dt_3_cfg_1   = 0xA4,
-	.tpg_vc0_dt_3_cfg_2   = 0xA8,
-
-	.tpg_vc1_cfg0          = 0xC8,
-	.tpg_vc1_lfsr_seed     = 0xCC,
-	.tpg_vc1_hbi_cfg       = 0xD0,
-	.tpg_vc1_vbi_cfg       = 0xD4,
-	.tpg_vc1_color_bar_cfg = 0xD8,
-	.tpg_vc1_dt_0_cfg_0   = 0xDC,
-	.tpg_vc1_dt_0_cfg_1   = 0xE0,
-	.tpg_vc1_dt_0_cfg_2   = 0xE4,
-	.tpg_vc1_dt_1_cfg_0   = 0xE8,
-	.tpg_vc1_dt_1_cfg_1   = 0xEC,
-	.tpg_vc1_dt_1_cfg_2   = 0xF0,
-	.tpg_vc1_dt_2_cfg_0   = 0xF4,
-	.tpg_vc1_dt_2_cfg_1   = 0xF8,
-	.tpg_vc1_dt_2_cfg_2   = 0xFC,
-	.tpg_vc1_dt_3_cfg_0   = 0x100,
-	.tpg_vc1_dt_3_cfg_1   = 0x104,
-	.tpg_vc1_dt_3_cfg_2   = 0x108,
-
-	.tpg_vc2_cfg0          = 0x128,
-	.tpg_vc2_lfsr_seed     = 0x12C,
-	.tpg_vc2_hbi_cfg       = 0x130,
-	.tpg_vc2_vbi_cfg       = 0x134,
-	.tpg_vc2_color_bar_cfg = 0x138,
-	.tpg_vc2_dt_0_cfg_0   = 0x13C,
-	.tpg_vc2_dt_0_cfg_1   = 0x140,
-	.tpg_vc2_dt_0_cfg_2   = 0x144,
-	.tpg_vc2_dt_1_cfg_0   = 0x148,
-	.tpg_vc2_dt_1_cfg_1   = 0x14C,
-	.tpg_vc2_dt_1_cfg_2   = 0x150,
-	.tpg_vc2_dt_2_cfg_0   = 0x154,
-	.tpg_vc2_dt_2_cfg_1   = 0x158,
-	.tpg_vc2_dt_2_cfg_2   = 0x15C,
-	.tpg_vc2_dt_3_cfg_0   = 0x160,
-	.tpg_vc2_dt_3_cfg_1   = 0x164,
-	.tpg_vc2_dt_3_cfg_2   = 0x168,
-
-	.tpg_vc3_cfg0          = 0x188,
-	.tpg_vc3_lfsr_seed     = 0x18C,
-	.tpg_vc3_hbi_cfg       = 0x190,
-	.tpg_vc3_vbi_cfg       = 0x194,
-	.tpg_vc3_color_bar_cfg = 0x198,
-	.tpg_vc3_dt_0_cfg_0   = 0x19C,
-	.tpg_vc3_dt_0_cfg_1   = 0x1A0,
-	.tpg_vc3_dt_0_cfg_2   = 0x1A4,
-	.tpg_vc3_dt_1_cfg_0   = 0x1A8,
-	.tpg_vc3_dt_1_cfg_1   = 0x1AC,
-	.tpg_vc3_dt_1_cfg_2   = 0x1B0,
-	.tpg_vc3_dt_2_cfg_0   = 0x1B4,
-	.tpg_vc3_dt_2_cfg_1   = 0x1B8,
-	.tpg_vc3_dt_2_cfg_2   = 0x1BC,
-	.tpg_vc3_dt_3_cfg_0   = 0x1C0,
-	.tpg_vc3_dt_3_cfg_1   = 0x1C4,
-	.tpg_vc3_dt_3_cfg_2   = 0x1C8,
-	.tpg_throttle          = 0x1CC,
-	.tpg_top_irq_status    = 0x1E0,
-	.tpg_top_irq_mask      = 0x1E4,
-	.tpg_top_irq_clear     = 0x1E8,
-	.tpg_top_irq_set       = 0x1EC,
-	.tpg_top_irq_cmd       = 0x1F0,
-	.tpg_top_clear         = 0x1F4,
-	.tpg_test_bus_crtl     = 0x1F8,
-	.tpg_spare             = 0x1FC,
-
-	/* configurations */
-	.major_version = 2,
-	.minor_version = 0,
-	.version_incr = 0,
-	.tpg_en_shift_val = 0,
-	.tpg_cphy_dphy_sel_shift_val = 3,
-	.tpg_num_active_lanes_shift = 4,
-	.tpg_fe_pkt_en_shift = 2,
-	.tpg_fs_pkt_en_shift = 1,
-	.tpg_line_interleaving_mode_shift = 10,
-	.tpg_num_frames_shift_val = 16,
-	.tpg_num_dts_shift_val = 8,
-	.tpg_v_blank_cnt_shift = 12,
-	.tpg_dt_encode_format_shift = 20,
-	.tpg_payload_mode_color = 0x8,
-	.tpg_split_en_shift = 4,
-	.top_mux_reg_offset = 0x1C,
-	.tpg_vc_dt_pattern_id_shift = 6,
-	.tpg_num_active_vcs_shift = 30,
-	.tpg_color_bar_qcfa_en_shift = 3,
-	.tpg_color_bar_qcfa_rotate_period_shift = 8,
-};
 
 #define  FRAME_INTERLEAVE  0x0
 #define  LINE_INTERLEAVE   0x1
@@ -151,12 +45,14 @@ static int configure_global_configs(
 {
 	uint32_t val, phy_type = 0;
 	struct cam_hw_soc_info *soc_info = NULL;
-	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = &cam_tpg103_reg;
+	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = NULL;
 
-	if (!hw) {
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
 		CAM_ERR(CAM_TPG, "invalid params");
 		return -EINVAL;
 	}
+
+	tpg_reg  = hw->hw_info->hw_data;
 	soc_info = hw->soc_info;
 
 	if (configs->phy_type == TPG_PHY_TYPE_CPHY)
@@ -241,11 +137,14 @@ static int configure_dt(
 {
 	uint32_t val;
 	struct cam_hw_soc_info *soc_info = NULL;
-	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = &cam_tpg103_reg;
-	if (!hw) {
+	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = NULL;
+
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
 		CAM_ERR(CAM_TPG, "invalid params");
 		return -EINVAL;
 	}
+
+	tpg_reg  = hw->hw_info->hw_data;
 
 	soc_info = hw->soc_info;
 
@@ -285,6 +184,66 @@ static int configure_dt(
 	return 0;
 }
 
+#define RGGB_IR_0  0x00770091
+#define RGGB_IR_1  0x00770019
+#define RGGB_2x2   0x05055A5A
+#define RGGB_3x3_0 0x05400540
+#define RGGB_3x3_1 0x0a950540
+#define RGGB_3x3_2 0x0a950a95
+#define RGGB_4x4_0 0x55005500
+#define RGGB_4x4_1 0x55005500
+#define RGGB_4x4_2 0xaa55aa55
+#define RGGB_4x4_3 0xaa55aa55
+#define VC1_GAIN   0x100
+
+static int configure_xcfa_array(struct tpg_hw *hw, int config)
+{
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = NULL;
+
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
+		CAM_ERR(CAM_TPG, "invalid params");
+		return -EINVAL;
+	}
+	tpg_reg  = hw->hw_info->hw_data;
+
+	soc_info = hw->soc_info;
+
+	switch (config) {
+	case 1:
+		cam_io_w_mb(RGGB_IR_0,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color0);
+		cam_io_w_mb(RGGB_IR_1,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color1);
+		break;
+	case 2:
+		cam_io_w_mb(RGGB_2x2,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color0);
+		break;
+	case 3:
+		cam_io_w_mb(RGGB_3x3_0,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color0);
+		cam_io_w_mb(RGGB_3x3_1,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color1);
+		cam_io_w_mb(RGGB_3x3_2,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color2);
+		break;
+	case 4:
+		cam_io_w_mb(RGGB_4x4_0,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color0);
+		cam_io_w_mb(RGGB_4x4_1,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color1);
+		cam_io_w_mb(RGGB_4x4_2,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color2);
+		cam_io_w_mb(RGGB_4x4_3,
+		soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc0_color_bar_cfa_color3);
+		break;
+	break;
+
+	}
+	return 0;
+}
+
 static int configure_vc(
 	struct tpg_hw *hw,
 	uint32_t       vc_slot,
@@ -293,11 +252,13 @@ static int configure_vc(
 {
 	uint32_t val = 0;
 	struct cam_hw_soc_info *soc_info = NULL;
-	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = &cam_tpg103_reg;
-	if (!hw) {
+	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = NULL;
+
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
 		CAM_ERR(CAM_TPG, "invalid params");
 		return -EINVAL;
 	}
+	tpg_reg  = hw->hw_info->hw_data;
 
 	soc_info = hw->soc_info;
 	/* Use CFA pattern here */
@@ -306,6 +267,19 @@ static int configure_vc(
 
 	if (stream->cb_mode == TPG_COLOR_BAR_MODE_SPLIT)
 		val |= (1 << tpg_reg->tpg_split_en_shift);
+
+	if (stream->xcfa_debug > 0) {
+		if (stream->xcfa_debug == 1) {
+			val |= (3 << tpg_reg->tpg_size_y_shift);
+			val |= (3 << tpg_reg->tpg_size_x_shift);
+		} else {
+			val |= ((stream->xcfa_debug * 2 - 1) << tpg_reg->tpg_size_y_shift);
+			val |= ((stream->xcfa_debug * 2 - 1) << tpg_reg->tpg_size_x_shift);
+		}
+		val |= (1 << tpg_reg->tpg_xcfa_en_shift);
+		configure_xcfa_array(hw, stream->xcfa_debug);
+		CAM_DBG(CAM_TPG, "xcfa_debug = %d", stream->xcfa_debug);
+	}
 
 	CAM_DBG(CAM_TPG, "TPG[%d] period: %d", hw->hw_idx, stream->rotate_period);
 	val |= ((stream->rotate_period & 0x3F) <<
@@ -342,6 +316,26 @@ static int configure_vc(
 	CAM_DBG(CAM_TPG, "TPG[%d] vc%d_cfg0=0x%x",
 			hw->hw_idx,
 			vc_slot, val);
+	if (hw->hw_info->shdr_overlap == 1) {
+		cam_io_w_mb(hw->hw_info->shdr_overlap << tpg_reg->tpg_overlap_shdr_en_shift,
+			soc_info->reg_map[0].mem_base + tpg_reg->tpg_ctrl);
+	}
+	if (hw->hw_info->shdr_offset_num_batch >= 0 && vc_slot > 0)	{
+		val =  (VC1_GAIN << tpg_reg->tpg_gain_shift);
+		val |= (hw->hw_info->shdr_offset_num_batch <<
+				tpg_reg->tpg_shdr_offset_num_batch_shift);
+		cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+					tpg_reg->tpg_vc1_gain_cfg + (0x60 * (vc_slot-1)));
+		val =  ((stream->shdr_line_offset0 * vc_slot)
+			<< tpg_reg->tpg_shdr_line_offset0_shift);
+		val |= ((stream->shdr_line_offset1 * vc_slot)
+			<< tpg_reg->tpg_shdr_line_offset1_shift);
+		cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+			tpg_reg->tpg_vc1_shdr_cfg + (0x60 * (vc_slot-1)));
+		CAM_DBG(CAM_TPG, "TPG[%d] vc%d_cfg0=0x%x shdr",
+			hw->hw_idx,
+			vc_slot, val);
+	}
 
 	return 0;
 }
@@ -351,11 +345,13 @@ static int tpg_hw_v_1_3_reset(
 {
 	struct cam_hw_soc_info *soc_info = NULL;
 	uint32_t val;
-	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = &cam_tpg103_reg;
-	if (!hw) {
+	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = NULL;
+
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
 		CAM_ERR(CAM_TPG, "invalid params");
 		return -EINVAL;
 	}
+	tpg_reg  = hw->hw_info->hw_data;
 
 	soc_info = hw->soc_info;
 
@@ -456,12 +452,14 @@ int tpg_hw_v_1_3_dump_status(struct tpg_hw *hw, void *data)
 {
 	struct cam_hw_soc_info *soc_info = NULL;
 	uint32_t val;
-	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = &cam_tpg103_reg;
+	struct cam_tpg_ver_1_3_reg_offset *tpg_reg = NULL;
 
-	if (!hw) {
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
 		CAM_ERR(CAM_TPG, "invalid params");
 		return -EINVAL;
 	}
+
+	tpg_reg  = hw->hw_info->hw_data;
 
 	soc_info = hw->soc_info;
 	CAM_DBG(CAM_TPG, "TPG V1.3 HWL status dump");
@@ -483,4 +481,144 @@ int tpg_hw_v_1_3_init(struct tpg_hw *hw, void *data)
 	CAM_DBG(CAM_TPG, "TPG V1.3 HWL init");
 	tpg_hw_v_1_3_reset(hw, data);
 	return 0;
+}
+
+static int tpg_1_3_get_xcfa_test(void *data, u64 *val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "get xcfa test %d", hw->hw_info->xcfa_debug);
+	*val = hw->hw_info->xcfa_debug;
+	return 0;
+}
+static int tpg_1_3_get_shdr_overlap_test(void *data, u64 *val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "get shdr test : %d", hw->hw_info->shdr_overlap);
+	*val = hw->hw_info->shdr_overlap;
+	return 0;
+}
+static int tpg_1_3_get_shdr_offset_num_batch(void *data, u64 *val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "get shdr_num_batch : %d", hw->hw_info->shdr_offset_num_batch);
+	*val = hw->hw_info->shdr_offset_num_batch;
+	return 0;
+}
+static int tpg_1_3_get_shdr_line_offset0(void *data, u64 *val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "get shdr_offset0 : %d", hw->hw_info->shdr_line_offset0);
+	*val = hw->hw_info->shdr_line_offset0;
+	return 0;
+}
+static int tpg_1_3_get_shdr_line_offset1(void *data, u64 *val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "get shdr_offset1 : %d", hw->hw_info->shdr_line_offset1);
+	*val = hw->hw_info->shdr_line_offset1;
+	return 0;
+}
+
+
+static int tpg_1_3_set_xcfa_test(void *data, u64 val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "set xcfa test prev : %d", hw->hw_info->xcfa_debug);
+	hw->hw_info->xcfa_debug = val;
+	return 0;
+}
+static int tpg_1_3_set_shdr_overlap_test(void *data, u64 val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "set shdr test prev : %d", hw->hw_info->shdr_overlap);
+	hw->hw_info->shdr_overlap = val;
+	return 0;
+}
+static int tpg_1_3_set_shdr_offset_num_batch(void *data, u64 val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "set shdr_num_batch : %d", hw->hw_info->shdr_offset_num_batch);
+	hw->hw_info->shdr_offset_num_batch = val;
+	return 0;
+}
+static int tpg_1_3_set_shdr_line_offset0(void *data, u64 val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "set shdr_offset0 : %d", hw->hw_info->shdr_line_offset0);
+	hw->hw_info->shdr_line_offset0 = val;
+	return 0;
+}
+static int tpg_1_3_set_shdr_line_offset1(void *data, u64 val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "set shdr_offset1 : %d", hw->hw_info->shdr_line_offset1);
+	hw->hw_info->shdr_line_offset1 = val;
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(tpg_1_3_xcfa_test,
+		&tpg_1_3_get_xcfa_test,
+		&tpg_1_3_set_xcfa_test,
+		"%16d");
+
+DEFINE_SIMPLE_ATTRIBUTE(tpg_1_3_shdr_overlap_test,
+		&tpg_1_3_get_shdr_overlap_test,
+		&tpg_1_3_set_shdr_overlap_test,
+		"%16d");
+DEFINE_SIMPLE_ATTRIBUTE(tpg_1_3_shdr_offset_num_batch,
+		&tpg_1_3_get_shdr_offset_num_batch,
+		&tpg_1_3_set_shdr_offset_num_batch,
+		"%16d");
+DEFINE_SIMPLE_ATTRIBUTE(tpg_1_3_shdr_line_offset0,
+		&tpg_1_3_get_shdr_line_offset0,
+		&tpg_1_3_set_shdr_line_offset0,
+		"%16d");
+DEFINE_SIMPLE_ATTRIBUTE(tpg_1_3_shdr_line_offset1,
+		&tpg_1_3_get_shdr_line_offset1,
+		&tpg_1_3_set_shdr_line_offset1,
+		"%16d");
+
+
+int tpg_1_3_layer_init(struct tpg_hw *hw)
+{
+	int rc = 0;
+	struct dentry *dbgfileptr_parent = NULL;
+	struct dentry *dbgfileptr = NULL;
+	struct dentry *dbgfileptr_shdr = NULL;
+	struct dentry *dfp_shdr_batch = NULL;
+	struct dentry *dfp_shdr_off0 = NULL;
+	struct dentry *dfp_shdr_off1 = NULL;
+	char dir_name[160];
+
+	snprintf(dir_name, sizeof(dir_name), "tpg%d",
+		hw->hw_idx);
+
+	dbgfileptr_parent = debugfs_create_dir(dir_name, NULL);
+	if (!dbgfileptr_parent) {
+		CAM_ERR(CAM_TPG, "Debug fs could not create directory");
+		rc = -ENOENT;
+	}
+
+	dbgfileptr      = debugfs_create_file("tpg_xcfa_test", 0644,
+			dbgfileptr_parent, hw, &tpg_1_3_xcfa_test);
+	dbgfileptr_shdr = debugfs_create_file("tpg_shdr_overlap_test", 0644,
+			dbgfileptr_parent, hw, &tpg_1_3_shdr_overlap_test);
+	dfp_shdr_batch  = debugfs_create_file("tpg_shdr_offset_num_batch", 0644,
+			dbgfileptr_parent, hw, &tpg_1_3_shdr_offset_num_batch);
+	dfp_shdr_off0   = debugfs_create_file("tpg_shdr_line_offset0", 0644,
+			dbgfileptr_parent, hw, &tpg_1_3_shdr_line_offset0);
+	dfp_shdr_off1   = debugfs_create_file("tpg_shdr_line_offset1", 0644,
+			dbgfileptr_parent, hw, &tpg_1_3_shdr_line_offset1);
+	CAM_INFO(CAM_TPG, "Layer init called");
+	return rc;
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -19,6 +20,8 @@
 #include "cam_trace.h"
 #include "cam_debug_util.h"
 #include "cam_packet_util.h"
+#include "cam_req_mgr_dev.h"
+#include "cam_icp_hw_mgr_intf.h"
 
 static const char icp_dev_name[] = "cam-icp";
 
@@ -234,10 +237,93 @@ static int __cam_icp_release_dev_in_ready(struct cam_context *ctx,
 	return rc;
 }
 
-static int __cam_icp_handle_buf_done_in_ready(void *ctx,
-	uint32_t evt_id, void *done)
+static uint32_t get_error_code(uint32_t err_type)
 {
-	return cam_context_buf_done_from_hw(ctx, done, evt_id);
+	switch (err_type) {
+	case CAM_ICP_HW_ERROR_NO_MEM:
+		return CAM_REQ_MGR_ICP_NO_MEMORY;
+	case CAM_ICP_HW_ERROR_SYSTEM_FAILURE:
+		return CAM_REQ_MGR_ICP_SYSTEM_FAILURE;
+	default:
+		return 0;
+	}
+}
+
+static int __cam_icp_notify_v4l2_err_evt(struct cam_context *ctx,
+	uint32_t err_type, uint32_t err_code, uint64_t request_id)
+{
+	struct cam_req_mgr_message req_msg = {0};
+	int rc;
+
+	req_msg.session_hdl = ctx->session_hdl;
+	req_msg.u.err_msg.device_hdl = ctx->dev_hdl;
+	req_msg.u.err_msg.error_type = err_type;
+	req_msg.u.err_msg.link_hdl = ctx->link_hdl;
+	req_msg.u.err_msg.request_id = request_id;
+	req_msg.u.err_msg.resource_size = 0x0;
+	req_msg.u.err_msg.error_code = err_code;
+
+	rc = cam_req_mgr_notify_message(&req_msg, V4L_EVENT_CAM_REQ_MGR_ERROR,
+		V4L_EVENT_CAM_REQ_MGR_EVENT);
+	if (rc)
+		CAM_ERR(CAM_ICP,
+			"Error in notifying the error time for req id:%lld ctx %u",
+			request_id,
+			ctx->ctx_id);
+
+	CAM_INFO(CAM_ICP,
+		"CTX: [%s][%d] notifying error to userspace err type: %d, err code: %u, req id: %llu",
+		ctx->dev_name, ctx->ctx_id, err_type, err_code, request_id);
+
+	return rc;
+}
+
+static int cam_icp_ctx_handle_fatal_error(void *ctx, void *err_evt_data)
+{
+	struct cam_icp_hw_error_evt_data *err_evt;
+	uint32_t err_code = 0;
+	int rc;
+
+	err_evt = (struct cam_icp_hw_error_evt_data *)err_evt_data;
+	err_code = get_error_code(err_evt->err_type);
+
+	rc = __cam_icp_notify_v4l2_err_evt(ctx, CAM_REQ_MGR_ERROR_TYPE_RECOVERY,
+		err_code, err_evt->req_id);
+
+	return rc;
+}
+
+static int cam_icp_ctx_handle_buf_done_in_ready(void *ctx, void *done_evt_data)
+{
+	struct cam_icp_hw_buf_done_evt_data *buf_done;
+
+	buf_done = (struct cam_icp_hw_buf_done_evt_data *)done_evt_data;
+	return cam_context_buf_done_from_hw(ctx, buf_done->buf_done_data, buf_done->evt_id);
+}
+
+static int __cam_icp_ctx_handle_hw_event(void *ctx,
+	uint32_t evt_id, void *evt_data)
+{
+	int rc;
+
+	if (!ctx || !evt_data) {
+		CAM_ERR(CAM_ICP, "Invalid ctx and event data");
+		return -EINVAL;
+	}
+
+	switch (evt_id) {
+	case CAM_ICP_EVT_ID_BUF_DONE:
+		rc = cam_icp_ctx_handle_buf_done_in_ready(ctx, evt_data);
+		break;
+	case CAM_ICP_EVT_ID_ERROR:
+		rc = cam_icp_ctx_handle_fatal_error(ctx, evt_data);
+		break;
+	default:
+		CAM_ERR(CAM_ICP, "Invalid event id: %d", evt_id);
+		rc = -EINVAL;
+	}
+
+	return rc;
 }
 
 static struct cam_ctx_ops
@@ -267,7 +353,7 @@ static struct cam_ctx_ops
 			.dump_dev = __cam_icp_dump_dev_in_ready,
 		},
 		.crm_ops = {},
-		.irq_ops = __cam_icp_handle_buf_done_in_ready,
+		.irq_ops = __cam_icp_ctx_handle_hw_event,
 		.pagefault_ops = cam_icp_context_dump_active_request,
 		.mini_dump_ops = cam_icp_context_mini_dump,
 	},
@@ -281,7 +367,7 @@ static struct cam_ctx_ops
 			.dump_dev = __cam_icp_dump_dev_in_ready,
 		},
 		.crm_ops = {},
-		.irq_ops = __cam_icp_handle_buf_done_in_ready,
+		.irq_ops = __cam_icp_ctx_handle_hw_event,
 		.pagefault_ops = cam_icp_context_dump_active_request,
 		.mini_dump_ops = cam_icp_context_mini_dump,
 	},

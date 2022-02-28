@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_HW_MGR_H_
@@ -48,7 +49,10 @@ enum cam_ife_ctx_master_type {
  * @enable_csid_recovery:      enable csid recovery
  * @sfe_debug:                 sfe debug config
  * @sfe_sensor_diag_cfg:       sfe sensor diag config
+ * @csid_test_bus:             csid test bus config
  * @sfe_cache_debug:           sfe cache debug info
+ * @ife_perf_counter_val:      ife perf counter values
+ * @sfe_perf_counter_val:      sfe perf counter values
  * @enable_req_dump:           Enable request dump on HW errors
  * @per_req_reg_dump:          Enable per request reg dump
  * @disable_ubwc_comp:         Disable UBWC compression
@@ -65,7 +69,10 @@ struct cam_ife_hw_mgr_debug {
 	uint32_t       enable_csid_recovery;
 	uint32_t       sfe_debug;
 	uint32_t       sfe_sensor_diag_cfg;
+	uint32_t       csid_test_bus;
 	uint32_t       sfe_cache_debug[CAM_SFE_HW_NUM_MAX];
+	uint32_t      *ife_perf_counter_val;
+	uint32_t      *sfe_perf_counter_val;
 	bool           enable_req_dump;
 	bool           per_req_reg_dump;
 	bool           disable_ubwc_comp;
@@ -331,11 +338,15 @@ struct cam_ife_hw_mgr_ctx {
  *
  * @max_vfe_out_res_type  :  max ife out res type value from hw
  * @max_sfe_out_res_type  :  max sfe out res type value from hw
+ * @num_ife_perf_counters :  max ife perf counters supported
+ * @num_sfe_perf_counters :  max sfe perf counters supported
  * @support_consumed_addr :  indicate whether hw supports last consumed address
  */
-struct cam_isp_bus_hw_caps {
+struct cam_isp_ife_sfe_hw_caps {
 	uint32_t     max_vfe_out_res_type;
 	uint32_t     max_sfe_out_res_type;
+	uint32_t     num_ife_perf_counters;
+	uint32_t     num_sfe_perf_counters;
 	bool         support_consumed_addr;
 };
 
@@ -373,7 +384,7 @@ struct cam_isp_sys_cache_info {
  * @hw_pid_support         hw pid support for this target
  * @csid_rup_en            Reg update at CSID side
  * @csid_global_reset_en   CSID global reset enable
- * @isp_bus_caps           Capability of underlying SFE/IFE bus HW
+ * @isp_caps               Capability of underlying SFE/IFE HW
  * @path_port_map          Mapping of outport to IFE mux
  */
 struct cam_ife_hw_mgr {
@@ -398,7 +409,7 @@ struct cam_ife_hw_mgr {
 	bool                             hw_pid_support;
 	bool                             csid_rup_en;
 	bool                             csid_global_reset_en;
-	struct cam_isp_bus_hw_caps       isp_bus_caps;
+	struct cam_isp_ife_sfe_hw_caps   isp_caps;
 	struct cam_isp_hw_path_port_map  path_port_map;
 
 	uint32_t                         num_caches_found;

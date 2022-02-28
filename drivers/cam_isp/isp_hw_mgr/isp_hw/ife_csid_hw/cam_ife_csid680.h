@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_680_H_
@@ -1085,8 +1086,8 @@ static struct cam_ife_csid_csi2_rx_reg_info
 		.short_pkt_strobe_rst_shift      = 1,
 		.cphy_pkt_strobe_rst_shift       = 2,
 		.unmapped_pkt_strobe_rst_shift   = 3,
-		.fatal_err_mask                  = 0x097A000,
-		.part_fatal_err_mask             = 0x1081800,
+		.fatal_err_mask                  = 0x19FA800,
+		.part_fatal_err_mask             = 0x0001000,
 		.non_fatal_err_mask              = 0x0200000,
 		.top_irq_mask                    = 0x4,
 };
@@ -1110,6 +1111,8 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.buf_done_irq_mask_addr                  = 0x90,
 	.buf_done_irq_clear_addr                 = 0x94,
 	.buf_done_irq_set_addr                   = 0x98,
+	.test_bus_ctrl                           = 0x1E8,
+	.test_bus_debug                          = 0x1EC,
 
 	/*configurations */
 	.major_version                           = 6,

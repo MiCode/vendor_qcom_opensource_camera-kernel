@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -3214,7 +3215,7 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 	}
 
 	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_cdm_hdl,
-		hw_mgr->iommu_sec_cdm_hdl);
+		hw_mgr->iommu_sec_cdm_hdl, false);
 	if (rc) {
 		mutex_unlock(&ctx_data->ctx_mutex);
 		CAM_ERR(CAM_OPE, "Patching failed: %d req_id: %d ctx: %d",

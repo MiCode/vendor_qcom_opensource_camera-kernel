@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1766,7 +1767,7 @@ static int cam_fd_mgr_hw_prepare_update(void *hw_mgr_priv,
 
 	/* We do not expect any patching, but just do it anyway */
 	rc = cam_packet_util_process_patches(prepare->packet,
-		hw_mgr->device_iommu.non_secure, -1);
+		hw_mgr->device_iommu.non_secure, -1, false);
 	if (rc) {
 		CAM_ERR(CAM_FD, "Patch FD packet failed, rc=%d", rc);
 		return rc;

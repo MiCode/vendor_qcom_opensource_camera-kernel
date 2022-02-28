@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_H_
@@ -16,7 +17,7 @@
 #include "cam_hw_mgr_intf.h"
 
 /* Maximum length of tag while dumping */
-#define CAM_ISP_HW_DUMP_TAG_MAX_LEN 32
+#define CAM_ISP_HW_DUMP_TAG_MAX_LEN 64
 /* Max isp hw pid values number */
 #define CAM_ISP_HW_MAX_PID_VAL      4
 /* Maximum number of output ports that map to an architecture specific input path */
@@ -179,7 +180,7 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_TPG_CORE_CFG_CMD,
 	CAM_ISP_HW_CMD_CSID_CHANGE_HALT_MODE,
 	CAM_ISP_HW_CMD_SET_SFE_DEBUG_CFG,
-	CAM_ISP_HW_CMD_QUERY_BUS_CAP,
+	CAM_ISP_HW_CMD_QUERY_CAP,
 	CAM_IFE_CSID_CMD_GET_TIME_STAMP,
 	CAM_IFE_CSID_SET_CSID_DEBUG,
 	CAM_IFE_CSID_SOF_IRQ_DEBUG,
@@ -194,7 +195,7 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_NOTIFY_OVERFLOW,
 	CAM_ISP_HW_CMD_IS_PDAF_RDI2_MUX_EN,
 	CAM_ISP_HW_CMD_GET_PATH_PORT_MAP,
-	CAM_ISP_HW_CMD_IFE_BUS_DEBUG_CFG,
+	CAM_ISP_HW_CMD_IFE_DEBUG_CFG,
 	CAM_ISP_HW_SFE_SYS_CACHE_WM_CONFIG,
 	CAM_ISP_HW_SFE_SYS_CACHE_RM_CONFIG,
 	CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG,
@@ -203,6 +204,7 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_INIT_CONFIG_UPDATE,
 	CAM_ISP_HW_CSID_MINI_DUMP,
 	CAM_ISP_HW_BUS_MINI_DUMP,
+	CAM_ISP_HW_USER_DUMP,
 	CAM_ISP_HW_CMD_RDI_LCR_CFG,
 	CAM_ISP_HW_CMD_MAX,
 };
@@ -494,13 +496,15 @@ struct cam_isp_hw_intf_data {
  *
  * @Brief:         ISP hw bus capabilities
  *
- * @support_consumed_addr:  Indicate whether HW has last consumed addr reg
  * @max_out_res_type:       Maximum value of out resource type supported by hw
+ * @num_perf_counters:      Number of perf counters supported
+ * @support_consumed_addr:  Indicate whether HW has last consumed addr reg
  *
  */
-struct cam_isp_hw_bus_cap {
-	bool                    support_consumed_addr;
+struct cam_isp_hw_cap {
 	uint32_t                max_out_res_type;
+	uint32_t                num_perf_counters;
+	bool                    support_consumed_addr;
 };
 
 /**

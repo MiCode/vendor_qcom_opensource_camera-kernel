@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SFE680_H_
@@ -311,6 +312,25 @@ static struct cam_sfe_top_common_reg_offset  sfe680_top_commong_reg  = {
 	.hdr_throttle_cfg              = 0x000000C0,
 	.sfe_op_throttle_cfg           = 0x000000C4,
 	.bus_overflow_status           = 0x00000868,
+	.num_perf_counters             = 2,
+	.perf_count_reg = {
+		{
+			.perf_count_cfg        = 0x00000080,
+			.perf_pix_count        = 0x00000084,
+			.perf_line_count       = 0x00000088,
+			.perf_stall_count      = 0x0000008C,
+			.perf_always_count     = 0x00000090,
+			.perf_count_status     = 0x00000094,
+		},
+		{
+			.perf_count_cfg        = 0x00000098,
+			.perf_pix_count        = 0x0000009C,
+			.perf_line_count       = 0x000000A0,
+			.perf_stall_count      = 0x000000A4,
+			.perf_always_count     = 0x000000A8,
+			.perf_count_status     = 0x000000AC,
+		},
+	},
 	.top_debug_cfg                 = 0x0000007C,
 	.lcr_supported                 = true,
 	.ir_supported                  = false,

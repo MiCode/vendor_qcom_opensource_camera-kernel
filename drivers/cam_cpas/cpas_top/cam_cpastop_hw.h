@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPASTOP_HW_H_
@@ -298,10 +299,12 @@ struct cam_cpas_hw_errata_wa {
  *         camnoc slave pending transactions before turning off CPAS_TOP gdsc
  * @tcsr_camera_hf_sf_ares_glitch: Errata workaround info from ignoring
  *         erroneous signals at camera start
+ * @enable_icp_clk_for_qchannel: Need to enable ICP clk while qchannel handshake
  */
 struct cam_cpas_hw_errata_wa_list {
 	struct cam_cpas_hw_errata_wa camnoc_flush_slave_pending_trans;
 	struct cam_cpas_hw_errata_wa tcsr_camera_hf_sf_ares_glitch;
+	struct cam_cpas_hw_errata_wa enable_icp_clk_for_qchannel;
 };
 
 /**

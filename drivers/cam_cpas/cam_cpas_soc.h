@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_SOC_H_
@@ -163,6 +164,7 @@ struct cam_cpas_smart_qos_info {
  * @llcc_info: Cache info
  * @enable_smart_qos: Whether to enable Smart QoS mechanism on current chipset
  * @smart_qos_info: Pointer to smart qos info
+ * @icp_clk_index: Index of optional icp clk
  */
 struct cam_cpas_private_soc {
 	const char *arch_compat;
@@ -187,6 +189,7 @@ struct cam_cpas_private_soc {
 	struct cam_sys_cache_info *llcc_info;
 	bool enable_smart_qos;
 	struct cam_cpas_smart_qos_info *smart_qos_info;
+	int32_t icp_clk_index;
 };
 
 void cam_cpas_util_debug_parse_data(struct cam_cpas_private_soc *soc_private);

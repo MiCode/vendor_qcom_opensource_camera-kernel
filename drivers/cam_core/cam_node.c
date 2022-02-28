@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -330,9 +331,14 @@ static int __cam_node_handle_config_dev(struct cam_node *node,
 	}
 
 	rc = cam_context_handle_config_dev(ctx, config);
-	if (rc)
-		CAM_ERR(CAM_CORE, "Config failure for node %s", node->name);
-
+	if (rc) {
+		if (ctx->state == CAM_CTX_FLUSHED)
+			CAM_INFO(CAM_CORE,
+				"Config failure for node %s, it has been flushed",
+				node->name);
+		else
+			CAM_ERR(CAM_CORE, "Config failure for node %s", node->name);
+	}
 	return rc;
 }
 

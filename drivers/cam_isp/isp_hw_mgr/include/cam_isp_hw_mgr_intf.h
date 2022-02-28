@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_MGR_INTF_H_
@@ -108,16 +109,23 @@ enum cam_isp_hw_secondary_event_type {
  *                         ISP hardware event CAM_ISP_HW_EVENT_ERROR
  */
 enum cam_isp_hw_err_type {
-	CAM_ISP_HW_ERROR_NONE = 0x0001,
-	CAM_ISP_HW_ERROR_OVERFLOW = 0x0002,
-	CAM_ISP_HW_ERROR_P2I_ERROR = 0x0004,
-	CAM_ISP_HW_ERROR_VIOLATION = 0x0008,
-	CAM_ISP_HW_ERROR_BUSIF_OVERFLOW = 0x0010,
-	CAM_ISP_HW_ERROR_CSID_FATAL = 0x0020,
-	CAM_ISP_HW_ERROR_CSID_FIFO_OVERFLOW = 0x0040,
-	CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW = 0x0080,
-	CAM_ISP_HW_ERROR_CSID_FRAME_SIZE = 0x0100,
-	CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP = 0x0200,
+	CAM_ISP_HW_ERROR_NONE                         = 0x00000001,
+	CAM_ISP_HW_ERROR_OVERFLOW                     = 0x00000002,
+	CAM_ISP_HW_ERROR_P2I_ERROR                    = 0x00000004,
+	CAM_ISP_HW_ERROR_VIOLATION                    = 0x00000008,
+	CAM_ISP_HW_ERROR_BUSIF_OVERFLOW               = 0x00000010,
+	CAM_ISP_HW_ERROR_CSID_FATAL                   = 0x00000020,
+	CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW    = 0x00000040,
+	CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW            = 0x00000080,
+	CAM_ISP_HW_ERROR_CSID_FRAME_SIZE              = 0x00000100,
+	CAM_ISP_HW_ERROR_CSID_LANE_FIFO_OVERFLOW      = 0x00000200,
+	CAM_ISP_HW_ERROR_CSID_PKT_HDR_CORRUPTED       = 0x00000400,
+	CAM_ISP_HW_ERROR_CSID_MISSING_PKT_HDR_DATA    = 0x00000800,
+	CAM_ISP_HW_ERROR_CSID_SENSOR_SWITCH_ERROR     = 0x00001000,
+	CAM_ISP_HW_ERROR_CSID_UNBOUNDED_FRAME         = 0x00002000,
+	CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP       = 0x00004000,
+	CAM_ISP_HW_ERROR_CSID_MISSING_EOT             = 0x00008000,
+	CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED   = 0x00010000,
 };
 
 /**
@@ -319,8 +327,7 @@ struct cam_isp_hw_eof_event_data {
 /**
  * struct cam_isp_hw_error_event_data - Event payload for CAM_HW_EVENT_ERROR
  *
- * @error_type:            Error type for the error event
- * @error_code:            HW Error Code that caused to trigger this event
+ * @error_type:            HW error type for the error event
  * @timestamp:             Timestamp for the error event
  * @recovery_enabled:      Identifies if the context needs to recover & reapply
  *                         this request
@@ -328,7 +335,6 @@ struct cam_isp_hw_eof_event_data {
  */
 struct cam_isp_hw_error_event_data {
 	uint32_t             error_type;
-	uint32_t             error_code;
 	uint64_t             timestamp;
 	bool                 recovery_enabled;
 	bool                 enable_req_dump;

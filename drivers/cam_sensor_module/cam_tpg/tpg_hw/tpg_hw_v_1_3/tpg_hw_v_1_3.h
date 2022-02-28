@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_V_1_3_H__
@@ -12,6 +13,7 @@ struct cam_tpg_ver_1_3_reg_offset {
 	uint32_t tpg_hw_version;
 	uint32_t tpg_hw_status;
 	uint32_t tpg_ctrl;
+	uint32_t tpg_vc0_gain_cfg;
 	uint32_t tpg_vc0_cfg0;
 	uint32_t tpg_vc0_lfsr_seed;
 	uint32_t tpg_vc0_hbi_cfg;
@@ -29,7 +31,13 @@ struct cam_tpg_ver_1_3_reg_offset {
 	uint32_t tpg_vc0_dt_3_cfg_0;
 	uint32_t tpg_vc0_dt_3_cfg_1;
 	uint32_t tpg_vc0_dt_3_cfg_2;
+	uint32_t tpg_vc0_color_bar_cfa_color0;
+	uint32_t tpg_vc0_color_bar_cfa_color1;
+	uint32_t tpg_vc0_color_bar_cfa_color2;
+	uint32_t tpg_vc0_color_bar_cfa_color3;
 
+	uint32_t tpg_vc1_gain_cfg;
+	uint32_t tpg_vc1_shdr_cfg;
 	uint32_t tpg_vc1_cfg0;
 	uint32_t tpg_vc1_lfsr_seed;
 	uint32_t tpg_vc1_hbi_cfg;
@@ -47,7 +55,13 @@ struct cam_tpg_ver_1_3_reg_offset {
 	uint32_t tpg_vc1_dt_3_cfg_0;
 	uint32_t tpg_vc1_dt_3_cfg_1;
 	uint32_t tpg_vc1_dt_3_cfg_2;
+	uint32_t tpg_vc1_color_bar_cfa_color0;
+	uint32_t tpg_vc1_color_bar_cfa_color1;
+	uint32_t tpg_vc1_color_bar_cfa_color2;
+	uint32_t tpg_vc1_color_bar_cfa_color3;
 
+	uint32_t tpg_vc2_gain_cfg;
+	uint32_t tpg_vc2_shdr_cfg;
 	uint32_t tpg_vc2_cfg0;
 	uint32_t tpg_vc2_lfsr_seed;
 	uint32_t tpg_vc2_hbi_cfg;
@@ -65,7 +79,13 @@ struct cam_tpg_ver_1_3_reg_offset {
 	uint32_t tpg_vc2_dt_3_cfg_0;
 	uint32_t tpg_vc2_dt_3_cfg_1;
 	uint32_t tpg_vc2_dt_3_cfg_2;
+	uint32_t tpg_vc2_color_bar_cfa_color0;
+	uint32_t tpg_vc2_color_bar_cfa_color1;
+	uint32_t tpg_vc2_color_bar_cfa_color2;
+	uint32_t tpg_vc2_color_bar_cfa_color3;
 
+	uint32_t tpg_vc3_gain_cfg;
+	uint32_t tpg_vc3_shdr_cfg;
 	uint32_t tpg_vc3_cfg0;
 	uint32_t tpg_vc3_lfsr_seed;
 	uint32_t tpg_vc3_hbi_cfg;
@@ -83,6 +103,11 @@ struct cam_tpg_ver_1_3_reg_offset {
 	uint32_t tpg_vc3_dt_3_cfg_0;
 	uint32_t tpg_vc3_dt_3_cfg_1;
 	uint32_t tpg_vc3_dt_3_cfg_2;
+	uint32_t tpg_vc3_color_bar_cfa_color0;
+	uint32_t tpg_vc3_color_bar_cfa_color1;
+	uint32_t tpg_vc3_color_bar_cfa_color2;
+	uint32_t tpg_vc3_color_bar_cfa_color3;
+
 	uint32_t tpg_throttle;
 	uint32_t tpg_top_irq_status;
 	uint32_t tpg_top_irq_mask;
@@ -114,6 +139,16 @@ struct cam_tpg_ver_1_3_reg_offset {
 	uint32_t tpg_num_active_vcs_shift;
 	uint32_t tpg_color_bar_qcfa_en_shift;
 	uint32_t tpg_color_bar_qcfa_rotate_period_shift;
+	uint32_t tpg_overlap_shdr_en_shift;
+	uint32_t tpg_num_batch_shift;
+	uint32_t tpg_xcfa_en_shift;
+	uint32_t tpg_noise_en_shift;
+	uint32_t tpg_size_x_shift;
+	uint32_t tpg_size_y_shift;
+	uint32_t tpg_gain_shift;
+	uint32_t tpg_shdr_offset_num_batch_shift;
+	uint32_t tpg_shdr_line_offset0_shift;
+	uint32_t tpg_shdr_line_offset1_shift;
 };
 
 
@@ -169,4 +204,5 @@ int tpg_hw_v_1_3_process_cmd(struct tpg_hw *hw,
  */
 int tpg_hw_v_1_3_dump_status(struct tpg_hw *hw, void *data);
 
+int tpg_1_3_layer_init(struct tpg_hw *hw);
 #endif

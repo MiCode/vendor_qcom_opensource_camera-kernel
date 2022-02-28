@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_H__
@@ -75,12 +75,26 @@ struct tpg_vc_slot_info {
  * @max_vc_channels: max number of virtual channels supported by tpg
  * @max_dt_channels_per_vc: max dts supported in each vc
  * @ops:   tpg hw operations
+ * @hw_data: tpg hw data
+ * @hw: hw layer initialization
+ * @xcfa_debug: for xcfa debug
+ * @shdr_overlap: for shdr overlap
+ * @shdr_offset_num_batch: for shdr offset num batch
+ * @shdr_line_offset0: for shdr line offset0
+ * @shdr_line_offset1: for shdr line offset1
  */
 struct tpg_hw_info {
 	uint32_t          version;
 	uint32_t          max_vc_channels;
 	uint32_t          max_dt_channels_per_vc;
 	struct tpg_hw_ops *ops;
+	void              *hw_data;
+	int               (*layer_init)(struct tpg_hw *hw);
+	int               xcfa_debug;
+	int               shdr_overlap;
+	int               shdr_offset_num_batch;
+	int               shdr_line_offset0;
+	int               shdr_line_offset1;
 };
 
 

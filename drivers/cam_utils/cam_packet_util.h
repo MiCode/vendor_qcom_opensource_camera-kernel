@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_PACKET_UTIL_H_
@@ -110,12 +111,14 @@ void cam_packet_dump_patch_info(struct cam_packet *packet,
  * @iommu_hdl:          IOMMU handle of the HW Device that received the packet
  * @sec_iommu_hdl:      Secure IOMMU handle of the HW Device that
  *                      received the packet
+ * @exp_mem:            Boolean to know if patched address is in expanded memory range
+ *                      or within default 32-bit address space.
  *
  * @return:             0: Success
  *                      Negative: Failure
  */
 int cam_packet_util_process_patches(struct cam_packet *packet,
-	int32_t iommu_hdl, int32_t sec_mmu_hdl);
+	int32_t iommu_hdl, int32_t sec_mmu_hdl, bool exp_mem);
 
 /**
  * cam_packet_util_process_generic_cmd_buffer()

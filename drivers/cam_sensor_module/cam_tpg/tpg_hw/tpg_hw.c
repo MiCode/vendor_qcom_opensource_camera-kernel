@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw.h"
@@ -80,6 +81,8 @@ static const char * const tpg_interleaving_format_string[] = {
 	"TPG_INTERLEAVING_FORMAT_INVALID",
 	"TPG_INTERLEAVING_FORMAT_FRAME",
 	"TPG_INTERLEAVING_FORMAT_LINE",
+	"TPG_INTERLEAVING_FORMAT_SHDR",
+	"TPG_INTERLEAVING_FORMAT_SparsePD",
 	"TPG_INTERLEAVING_FORMAT_MAX"
 };
 
@@ -643,12 +646,15 @@ int tpg_hw_reset(struct tpg_hw *hw)
 
 	/* disable the hw */
 	mutex_lock(&hw->mutex);
-	if ((hw->state != TPG_HW_STATE_HW_DISABLED) &&
-			cam_cpas_stop(hw->cpas_handle)) {
-		CAM_ERR(CAM_TPG, "TPG[%d] CPAS stop failed",
-				hw->hw_idx);
-		rc = -EINVAL;
-	} else {
+	if (hw->state != TPG_HW_STATE_HW_DISABLED) {
+		rc = cam_soc_util_disable_platform_resource(hw->soc_info, true, false);
+		if (rc)
+			CAM_ERR(CAM_TPG, "TPG[%d] Disable platform failed %d", hw->hw_idx, rc);
+
+		rc = cam_cpas_stop(hw->cpas_handle);
+		if (rc)
+			CAM_ERR(CAM_TPG, "TPG[%d] CPAS stop failed", hw->hw_idx);
+
 		hw->state = TPG_HW_STATE_HW_DISABLED;
 	}
 	mutex_unlock(&hw->mutex);

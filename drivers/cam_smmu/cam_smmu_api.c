@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -609,11 +610,9 @@ static void cam_smmu_dump_cb_info(int idx)
 		"********** %llu:%llu:%llu:%llu Context bank dump for %s **********",
 		hrs, min, sec, ms, cb_info->name[0]);
 	CAM_ERR(CAM_SMMU,
-		"Usage: shared_usage=%u io_usage=%u shared_free=%u io_free=%u",
-		(unsigned int)cb_info->shared_mapping_size,
-		(unsigned int)cb_info->io_mapping_size,
-		(unsigned int)shared_free_len,
-		(unsigned int)io_free_len);
+		"Usage: shared_usage=%lu io_usage=%lu shared_free=%lu io_free=%lu",
+		cb_info->shared_mapping_size, cb_info->io_mapping_size,
+		shared_free_len, io_free_len);
 
 	if (iommu_cb_set.cb_dump_enable) {
 		list_for_each_entry_safe(mapping, mapping_temp,
@@ -621,13 +620,11 @@ static void cam_smmu_dump_cb_info(int idx)
 			i++;
 			CAM_CONVERT_TIMESTAMP_FORMAT(mapping->ts, hrs, min, sec, ms);
 			CAM_ERR(CAM_SMMU,
-				"%llu:%llu:%llu:%llu: %u ion_fd=%d i_ino=%lu start=0x%x end=0x%x len=%u region=%d",
+				"%llu:%llu:%llu:%llu: %u ion_fd=%d i_ino=%lu start=0x%lx end=0x%lx len=%lu region=%d",
 				hrs, min, sec, ms, i, mapping->ion_fd, mapping->i_ino,
-				(void *)mapping->paddr,
-				((uint64_t)mapping->paddr +
-				(uint64_t)mapping->len),
-				(unsigned int)mapping->len,
-				mapping->region_id);
+				mapping->paddr,
+				((uint64_t)mapping->paddr + (uint64_t)mapping->len),
+				mapping->len, mapping->region_id);
 		}
 
 		cam_smmu_dump_monitor_array(&iommu_cb_set.cb_info[idx]);
@@ -642,10 +639,9 @@ static void cam_smmu_print_user_list(int idx)
 	list_for_each_entry(mapping,
 		&iommu_cb_set.cb_info[idx].smmu_buf_list, list) {
 		CAM_ERR(CAM_SMMU,
-			"ion_fd = %d, i_ino=%lu, paddr= 0x%pK, len = %u, region = %d",
-			 mapping->ion_fd, mapping->i_ino, (void *)mapping->paddr,
-			 (unsigned int)mapping->len,
-			 mapping->region_id);
+			"ion_fd = %d, i_ino=%lu, paddr= 0x%lx, len = %lu, region = %d",
+			mapping->ion_fd, mapping->i_ino, mapping->paddr, mapping->len,
+			mapping->region_id);
 	}
 }
 
@@ -657,10 +653,9 @@ static void cam_smmu_print_kernel_list(int idx)
 	list_for_each_entry(mapping,
 		&iommu_cb_set.cb_info[idx].smmu_buf_kernel_list, list) {
 		CAM_ERR(CAM_SMMU,
-			"dma_buf = %pK, i_ino = %lu, paddr= 0x%pK, len = %u, region = %d",
-			 mapping->buf, mapping->i_ino, (void *)mapping->paddr,
-			 (unsigned int)mapping->len,
-			 mapping->region_id);
+			"dma_buf = %pK, i_ino = %lu, paddr= 0x%lx, len = %lu, region = %d",
+			mapping->buf, mapping->i_ino, mapping->paddr,
+			mapping->len, mapping->region_id);
 	}
 }
 
@@ -853,7 +848,7 @@ static int cam_smmu_iommu_fault_handler(struct iommu_domain *domain,
 
 	if (!token) {
 		CAM_ERR(CAM_SMMU,
-			"token is NULL, domain = %pK, device = %pK,iova = %lX, flags = %d",
+			"token is NULL, domain = %pK, device = %pK,iova = 0x%lx, flags = 0x%x",
 			domain, dev, iova, flags);
 		return 0;
 	}
@@ -1300,8 +1295,8 @@ static void cam_smmu_clean_user_buffer_list(int idx)
 			CAM_ERR(CAM_SMMU, "Buffer delete failed: idx = %d",
 				idx);
 			CAM_ERR(CAM_SMMU,
-				"Buffer delete failed: addr = %lx, fd = %d, i_ino = %lu",
-				(unsigned long)mapping_info->paddr,
+				"Buffer delete failed: addr = 0x%lx, fd = %d, i_ino = %lu",
+				mapping_info->paddr,
 				mapping_info->ion_fd, mapping_info->i_ino);
 			/*
 			 * Ignore this error and continue to delete other
@@ -1334,9 +1329,8 @@ static void cam_smmu_clean_kernel_buffer_list(int idx)
 				"Buffer delete in kernel list failed: idx = %d",
 				idx);
 			CAM_ERR(CAM_SMMU,
-				"Buffer delete failed: addr = %lx, dma_buf = %pK",
-				(unsigned long)mapping_info->paddr,
-				mapping_info->buf);
+				"Buffer delete failed: addr = 0x%lx, dma_buf = %pK",
+				mapping_info->paddr, mapping_info->buf);
 			/*
 			 * Ignore this error and continue to delete other
 			 * buffers in the list
@@ -2201,8 +2195,8 @@ static int cam_smmu_map_buffer_validate(struct dma_buf *buf,
 		if (IS_ERR_OR_NULL(table)) {
 			rc = PTR_ERR(table);
 			CAM_ERR(CAM_SMMU,
-				"Error: dma map attachment failed, size=%zu",
-				buf->size);
+				"Error: dma map attachment failed, size=%zu, rc %d dma_dir %d",
+				buf->size, rc, dma_dir);
 			goto err_detach;
 		}
 
@@ -4130,9 +4124,9 @@ static int cam_smmu_get_memory_regions_info(struct device_node *of_node,
 
 		CAM_DBG(CAM_SMMU, "Found label -> %s", cb->name[0]);
 		CAM_DBG(CAM_SMMU, "Found region -> %s", region_name);
-		CAM_DBG(CAM_SMMU, "region_start -> %lx", region_start);
-		CAM_DBG(CAM_SMMU, "region_len -> %lx", region_len);
-		CAM_DBG(CAM_SMMU, "region_id -> %X", region_id);
+		CAM_DBG(CAM_SMMU, "region_start -> 0x%lx", region_start);
+		CAM_DBG(CAM_SMMU, "region_len -> 0x%lx", region_len);
+		CAM_DBG(CAM_SMMU, "region_id -> 0x%x", region_id);
 	}
 
 	if (cb->io_support) {
@@ -4316,6 +4310,15 @@ static int cam_populate_smmu_context_banks(struct device *dev,
 
 	dma_set_max_seg_size(dev, DMA_BIT_MASK(32));
 	dma_set_seg_boundary(dev, (unsigned long)DMA_BIT_MASK(64));
+
+	if (iommu_cb_set.is_expanded_memory) {
+		CAM_DBG(CAM_SMMU, "[%s] setting max address mask", cb->name[0]);
+		/* the largest address is the min(dma_mask, value_from_iommu-dma_addr_pool) */
+		rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+		if (rc)
+			CAM_ERR(CAM_SMMU, "[%s] Failed in setting max address mask, rc %d",
+				cb->name[0], rc);
+	}
 
 end:
 	/* increment count to next bank */

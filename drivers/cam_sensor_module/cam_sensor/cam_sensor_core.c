@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -30,9 +31,14 @@ static int cam_sensor_update_req_mgr(
 		s_ctrl->bridge_intf.crm_cb->add_req) {
 		rc = s_ctrl->bridge_intf.crm_cb->add_req(&add_req);
 		if (rc) {
-			CAM_ERR(CAM_SENSOR,
-				"Adding request: %llu failed with request manager rc: %d",
-				csl_packet->header.request_id, rc);
+			if (rc == -EBADR)
+				CAM_INFO(CAM_SENSOR,
+					"Adding request: %llu failed with request manager rc: %d, it has been flushed",
+					csl_packet->header.request_id, rc);
+			else
+				CAM_ERR(CAM_SENSOR,
+					"Adding request: %llu failed with request manager rc: %d",
+					csl_packet->header.request_id, rc);
 			return rc;
 		}
 	}
@@ -815,20 +821,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto free_power_settings;
 		}
 
-		if (s_ctrl->is_aon_user) {
-			CAM_DBG(CAM_SENSOR,
-				"Setup for Main Camera with csiphy index: %d",
-				s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
-			rc = cam_sensor_util_aon_ops(true,
-				s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
-			if (rc) {
-				CAM_WARN(CAM_SENSOR,
-					"Main camera access operation is not successful rc: %d",
-					rc);
-				goto free_power_settings;
-			}
-		}
-
 		/* Power up and probe sensor */
 		rc = cam_sensor_power_up(s_ctrl);
 		if (rc < 0) {
@@ -860,20 +852,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			CAM_ERR(CAM_SENSOR, "Fail in %s sensor Power Down",
 				s_ctrl->sensor_name);
 			goto free_power_settings;
-		}
-
-		if (s_ctrl->is_aon_user) {
-			CAM_DBG(CAM_SENSOR,
-				"Setup for AON FW with csiphy index: %d",
-				s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
-			rc = cam_sensor_util_aon_ops(false,
-				s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
-			if (rc) {
-				CAM_WARN(CAM_SENSOR,
-					"AON FW access operation is not successful rc: %d",
-					rc);
-				goto free_power_settings;
-			}
 		}
 
 		/*
@@ -1125,8 +1103,14 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	case CAM_CONFIG_DEV: {
 		rc = cam_sensor_i2c_pkt_parse(s_ctrl, arg);
 		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR, "%s:Failed i2c pkt parse. rc: %d",
-				s_ctrl->sensor_name, rc);
+			if (rc == -EBADR)
+				CAM_INFO(CAM_SENSOR,
+					"%s:Failed i2c pkt parse. rc: %d, it has been flushed",
+					s_ctrl->sensor_name, rc);
+			else
+				CAM_ERR(CAM_SENSOR,
+					"%s:Failed i2c pkt parse. rc: %d",
+					s_ctrl->sensor_name, rc);
 			goto release_mutex;
 		}
 		if (s_ctrl->i2c_data.init_settings.is_settings_valid &&
@@ -1334,6 +1318,20 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		}
 	}
 
+	if (s_ctrl->is_aon_user) {
+		CAM_INFO(CAM_SENSOR,
+			"Setup for Main Camera with csiphy index: %d",
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+		rc = cam_sensor_util_aon_ops(true,
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+		if (rc) {
+			CAM_ERR(CAM_SENSOR,
+				"Main camera access operation is not successful rc: %d",
+				rc);
+			return rc;
+		}
+	}
+
 	rc = cam_sensor_core_power_up(power_info, soc_info);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "core power up failed:%d", rc);
@@ -1347,6 +1345,7 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 	return rc;
+
 cci_failure:
 	if (cam_sensor_util_power_down(power_info, soc_info))
 		CAM_ERR(CAM_SENSOR, "power down failure");
@@ -1380,6 +1379,20 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "%s core power down failed:%d",
 			s_ctrl->sensor_name, rc);
 		return rc;
+	}
+
+	if (s_ctrl->is_aon_user) {
+		CAM_INFO(CAM_SENSOR,
+			"Setup for AON FW with csiphy index: %d",
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+		rc = cam_sensor_util_aon_ops(false,
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+		if (rc) {
+			CAM_ERR(CAM_SENSOR,
+				"AON FW access operation is not successful rc: %d",
+				rc);
+			return rc;
+		}
 	}
 
 	if (s_ctrl->bob_pwm_switch) {

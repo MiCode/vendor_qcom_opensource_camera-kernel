@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -29,40 +30,46 @@ struct cam_sfe_top_common_data {
 	struct list_head                         free_payload_list;
 };
 
+struct cam_sfe_top_perf_counter_cfg {
+	uint32_t perf_counter_val;
+	bool     dump_counter;
+};
+
 struct cam_sfe_top_priv {
-	struct cam_sfe_top_common_data  common_data;
-	struct cam_isp_resource_node    in_rsrc[CAM_SFE_TOP_IN_PORT_MAX];
-	uint32_t                        num_in_ports;
-	unsigned long                   applied_clk_rate;
-	unsigned long                   req_clk_rate[CAM_SFE_TOP_IN_PORT_MAX];
-	uint32_t                        last_bw_counter;
-	uint32_t                        last_clk_counter;
-	uint64_t                        total_bw_applied;
-	struct cam_axi_vote             agg_incoming_vote;
-	struct cam_axi_vote             req_axi_vote[CAM_SFE_TOP_IN_PORT_MAX];
-	struct cam_axi_vote             last_bw_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
-	uint64_t                        last_total_bw_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
-	uint64_t                        last_clk_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
-	enum cam_clk_bw_state           clk_state;
-	enum cam_clk_bw_state           bw_state;
-	enum cam_isp_bw_control_action  axi_vote_control[
+	struct cam_sfe_top_common_data      common_data;
+	struct cam_isp_resource_node        in_rsrc[CAM_SFE_TOP_IN_PORT_MAX];
+	uint32_t                            num_in_ports;
+	unsigned long                       applied_clk_rate;
+	unsigned long                       req_clk_rate[CAM_SFE_TOP_IN_PORT_MAX];
+	uint32_t                            last_bw_counter;
+	uint32_t                            last_clk_counter;
+	uint64_t                            total_bw_applied;
+	struct cam_axi_vote                 agg_incoming_vote;
+	struct cam_axi_vote                 req_axi_vote[CAM_SFE_TOP_IN_PORT_MAX];
+	struct cam_axi_vote                 last_bw_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
+	uint64_t                            last_total_bw_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
+	uint64_t                            last_clk_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
+	enum cam_clk_bw_state               clk_state;
+	enum cam_clk_bw_state               bw_state;
+	enum cam_isp_bw_control_action      axi_vote_control[
 		CAM_SFE_TOP_IN_PORT_MAX];
-	struct cam_axi_vote             applied_axi_vote;
-	struct cam_sfe_core_cfg         core_cfg;
-	uint32_t                        sfe_debug_cfg;
-	uint32_t                        sensor_sel_diag_cfg;
-	uint32_t                        cc_testbus_sel_cfg;
-	int                             error_irq_handle;
-	uint16_t                        reserve_cnt;
-	uint16_t                        start_stop_cnt;
-	void                           *priv_per_stream;
-	spinlock_t                      spin_lock;
-	cam_hw_mgr_event_cb_func        event_cb;
-	struct cam_sfe_wr_client_desc  *wr_client_desc;
-	struct cam_sfe_top_hw_info     *hw_info;
-	uint32_t                        num_clc_module;
-	struct cam_sfe_top_debug_info  (*clc_dbg_mod_info)[CAM_SFE_TOP_DBG_REG_MAX][8];
-	bool                            skip_clk_data_rst;
+	struct cam_axi_vote                 applied_axi_vote;
+	struct cam_sfe_core_cfg             core_cfg;
+	uint32_t                            sfe_debug_cfg;
+	uint32_t                            sensor_sel_diag_cfg;
+	struct cam_sfe_top_perf_counter_cfg perf_counters[CAM_SFE_PERF_COUNTER_MAX];
+	uint32_t                            cc_testbus_sel_cfg;
+	int                                 error_irq_handle;
+	uint16_t                            reserve_cnt;
+	uint16_t                            start_stop_cnt;
+	void                               *priv_per_stream;
+	spinlock_t                          spin_lock;
+	cam_hw_mgr_event_cb_func            event_cb;
+	struct cam_sfe_wr_client_desc      *wr_client_desc;
+	struct cam_sfe_top_hw_info         *hw_info;
+	uint32_t                            num_clc_module;
+	struct cam_sfe_top_debug_info     (*clc_dbg_mod_info)[CAM_SFE_TOP_DBG_REG_MAX][8];
+	bool                                skip_clk_data_rst;
 };
 
 struct cam_sfe_path_data {
@@ -255,6 +262,41 @@ static void cam_sfe_top_print_cc_test_bus(
 		reg_val, log_buf);
 }
 
+static void cam_sfe_top_dump_perf_counters(
+	const char *event,
+	const char *res_name,
+	struct cam_sfe_top_priv *top_priv)
+{
+	int i;
+	void __iomem                         *mem_base;
+	struct cam_sfe_top_common_data       *common_data;
+	struct cam_hw_soc_info               *soc_info;
+	struct cam_sfe_top_common_reg_offset *common_reg;
+
+	common_data = &top_priv->common_data;
+	common_reg = common_data->common_reg;
+	soc_info = common_data->soc_info;
+	mem_base = soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base;
+
+	for (i = 0; i < top_priv->common_data.common_reg->num_perf_counters; i++) {
+		if (top_priv->perf_counters[i].dump_counter) {
+			CAM_INFO(CAM_SFE,
+				"SFE [%u] on %s %s counter: %d pixel_cnt: %d line_cnt: %d stall_cnt: %d always_cnt: %d status: 0x%x",
+				common_data->hw_intf->hw_idx, res_name, event, (i + 1),
+				cam_io_r_mb(mem_base +
+					common_reg->perf_count_reg[i].perf_pix_count),
+				cam_io_r_mb(mem_base +
+					common_reg->perf_count_reg[i].perf_line_count),
+				cam_io_r_mb(mem_base +
+					common_reg->perf_count_reg[i].perf_stall_count),
+				cam_io_r_mb(mem_base +
+					common_reg->perf_count_reg[i].perf_always_count),
+				cam_io_r_mb(mem_base +
+					common_reg->perf_count_reg[i].perf_count_status));
+		}
+	}
+}
+
 static void cam_sfe_top_print_debug_reg_info(
 	struct cam_sfe_top_priv *top_priv)
 {
@@ -291,6 +333,8 @@ static void cam_sfe_top_print_debug_reg_info(
 		cam_sfe_top_print_cc_test_bus(top_priv);
 
 	kfree(reg_val);
+
+	cam_sfe_top_dump_perf_counters("ERROR", "", top_priv);
 }
 
 static struct cam_axi_vote *cam_sfe_top_delay_bw_reduction(
@@ -747,12 +791,19 @@ static int cam_sfe_set_top_debug(
 	struct cam_sfe_top_priv *top_priv,
 	void *cmd_args)
 {
+	int i;
+	uint32_t max_counters = top_priv->common_data.common_reg->num_perf_counters;
 	struct cam_sfe_debug_cfg_params *debug_cfg;
 
 	debug_cfg = (struct cam_sfe_debug_cfg_params *)cmd_args;
 	if (!debug_cfg->cache_config) {
 		top_priv->sfe_debug_cfg = debug_cfg->u.dbg_cfg.sfe_debug_cfg;
 		top_priv->sensor_sel_diag_cfg = debug_cfg->u.dbg_cfg.sfe_sensor_sel;
+
+		if (debug_cfg->u.dbg_cfg.num_counters <= max_counters)
+			for (i = 0; i < max_counters; i++)
+				top_priv->perf_counters[i].perf_counter_val =
+					debug_cfg->u.dbg_cfg.sfe_perf_counter_val[i];
 	}
 
 	return 0;
@@ -763,26 +814,26 @@ static int cam_sfe_top_handle_overflow(
 {
 	struct cam_sfe_top_common_data      *common_data;
 	struct cam_hw_soc_info              *soc_info;
-	uint32_t                             overflow_status, violation_status, tmp;
+	uint32_t                             bus_overflow_status, violation_status, tmp;
 	uint32_t                             i = 0;
 
 	common_data = &top_priv->common_data;
 	soc_info = common_data->soc_info;
 
-	overflow_status = cam_io_r(soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
+	bus_overflow_status = cam_io_r(soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
 		top_priv->common_data.common_reg->bus_overflow_status);
 	violation_status = cam_io_r(soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
 		top_priv->common_data.common_reg->ipp_violation_status);
 
 	CAM_ERR(CAM_ISP,
-		"SFE%d src_clk_rate:%luHz overflow:%s violation: %s",
+		"SFE%d src_clk_rate:%luHz bus_overflow_status:%s violation: %s",
 		soc_info->index, soc_info->applied_src_clk_rate,
-		CAM_BOOL_TO_YESNO(overflow_status), CAM_BOOL_TO_YESNO(violation_status));
+		CAM_BOOL_TO_YESNO(bus_overflow_status), CAM_BOOL_TO_YESNO(violation_status));
 
-	tmp = overflow_status;
+	tmp = bus_overflow_status;
 	while (tmp) {
 		if (tmp & 0x1)
-			CAM_ERR(CAM_ISP, "SFE Overflow %s ",
+			CAM_ERR(CAM_ISP, "SFE Bus Overflow %s ",
 				top_priv->wr_client_desc[i].desc);
 		tmp = tmp >> 1;
 		i++;
@@ -792,7 +843,7 @@ static int cam_sfe_top_handle_overflow(
 		cam_sfe_top_print_ipp_violation_info(top_priv, violation_status);
 	cam_sfe_top_print_debug_reg_info(top_priv);
 
-	if (overflow_status)
+	if (bus_overflow_status)
 		cam_cpas_log_votes();
 
 	return 0;
@@ -1059,6 +1110,15 @@ int cam_sfe_top_process_cmd(void *priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_APPLY_CLK_BW_UPDATE:
 		rc = cam_sfe_top_apply_clk_bw_update(top_priv, cmd_args, arg_size);
 		break;
+	case CAM_ISP_HW_CMD_QUERY_CAP: {
+		struct cam_isp_hw_cap *sfe_cap;
+
+		sfe_cap = (struct cam_isp_hw_cap *) cmd_args;
+		sfe_cap->num_perf_counters =
+			top_priv->common_data.common_reg->num_perf_counters;
+		rc = 0;
+	}
+	break;
 	default:
 		CAM_ERR(CAM_SFE, "Invalid cmd type: %d", cmd_type);
 		rc = -EINVAL;
@@ -1216,7 +1276,6 @@ static int cam_sfe_top_put_evt_payload(
 	CAM_DBG(CAM_SFE, "Done");
 	return 0;
 }
-
 
 static int cam_sfe_top_handle_err_irq_top_half(
 	uint32_t evt_id,
@@ -1470,13 +1529,17 @@ static int cam_sfe_top_handle_irq_bottom_half(
 				cam_sfe_top_sel_frame_counter(
 					res->res_id, &frame_cnt,
 					true, path_data);
-			}
+
+			cam_sfe_top_dump_perf_counters("SOF", res->res_name, top_priv);
+		}
 
 		if (irq_status[0] &
 			path_data->path_reg_data->eof_irq_mask) {
 			CAM_DBG(CAM_SFE, "SFE:%d Received %s EOF",
 				res->hw_intf->hw_idx,
 				res->res_name);
+
+			cam_sfe_top_dump_perf_counters("EOF", res->res_name, top_priv);
 		}
 		ret = CAM_SFE_IRQ_STATUS_SUCCESS;
 	}
@@ -1557,27 +1620,44 @@ int cam_sfe_top_start(
 		}
 	}
 
-	/* Enable debug cfg registers */
-	cam_io_w(path_data->common_reg_data->top_debug_cfg_en,
-		path_data->mem_base +
-		path_data->common_reg->top_debug_cfg);
+	/* First resource stream on */
+	if (!top_priv->start_stop_cnt) {
 
-	/* Enables the context controller testbus*/
-	if (path_data->common_reg->top_cc_test_bus_supported) {
-		for (i = 0; i < top_priv->hw_info->num_of_testbus; i++) {
-			if ((top_priv->sfe_debug_cfg &
-				top_priv->hw_info->test_bus_info[i].debugfs_val) ||
-				top_priv->hw_info->test_bus_info[i].enable) {
-				top_priv->cc_testbus_sel_cfg =
-					top_priv->hw_info->test_bus_info[i].value;
-				break;
+		/* Enable debug cfg registers */
+		cam_io_w(path_data->common_reg_data->top_debug_cfg_en,
+			path_data->mem_base +
+			path_data->common_reg->top_debug_cfg);
+
+		/* Enables the context controller testbus*/
+		if (path_data->common_reg->top_cc_test_bus_supported) {
+			for (i = 0; i < top_priv->hw_info->num_of_testbus; i++) {
+				if ((top_priv->sfe_debug_cfg &
+					top_priv->hw_info->test_bus_info[i].debugfs_val) ||
+					top_priv->hw_info->test_bus_info[i].enable) {
+					top_priv->cc_testbus_sel_cfg =
+						top_priv->hw_info->test_bus_info[i].value;
+					break;
+				}
 			}
+
+			if (top_priv->cc_testbus_sel_cfg)
+				cam_io_w(top_priv->cc_testbus_sel_cfg,
+					path_data->mem_base +
+					path_data->common_reg->top_cc_test_bus_ctrl);
 		}
 
-		if (top_priv->cc_testbus_sel_cfg)
-			cam_io_w(top_priv->cc_testbus_sel_cfg,
+		for (i = 0; i < top_priv->common_data.common_reg->num_perf_counters; i++) {
+			if (!top_priv->perf_counters[i].perf_counter_val)
+				continue;
+
+			top_priv->perf_counters[i].dump_counter = true;
+			cam_io_w_mb(top_priv->perf_counters[i].perf_counter_val,
 				path_data->mem_base +
-				path_data->common_reg->top_cc_test_bus_ctrl);
+				path_data->common_reg->perf_count_reg[i].perf_count_cfg);
+			CAM_DBG(CAM_SFE, "SFE [%u] perf_count_%d: 0x%x",
+				hw_info->soc_info.index, (i + 1),
+				top_priv->perf_counters[i].perf_counter_val);
+		}
 	}
 
 	/* Enable sensor diag info */
@@ -1747,6 +1827,14 @@ int cam_sfe_top_stop(
 				top_priv->common_data.sfe_irq_controller,
 				top_priv->error_irq_handle);
 			top_priv->error_irq_handle = 0;
+		}
+
+		/* Reset perf counters at stream off */
+		for (i = 0; i <  top_priv->common_data.common_reg->num_perf_counters; i++) {
+			if (top_priv->perf_counters[i].dump_counter)
+				cam_io_w_mb(0x0, path_data->mem_base +
+					path_data->common_reg->perf_count_reg[i].perf_count_cfg);
+			top_priv->perf_counters[i].dump_counter = false;
 		}
 	}
 

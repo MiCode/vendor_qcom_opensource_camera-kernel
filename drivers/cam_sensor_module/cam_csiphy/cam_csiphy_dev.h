@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSIPHY_DEV_H_
@@ -44,13 +45,12 @@
 #define CSIPHY_LANE_ENABLE               1
 #define CSIPHY_SETTLE_CNT_LOWER_BYTE     2
 #define CSIPHY_SETTLE_CNT_HIGHER_BYTE    3
-#define CSIPHY_DNP_PARAMS                4
-#define CSIPHY_2PH_REGS                  5
-#define CSIPHY_3PH_REGS                  6
-#define CSIPHY_SKEW_CAL                  7
-#define CSIPHY_2PH_COMBO_REGS            8
-#define CSIPHY_3PH_COMBO_REGS            9
-#define CSIPHY_2PH_3PH_COMBO_REGS        10
+#define CSIPHY_2PH_REGS                  4
+#define CSIPHY_3PH_REGS                  5
+#define CSIPHY_SKEW_CAL                  6
+#define CSIPHY_2PH_COMBO_REGS            7
+#define CSIPHY_3PH_COMBO_REGS            8
+#define CSIPHY_2PH_3PH_COMBO_REGS        9
 
 #define CSIPHY_MAX_INSTANCES_PER_PHY     3
 
@@ -76,6 +76,16 @@ enum cam_csiphy_state {
 	CAM_CSIPHY_INIT,
 	CAM_CSIPHY_ACQUIRE,
 	CAM_CSIPHY_START,
+};
+
+/**
+ * enum cam_csiphy_common_reg_program
+ * @CAM_CSIPHY_PRGM_ALL              : Programs common registers for all CSIPHYs
+ * @CAM_CSIPHY_PRGM_INDVDL           : Programs common registers only for the given CSIPHY
+ */
+enum cam_csiphy_common_reg_program {
+	CAM_CSIPHY_PRGM_ALL = 0,
+	CAM_CSIPHY_PRGM_INDVDL,
 };
 
 /**
@@ -110,55 +120,40 @@ struct cam_cphy_dphy_status_reg_params_t {
  * struct csiphy_reg_parms_t
  * @mipi_csiphy_glbl_irq_cmd_addr     : CSIPhy irq addr
  * @mipi_csiphy_interrupt_status0_addr: CSIPhy interrupt status addr
+ * @mipi_csiphy_interrupt_clear0_addr : CSIPhy interrupt clear addr
  * @status_reg_params                 : Parameters to read cphy/dphy
  *                                      specific status registers
  * @size_offset_betn_lanes            : Size Offset between consecutive
  *                                      2ph or 3ph lanes
- * @mipi_csiphy_interrupt_mask0_addr  : CSIPhy interrupt mask addr
- * @mipi_csiphy_interrupt_mask_val    : CSIPhy interrupt mask val
- * @mipi_csiphy_interrupt_clear0_addr : CSIPhy interrupt clear addr
- * @csiphy_version                    : CSIPhy Version
  * @csiphy_interrupt_status_size      : Number of interrupt status registers
  * @csiphy_num_common_status_regs     : Number of common status registers
- * @csiphy_common_array_size          : CSIPhy common array size
+ * @csiphy_common_reg_array_size      : CSIPhy common array size
  * @csiphy_reset_enter_array_size     : CSIPhy reset array size
  * @csiphy_reset_exit_array_size      : CSIPhy reset release array size
  * @csiphy_2ph_config_array_size      : 2ph settings size
  * @csiphy_3ph_config_array_size      : 3ph settings size
- * @csiphy_cpas_cp_bits_per_phy       : CP bits per phy
- * @csiphy_cpas_cp_is_interleaved     : checks whether cp bits are interleaved
- *                                       or not
- * @csiphy_cpas_cp_2ph_offset         : cp register 2ph offset
- * @csiphy_cpas_cp_3ph_offset         : cp register 3ph offset
- * @csiphy_2ph_clock_lane             : clock lane in 2ph
- * @csiphy_2ph_combo_ck_ln            : clk lane in combo 2ph
+ * @csiphy_2ph_3ph_config_array_size  : Size of the 2ph-3ph combo settings array
+ * @csiphy_2ph_combo_config_array_size: Size of the 2ph-2ph combo settings array
+ * @csiphy_3ph_combo_config_array_size: Size of the 3ph-3ph combo settings array
  * @aon_sel_params                    : aon selection parameters
  */
 struct csiphy_reg_parms_t {
 /*MIPI CSI PHY registers*/
 	uint32_t mipi_csiphy_glbl_irq_cmd_addr;
 	uint32_t mipi_csiphy_interrupt_status0_addr;
+	uint32_t mipi_csiphy_interrupt_clear0_addr;
 	struct cam_cphy_dphy_status_reg_params_t *status_reg_params;
 	uint32_t size_offset_betn_lanes;
-	uint32_t mipi_csiphy_interrupt_mask0_addr;
-	uint32_t mipi_csiphy_interrupt_mask_val;
-	uint32_t mipi_csiphy_interrupt_mask_addr;
-	uint32_t mipi_csiphy_interrupt_clear0_addr;
-	uint32_t csiphy_version;
 	uint32_t csiphy_interrupt_status_size;
 	uint32_t csiphy_num_common_status_regs;
-	uint32_t csiphy_common_array_size;
+	uint32_t csiphy_common_reg_array_size;
 	uint32_t csiphy_reset_enter_array_size;
 	uint32_t csiphy_reset_exit_array_size;
 	uint32_t csiphy_2ph_config_array_size;
 	uint32_t csiphy_3ph_config_array_size;
 	uint32_t csiphy_2ph_3ph_config_array_size;
-	uint32_t csiphy_cpas_cp_bits_per_phy;
-	uint32_t csiphy_cpas_cp_is_interleaved;
-	uint32_t csiphy_cpas_cp_2ph_offset;
-	uint32_t csiphy_cpas_cp_3ph_offset;
-	uint32_t csiphy_2ph_clock_lane;
-	uint32_t csiphy_2ph_combo_ck_ln;
+	uint32_t csiphy_2ph_combo_config_array_size;
+	uint32_t csiphy_3ph_combo_config_array_size;
 	struct cam_csiphy_aon_sel_params_t *aon_sel_params;
 };
 
@@ -188,11 +183,6 @@ struct csiphy_reg_t {
 
 struct csiphy_device;
 
-struct csiphy_cphy_per_lane_info {
-	uint8_t lane_identifier;
-	struct csiphy_reg_t csiphy_data_rate_regs[MAX_DATA_RATE_REGS];
-};
-
 /*
  * struct data_rate_reg_info_t
  * @bandwidth               : max bandwidth supported by this reg settings
@@ -202,8 +192,7 @@ struct csiphy_cphy_per_lane_info {
 struct data_rate_reg_info_t {
 	uint64_t bandwidth;
 	ssize_t  data_rate_reg_array_size;
-	struct   csiphy_cphy_per_lane_info per_lane_info[
-			CAM_CSIPHY_MAX_CPHY_LANES];
+	struct csiphy_reg_t *data_rate_reg_array;
 };
 
 /**
@@ -215,7 +204,7 @@ struct data_rate_reg_info_t {
  */
 struct data_rate_settings_t {
 	ssize_t num_data_rate_settings;
-	struct data_rate_reg_info_t data_rate_settings[MAX_DATA_RATES];
+	struct data_rate_reg_info_t *data_rate_settings;
 };
 
 struct bist_reg_settings_t {
@@ -230,8 +219,10 @@ struct bist_reg_settings_t {
 	uint32_t bist_counter_2ph_base_offset;
 	uint32_t number_of_counters;
 	ssize_t num_status_reg;
-	ssize_t num_data_settings;
-	struct csiphy_reg_t *bist_arry;
+	ssize_t num_3ph_bist_settings;
+	struct csiphy_reg_t *bist_3ph_settings_arry;
+	ssize_t num_2ph_bist_settings;
+	struct csiphy_reg_t *bist_2ph_settings_arry;
 	struct csiphy_reg_t *bist_status_arr;
 };
 
@@ -239,38 +230,41 @@ struct bist_reg_settings_t {
  * struct csiphy_ctrl_t
  * @csiphy_reg                : Register address
  * @csiphy_common_reg         : Common register set
+ * @csiphy_irq_reg            : Irq register set
  * @csiphy_reset_enter_regs   : Reset register set
  * @csiphy_reset_exit_regs    : Reset release registers
+ * @csiphy_lane_config_reg    : Lane select register
+ * @csiphy_bist_reg           : Bist register set
  * @csiphy_2ph_reg            : 2phase register set
- * @csiphy_2ph_combo_mode_reg : 2phase combo register set
+ * @csiphy_2ph_combo_mode_reg : 2ph-2ph combo register set
  * @csiphy_3ph_reg            : 3phase register set
- * @csiphy_2ph_3ph_mode_reg   : 2 phase 3phase combo register set
+ * @csiphy_3ph_combo_reg      : 3ph-3ph combo register set
+ * @csiphy_2ph_3ph_mode_reg   : 2ph-3ph combo register set
  * @getclockvoting            : function pointer which is used to find the clock
  *                               voting for the sensor output data rate
- * @data_rate_settings_table  : Table which maintains the resgister settings
- *                               specific to data rate
+ * @data_rate_settings_table  : Table which maintains the resgister settings specific to data rate
  */
 struct csiphy_ctrl_t {
-	struct csiphy_reg_parms_t csiphy_reg;
+	struct csiphy_reg_parms_t *csiphy_reg;
 	struct csiphy_reg_t *csiphy_common_reg;
 	struct csiphy_reg_t *csiphy_irq_reg;
 	struct csiphy_reg_t *csiphy_reset_enter_regs;
 	struct csiphy_reg_t *csiphy_reset_exit_regs;
-	struct csiphy_reg_t (*csiphy_2ph_reg)[MAX_SETTINGS_PER_LANE];
-	struct csiphy_reg_t (*csiphy_2ph_combo_mode_reg)[MAX_SETTINGS_PER_LANE];
-	struct csiphy_reg_t (*csiphy_3ph_reg)[MAX_SETTINGS_PER_LANE];
-	struct csiphy_reg_t (*csiphy_3ph_combo_reg)[MAX_SETTINGS_PER_LANE];
-	struct csiphy_reg_t (*csiphy_2ph_3ph_mode_reg)[MAX_SETTINGS_PER_LANE];
+	struct csiphy_reg_t *csiphy_lane_config_reg;
 	struct bist_reg_settings_t *csiphy_bist_reg;
-	enum   cam_vote_level (*getclockvoting)(struct csiphy_device *phy_dev,
-		int32_t index);
+	struct csiphy_reg_t *csiphy_2ph_reg;
+	struct csiphy_reg_t *csiphy_2ph_combo_mode_reg;
+	struct csiphy_reg_t *csiphy_3ph_reg;
+	struct csiphy_reg_t *csiphy_3ph_combo_reg;
+	struct csiphy_reg_t *csiphy_2ph_3ph_mode_reg;
+	enum   cam_vote_level (*getclockvoting)(struct csiphy_device *phy_dev, int32_t index);
 	struct data_rate_settings_t *data_rates_settings_table;
 };
 
 /**
  * cam_csiphy_param            :  Provides cmdbuffer structure
- * @lane_assign                :  Lane sensor will be using
- * @lane_cnt                   :  Total number of lanes
+ * @lane_assign                :  Lanes the sensor will be using(One Lane idx in one Nibble)
+ * @lane_cnt                   :  Total number of lanes to be enabled
  * @secure_mode                :  To identify whether stream is secure/nonsecure
  * @lane_enable                :  Data Lane selection
  * @settle_time                :  Settling time in ms
@@ -377,4 +371,8 @@ int32_t cam_csiphy_init_module(void);
  * @brief : API to remove CSIPHY Hw from platform framework.
  */
 void cam_csiphy_exit_module(void);
+
+enum cam_vote_level get_clk_voting_dynamic(
+	struct csiphy_device *csiphy_dev, int32_t index);
+
 #endif /* _CAM_CSIPHY_DEV_H_ */

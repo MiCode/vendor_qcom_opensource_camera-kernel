@@ -4,20 +4,14 @@ ifeq ($(call is-board-platform-in-list, $(TARGET_BOARD_PLATFORM)),true)
 LOCAL_PATH := $(call my-dir)
 # Path to DLKM make scripts
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
+# List of board platforms for which MMRM driver API should be enabled
+MMRM_BOARDS := taro parrot kalama
 
 # Kbuild options
 KBUILD_OPTIONS := CAMERA_KERNEL_ROOT=$(shell pwd)/$(LOCAL_PATH)
 KBUILD_OPTIONS += KERNEL_ROOT=$(shell pwd)/kernel/msm-$(TARGET_KERNEL_VERSION)/
 KBUILD_OPTIONS += MODNAME=camera
 KBUILD_OPTIONS += BOARD_PLATFORM=$(TARGET_BOARD_PLATFORM)
-
-ifeq ($(TARGET_BOARD_PLATFORM), taro)
-	KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(shell pwd)/$(call intermediates-dir-for,DLKM,mmrm-module-symvers)/Module.symvers
-endif
-
-ifeq ($(TARGET_BOARD_PLATFORM), parrot)
-	KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(shell pwd)/$(call intermediates-dir-for,DLKM,mmrm-module-symvers)/Module.symvers
-endif
 
 # Clear shell environment variables from previous android module during build
 include $(CLEAR_VARS)
@@ -37,14 +31,11 @@ LOCAL_MODULE_TAGS           := optional
 #LOCAL_MODULE_KBUILD_NAME   := camera.ko
 #LOCAL_MODULE_DEBUG_ENABLE  := true
 
-ifeq ($(TARGET_BOARD_PLATFORM), taro)
-	LOCAL_REQUIRED_MODULES        := mmrm-module-symvers
-	LOCAL_ADDITIONAL_DEPENDENCIES := $(call intermediates-dir-for,DLKM,mmrm-module-symvers)/Module.symvers
-endif
-
-ifeq ($(TARGET_BOARD_PLATFORM), parrot)
-	LOCAL_REQUIRED_MODULES        := mmrm-module-symvers
-	LOCAL_ADDITIONAL_DEPENDENCIES := $(call intermediates-dir-for,DLKM,mmrm-module-symvers)/Module.symvers
+ifeq ($(call is-board-platform-in-list, $(MMRM_BOARDS)),true)
+$(warning camera-kernel: Adding msm-mmrm dependency!)
+KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(shell pwd)/$(call intermediates-dir-for,DLKM,mmrm-module-symvers)/Module.symvers
+LOCAL_REQUIRED_MODULES        := mmrm-module-symvers
+LOCAL_ADDITIONAL_DEPENDENCIES := $(call intermediates-dir-for,DLKM,mmrm-module-symvers)/Module.symvers
 endif
 
 ifeq ($(TARGET_BOARD_PLATFORM), lahaina)

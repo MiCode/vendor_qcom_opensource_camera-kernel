@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -2725,6 +2726,109 @@ end:
 	return 0;
 }
 
+static void *cam_vfe_bus_ver3_user_dump_info(
+	void *dump_struct, uint8_t *addr_ptr)
+{
+	struct cam_vfe_bus_ver3_wm_resource_data  *wm = NULL;
+	uint32_t                                  *addr;
+	uint32_t                                   addr_status0;
+	uint32_t                                   addr_status1;
+	uint32_t                                   addr_status2;
+	uint32_t                                   addr_status3;
+
+	wm = (struct cam_vfe_bus_ver3_wm_resource_data *)dump_struct;
+
+	addr_status0 = cam_io_r_mb(wm->common_data->mem_base +
+		wm->hw_regs->addr_status_0);
+	addr_status1 = cam_io_r_mb(wm->common_data->mem_base +
+		wm->hw_regs->addr_status_1);
+	addr_status2 = cam_io_r_mb(wm->common_data->mem_base +
+		wm->hw_regs->addr_status_2);
+	addr_status3 = cam_io_r_mb(wm->common_data->mem_base +
+		wm->hw_regs->addr_status_3);
+
+	addr = (uint32_t *)addr_ptr;
+
+	*addr++ = wm->common_data->hw_intf->hw_idx;
+	*addr++ = wm->index;
+	*addr++ = addr_status0;
+	*addr++ = addr_status1;
+	*addr++ = addr_status2;
+	*addr++ = addr_status3;
+
+	return addr;
+}
+
+static int cam_vfe_bus_ver3_user_dump(
+	struct cam_vfe_bus_ver3_priv *bus_priv,
+	void *cmd_args)
+{
+	struct cam_isp_resource_node              *rsrc_node = NULL;
+	struct cam_vfe_bus_ver3_vfe_out_data      *rsrc_data = NULL;
+	struct cam_vfe_bus_ver3_wm_resource_data  *wm = NULL;
+	struct cam_hw_info                        *hw_info = NULL;
+	struct cam_isp_hw_dump_args               *dump_args;
+	uint32_t                                   i, j = 0;
+	int                                        rc = 0;
+
+
+	if (!bus_priv || !cmd_args) {
+		CAM_ERR(CAM_ISP, "Bus private data NULL");
+		return -EINVAL;
+	}
+
+	hw_info = (struct cam_hw_info *)bus_priv->common_data.hw_intf->hw_priv;
+	dump_args = (struct cam_isp_hw_dump_args *)cmd_args;
+
+	if (hw_info->hw_state == CAM_HW_STATE_POWER_DOWN) {
+		CAM_WARN(CAM_ISP,
+			"VFE BUS powered down");
+		return -EINVAL;
+	}
+
+	rc = cam_common_user_dump_helper(dump_args, cam_common_user_dump_clock,
+		hw_info, sizeof(uint64_t), "CLK_RATE_PRINT:");
+
+	if (rc) {
+		CAM_ERR(CAM_ISP, "VFE BUS VER3: Clock dump failed, rc: %d", rc);
+		return rc;
+	}
+
+	for (i = 0; i < bus_priv->num_out; i++) {
+		rsrc_node = &bus_priv->vfe_out[i];
+		if (!rsrc_node)
+			continue;
+
+		if (rsrc_node->res_state < CAM_ISP_RESOURCE_STATE_RESERVED) {
+			CAM_DBG(CAM_ISP,
+				"VFE BUS VER3: path inactive res ID: %d, continuing",
+				rsrc_node->res_id);
+			continue;
+		}
+
+		rsrc_data = rsrc_node->res_priv;
+		if (!rsrc_data)
+			continue;
+		for (j = 0; j < rsrc_data->num_wm; j++) {
+
+			wm = rsrc_data->wm_res[j].res_priv;
+			if (!wm)
+				continue;
+
+			rc = cam_common_user_dump_helper(dump_args, cam_vfe_bus_ver3_user_dump_info,
+				wm, sizeof(uint32_t), "VFE_BUS_CLIENT.%s.%d:",
+				rsrc_data->wm_res[j].res_name,
+				rsrc_data->common_data->core_index);
+
+			if (rc) {
+				CAM_ERR(CAM_ISP, "VFE BUS VER3: Info dump failed, rc: %d", rc);
+				return rc;
+			}
+		}
+	}
+	return 0;
+}
+
 static int cam_vfe_bus_ver3_print_dimensions(
 	uint32_t                                   res_id,
 	struct cam_vfe_bus_ver3_priv              *bus_priv)
@@ -2921,7 +3025,7 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 
 	if (ccif_violation) {
 		status = evt_payload->ccif_violation_status;
-		cam_vfe_print_violations("CCIF", status, NULL);
+		cam_vfe_print_violations("CCIF", status, bus_priv);
 	}
 
 	cam_vfe_bus_ver3_put_evt_payload(common_data, &evt_payload);
@@ -3512,8 +3616,8 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 				wm_data->hw_regs->addr_cfg, iova_offset);
 
-			CAM_DBG(CAM_ISP, "WM:%d image address 0x%X 0x%X",
-				wm_data->index, reg_val_pair[j-2], reg_val_pair[j-1]);
+			CAM_DBG(CAM_ISP, "WM:%d image address:0x%X image offset: 0x%X",
+				wm_data->index, reg_val_pair[j-3], reg_val_pair[j-1]);
 		} else {
 			iova_addr = iova;
 
@@ -4167,7 +4271,7 @@ static int cam_vfe_bus_ver3_process_cmd(
 	int rc = -EINVAL;
 	struct cam_vfe_bus_ver3_priv		 *bus_priv;
 	uint32_t top_mask_0 = 0;
-	struct cam_isp_hw_bus_cap *vfe_bus_cap;
+	struct cam_isp_hw_cap *vfe_bus_cap;
 
 
 	if (!priv || !cmd_args) {
@@ -4216,7 +4320,12 @@ static int cam_vfe_bus_ver3_process_cmd(
 		rc = cam_vfe_bus_ver3_mini_dump(bus_priv, cmd_args);
 		break;
 		}
+	case CAM_ISP_HW_USER_DUMP: {
+		bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 
+		rc = cam_vfe_bus_ver3_user_dump(bus_priv, cmd_args);
+		break;
+	}
 	case CAM_ISP_HW_CMD_UBWC_UPDATE_V2:
 		rc = cam_vfe_bus_ver3_update_ubwc_config_v2(cmd_args);
 		break;
@@ -4235,22 +4344,27 @@ static int cam_vfe_bus_ver3_process_cmd(
 		bus_priv = (struct cam_vfe_bus_ver3_priv *) priv;
 		rc = cam_vfe_bus_get_res_for_mid(bus_priv, cmd_args, arg_size);
 		break;
-	case CAM_ISP_HW_CMD_QUERY_BUS_CAP:
+	case CAM_ISP_HW_CMD_QUERY_CAP:
 		bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
-		vfe_bus_cap = (struct cam_isp_hw_bus_cap *) cmd_args;
+		vfe_bus_cap = (struct cam_isp_hw_cap *) cmd_args;
 		vfe_bus_cap->max_out_res_type = bus_priv->max_out_res;
 		vfe_bus_cap->support_consumed_addr =
 			bus_priv->common_data.support_consumed_addr;
 		break;
-	case CAM_ISP_HW_CMD_IFE_BUS_DEBUG_CFG:
+	case CAM_ISP_HW_CMD_IFE_DEBUG_CFG: {
+		struct cam_vfe_generic_debug_config *debug_cfg;
+
 		bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
+		debug_cfg = (struct cam_vfe_generic_debug_config *)cmd_args;
 		bus_priv->common_data.disable_mmu_prefetch =
-			(*((bool *)cmd_args));
+			debug_cfg->disable_ife_mmu_prefetch;
+
 		CAM_DBG(CAM_ISP, "IFE: %u bus WR prefetch %s",
 			bus_priv->common_data.core_index,
 			bus_priv->common_data.disable_mmu_prefetch ?
 			"disabled" : "enabled");
 		rc = 0;
+	}
 		break;
 	case CAM_ISP_HW_CMD_BUF_UPDATE:
 		rc = cam_vfe_bus_ver3_config_wm(priv, cmd_args, arg_size);

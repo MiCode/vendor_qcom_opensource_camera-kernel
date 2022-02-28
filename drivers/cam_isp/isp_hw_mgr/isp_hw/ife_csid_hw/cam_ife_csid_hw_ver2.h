@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_HW_VER2_H_
@@ -208,6 +209,7 @@ struct cam_ife_csid_ver2_path_cfg {
 	bool                                 skip_discard_frame_cfg;
 	bool                                 sfe_shdr;
 	bool                                 lcr_en;
+	bool                                 csid_out_unpack_msb;
 };
 
 struct cam_ife_csid_ver2_top_reg_info {
@@ -355,6 +357,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t epoch1_shift_val;
 	uint32_t sof_retiming_dis_shift;
 	uint32_t capabilities;
+	uint32_t default_out_format;
 };
 
 struct cam_ife_csid_ver2_common_reg_info {
@@ -375,6 +378,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t buf_done_irq_mask_addr;
 	uint32_t buf_done_irq_clear_addr;
 	uint32_t buf_done_irq_set_addr;
+	uint32_t test_bus_ctrl;
+	uint32_t test_bus_debug;
 
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;
@@ -459,6 +464,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t global_reset;
 	uint32_t rup_supported;
 	uint32_t only_master_rup;
+	uint32_t sfe_ipp_input_rdi_res;
 	bool     timestamp_enabled_in_cfg0;
 
 	/* Masks */

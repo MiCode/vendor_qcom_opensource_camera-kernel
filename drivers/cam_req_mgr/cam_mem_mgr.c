@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -334,8 +335,8 @@ int cam_mem_get_io_buf(int32_t buf_handle, int32_t mmu_handle,
 		*flags = tbl.bufq[idx].flags;
 
 	CAM_DBG(CAM_MEM,
-		"handle:0x%x fd:%d i_ino:%lu iova_ptr:0x%llx len_ptr:%llu",
-		mmu_handle, tbl.bufq[idx].fd, tbl.bufq[idx].i_ino, iova_ptr, *len_ptr);
+		"handle:0x%x fd:%d i_ino:%lu iova_ptr:0x%lx len_ptr:%lu",
+		mmu_handle, tbl.bufq[idx].fd, tbl.bufq[idx].i_ino, *iova_ptr, *len_ptr);
 handle_mismatch:
 	mutex_unlock(&tbl.bufq[idx].q_lock);
 	return rc;
@@ -401,14 +402,17 @@ int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd)
 	if (idx >= CAM_MEM_BUFQ_MAX || idx <= 0)
 		return -EINVAL;
 
-	mutex_lock(&tbl.bufq[idx].q_lock);
+	mutex_lock(&tbl.m_lock);
 
-	if (!tbl.bufq[idx].active) {
+	if (!test_bit(idx, tbl.bitmap)) {
 		CAM_ERR(CAM_MEM, "Buffer at idx=%d is already unmapped,",
 			idx);
-		rc = -EINVAL;
-		goto end;
+		mutex_unlock(&tbl.m_lock);
+		return -EINVAL;
 	}
+
+	mutex_lock(&tbl.bufq[idx].q_lock);
+	mutex_unlock(&tbl.m_lock);
 
 	if (cmd->buf_handle != tbl.bufq[idx].buf_handle) {
 		rc = -EINVAL;
@@ -883,7 +887,8 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 		/* If 36-bit enabled, check for ICP cmd buffers and map them within the shared region */
 		if (cam_smmu_is_expanded_memory() &&
 			cam_smmu_supports_shared_region(mmu_hdls[i]) &&
-			(flags & CAM_MEM_FLAG_CMD_BUF_TYPE))
+			((flags & CAM_MEM_FLAG_CMD_BUF_TYPE) ||
+			(flags & CAM_MEM_FLAG_HW_AND_CDM_OR_SHARED)))
 			region = CAM_SMMU_REGION_SHARED;
 
 		if (flags & CAM_MEM_FLAG_PROTECTED_MODE)

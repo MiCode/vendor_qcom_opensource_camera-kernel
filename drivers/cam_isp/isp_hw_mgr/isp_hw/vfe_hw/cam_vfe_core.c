@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -533,11 +534,10 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_UNMASK_BUS_WR_IRQ:
 	case CAM_ISP_HW_CMD_DUMP_BUS_INFO:
 	case CAM_ISP_HW_CMD_GET_RES_FOR_MID:
-	case CAM_ISP_HW_CMD_QUERY_BUS_CAP:
-	case CAM_ISP_HW_CMD_IFE_BUS_DEBUG_CFG:
 	case CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG:
 	case CAM_ISP_HW_BUS_MINI_DUMP:
 	case CAM_ISP_HW_CMD_BUF_UPDATE:
+	case CAM_ISP_HW_USER_DUMP:
 		rc = core_info->vfe_bus->hw_ops.process_cmd(
 			core_info->vfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);
@@ -553,6 +553,17 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_QUERY_REGSPACE_DATA:
 		*((struct cam_hw_soc_info **)cmd_args) = soc_info;
 		rc = 0;
+		break;
+	case CAM_ISP_HW_CMD_QUERY_CAP:
+	case CAM_ISP_HW_CMD_IFE_DEBUG_CFG:
+		/* forward to bus and top */
+		core_info->vfe_bus->hw_ops.process_cmd(
+			core_info->vfe_bus->bus_priv, cmd_type, cmd_args,
+			arg_size);
+
+		core_info->vfe_top->hw_ops.process_cmd(
+			core_info->vfe_top->top_priv, cmd_type, cmd_args,
+			arg_size);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "Invalid cmd type:%d", cmd_type);

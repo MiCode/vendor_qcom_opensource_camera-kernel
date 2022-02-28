@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_LINUX_CAM_REQ_MGR_H
@@ -58,6 +59,7 @@
 #define V4L_EVENT_CAM_REQ_MGR_CUSTOM_EVT                                3
 #define V4L_EVENT_CAM_REQ_MGR_NODE_EVENT                                4
 #define V4L_EVENT_CAM_REQ_MGR_SOF_UNIFIED_TS                            5
+#define V4L_EVENT_CAM_REQ_MGR_PF_ERROR                                  6
 
 /* SOF Event status */
 #define CAM_REQ_MGR_SOF_EVENT_SUCCESS           0
@@ -290,6 +292,7 @@ struct cam_req_mgr_link_control {
 #define CAM_MEM_FLAG_DISABLE_DELAYED_UNMAP      (1<<13)
 #define CAM_MEM_FLAG_KMD_DEBUG_FLAG             (1<<14)
 #define CAM_MEM_FLAG_EVA_NOPIXEL                (1<<15)
+#define CAM_MEM_FLAG_HW_AND_CDM_OR_SHARED       (1<<16)
 
 
 #define CAM_MEM_MMU_MAX_HANDLE                  16
@@ -604,10 +607,80 @@ struct cam_req_mgr_node_msg {
 };
 
 /**
- * struct cam_req_mgr_message
+ * Request Manager Msg Page Fault event
+ * @CAM_REQ_MGR_PF_EVT_BUF_NOT_FOUND          : Faulted buffer not found
+ * @CAM_REQ_MGR_PF_EVT_BUF_FOUND_IO_CFG       : Faulted buffer from io_cfg found
+ * @CAM_REQ_MGR_PF_EVT_BUF_FOUND_REF_BUF      : Faulted io region buffer in Patch found
+ * @CAM_REQ_MGR_PF_EVT_BUF_FOUND_CDM_SHARED   : Fault in cmd buffer/shared region buffer
+ */
+#define CAM_REQ_MGR_PF_EVT_BUF_NOT_FOUND            0
+#define CAM_REQ_MGR_PF_EVT_BUF_FOUND_IO_CFG         1
+#define CAM_REQ_MGR_PF_EVT_BUF_FOUND_REF_BUF        2
+#define CAM_REQ_MGR_PF_EVT_BUF_FOUND_CDM_SHARED     3
+
+/**
+ * Faulted Memory Type
+ * @CAM_REQ_MGR_PF_TYPE_NULL               : Fault on NULL
+ * @CAM_REQ_MGR_PF_TYPE_OUT_OF_BOUND       : Fault on address outside of any mapped buffer
+ * @CAM_REQ_MGR_PF_TYPE_MAPPED_REGION      : Fault on address within a mapped buffer
+ */
+#define CAM_REQ_MGR_PF_TYPE_NULL            0
+#define CAM_REQ_MGR_PF_TYPE_OUT_OF_BOUND    1
+#define CAM_REQ_MGR_PF_TYPE_MAPPED_REGION   2
+
+/**
+ * Faulted Memory stage
+ * @CAM_REQ_MGR_STAGE1_FAULT     : Faulted memory in non-secure stage
+ * @CAM_REQ_MGR_STAGE2_FAULT     : Faulted memory in secure stage
+ */
+#define CAM_REQ_MGR_STAGE1_FAULT     0
+#define CAM_REQ_MGR_STAGE2_FAULT     1
+
+/**
+ * struct cam_req_mgr_pf_err_msg
+ * @device_hdl          : device handle of the device reporting the error
+ * @link_hdl            : link hdl for real time devices
+ * @pf_evt              : indicates if no faulted buffer found or found
+ *                        io cfg faulted buffer or found ref faulted buffer
+ *                        or found cdm shared fautled buffer
+ * @pf_type             : indicates if page fault type is fault on NULL or
+ *                        fault out of bound or fault within mapped region
+ * @pf_stage            : indicates if faulted memory is from secure or non-secure region
+ * @patch_id            : index to which patch in the packet is faulted
+ * @buf_hdl             : faulted buffer memory handle
+ * @offset              : offset provided in the packet
+ * @port_id             : resource type of the io cfg in packet
+ * @far_delta           : memory gab between faulted addr and closest
+ *                        buffer's starting address
+ * @req_id              : request id for the faulted request
+ * @bid                 : bus id
+ * @pid                 : unique id for hw group of ports
+ * @mid                 : port id of hw
+ * @reserved            : reserved fields
+ */
+struct cam_req_mgr_pf_err_msg {
+	__s32 device_hdl;
+	__s32 link_hdl;
+	__u8 pf_evt;
+	__u8 pf_type;
+	__u8 pf_stage;
+	__u8 patch_id;
+	__s32 buf_hdl;
+	__u32 offset;
+	__u32 port_id;
+	__u64 far_delta;
+	__u64 req_id;
+	__u8 bid;
+	__u8 pid;
+	__u16 mid;
+	__u32 reserved[3];
+};
+
+/**
+ * struct cam_req_mgr_message - 64 bytes is the max size that can be sent as v4l2 evt
  * @session_hdl: session to which the frame belongs to
  * @reserved: reserved field
- * @u: union which can either be error/frame/custom/node message
+ * @u: union which can either be error/frame/custom/node message/page fault message
  */
 struct cam_req_mgr_message {
 	__s32 session_hdl;
@@ -618,6 +691,7 @@ struct cam_req_mgr_message {
 		struct cam_req_mgr_frame_msg_v2 frame_msg_v2;
 		struct cam_req_mgr_custom_msg custom_msg;
 		struct cam_req_mgr_node_msg node_msg;
+		struct cam_req_mgr_pf_err_msg pf_err_msg;
 	} u;
 };
 #endif /* __UAPI_LINUX_CAM_REQ_MGR_H */

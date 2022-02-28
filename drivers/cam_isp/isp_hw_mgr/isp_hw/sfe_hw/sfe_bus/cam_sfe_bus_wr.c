@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -1831,7 +1832,7 @@ static int cam_sfe_bus_handle_sfe_out_done_bottom_half(
 	rc = cam_sfe_bus_handle_comp_done_bottom_half(
 		rsrc_data->comp_grp, evt_payload_priv, &comp_mask);
 	CAM_DBG(CAM_SFE, "SFE:%d out_type:0x%X rc:%d",
-		rsrc_data->common_data->core_index, rsrc_data->out_type,
+		rsrc_data->common_data->core_index,
 		rsrc_data->out_type, rc);
 
 	ctx = rsrc_data->priv;
@@ -2063,6 +2064,109 @@ static int cam_sfe_bus_wr_print_dimensions(
 	return 0;
 }
 
+static void *cam_sfe_bus_wr_user_dump_info(
+	void *dump_struct, uint8_t *addr_ptr)
+{
+	struct cam_sfe_bus_wr_wm_resource_data  *wm = NULL;
+	uint32_t                                  *addr;
+	uint32_t                                   addr_status0;
+	uint32_t                                   addr_status1;
+	uint32_t                                   addr_status2;
+	uint32_t                                   addr_status3;
+
+	wm = (struct cam_sfe_bus_wr_wm_resource_data *)dump_struct;
+
+	addr_status0 = cam_io_r_mb(wm->common_data->mem_base +
+		wm->hw_regs->addr_status_0);
+	addr_status1 = cam_io_r_mb(wm->common_data->mem_base +
+		wm->hw_regs->addr_status_1);
+	addr_status2 = cam_io_r_mb(wm->common_data->mem_base +
+		wm->hw_regs->addr_status_2);
+	addr_status3 = cam_io_r_mb(wm->common_data->mem_base +
+		wm->hw_regs->addr_status_3);
+
+	addr = (uint32_t *)addr_ptr;
+
+	*addr++ = wm->common_data->hw_intf->hw_idx;
+	*addr++ = wm->index;
+	*addr++ = addr_status0;
+	*addr++ = addr_status1;
+	*addr++ = addr_status2;
+	*addr++ = addr_status3;
+
+	return addr;
+}
+
+static int cam_sfe_bus_wr_user_dump(
+	struct cam_sfe_bus_wr_priv *bus_priv,
+	void *cmd_args)
+{
+	struct cam_isp_resource_node              *rsrc_node = NULL;
+	struct cam_sfe_bus_wr_out_data            *rsrc_data = NULL;
+	struct cam_sfe_bus_wr_wm_resource_data    *wm = NULL;
+	struct cam_hw_info                        *hw_info = NULL;
+	struct cam_isp_hw_dump_args               *dump_args;
+	uint32_t                                   i, j = 0;
+	int                                        rc = 0;
+
+
+	if (!bus_priv || !cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid bus private data");
+		return -EINVAL;
+	}
+
+	hw_info = (struct cam_hw_info *)bus_priv->common_data.hw_intf->hw_priv;
+	dump_args = (struct cam_isp_hw_dump_args *)cmd_args;
+
+	if (hw_info->hw_state == CAM_HW_STATE_POWER_DOWN) {
+		CAM_WARN(CAM_ISP,
+			"SFE BUS powered down, continuing");
+		return -EINVAL;
+	}
+
+	rc = cam_common_user_dump_helper(dump_args, cam_common_user_dump_clock,
+		hw_info, sizeof(uint64_t), "CLK_RATE_PRINT:");
+
+	if (rc) {
+		CAM_ERR(CAM_ISP, "SFE BUS WR: Clock dump failed, rc:%d", rc);
+		return rc;
+	}
+
+	for (i = 0; i < bus_priv->num_out; i++) {
+		rsrc_node = &bus_priv->sfe_out[i];
+		if (!rsrc_node)
+			continue;
+
+		if (rsrc_node->res_state < CAM_ISP_RESOURCE_STATE_RESERVED) {
+			CAM_DBG(CAM_ISP,
+				"SFE BUS WR: path inactive res ID: %d, continuing",
+				rsrc_node->res_id);
+			continue;
+		}
+
+		rsrc_data = rsrc_node->res_priv;
+		if (!rsrc_data)
+			continue;
+		for (j = 0; j < rsrc_data->num_wm; j++) {
+
+			wm = rsrc_data->wm_res[j].res_priv;
+			if (!wm)
+				continue;
+
+			rc = cam_common_user_dump_helper(dump_args, cam_sfe_bus_wr_user_dump_info,
+				wm, sizeof(uint32_t), "SFE_BUS_CLIENT.%s.%d:",
+				rsrc_data->wm_res[j].res_name,
+				rsrc_data->common_data->core_index);
+
+			if (rc) {
+				CAM_ERR(CAM_ISP, "SFE BUS WR: Info dump failed, rc:%d", rc);
+				return rc;
+			}
+		}
+	}
+	return 0;
+}
+
 static int cam_sfe_bus_wr_handle_bus_irq(uint32_t    evt_id,
 	struct cam_irq_th_payload                 *th_payload)
 {
@@ -2287,6 +2391,7 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 	uint32_t i, j, k, size = 0;
 	uint32_t frame_inc = 0, val;
 	uint32_t loop_size = 0, stride = 0, slice_h = 0;
+	dma_addr_t iova;
 
 	bus_priv = (struct cam_sfe_bus_wr_priv *) priv;
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
@@ -2413,26 +2518,28 @@ skip_cache_cfg:
 
 		/* WM Image address */
 		for (k = 0; k < loop_size; k++) {
-			img_addr = (update_buf->wm_update->image_buf[i] +
+			iova = (update_buf->wm_update->image_buf[i] +
 				wm_data->offset + k * frame_inc);
 			update_buf->wm_update->image_buf_offset[i] =
 				wm_data->offset;
 
 			if (cam_smmu_is_expanded_memory()) {
-				img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(img_addr);
-				img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(img_addr);
+				img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
+				img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
 
 				/* Only write to offset register in 36-bit enabled HW */
 				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 					wm_data->hw_regs->addr_cfg, img_offset);
 				CAM_DBG(CAM_SFE, "WM:%d image offset 0x%X",
 					wm_data->index, img_offset);
+			} else {
+				img_addr = iova;
 			}
+
 			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 				wm_data->hw_regs->image_addr, img_addr);
 
-			CAM_DBG(CAM_SFE, "WM:%d image address 0x%X",
-				wm_data->index, img_addr);
+			CAM_DBG(CAM_SFE, "WM:%d image address 0x%x", wm_data->index, img_addr);
 		}
 
 		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
@@ -2495,6 +2602,7 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 	uint32_t i, k;
 	uint32_t frame_inc = 0, val, img_addr = 0, img_offset = 0;
 	uint32_t loop_size = 0, stride = 0, slice_h = 0;
+	dma_addr_t iova;
 
 	bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
 	update_buf =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
@@ -2564,21 +2672,24 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 
 		/* WM Image address */
 		for (k = 0; k < loop_size; k++) {
-			img_addr = update_buf->wm_update->image_buf[i] +
+			iova = update_buf->wm_update->image_buf[i] +
 				wm_data->offset + k * frame_inc;
 
 			if (cam_smmu_is_expanded_memory()) {
-				img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(img_addr);
-				img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(img_addr);
+				img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
+				img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
 
 				CAM_DBG(CAM_SFE, "WM:%d image address offset: 0x%x",
 					wm_data->index, img_offset);
 				cam_io_w_mb(img_offset,
 					wm_data->common_data->mem_base + wm_data->hw_regs->addr_cfg);
+			} else {
+				img_addr = iova;
 			}
 
 			CAM_DBG(CAM_SFE, "WM:%d image address: 0x%x, offset: 0x%x",
 				wm_data->index, img_addr, wm_data->offset);
+
 			cam_io_w_mb(img_addr,
 				wm_data->common_data->mem_base + wm_data->hw_regs->image_addr);
 		}
@@ -3184,15 +3295,21 @@ static int cam_sfe_bus_wr_process_cmd(
 		rc = cam_sfe_bus_wr_print_dimensions(
 			sfe_out_res_id, (struct cam_sfe_bus_wr_priv  *)priv);
 		break;
+		}
+	case CAM_ISP_HW_USER_DUMP: {
+		bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
+
+		rc = cam_sfe_bus_wr_user_dump(bus_priv, cmd_args);
+		break;
 	}
 	case CAM_ISP_HW_CMD_WM_CONFIG_UPDATE:
 		rc = cam_sfe_bus_wr_update_wm_config(cmd_args);
 		break;
-	case CAM_ISP_HW_CMD_QUERY_BUS_CAP: {
-		struct cam_isp_hw_bus_cap *sfe_bus_cap;
+	case CAM_ISP_HW_CMD_QUERY_CAP: {
+		struct cam_isp_hw_cap *sfe_bus_cap;
 
 		bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
-		sfe_bus_cap = (struct cam_isp_hw_bus_cap *) cmd_args;
+		sfe_bus_cap = (struct cam_isp_hw_cap *) cmd_args;
 		sfe_bus_cap->max_out_res_type = bus_priv->num_out;
 		rc = 0;
 	}

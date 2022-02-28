@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -3628,4 +3629,29 @@ int cam_soc_util_print_clk_freq(struct cam_hw_soc_info *soc_info)
 	}
 
 	return 0;
+}
+
+int cam_soc_util_regulators_enabled(struct cam_hw_soc_info *soc_info)
+{
+	int j = 0, rc = 0;
+	int enabled_cnt = 0;
+
+	for (j = 0; j < soc_info->num_rgltr; j++) {
+		if (soc_info->rgltr[j]) {
+			rc = regulator_is_enabled(soc_info->rgltr[j]);
+			if (rc < 0) {
+				CAM_ERR(CAM_UTIL, "%s regulator_is_enabled failed",
+					soc_info->rgltr_name[j]);
+			} else if (rc > 0) {
+				CAM_DBG(CAM_UTIL, "%s regulator enabled",
+					soc_info->rgltr_name[j]);
+				enabled_cnt++;
+			} else {
+				CAM_DBG(CAM_UTIL, "%s regulator is disabled",
+					soc_info->rgltr_name[j]);
+			}
+		}
+	}
+
+	return enabled_cnt;
 }

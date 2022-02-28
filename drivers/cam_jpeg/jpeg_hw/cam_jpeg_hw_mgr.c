@@ -989,7 +989,7 @@ static int cam_jpeg_mgr_prepare_hw_update(void *hw_mgr_priv,
 		return -EINVAL;
 	}
 
-	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_hdl, -1);
+	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_hdl, -1, false);
 	if (rc) {
 		CAM_ERR(CAM_JPEG, "Patch processing failed %d", rc);
 		return rc;
@@ -1015,14 +1015,15 @@ static int cam_jpeg_mgr_prepare_hw_update(void *hw_mgr_priv,
 				io_cfg_ptr[i].fence;
 			prepare_args->num_in_map_entries++;
 		} else {
-			prepare_args->in_map_entries[k].resource_handle =
+			prepare_args->out_map_entries[k].resource_handle =
 				io_cfg_ptr[i].resource_type;
 			prepare_args->out_map_entries[k++].sync_id =
 				io_cfg_ptr[i].fence;
 			prepare_args->num_out_map_entries++;
 		}
-		CAM_DBG(CAM_JPEG, "dir[%d]: %u, fence: %u",
-			i, io_cfg_ptr[i].direction, io_cfg_ptr[i].fence);
+		CAM_DBG(CAM_JPEG, "dir[%d]: %u, fence: %u resource_type %d ",
+			i, io_cfg_ptr[i].direction, io_cfg_ptr[i].fence,
+			io_cfg_ptr[i].resource_type);
 	}
 
 	rc = cam_jpeg_add_command_buffers(packet, prepare_args, ctx_data);

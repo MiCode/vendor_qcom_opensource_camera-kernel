@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SFE_TOP_H_
@@ -21,6 +22,7 @@
 
 #define CAM_SFE_TOP_DBG_REG_MAX                18
 #define CAM_SFE_TOP_TESTBUS_MAX                 2
+#define CAM_SFE_PERF_COUNTER_MAX                2
 
 struct cam_sfe_top_module_desc {
 	uint32_t id;
@@ -67,6 +69,15 @@ struct cam_sfe_testbus_info {
 	struct cam_sfe_top_cc_testbus_info *testbus;
 };
 
+struct cam_sfe_top_perf_count_reg_offset {
+	uint32_t perf_count_cfg;
+	uint32_t perf_pix_count;
+	uint32_t perf_line_count;
+	uint32_t perf_stall_count;
+	uint32_t perf_always_count;
+	uint32_t perf_count_status;
+};
+
 struct cam_sfe_top_common_reg_offset {
 	uint32_t hw_version;
 	uint32_t hw_capability;
@@ -89,6 +100,9 @@ struct cam_sfe_top_common_reg_offset {
 	uint32_t irc_throttle_cfg;
 	uint32_t sfe_single_dual_cfg;
 	uint32_t bus_overflow_status;
+	uint32_t num_perf_counters;
+	struct cam_sfe_top_perf_count_reg_offset
+		perf_count_reg[CAM_SFE_PERF_COUNTER_MAX];
 	uint32_t top_debug_cfg;
 	uint32_t top_cc_test_bus_ctrl;
 	bool     lcr_supported;

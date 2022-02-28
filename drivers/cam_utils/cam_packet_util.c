@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/types.h>
@@ -177,7 +178,7 @@ void cam_packet_dump_patch_info(struct cam_packet *packet,
 	uintptr_t  cpu_addr = 0;
 	uint32_t  *dst_cpu_addr;
 	uint32_t   flags;
-	uint64_t   value = 0;
+	uint32_t   value = 0;
 
 	patch_desc = (struct cam_patch_desc *)
 			((uint32_t *) &packet->payload +
@@ -208,9 +209,9 @@ void cam_packet_dump_patch_info(struct cam_packet *packet,
 		dst_cpu_addr = (uint32_t *)cpu_addr;
 		dst_cpu_addr = (uint32_t *)((uint8_t *)dst_cpu_addr +
 			patch_desc[i].dst_offset);
-		value = *((uint64_t *)dst_cpu_addr);
+		value = *dst_cpu_addr;
 		CAM_INFO(CAM_UTIL,
-			"i = %d src_buf 0x%llx src_hdl 0x%x src_buf_with_offset 0x%llx src_size 0x%llx src_flags: %x dst %p dst_offset %u dst_hdl 0x%x value 0x%llx",
+			"i = %d src_buf 0x%llx src_hdl 0x%x src_buf_with_offset 0x%llx src_size 0x%llx src_flags: %x dst %p dst_offset %u dst_hdl 0x%x value 0x%x",
 			i, iova_addr, patch_desc[i].src_buf_hdl,
 			(iova_addr + patch_desc[i].src_offset),
 			src_buf_size, flags, dst_cpu_addr,
@@ -281,7 +282,7 @@ static int cam_packet_util_get_patch_iova(
 }
 
 int cam_packet_util_process_patches(struct cam_packet *packet,
-	int32_t iommu_hdl, int32_t sec_mmu_hdl)
+	int32_t iommu_hdl, int32_t sec_mmu_hdl, bool exp_mem)
 {
 	struct cam_patch_desc *patch_desc = NULL;
 	dma_addr_t iova_addr;
@@ -354,16 +355,28 @@ int cam_packet_util_process_patches(struct cam_packet *packet,
 			patch_desc[i].dst_offset);
 		temp += patch_desc[i].src_offset;
 
-		if ((flags & CAM_MEM_FLAG_HW_SHARED_ACCESS) ||
-			(flags & CAM_MEM_FLAG_CMD_BUF_TYPE))
+		if (exp_mem && cam_smmu_is_expanded_memory()) {
+			if ((flags & CAM_MEM_FLAG_HW_SHARED_ACCESS) ||
+				(flags & CAM_MEM_FLAG_CMD_BUF_TYPE)) {
+				*dst_cpu_addr = temp;
+			} else {
+				if (CAM_36BIT_INTF_GET_IOVA_OFFSET(temp))
+					CAM_ERR(CAM_UTIL,
+						"Buffer address 0x%lx not aligned to 256bytes",
+						temp);
+
+				*dst_cpu_addr = CAM_36BIT_INTF_GET_IOVA_BASE(temp);
+			}
+		} else {
 			*dst_cpu_addr = temp;
-		else
-			*dst_cpu_addr = cam_smmu_is_expanded_memory() ?
-				CAM_36BIT_INTF_GET_IOVA_BASE(temp) : temp;
+		}
 
 		CAM_DBG(CAM_UTIL,
-			"patch is done for dst %pk with src 0x%llx value 0x%llx",
-			dst_cpu_addr, iova_addr, *((uint64_t *)dst_cpu_addr));
+			"patch is done for dst %pK with base iova 0x%lx final iova 0x%lx patched value 0x%x, shared=%s, cmd=%s, HwAndCDM %s",
+			dst_cpu_addr, iova_addr, temp, *dst_cpu_addr,
+			CAM_BOOL_TO_YESNO(flags & CAM_MEM_FLAG_HW_SHARED_ACCESS),
+			CAM_BOOL_TO_YESNO(flags & CAM_MEM_FLAG_CMD_BUF_TYPE),
+			CAM_BOOL_TO_YESNO(flags & CAM_MEM_FLAG_HW_AND_CDM_OR_SHARED));
 	}
 
 	return rc;
