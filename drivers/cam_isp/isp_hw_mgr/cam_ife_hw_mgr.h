@@ -394,6 +394,7 @@ struct cam_isp_sys_cache_info {
  * @hw_pid_support         hw pid support for this target
  * @csid_rup_en            Reg update at CSID side
  * @csid_global_reset_en   CSID global reset enable
+ * @csid_camif_irq_support CSID camif IRQ support
  * @isp_caps               Capability of underlying SFE/IFE HW
  * @path_port_map          Mapping of outport to IFE mux
  */
@@ -419,6 +420,7 @@ struct cam_ife_hw_mgr {
 	bool                             hw_pid_support;
 	bool                             csid_rup_en;
 	bool                             csid_global_reset_en;
+	bool                             csid_camif_irq_support;
 	struct cam_isp_ife_sfe_hw_caps   isp_caps;
 	struct cam_isp_hw_path_port_map  path_port_map;
 

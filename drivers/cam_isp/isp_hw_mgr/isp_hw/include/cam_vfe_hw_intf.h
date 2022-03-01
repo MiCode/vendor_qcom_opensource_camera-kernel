@@ -175,6 +175,7 @@ struct cam_vfe_hw_vfe_out_acquire_args {
  * @in_port:                 Input port details to acquire
  * @is_fe_enabled:           Flag to indicate if FE is enabled
  * @is_offline:              Flag to indicate Offline IFE
+ * @handle_camif_irq:        Flag to handle the cmaif irq in VFE
  */
 struct cam_vfe_hw_vfe_in_acquire_args {
 	struct cam_isp_resource_node         *rsrc_node;
@@ -186,6 +187,7 @@ struct cam_vfe_hw_vfe_in_acquire_args {
 	struct cam_isp_in_port_generic_info  *in_port;
 	bool                                  is_fe_enabled;
 	bool                                  is_offline;
+	bool                                  handle_camif_irq;
 };
 
 /*
