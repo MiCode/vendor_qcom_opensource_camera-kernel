@@ -1285,8 +1285,9 @@ static int cam_context_user_dump(struct cam_context *ctx,
 		CAM_ERR(CAM_CTXT, "[%s][%d] no active request",
 			ctx->dev_name, ctx->ctx_id);
 		spin_unlock_bh(&ctx->lock);
-		return -EIO;
+		return 0;
 	}
+
 	req = list_first_entry(&ctx->active_req_list,
 		struct cam_ctx_request, list);
 	spin_unlock_bh(&ctx->lock);
@@ -1298,6 +1299,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 			dump_args->buf_handle, rc);
 		return rc;
 	}
+
 	if (dump_args->offset >= buf_len) {
 		CAM_WARN(CAM_CTXT, "dump buffer overshoot offset %zu len %zu",
 			dump_args->offset, buf_len);
@@ -1344,10 +1346,11 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	addr = (uint64_t *)(dst + sizeof(struct cam_context_dump_header));
 	start = addr;
 	if (!list_empty(&ctx->wait_req_list)) {
-		list_for_each_entry_safe(req, req_temp, &ctx->wait_req_list, list) {
+		list_for_each_entry_safe(req, req_temp, &ctx->pending_req_list, list) {
 			*addr++ = req->request_id;
 		}
 	}
+
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset += hdr->size +
 		sizeof(struct cam_context_dump_header);
@@ -1361,10 +1364,11 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	addr = (uint64_t *)(dst + sizeof(struct cam_context_dump_header));
 	start = addr;
 	if (!list_empty(&ctx->pending_req_list)) {
-		list_for_each_entry_safe(req, req_temp, &ctx->pending_req_list, list) {
+		list_for_each_entry_safe(req, req_temp, &ctx->wait_req_list, list) {
 			*addr++ = req->request_id;
 		}
 	}
+
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset += hdr->size +
 		sizeof(struct cam_context_dump_header);
@@ -1382,6 +1386,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 			*addr++ = req->request_id;
 		}
 	}
+
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset += hdr->size +
 		sizeof(struct cam_context_dump_header);

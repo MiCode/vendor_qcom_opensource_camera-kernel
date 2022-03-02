@@ -549,7 +549,6 @@ static int __cam_isp_ctx_user_dump_state_monitor_array(
 		"Dumping state information for preceding requests");
 
 	index = oldest_entry;
-	__cam_isp_ctx_dump_state_monitor_array(ctx_isp);
 	for (i = 0; i < num_entries; i++) {
 
 		rc = cam_common_user_dump_helper(dump_args,
@@ -4474,9 +4473,20 @@ static void *cam_isp_ctx_user_dump_stream_info(
 	*addr++ = ctx->ctx_id;
 	*addr++ = ctx->dev_hdl;
 	*addr++ = ctx->link_hdl;
+
+	*addr++ = hw_mgr_ctx->flags.is_dual;
+	*addr++ = hw_mgr_ctx->ctx_type;
+
 	*addr++ = hw_idx[CAM_ISP_HW_SPLIT_LEFT];
+	*addr++ = hw_idx[CAM_ISP_HW_SPLIT_RIGHT];
 	*addr++ = sfe_hw_idx[CAM_ISP_HW_SPLIT_LEFT];
+	*addr++ = sfe_hw_idx[CAM_ISP_HW_SPLIT_RIGHT];
+
 	*addr++ = hw_mgr_ctx->flags.is_sfe_shdr;
+	*addr++ = hw_mgr_ctx->flags.is_sfe_fs;
+	*addr++ = hw_mgr_ctx->flags.dsp_enabled;
+	*addr++ = hw_mgr_ctx->flags.is_offline;
+
 
 	return addr;
 }

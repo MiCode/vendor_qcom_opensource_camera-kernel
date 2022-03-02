@@ -11893,7 +11893,6 @@ static int cam_ife_mgr_user_dump_hw(
 		struct cam_hw_dump_args *dump_args)
 {
 	int rc = 0;
-	struct cam_hw_soc_dump_args soc_dump_args;
 
 	if (!ife_ctx || !dump_args) {
 		CAM_ERR(CAM_ISP, "Invalid parameters %pK %pK",
@@ -11901,16 +11900,13 @@ static int cam_ife_mgr_user_dump_hw(
 		rc = -EINVAL;
 		goto end;
 	}
-	soc_dump_args.buf_handle = dump_args->buf_handle;
-	soc_dump_args.request_id = dump_args->request_id;
-	soc_dump_args.offset = dump_args->offset;
 
 	rc = cam_ife_mgr_handle_reg_dump(ife_ctx,
 		ife_ctx->reg_dump_buf_desc,
 		ife_ctx->num_reg_dump_buf,
 		CAM_ISP_PACKET_META_REG_DUMP_ON_ERROR,
-		&soc_dump_args,
-		true);
+		NULL,
+		false);
 	if (rc) {
 		CAM_ERR(CAM_ISP,
 			"Dump failed req: %lld handle %u offset %u",
@@ -11919,7 +11915,7 @@ static int cam_ife_mgr_user_dump_hw(
 			dump_args->offset);
 		goto end;
 	}
-	dump_args->offset = soc_dump_args.offset;
+
 end:
 	return rc;
 }
@@ -11947,9 +11943,9 @@ static int cam_ife_mgr_dump(void *hw_mgr_priv, void *args)
 	 * is already submitted with the hw manager. In this case, we
 	 * can dump just the related registers and skip going to core files.
 	 */
-	if (ife_ctx->num_reg_dump_buf) {
+	if (!ife_ctx->flags.dump_on_error) {
 		cam_ife_mgr_user_dump_hw(ife_ctx, dump_args);
-		return rc;
+		ife_ctx->flags.dump_on_error = true;
 	}
 
 	rc  = cam_mem_get_cpu_buf(dump_args->buf_handle,
