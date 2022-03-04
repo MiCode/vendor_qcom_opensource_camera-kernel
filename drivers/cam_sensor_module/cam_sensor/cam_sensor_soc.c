@@ -284,6 +284,11 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		goto FREE_SENSOR_DATA;
 	}
 
+	if (!of_property_read_bool(of_node, "hw-no-ops"))
+		s_ctrl->hw_no_ops = false;
+	else
+		s_ctrl->hw_no_ops = true;
+
 	return rc;
 
 FREE_SENSOR_DATA:
