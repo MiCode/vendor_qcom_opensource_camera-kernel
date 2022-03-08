@@ -417,11 +417,13 @@ struct cam_isp_start_args {
  * struct cam_isp_lcr_rdi_cfg_args - isp hardware start arguments
  *
  * @rdi_lcr_cfg:            RDI LCR cfg received from User space.
+ * @ife_src_res_id:         IFE SRC res id to be used in sfe context
  * @is_init:                Flag to indicate if init packet.
  *
  */
 struct cam_isp_lcr_rdi_cfg_args {
 	struct cam_isp_lcr_rdi_config *rdi_lcr_cfg;
+	uint32_t                       ife_src_res_id;
 	bool                           is_init;
 };
 

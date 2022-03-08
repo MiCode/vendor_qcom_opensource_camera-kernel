@@ -2307,6 +2307,31 @@ static int cam_convert_rdi_out_res_id_to_src(int res_id)
 	return CAM_ISP_HW_VFE_IN_MAX;
 }
 
+static int cam_convert_csid_rdi_res_to_ife_src(int res_id)
+{
+	enum cam_isp_hw_vfe_in_mux src_id;
+
+	switch (res_id) {
+	case CAM_IFE_PIX_PATH_RES_RDI_0:
+		src_id = CAM_ISP_HW_VFE_IN_RDI0;
+		break;
+	case CAM_IFE_PIX_PATH_RES_RDI_1:
+		src_id = CAM_ISP_HW_VFE_IN_RDI1;
+		break;
+	case CAM_IFE_PIX_PATH_RES_RDI_2:
+		src_id = CAM_ISP_HW_VFE_IN_RDI2;
+		break;
+	case CAM_IFE_PIX_PATH_RES_RDI_3:
+		src_id = CAM_ISP_HW_VFE_IN_RDI3;
+		break;
+	default:
+		src_id = CAM_ISP_HW_VFE_IN_MAX;
+		break;
+	}
+
+	return src_id;
+}
+
 static int cam_convert_csid_res_to_path(int res_id)
 {
 	if (res_id == CAM_IFE_PIX_PATH_RES_IPP)
@@ -8912,15 +8937,27 @@ static int cam_isp_update_ife_pdaf_cfg(
 	struct cam_isp_hw_mgr_res     *hw_mgr_res;
 	uint32_t                       i;
 	uint32_t                       ife_res_id;
+	enum cam_ife_pix_path_res_id   csid_path_id;
 	struct cam_isp_resource_node  *res;
 	int                            rc = -EINVAL;
 
-	ife_res_id = cam_convert_rdi_out_res_id_to_src(isp_lcr_cfg->rdi_lcr_cfg->res_id);
+	/*
+	 * For SFE cases, ife_res_id will contain corresponding input resource for vfe,
+	 * since input config is done in vfe.
+	 */
+	csid_path_id = cam_ife_hw_mgr_get_ife_csid_rdi_res_type(isp_lcr_cfg->rdi_lcr_cfg->res_id);
+	if (csid_path_id == CAM_IFE_PIX_PATH_RES_MAX) {
+		CAM_ERR(CAM_ISP, "Invalid res_id %u", isp_lcr_cfg->rdi_lcr_cfg->res_id);
+		return -EINVAL;
+	}
+
+	ife_res_id = cam_convert_csid_rdi_res_to_ife_src(csid_path_id);
 	if (ife_res_id == CAM_ISP_HW_VFE_IN_MAX) {
 		CAM_ERR(CAM_ISP, "Invalid res_id %u", isp_lcr_cfg->rdi_lcr_cfg->res_id);
 		return -EINVAL;
 	}
 
+	isp_lcr_cfg->ife_src_res_id = ife_res_id;
 	CAM_DBG(CAM_ISP, "Ctx %d res: %u lcr %u id %u ctx_type %u", ctx->ctx_index, ife_res_id,
 		isp_lcr_cfg->rdi_lcr_cfg->res_id, blob_info->base_info->idx, ctx->ctx_type);
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_src, list) {

@@ -153,13 +153,12 @@ static int cam_vfe_top_ver4_pdaf_lcr_config(struct cam_vfe_top_ver4_priv *top_pr
 	}
 
 	for (i = 0; i < hw_info->num_pdaf_lcr_res; i++)
-		if (cdm_args->res->res_id ==
-			hw_info->pdaf_lcr_res_mask[i].res_id)
+		if (cfg_args->ife_src_res_id == hw_info->pdaf_lcr_res_mask[i].res_id)
 			break;
 
 	if (i == hw_info->num_pdaf_lcr_res) {
-		CAM_ERR(CAM_ISP, "Res :%d is not supported for mux",
-			cfg_args->rdi_lcr_cfg->res_id);
+		CAM_ERR(CAM_ISP, "Res :%d src_res :%u is not supported for mux",
+			cfg_args->rdi_lcr_cfg->res_id, cfg_args->ife_src_res_id);
 		return -EINVAL;
 	}
 
