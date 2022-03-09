@@ -26,6 +26,7 @@
 #define CAM_SW_CDM_INDEX                  0
 #define CAM_CDM_INFLIGHT_WORKS            5
 #define CAM_CDM_HW_RESET_TIMEOUT          300
+#define CAM_CDM_PAUSE_CORE_US_TIMEOUT     10000
 
 /*
  * Macros to get prepare and get information
@@ -313,6 +314,9 @@ struct cam_cdm_common_reg_data {
  *                       wait, etc.
  * @core_en:             offset to pause/enable CDM
  * @fe_cfg:              offset to configure CDM fetch engine
+ * @cdm_status:          offset to read CDM status register, this register
+ *                       indicates if CDM is idle, and if a pause operation
+ *                       is successfully completed or not
  * @irq_context_status   offset to read back irq context status
  * @bl_fifo_rb:          offset to set BL_FIFO read back
  * @bl_fifo_base_rb:     offset to read back base address on offset set by
@@ -358,6 +362,7 @@ struct cam_cdm_common_regs {
 	uint32_t core_cfg;
 	uint32_t core_en;
 	uint32_t fe_cfg;
+	uint32_t cdm_status;
 	uint32_t irq_context_status;
 	uint32_t bl_fifo_rb;
 	uint32_t bl_fifo_base_rb;
@@ -458,6 +463,7 @@ enum cam_cdm_hw_version {
 	CAM_CDM_VERSION_1_2 = 0x10020000,
 	CAM_CDM_VERSION_2_0 = 0x20000000,
 	CAM_CDM_VERSION_2_1 = 0x20010000,
+	CAM_CDM_VERSION_2_2 = 0x20020000,
 	CAM_CDM_VERSION_MAX,
 };
 
