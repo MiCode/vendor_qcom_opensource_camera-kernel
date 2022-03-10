@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SENSOR_UTIL_H_
@@ -89,10 +90,10 @@ static inline int cam_sensor_util_aon_ops(bool get_access, uint32_t phy_idx)
 	return cam_csiphy_util_update_aon_ops(get_access, phy_idx);
 }
 
-static inline int cam_sensor_util_aon_registration(uint32_t phy_idx, bool aon_user)
+static inline int cam_sensor_util_aon_registration(uint32_t phy_idx, uint8_t aon_camera_id)
 {
-	CAM_DBG(CAM_SENSOR, "Regsiter phy_idx: %u for AON operatoin: %d", phy_idx, aon_user);
-	return cam_csiphy_util_update_aon_registration(phy_idx, aon_user);
+	CAM_DBG(CAM_SENSOR, "Register phy_idx: %u for AON_Camera_ID: %d", phy_idx, aon_camera_id);
+	return cam_csiphy_util_update_aon_registration(phy_idx, aon_camera_id);
 }
 
 #endif /* _CAM_SENSOR_UTIL_H_ */

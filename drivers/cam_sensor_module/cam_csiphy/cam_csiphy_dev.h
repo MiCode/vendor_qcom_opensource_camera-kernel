@@ -96,7 +96,7 @@ enum cam_csiphy_common_reg_program {
  * @mclk_sel_mask      : MCLK select mask.
  */
 struct cam_csiphy_aon_sel_params_t {
-	uint32_t aon_cam_sel_offset;
+	uint32_t aon_cam_sel_offset[MAX_AON_CAM];
 	uint32_t cam_sel_mask;
 	uint32_t mclk_sel_mask;
 };

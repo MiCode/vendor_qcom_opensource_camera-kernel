@@ -106,4 +106,10 @@
 #define CCI_MASTER_1         1
 #define CCI_MASTER_MAX       2
 
+/* AON Camera IDs*/
+#define AON_CAM1             0
+#define AON_CAM2             1
+#define MAX_AON_CAM          2
+#define NOT_AON_CAM          255
+
 #endif
