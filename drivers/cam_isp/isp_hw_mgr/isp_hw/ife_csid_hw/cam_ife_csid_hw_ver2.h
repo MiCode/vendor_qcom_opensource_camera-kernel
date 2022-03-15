@@ -287,6 +287,9 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t epoch1_cfg_batch_id4_addr;
 	uint32_t epoch0_cfg_batch_id5_addr;
 	uint32_t epoch1_cfg_batch_id5_addr;
+	uint32_t secure_mask_cfg0;
+	uint32_t path_batch_status;
+	uint32_t path_frame_id;
 
 	/*Shift Bit Configurations*/
 	uint32_t start_mode_master;
@@ -373,6 +376,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t buf_done_irq_set_addr;
 	uint32_t test_bus_ctrl;
 	uint32_t test_bus_debug;
+	uint32_t path_domain_id_cfg0;
+	uint32_t path_domain_id_cfg1;
 
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;
