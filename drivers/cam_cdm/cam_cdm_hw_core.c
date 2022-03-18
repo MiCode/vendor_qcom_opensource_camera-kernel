@@ -973,8 +973,12 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 	mutex_lock(&core->bl_fifo[fifo_idx].fifo_lock);
 	mutex_lock(&client->lock);
 
+	/*
+	 * Check PF status bit to avoid submiting commands to CDM
+	 */
 	if (test_bit(CAM_CDM_ERROR_HW_STATUS, &core->cdm_status) ||
-			test_bit(CAM_CDM_RESET_HW_STATUS, &core->cdm_status)) {
+			test_bit(CAM_CDM_RESET_HW_STATUS, &core->cdm_status) ||
+			test_bit(CAM_CDM_PF_HW_STATUS, &core->cdm_status)) {
 		mutex_unlock(&client->lock);
 		mutex_unlock(&core->bl_fifo[fifo_idx].fifo_lock);
 		return -EAGAIN;
@@ -992,11 +996,16 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 			rc = -EINVAL;
 			break;
 		}
+
+		/*
+		 * While commands submission is ongoing, if error/reset/PF occurs, prevent
+		 * further command submission.
+		 */
 		if (test_bit(CAM_CDM_ERROR_HW_STATUS, &core->cdm_status) ||
-				test_bit(CAM_CDM_RESET_HW_STATUS,
-					&core->cdm_status)) {
+				test_bit(CAM_CDM_RESET_HW_STATUS, &core->cdm_status) ||
+				test_bit(CAM_CDM_PF_HW_STATUS, &core->cdm_status)) {
 			CAM_ERR_RATE_LIMIT(CAM_CDM,
-				"In error/reset state cnt=%d total cnt=%d cdm_status 0x%x",
+				"In error/reset/PF state cnt=%d total cnt=%d cdm_status 0x%x",
 				i, req->data->cmd_arrary_count,
 				core->cdm_status);
 			rc = -EAGAIN;
@@ -1384,7 +1393,7 @@ static void cam_hw_cdm_iommu_fault_handler(struct cam_smmu_pf_info *pf_info)
 	struct cam_hw_info *cdm_hw = NULL;
 	struct cam_cdm *core = NULL;
 	struct cam_cdm_private_dt_data *pvt_data;
-	int i;
+	int i, rc;
 
 	if (!pf_info) {
 		CAM_ERR(CAM_CDM, "pf_info is null");
@@ -1407,22 +1416,35 @@ static void cam_hw_cdm_iommu_fault_handler(struct cam_smmu_pf_info *pf_info)
 		}
 
 handle_cdm_pf:
-		set_bit(CAM_CDM_ERROR_HW_STATUS, &core->cdm_status);
+
+		CAM_ERR(CAM_CDM, "Page Fault on %s%u, flags: %u, status: %llu",
+			core->name, core->id, core->flags, core->cdm_status);
+		set_bit(CAM_CDM_PF_HW_STATUS, &core->cdm_status);
 		mutex_lock(&cdm_hw->hw_mutex);
+		/* Pausing CDM HW from doing any further memory transactions */
+		cam_hw_cdm_pause_core(cdm_hw, true);
+
 		for (i = 0; i < core->offsets->reg_data->num_bl_fifo; i++)
 			mutex_lock(&core->bl_fifo[i].fifo_lock);
+
 		if (cdm_hw->hw_state == CAM_HW_STATE_POWER_UP) {
 			cam_hw_cdm_dump_core_debug_registers(cdm_hw, true);
 		} else
 			CAM_INFO(CAM_CDM, "%s%u hw is power in off state",
 				cdm_hw->soc_info.label_name,
 				cdm_hw->soc_info.index);
+
 		for (i = 0; i < core->offsets->reg_data->num_bl_fifo; i++)
 			mutex_unlock(&core->bl_fifo[i].fifo_lock);
-		cam_cdm_notify_clients(cdm_hw, CAM_CDM_CB_STATUS_PAGEFAULT,
-			(void *)pf_info->iova);
+
+		/* Notify clients to handle PF event */
+		cam_cdm_notify_clients(cdm_hw, CAM_CDM_CB_STATUS_PAGEFAULT, (void *)pf_info);
+		/* Stream off CDM completely */
+		rc = cam_cdm_pf_stream_off_all_clients(cdm_hw);
+		if (rc)
+			CAM_ERR(CAM_CDM, "Stream off failed for %s%u rc: %d",
+				core->name, core->id, rc);
 		mutex_unlock(&cdm_hw->hw_mutex);
-		clear_bit(CAM_CDM_ERROR_HW_STATUS, &core->cdm_status);
 	} else {
 		CAM_ERR(CAM_CDM, "Invalid token");
 	}
@@ -2074,13 +2096,66 @@ end:
 	return rc;
 }
 
+static inline void cam_hw_cdm_clear_bl_requests(struct cam_cdm *cdm_core)
+{
+	struct cam_cdm_bl_cb_request_entry *node, *tnode;
+	int i;
+
+	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
+		list_for_each_entry_safe(node, tnode,
+			&cdm_core->bl_fifo[i].bl_request_list, entry) {
+			list_del_init(&node->entry);
+			kfree(node);
+			node = NULL;
+		}
+	}
+}
+
+int cam_hw_cdm_pf_deinit(void *hw_priv,
+	void *init_hw_args, uint32_t arg_size)
+{
+	struct cam_hw_info *cdm_hw = hw_priv;
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct cam_cdm *cdm_core = NULL;
+	int i, rc;
+	unsigned long flags = 0;
+
+	if (!hw_priv)
+		return -EINVAL;
+
+	soc_info = &cdm_hw->soc_info;
+	cdm_core = (struct cam_cdm *)cdm_hw->core_info;
+
+	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++)
+		mutex_lock(&cdm_core->bl_fifo[i].fifo_lock);
+
+	/* clear bl request */
+	cam_hw_cdm_clear_bl_requests(cdm_core);
+
+	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++)
+		mutex_unlock(&cdm_core->bl_fifo[i].fifo_lock);
+
+	flags = cam_hw_util_hw_lock_irqsave(cdm_hw);
+	cdm_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
+	cam_hw_util_hw_unlock_irqrestore(cdm_hw, flags);
+
+	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	if (rc)
+		CAM_ERR(CAM_CDM, "disable platform failed for %s%u",
+			soc_info->label_name, soc_info->index);
+	else
+		CAM_DBG(CAM_CDM, "%s%u Deinit success",
+			soc_info->label_name, soc_info->index);
+
+	return rc;
+}
+
 int cam_hw_cdm_deinit(void *hw_priv,
 	void *init_hw_args, uint32_t arg_size)
 {
 	struct cam_hw_info *cdm_hw = hw_priv;
 	struct cam_hw_soc_info *soc_info = NULL;
 	struct cam_cdm *cdm_core = NULL;
-	struct cam_cdm_bl_cb_request_entry *node, *tnode;
 	int rc = 0, i;
 	uint32_t reset_val = 1;
 	long time_left;
@@ -2096,14 +2171,7 @@ int cam_hw_cdm_deinit(void *hw_priv,
 		mutex_lock(&cdm_core->bl_fifo[i].fifo_lock);
 
 	/*clear bl request */
-	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
-		list_for_each_entry_safe(node, tnode,
-			&cdm_core->bl_fifo[i].bl_request_list, entry) {
-			list_del_init(&node->entry);
-			kfree(node);
-			node = NULL;
-		}
-	}
+	cam_hw_cdm_clear_bl_requests(cdm_core);
 
 	set_bit(CAM_CDM_RESET_HW_STATUS, &cdm_core->cdm_status);
 	reinit_completion(&cdm_core->reset_complete);

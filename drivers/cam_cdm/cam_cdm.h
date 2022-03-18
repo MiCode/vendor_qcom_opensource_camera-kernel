@@ -86,6 +86,7 @@
 #define CAM_CDM_ERROR_HW_STATUS 0x5
 #define CAM_CDM_FLUSH_HW_STATUS 0x6
 #define CAM_CDM_RESET_ERR_STATUS 0x7
+#define CAM_CDM_PF_HW_STATUS 0x8
 
 /* Curent used AHB masks and shifts */
 #define CAM_CDM_AHB_LOG_CID_SHIFT    28
@@ -541,6 +542,7 @@ struct cam_cdm_bl_fifo {
  * @gen_irq:             memory region in which gen_irq command will be written
  * @cpas_handle:         handle for cpas driver
  * @arbitration:         type of arbitration to be used for the CDM
+ * @num_active_clients:  Number of currently active clients
  */
 struct cam_cdm {
 	uint32_t index;
@@ -563,6 +565,7 @@ struct cam_cdm {
 	struct cam_cdm_hw_mem gen_irq[CAM_CDM_BL_FIFO_MAX];
 	uint32_t cpas_handle;
 	enum cam_cdm_arbitration arbitration;
+	uint8_t num_active_clients;
 };
 
 /* struct cam_cdm_private_dt_data - CDM hw custom dt data */

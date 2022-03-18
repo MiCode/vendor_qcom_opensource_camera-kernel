@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -343,6 +344,20 @@ int cam_cdm_stream_ops_internal(void *hw_priv,
 		return -EINVAL;
 
 	core = (struct cam_cdm *)cdm_hw->core_info;
+
+	/*
+	 * If this CDM HW encounters Page Fault, block any futher
+	 * stream on/off until this CDM get released and acquired
+	 * again. CDM page fault handler will stream off the device.
+	 */
+	if (test_bit(CAM_CDM_PF_HW_STATUS, &core->cdm_status)) {
+		CAM_WARN(CAM_CDM,
+			"Attempt to stream %s failed. %s%u has encountered a page fault",
+			operation ? "on" : "off",
+			core->name, core->id);
+		return -EAGAIN;
+	}
+
 	mutex_lock(&cdm_hw->hw_mutex);
 	client_idx = CAM_CDM_GET_CLIENT_IDX(*handle);
 	client = core->clients[client_idx];
@@ -443,6 +458,49 @@ end:
 	return rc;
 }
 
+int cam_cdm_pf_stream_off_all_clients(struct cam_hw_info *cdm_hw)
+{
+	struct cam_cdm *core;
+	struct cam_cdm_client *client;
+	int i, rc;
+
+	if (!cdm_hw)
+		return -EINVAL;
+
+	core = cdm_hw->core_info;
+
+	if (!cdm_hw->open_count) {
+		CAM_DBG(CAM_CDM, "%s%u already streamed off. Open count %d",
+			core->name, core->id, cdm_hw->open_count);
+		return -EPERM;
+	}
+
+	CAM_DBG(CAM_CDM, "streaming off %s%u internally",
+		core->name, core->id);
+
+	rc = cam_hw_cdm_pf_deinit(cdm_hw, NULL, 0);
+	if (rc)
+		CAM_ERR(CAM_CDM, "Deinit failed in stream off rc: %d", rc);
+
+	for (i = 0; i < CAM_PER_CDM_MAX_REGISTERED_CLIENTS; i++) {
+		client = core->clients[i];
+		if (!client)
+			continue;
+
+		mutex_lock(&client->lock);
+		client->stream_on = false;
+		mutex_unlock(&client->lock);
+	}
+
+	rc = cam_cpas_stop(core->cpas_handle);
+	if (rc)
+		CAM_ERR(CAM_CDM, "CPAS stop failed in stream off rc %d", rc);
+
+	cdm_hw->open_count = 0;
+
+	return rc;
+}
+
 int cam_cdm_stream_start(void *hw_priv,
 	void *start_args, uint32_t size)
 {
@@ -483,6 +541,21 @@ int cam_cdm_process_cmd(void *hw_priv,
 
 	soc_data = &cdm_hw->soc_info;
 	core = (struct cam_cdm *)cdm_hw->core_info;
+
+	/*
+	 * When CDM has encountered a page fault, other than release no
+	 * other command will be serviced. PF handler notifies all clients
+	 * on the error, clients are expected to handle it, and release
+	 * its reference to the CDM core.
+	 */
+	if (test_bit(CAM_CDM_PF_HW_STATUS, &core->cdm_status) &&
+		(cmd != CAM_CDM_HW_INTF_CMD_RELEASE)) {
+		CAM_ERR(CAM_CDM,
+			"%s%u has encountered a page fault, unable to service cmd %u",
+			core->name, core->id, cmd);
+		return -EAGAIN;
+	}
+
 	switch (cmd) {
 	case CAM_CDM_HW_INTF_CMD_SUBMIT_BL: {
 		struct cam_cdm_hw_intf_cmd_submit_bl *req;
@@ -581,8 +654,9 @@ int cam_cdm_process_cmd(void *hw_priv,
 			rc = -ENOMEM;
 			break;
 		}
-
+		core->num_active_clients++;
 		mutex_unlock(&cdm_hw->hw_mutex);
+
 		client = core->clients[idx];
 		mutex_init(&client->lock);
 		data->ops = core->ops;
@@ -598,6 +672,7 @@ int cam_cdm_process_cmd(void *hw_priv,
 				mutex_lock(&cdm_hw->hw_mutex);
 				kfree(core->clients[idx]);
 				core->clients[idx] = NULL;
+				core->num_active_clients--;
 				mutex_unlock(
 					&cdm_hw->hw_mutex);
 				rc = -EPERM;
@@ -658,6 +733,17 @@ int cam_cdm_process_cmd(void *hw_priv,
 		mutex_unlock(&client->lock);
 		mutex_destroy(&client->lock);
 		kfree(client);
+		if (core->num_active_clients)
+			core->num_active_clients--;
+		else
+			CAM_ERR(CAM_CDM,
+				"Invalid active client decrement %u for %s%u",
+				core->num_active_clients, core->name, core->id);
+		if (!core->num_active_clients) {
+			CAM_DBG(CAM_CDM, "Clear cdm status bits for %s%u",
+				core->name, core->id);
+			core->cdm_status = 0;
+		}
 		mutex_unlock(&cdm_hw->hw_mutex);
 		rc = 0;
 		break;
