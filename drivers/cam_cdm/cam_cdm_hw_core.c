@@ -1667,32 +1667,14 @@ int cam_hw_cdm_reset_hw(struct cam_hw_info *cdm_hw, uint32_t handle)
 
 	cam_hw_cdm_pause_core(cdm_hw, true);
 
-	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
-		if (!cdm_core->bl_fifo[i].bl_depth)
-			continue;
-
-		reset_val = reset_val |
-			(1 << (i + CAM_CDM_BL_FIFO_FLUSH_SHIFT));
-		if (cam_cdm_write_hw_reg(cdm_hw,
-				cdm_core->offsets->irq_reg[i]->irq_mask,
-				0x70003)) {
-			CAM_ERR(CAM_CDM, "Failed to Write %s%u HW IRQ mask",
-				soc_info->label_name,
-				soc_info->index);
-			goto end;
-		}
-	}
-
-	if (cam_cdm_write_hw_reg(cdm_hw,
-			cdm_core->offsets->cmn_reg->rst_cmd, reset_val)) {
+	if (cam_cdm_write_hw_reg(cdm_hw, cdm_core->offsets->cmn_reg->rst_cmd, reset_val)) {
 		CAM_ERR(CAM_CDM, "Failed to Write %s%u HW reset",
 			soc_info->label_name,
 			soc_info->index);
 		goto end;
 	}
 
-	CAM_DBG(CAM_CDM, "Waiting for %s%u HW reset done",
-		soc_info->label_name, soc_info->index);
+	CAM_DBG(CAM_CDM, "Waiting for %s%u HW reset done", soc_info->label_name, soc_info->index);
 	time_left = cam_common_wait_for_completion_timeout(
 			&cdm_core->reset_complete,
 			msecs_to_jiffies(CAM_CDM_HW_RESET_TIMEOUT));
@@ -1705,6 +1687,7 @@ int cam_hw_cdm_reset_hw(struct cam_hw_info *cdm_hw, uint32_t handle)
 			soc_info->index, rc);
 
 		cam_hw_cdm_dump_core_debug_registers(cdm_hw, false);
+		cam_hw_cdm_pause_core(cdm_hw, false);
 		goto end;
 	}
 
@@ -2047,26 +2030,15 @@ int cam_hw_cdm_init(void *hw_priv,
 	}
 
 	rc = cam_hw_cdm_reset_hw(cdm_hw, reset_hw_hdl);
-
 	if (rc) {
 		CAM_ERR(CAM_CDM, "%s%u HW reset Wait failed rc=%d",
 			soc_info->label_name,
 			soc_info->index, rc);
 		goto disable_return;
-	} else {
-		CAM_DBG(CAM_CDM, "%s%u Init success",
-			soc_info->label_name, soc_info->index);
-		for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
-			if (!cdm_core->bl_fifo[i].bl_depth)
-				continue;
-
-			cam_cdm_write_hw_reg(cdm_hw,
-					cdm_core->offsets->irq_reg[i]->irq_mask,
-					0x70003);
-		}
-		rc = 0;
-		goto end;
 	}
+
+	CAM_DBG(CAM_CDM, "%s%u Init success", soc_info->label_name, soc_info->index);
+	return 0;
 
 disable_return:
 	rc = -EIO;
