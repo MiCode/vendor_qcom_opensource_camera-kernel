@@ -8,6 +8,9 @@
 
 #include <linux/interrupt.h>
 
+#define CAM_PRESIL_CLIENT_ID_CAMERA 0x1
+#define CAM_PRESIL_CLIENT_ID_EVA    0x2
+
 /* presil events to carry shared values from HW-KMD to PC-HOST CSim Wrapper */
 #define CAM_PRESIL_EVENT_HFI_REG_BASE                             0x600
 #define CAM_PRESIL_EVENT_HFI_REG(n) (CAM_PRESIL_EVENT_HFI_REG_BASE + (n * 4))
@@ -177,12 +180,13 @@ int cam_presil_readl_poll_timeout(void __iomem *mem_address, uint32_t val,
  *
  * @brief   :  Write HFI command to presil hw.
  *
- * @addr    :  Pointer to HFI command
- * @cmdlen  :  Length
+ * @addr       :  Pointer to HFI command
+ * @cmdlen     :  Length
+ * @client_id  :  client Id of caller
  *
  * @return:  Success or Failure
  */
-int cam_presil_hfi_write_cmd(void *addr, uint32_t cmdlen);
+int cam_presil_hfi_write_cmd(void *addr, uint32_t cmdlen, uint32_t client_id);
 
 /*
  *  cam_presil_hfi_read_message()
@@ -192,12 +196,12 @@ int cam_presil_hfi_write_cmd(void *addr, uint32_t cmdlen);
  * @pmsg          :  Pointer to HFI message buffer
  * @q_id          :  Length
  * @words_read    :  Response message
- * @interval_msec :  Interval between tries
+ * @client_id     :  client Id of caller
  *
  * @return:  Success or Failure
  */
 int cam_presil_hfi_read_message(uint32_t *pmsg, uint8_t q_id,
-	uint32_t *words_read);
+	uint32_t *words_read, uint32_t client_id);
 
 /**
  * @brief : API to check if camera driver running in presil

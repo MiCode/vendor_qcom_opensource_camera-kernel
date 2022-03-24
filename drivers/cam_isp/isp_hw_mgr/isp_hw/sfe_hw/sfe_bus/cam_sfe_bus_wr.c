@@ -522,7 +522,7 @@ static int cam_sfe_bus_config_rdi_wm(
 		if (rsrc_data->use_wm_pack) {
 			rsrc_data->pack_fmt = PACKER_FMT_MIPI10;
 			if (rsrc_data->wm_mode == CAM_SFE_WM_LINE_BASED_MODE)
-				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 16);
+				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 8);
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_6:
@@ -564,7 +564,7 @@ static int cam_sfe_bus_config_rdi_wm(
 		if (rsrc_data->use_wm_pack) {
 			rsrc_data->pack_fmt = PACKER_FMT_MIPI12;
 			if (rsrc_data->wm_mode == CAM_SFE_WM_LINE_BASED_MODE)
-				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 16);
+				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 8);
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_14:
@@ -581,7 +581,7 @@ static int cam_sfe_bus_config_rdi_wm(
 		if (rsrc_data->use_wm_pack) {
 			rsrc_data->pack_fmt = PACKER_FMT_MIPI14;
 			if (rsrc_data->wm_mode == CAM_SFE_WM_LINE_BASED_MODE)
-				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 16);
+				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 8);
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_16:

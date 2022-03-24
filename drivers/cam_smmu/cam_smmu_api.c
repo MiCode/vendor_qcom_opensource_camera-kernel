@@ -679,7 +679,7 @@ static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr)
 {
 	struct cam_dma_buff_info *mapping, *closest_mapping =  NULL;
 	unsigned long start_addr, end_addr, current_addr;
-	uint32_t buf_handle = 0;
+	uint32_t buf_info = 0;
 
 	long delta = 0, lowest_delta = 0;
 
@@ -716,21 +716,20 @@ static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr)
 
 end:
 	if (closest_mapping) {
-		buf_handle = GET_MEM_HANDLE(idx, closest_mapping->ion_fd);
+		buf_info = closest_mapping->ion_fd;
 		CAM_INFO(CAM_SMMU,
-			"Closest map fd %d i_ino %lu 0x%lx %llu-%llu 0x%lx-0x%lx buf=%pK mem %0x",
+			"Closest map fd %d i_ino %lu 0x%lx %llu-%llu 0x%lx-0x%lx buf=%pK",
 			closest_mapping->ion_fd, closest_mapping->i_ino, current_addr,
 			mapping->len, closest_mapping->len,
 			(unsigned long)closest_mapping->paddr,
 			(unsigned long)closest_mapping->paddr + mapping->len,
-			closest_mapping->buf,
-			buf_handle);
+			closest_mapping->buf);
 	} else
 		CAM_ERR(CAM_SMMU,
 			"Cannot find vaddr:%lx in SMMU %s virt address",
 			current_addr, iommu_cb_set.cb_info[idx].name[0]);
 
-	return buf_handle;
+	return buf_info;
 }
 
 void cam_smmu_set_client_page_fault_handler(int handle,

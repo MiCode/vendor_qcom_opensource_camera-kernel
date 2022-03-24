@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interrupt.h>
@@ -142,12 +143,6 @@ int cam_lx7_soc_resources_enable(struct cam_hw_soc_info *soc_info)
 						CAM_SVS_VOTE, true);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to enable soc resources rc=%d", rc);
-	else {
-		int32_t clk_rate = 0;
-
-		clk_rate = clk_get_rate(soc_info->clk[soc_info->src_clk_idx]);
-		hfi_send_freq_info(clk_rate);
-	}
 
 	return rc;
 }
@@ -159,8 +154,6 @@ int cam_lx7_soc_resources_disable(struct cam_hw_soc_info *soc_info)
 	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to disable soc resources rc=%d", rc);
-	else
-		hfi_send_freq_info(0);
 
 	return rc;
 }

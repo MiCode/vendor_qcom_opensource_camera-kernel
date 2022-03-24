@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSIPHY_2_1_0_HWREG_H_
@@ -452,6 +452,7 @@ struct csiphy_reg_t datarate_210_1p2Gsps[] = {
 	{0x0A90, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0A14, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x108C, 0x0C, 0x00, CSIPHY_DEFAULT_PARAMS},
+	{0x108C, 0x00, 0x00, CSIPHY_AUXILIARY_SETTING},
 };
 
 struct csiphy_reg_t datarate_210_1p5Gsps[] = {
@@ -477,6 +478,7 @@ struct csiphy_reg_t datarate_210_1p5Gsps[] = {
 	{0x0A90, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0A14, 0x09, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x108C, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
+	{0x108C, 0x00, 0x00, CSIPHY_AUXILIARY_SETTING},
 };
 
 struct csiphy_reg_t datarate_210_1p7Gsps[] = {
@@ -502,6 +504,7 @@ struct csiphy_reg_t datarate_210_1p7Gsps[] = {
 	{0x0A90, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0A14, 0x06, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x108C, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
+	{0x108C, 0x00, 0x00, CSIPHY_AUXILIARY_SETTING},
 };
 
 struct csiphy_reg_t datarate_210_2p1Gsps[] = {
@@ -527,6 +530,7 @@ struct csiphy_reg_t datarate_210_2p1Gsps[] = {
 	{0x0A90, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0A14, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x108C, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
+	{0x108C, 0x00, 0x00, CSIPHY_AUXILIARY_SETTING},
 };
 
 struct csiphy_reg_t datarate_210_2p35Gsps[] = {
@@ -552,6 +556,7 @@ struct csiphy_reg_t datarate_210_2p35Gsps[] = {
 	{0x0A90, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0A14, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x108C, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
+	{0x108C, 0x00, 0x00, CSIPHY_AUXILIARY_SETTING},
 };
 
 struct csiphy_reg_t datarate_210_2p6Gsps[] = {

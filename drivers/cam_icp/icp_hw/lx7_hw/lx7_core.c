@@ -229,6 +229,7 @@ int cam_lx7_hw_init(void *priv, void *args, uint32_t arg_size)
 	struct cam_hw_info *lx7 = priv;
 	unsigned long flags;
 	int rc;
+	bool send_freq_info = (args == NULL) ? false : *((bool *)args);
 
 	if (!lx7) {
 		CAM_ERR(CAM_ICP, "LX7 device info cannot be NULL");
@@ -250,6 +251,13 @@ int cam_lx7_hw_init(void *priv, void *args, uint32_t arg_size)
 	if (rc) {
 		CAM_ERR(CAM_ICP, "failed to enable soc resources rc=%d", rc);
 		goto soc_fail;
+	} else {
+		if (send_freq_info) {
+			int32_t clk_rate = 0;
+
+			clk_rate = clk_get_rate(lx7->soc_info.clk[lx7->soc_info.src_clk_idx]);
+			hfi_send_freq_info(clk_rate);
+		}
 	}
 
 	spin_lock_irqsave(&lx7->hw_lock, flags);
@@ -268,6 +276,7 @@ int cam_lx7_hw_deinit(void *priv, void *args, uint32_t arg_size)
 	struct cam_hw_info *lx7_info = priv;
 	unsigned long flags;
 	int rc;
+	bool send_freq_info = (args == NULL) ? false : *((bool *)args);
 
 	if (!lx7_info) {
 		CAM_ERR(CAM_ICP, "LX7 device info cannot be NULL");
@@ -280,6 +289,9 @@ int cam_lx7_hw_deinit(void *priv, void *args, uint32_t arg_size)
 		return 0;
 	}
 	spin_unlock_irqrestore(&lx7_info->hw_lock, flags);
+
+	if (send_freq_info)
+		hfi_send_freq_info(0);
 
 	rc = cam_lx7_soc_resources_disable(&lx7_info->soc_info);
 	if (rc)

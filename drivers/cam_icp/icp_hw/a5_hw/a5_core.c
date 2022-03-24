@@ -222,6 +222,7 @@ int cam_a5_init_hw(void *device_priv,
 	struct cam_icp_cpas_vote cpas_vote;
 	unsigned long flags;
 	int rc = 0;
+	bool send_freq_info = (init_hw_args == NULL) ? false : *((bool *)init_hw_args);
 
 	if (!device_priv) {
 		CAM_ERR(CAM_ICP, "Invalid cam_dev_info");
@@ -285,6 +286,12 @@ int cam_a5_init_hw(void *device_priv,
 			cam_io_w_mb(a5_soc_info->a5_qos_val,
 				soc_info->reg_map[A5_SIERRA_BASE].mem_base +
 				ICP_SIERRA_A5_CSR_ACCESS);
+		if (send_freq_info) {
+			int32_t clk_rate = 0;
+
+			clk_rate = clk_get_rate(soc_info->clk[soc_info->src_clk_idx]);
+			hfi_send_freq_info(clk_rate);
+		}
 	}
 
 	spin_lock_irqsave(&a5_dev->hw_lock, flags);
@@ -303,6 +310,7 @@ int cam_a5_deinit_hw(void *device_priv,
 	struct cam_a5_device_core_info *core_info = NULL;
 	unsigned long flags;
 	int rc = 0;
+	bool send_freq_info = (init_hw_args == NULL) ? false : *((bool *)init_hw_args);
 
 	if (!device_priv) {
 		CAM_ERR(CAM_ICP, "Invalid cam_dev_info");
@@ -323,6 +331,9 @@ int cam_a5_deinit_hw(void *device_priv,
 		return 0;
 	}
 	spin_unlock_irqrestore(&a5_dev->hw_lock, flags);
+
+	if (send_freq_info)
+		hfi_send_freq_info(0);
 
 	rc = cam_a5_disable_soc_resources(soc_info);
 	if (rc)

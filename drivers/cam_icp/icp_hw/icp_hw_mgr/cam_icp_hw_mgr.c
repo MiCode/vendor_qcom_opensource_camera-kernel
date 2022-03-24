@@ -3547,6 +3547,7 @@ static int cam_icp_mgr_icp_power_collapse(struct cam_icp_hw_mgr *hw_mgr)
 {
 	struct cam_hw_intf *icp_dev_intf = hw_mgr->icp_dev_intf;
 	int rc;
+	bool send_freq_info = true;
 
 	CAM_DBG(CAM_PERF, "ENTER");
 
@@ -3557,7 +3558,8 @@ static int cam_icp_mgr_icp_power_collapse(struct cam_icp_hw_mgr *hw_mgr)
 
 	rc = __power_collapse(hw_mgr);
 
-	if (icp_dev_intf->hw_ops.deinit(icp_dev_intf->hw_priv, NULL, 0))
+	if (icp_dev_intf->hw_ops.deinit(icp_dev_intf->hw_priv, (void *)&send_freq_info,
+		sizeof(send_freq_info)))
 		CAM_ERR(CAM_ICP, "Failed in icp deinit");
 
 	CAM_DBG(CAM_PERF, "EXIT");
@@ -4351,6 +4353,7 @@ static int cam_icp_mgr_icp_resume(struct cam_icp_hw_mgr *hw_mgr)
 	int rc = 0;
 	struct cam_hw_intf *icp_dev_intf = hw_mgr->icp_dev_intf;
 	bool downloadFromResume = true;
+	bool send_freq_info = true;
 
 	CAM_DBG(CAM_ICP, "Enter");
 
@@ -4364,7 +4367,8 @@ static int cam_icp_mgr_icp_resume(struct cam_icp_hw_mgr *hw_mgr)
 		return cam_icp_mgr_hw_open_k(hw_mgr, &downloadFromResume);
 	}
 
-	rc = icp_dev_intf->hw_ops.init(icp_dev_intf->hw_priv, NULL, 0);
+	rc = icp_dev_intf->hw_ops.init(icp_dev_intf->hw_priv, &send_freq_info,
+		sizeof(send_freq_info));
 	if (rc)
 		return -EINVAL;
 
@@ -5469,7 +5473,7 @@ static void cam_icp_mgr_print_io_bufs(struct cam_packet *packet,
 				break;
 
 			if (GET_FD_FROM_HANDLE(io_cfg[i].mem_handle[j]) ==
-				GET_FD_FROM_HANDLE(pf_buf_info)) {
+				pf_buf_info) {
 				CAM_INFO(CAM_ICP,
 					"Found PF at port: %d mem %x fd: %x",
 					io_cfg[i].resource_type,
