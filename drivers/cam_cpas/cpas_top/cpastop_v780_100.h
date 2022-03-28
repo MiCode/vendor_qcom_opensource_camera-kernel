@@ -12,7 +12,8 @@ static struct cam_camnoc_irq_sbm cam_cpas_v780_100_irq_sbm = {
 		.access_type = CAM_REG_TYPE_READ_WRITE,
 		.enable = true,
 		.offset = 0x240,  /* CAM_NOC_SBM_FAULTINEN0_LOW */
-		.value = 0x2 |    /* SBM_FAULTINEN0_LOW_PORT1_MASK */
+		.value = 0x01 | /* SBM_FAULTINEN0_LOW_PORT0_MASK */
+			0x02 |    /* SBM_FAULTINEN0_LOW_PORT1_MASK */
 			0x04 |    /* SBM_FAULTINEN0_LOW_PORT2_MASK */
 			0x08 |    /* SBM_FAULTINEN0_LOW_PORT3_MASK */
 			0x10 |    /* SBM_FAULTINEN0_LOW_PORT4_MASK */
@@ -35,7 +36,7 @@ static struct cam_camnoc_irq_err
 	cam_cpas_v780_100_irq_err[] = {
 	{
 		.irq_type = CAM_CAMNOC_HW_IRQ_SLAVE_ERROR,
-		.enable = false,
+		.enable = true,
 		.sbm_port = 0x1, /* SBM_FAULTINSTATUS0_LOW_PORT0_MASK */
 		.err_enable = {
 			.access_type = CAM_REG_TYPE_READ_WRITE,

@@ -263,6 +263,9 @@ struct cam_cpas_monitor {
  * @num_camnoc_axi_ports: Total number of camnoc axi ports found in device tree
  * @registered_clients: Number of Clients registered currently
  * @streamon_clients: Number of Clients that are in start state currently
+ * @slave_err_irq_idx: Index of slave error in irq error data structure,
+ *                     avoids iterating the entire structure to find this
+ *                     idx in irq th
  * @regbase_index: Register base indices for CPAS register base IDs
  * @ahb_bus_client: AHB Bus client info
  * @axi_port: AXI port info for a specific axi index
@@ -276,9 +279,12 @@ struct cam_cpas_monitor {
  * @applied_camnoc_axi_rate: applied camnoc axi clock rate
  * @monitor_head: Monitor array head
  * @monitor_entries: cpas monitor array
+ * @camnoc_info: Pointer to camnoc header info
  * @full_state_dump: Whether to enable full cpas state dump or not
  * @smart_qos_dump: Whether to dump smart qos information on update
- * @camnoc_info: Pointer to camnoc header info
+ * @slave_err_irq_en: Whether slave error irq is enabled to detect memory
+ *                    config issues
+ * @smmu_fault_handled: Handled address decode error, on fault at SMMU
  */
 struct cam_cpas {
 	struct cam_cpas_hw_caps hw_caps;
@@ -290,6 +296,7 @@ struct cam_cpas {
 	uint32_t num_camnoc_axi_ports;
 	uint32_t registered_clients;
 	uint32_t streamon_clients;
+	uint32_t slave_err_irq_idx;
 	int32_t regbase_index[CAM_CPAS_REG_MAX];
 	struct cam_cpas_bus_client ahb_bus_client;
 	struct cam_cpas_axi_port axi_port[CAM_CPAS_MAX_AXI_PORTS];
@@ -303,9 +310,11 @@ struct cam_cpas {
 	uint64_t applied_camnoc_axi_rate;
 	atomic64_t  monitor_head;
 	struct cam_cpas_monitor monitor_entries[CAM_CPAS_MONITOR_MAX_ENTRIES];
+	void *camnoc_info;
 	bool full_state_dump;
 	bool smart_qos_dump;
-	void *camnoc_info;
+	bool slave_err_irq_en;
+	bool smmu_fault_handled;
 };
 
 int cam_camsstop_get_internal_ops(struct cam_cpas_internal_ops *internal_ops);

@@ -78,7 +78,6 @@ static bool cam_icp_v2_cpas_cb(uint32_t handle, void *user_data,
 			irq_data->u.enc_err.encerr_status.value);
 		ret = true;
 	default:
-		CAM_ERR(CAM_ICP, "unhandled irq_type=%d", irq_data->irq_type);
 		break;
 	}
 
