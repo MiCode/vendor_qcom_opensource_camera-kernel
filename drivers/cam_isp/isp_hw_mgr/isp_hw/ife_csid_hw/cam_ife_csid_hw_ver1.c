@@ -4724,7 +4724,7 @@ int cam_ife_csid_hw_ver1_init(struct cam_hw_intf  *hw_intf,
 		init_completion(&ife_csid_hw->irq_complete[i]);
 
 	rc = cam_ife_csid_init_soc_resources(&ife_csid_hw->hw_info->soc_info,
-			cam_ife_csid_irq, ife_csid_hw, is_custom);
+			cam_ife_csid_irq, NULL, ife_csid_hw, is_custom);
 	if (rc < 0) {
 		CAM_ERR(CAM_ISP, "CSID:%d Failed to init_soc",
 			hw_intf->hw_idx);

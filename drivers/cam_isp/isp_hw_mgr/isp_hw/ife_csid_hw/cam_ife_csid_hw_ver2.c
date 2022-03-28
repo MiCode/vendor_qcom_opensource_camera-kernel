@@ -58,6 +58,31 @@ static void cam_ife_csid_ver2_print_debug_reg_status(
 	struct cam_ife_csid_ver2_hw *csid_hw,
 	struct cam_isp_resource_node    *res);
 
+static bool cam_ife_csid_ver2_cpas_cb(
+	uint32_t handle, void *user_data, struct cam_cpas_irq_data *irq_data)
+{
+	bool handled = false;
+	struct cam_ife_csid_ver2_hw *csid_hw = (struct cam_ife_csid_ver2_hw *)user_data;
+
+	if (!csid_hw || !irq_data)
+		return false;
+
+	switch (irq_data->irq_type) {
+	case CAM_CAMNOC_IRQ_SLAVE_ERROR:
+		if (irq_data->u.slave_err.errlog0_low.err_code == CAM_CAMNOC_ADDRESS_DECODE_ERROR) {
+			csid_hw->flags.pf_err_detected = true;
+			CAM_DBG(CAM_ISP, "CPAS address decode error rxved for CSID[%u]",
+				csid_hw->hw_intf->hw_idx);
+		}
+		handled = true;
+		break;
+	default:
+		break;
+	}
+
+	return handled;
+}
+
 static bool cam_ife_csid_ver2_disable_sof_retime(
 	struct cam_ife_csid_ver2_hw     *csid_hw,
 	struct cam_isp_resource_node    *res)
@@ -999,6 +1024,13 @@ static int cam_ife_csid_ver2_handle_event_err(
 			csid_hw->hw_intf->hw_idx);
 		return 0;
 	}
+
+	/*
+	 * If PF is encountered skip notifying error to ctx, PF
+	 * handler will do the necessary notifications
+	 */
+	if (csid_hw->flags.pf_err_detected)
+		return 0;
 
 	evt.hw_idx   = csid_hw->hw_intf->hw_idx;
 	evt.reg_val  = irq_status;
@@ -2791,6 +2823,7 @@ int cam_ife_csid_ver2_release(void *hw_priv,
 			sizeof(struct cam_ife_csid_ver2_top_cfg));
 		memset(&csid_hw->debug_info, 0,
 			sizeof(struct cam_ife_csid_debug_info));
+		csid_hw->flags.pf_err_detected = false;
 		csid_hw->token = NULL;
 	}
 
@@ -4544,6 +4577,7 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 		cam_ife_csid_ver2_testbus_config(csid_hw, 0x0);
 
 	csid_hw->debug_info.test_bus_enabled = false;
+	csid_hw->flags.pf_err_detected = false;
 	mutex_unlock(&csid_hw->hw_info->hw_mutex);
 
 	return rc;
@@ -5794,7 +5828,7 @@ int cam_ife_csid_hw_ver2_init(struct cam_hw_intf *hw_intf,
 	atomic_set(&csid_hw->discard_frame_per_path, 0);
 
 	rc = cam_ife_csid_init_soc_resources(&csid_hw->hw_info->soc_info,
-			cam_ife_csid_irq, csid_hw, is_custom);
+			cam_ife_csid_irq, cam_ife_csid_ver2_cpas_cb, csid_hw, is_custom);
 	if (rc < 0) {
 		CAM_ERR(CAM_ISP, "CSID:%d Failed to init_soc",
 			hw_intf->hw_idx);

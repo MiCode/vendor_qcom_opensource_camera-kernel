@@ -331,6 +331,8 @@ struct cam_ife_csid_debug_info {
  * @offline_mode:           flag to indicate if csid in offline mode
  * @rdi_lcr_en:             flag to indicate if RDI to lcr is enabled
  * @sfe_en:                 flag to indicate if SFE is enabled
+ * @pf_err_detected:        flag to indicate if camnoc has encountered
+ *                          error - page fault
  */
 struct cam_ife_csid_hw_flags {
 	bool                  device_enabled;
@@ -345,6 +347,7 @@ struct cam_ife_csid_hw_flags {
 	bool                  offline_mode;
 	bool                  rdi_lcr_en;
 	bool                  sfe_en;
+	bool                  pf_err_detected;
 };
 
 /*

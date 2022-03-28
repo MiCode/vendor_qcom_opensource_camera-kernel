@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/slab.h>
 #include "cam_ife_csid_soc.h"
-#include "cam_cpas_api.h"
 #include "cam_debug_util.h"
 
 static int cam_ife_csid_get_dt_properties(struct cam_hw_soc_info *soc_info)
@@ -64,7 +64,8 @@ static int cam_ife_csid_request_platform_resource(
 }
 
 int cam_ife_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
-	irq_handler_t csid_irq_handler, void *irq_data, bool is_custom)
+	irq_handler_t csid_irq_handler, cam_cpas_client_cb_func cpas_cb,
+	void *data, bool is_custom)
 {
 	int rc = 0;
 	struct cam_cpas_register_params   cpas_register_param;
@@ -83,7 +84,7 @@ int cam_ife_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	/* Need to see if we want post process the clock list */
 
 	rc = cam_ife_csid_request_platform_resource(soc_info, csid_irq_handler,
-		irq_data);
+		data);
 	if (rc < 0) {
 		CAM_ERR(CAM_ISP,
 			"Error Request platform resources failed rc=%d", rc);
@@ -100,6 +101,8 @@ int cam_ife_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 
 	cpas_register_param.cell_index = soc_info->index;
 	cpas_register_param.dev = soc_info->dev;
+	cpas_register_param.cam_cpas_client_cb = cpas_cb;
+	cpas_register_param.userdata = data;
 	rc = cam_cpas_register_client(&cpas_register_param);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "CPAS registration failed rc=%d", rc);
