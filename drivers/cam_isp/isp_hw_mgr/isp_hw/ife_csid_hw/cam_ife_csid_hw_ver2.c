@@ -2518,14 +2518,20 @@ int cam_ife_csid_hw_ver2_hw_cfg(
 		return rc;
 	}
 
-	cam_ife_csid_hw_ver2_config_path_data(csid_hw, path_cfg,
+	rc = cam_ife_csid_hw_ver2_config_path_data(csid_hw, path_cfg,
 		reserve, cid);
-	rc = cam_ife_csid_ver_config_camif(csid_hw, reserve, path_cfg);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "CSID[%d] path data config failed",
+			csid_hw->hw_intf->hw_idx);
+		goto end;
+	}
 
+	rc = cam_ife_csid_ver_config_camif(csid_hw, reserve, path_cfg);
 	if (rc)
 		CAM_ERR(CAM_ISP, "CSID[%d] camif config failed",
 			csid_hw->hw_intf->hw_idx);
 
+end:
 	return rc;
 }
 
