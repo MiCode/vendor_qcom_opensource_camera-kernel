@@ -4849,7 +4849,6 @@ static int cam_ife_mgr_acquire_get_unified_structure_v2(
 	in_port->pixel_clk                =  in->pixel_clk;
 	in_port->batch_size               =  in->batch_size;
 	in_port->dsp_mode                 =  in->dsp_mode;
-	in_port->fe_unpacker_fmt          =  in->format;
 	in_port->hbi_cnt                  =  in->hbi_cnt;
 	in_port->cust_node                =  in->cust_node;
 	in_port->horizontal_bin           =  (in->bidirectional_bin & 0xFFFF);
@@ -4858,6 +4857,12 @@ static int cam_ife_mgr_acquire_get_unified_structure_v2(
 	in_port->num_out_res              =  in->num_out_res;
 	in_port->sfe_in_path_type         =  (in->sfe_in_path_type & 0xFFFF);
 	in_port->sfe_ife_enable           =  in->sfe_in_path_type >> 16;
+	/*
+	 * Different formats are not supported for fetch engine use-cases
+	 * Use vc0 format [LSB 8 bits], if the input formats are different for each VC
+	 * fail the acquire
+	 */
+	in_port->fe_unpacker_fmt          =  in->format & CAM_IFE_DECODE_FORMAT_MASK;
 
 	cam_ife_mgr_acquire_get_feature_flag_params(in, in_port);
 
@@ -4940,6 +4945,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	struct cam_isp_acquire_hw_info    *acquire_hw_info = NULL;
 	uint32_t                           input_size = 0;
 	uint32_t                           acquired_rdi_res = 0;
+	uint32_t                           input_format_checker = 0;
 
 	CAM_DBG(CAM_ISP, "Enter...");
 
@@ -5001,6 +5007,20 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		if (rc < 0) {
 			CAM_ERR(CAM_ISP, "Failed in parsing: %d", rc);
 			goto free_mem;
+		}
+
+		/* Check for formats in multi vc-dt FE use-cases */
+		if (ife_ctx->flags.is_fe_enabled) {
+			input_format_checker = in_port[i].format[0];
+			for (j = 1; j < in_port[i].num_valid_vc_dt; j++) {
+				if (in_port[i].format[j] != input_format_checker) {
+					CAM_ERR(CAM_ISP,
+						"Different input formats for FE use-cases not supported - formats vc0: %u vc%d: %u",
+						input_format_checker, j, in_port[i].format[j]);
+					rc = -EINVAL;
+					goto free_mem;
+				}
+			}
 		}
 
 		cam_ife_hw_mgr_preprocess_port(ife_ctx, &in_port[i]);

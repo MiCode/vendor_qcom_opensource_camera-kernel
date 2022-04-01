@@ -422,7 +422,7 @@ static int cam_sfe_bus_acquire_rm(
 
 	rm_res_local = &bus_rd_priv->bus_client[rm_idx];
 	if (rm_res_local->res_state != CAM_ISP_RESOURCE_STATE_AVAILABLE) {
-		CAM_ERR(CAM_SFE, "SFE:%d RM:%d res not available state:%d",
+		CAM_ERR(CAM_SFE, "SFE:%u RM:%u res not available state:%d",
 			bus_rd_priv->common_data.core_index, rm_idx,
 			rm_res_local->res_state);
 		return -EALREADY;
@@ -434,6 +434,12 @@ static int cam_sfe_bus_acquire_rm(
 	rsrc_data->ctx = ctx;
 	rsrc_data->unpacker_cfg =
 		cam_sfe_bus_get_unpacker_fmt(unpacker_fmt);
+	if (rsrc_data->unpacker_cfg == BUS_RD_UNPACKER_FMT_MAX) {
+		CAM_ERR(CAM_SFE, "SFE:%u RM:%u Invalid unpacker fmt:%u",
+			bus_rd_priv->common_data.core_index, rm_idx, unpacker_fmt);
+		return -EINVAL;
+	}
+
 	rsrc_data->latency_buf_allocation =
 		bus_rd_priv->latency_buf_allocation;
 	rsrc_data->enable_caching =  false;
