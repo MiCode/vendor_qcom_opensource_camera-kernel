@@ -296,6 +296,36 @@ struct csiphy_work_queue {
 };
 
 /**
+ * struct cam_csiphy_dev_cdr_sweep_params
+ *
+ * @cdr_tolerance       : cdr tolerance
+ * @tolerance_op_type   : if tolerance needs to be added/subtracted
+ * @cdr_config_ptr      : Ptr to the cmd buffer, in which
+ *                        configured CDR values will be
+ *                        published
+ * @cdr_sweep_enabled   : cdr sweep enabled
+ */
+struct cam_csiphy_dev_cdr_sweep_params {
+	uint32_t  cdr_tolerance;
+	uint32_t  tolerance_op_type;
+	uint32_t *cdr_config_ptr;
+	bool      cdr_sweep_enabled;
+};
+
+/**
+ * struct cam_csiphy_dev_aux_setting_params
+ *
+ * @aux_config_ptr      : Ptr to the cmd buffer, in which
+ *                        auxiliary settings that are enabled for different
+ *                        data rates will be published
+ * @aux_mem_update_en   : Set if aux mem buffer provided
+ */
+struct cam_csiphy_dev_aux_setting_params {
+	uint32_t *aux_config_ptr;
+	bool      aux_mem_update_en;
+};
+
+/**
  * struct csiphy_device
  * @device_name                : Device name
  * @mutex                      : ioctl operation mutex
@@ -323,6 +353,8 @@ struct csiphy_work_queue {
  * @csiphy_cpas_cp_reg_mask    : Secure csiphy lane mask
  * @ops                        : KMD operations
  * @crm_cb                     : Callback API pointers
+ * @cdr_params                 : CDR sweep params
+ * @aux_params                 : AUX settings buffer params
  * @prgm_cmn_reg_across_csiphy : Flag to decide if com settings need to be programmed for all PHYs
  * @en_common_status_reg_dump  : Debugfs flag to enable common status register dump
  * @en_lane_status_reg_dump    : Debugfs flag to enable cphy/dphy lane status dump
@@ -331,40 +363,42 @@ struct csiphy_work_queue {
  * @preamble_enable            : To enable preamble pattern
  */
 struct csiphy_device {
-	char                           device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
-	struct mutex                   mutex;
-	uint32_t                       hw_version;
-	uint32_t                       clk_lane;
-	uint32_t                       acquire_count;
-	uint32_t                       start_dev_count;
-	uint32_t                       csiphy_max_clk;
-	uint32_t                       cpas_handle;
-	uint8_t                        session_max_device_support;
-	uint8_t                        combo_mode;
-	uint8_t                        cphy_dphy_combo_mode;
-	uint8_t                        rx_clk_src_idx;
-	uint8_t                        is_divisor_32_comp;
-	uint8_t                        curr_data_rate_idx;
-	enum cam_csiphy_state          csiphy_state;
-	struct csiphy_ctrl_t          *ctrl_reg;
-	struct msm_cam_clk_info        csiphy_3p_clk_info[2];
-	struct clk                    *csiphy_3p_clk[2];
-	int32_t                        ref_count;
-	struct cam_subdev              v4l2_dev_str;
-	struct cam_csiphy_param        csiphy_info[
+	char                                     device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
+	struct mutex                             mutex;
+	uint32_t                                 hw_version;
+	uint32_t                                 clk_lane;
+	uint32_t                                 acquire_count;
+	uint32_t                                 start_dev_count;
+	uint32_t                                 csiphy_max_clk;
+	uint32_t                                 cpas_handle;
+	uint8_t                                  session_max_device_support;
+	uint8_t                                  combo_mode;
+	uint8_t                                  cphy_dphy_combo_mode;
+	uint8_t                                  rx_clk_src_idx;
+	uint8_t                                  is_divisor_32_comp;
+	uint8_t                                  curr_data_rate_idx;
+	enum cam_csiphy_state                    csiphy_state;
+	struct csiphy_ctrl_t                    *ctrl_reg;
+	struct msm_cam_clk_info                  csiphy_3p_clk_info[2];
+	struct clk                              *csiphy_3p_clk[2];
+	int32_t                                  ref_count;
+	struct cam_subdev                        v4l2_dev_str;
+	struct cam_csiphy_param                  csiphy_info[
 					CSIPHY_MAX_INSTANCES_PER_PHY];
-	struct cam_hw_soc_info         soc_info;
-	uint64_t                       current_data_rate;
-	uint64_t                       csiphy_cpas_cp_reg_mask[
+	struct cam_hw_soc_info                   soc_info;
+	uint64_t                                 current_data_rate;
+	uint64_t                                 csiphy_cpas_cp_reg_mask[
 					CSIPHY_MAX_INSTANCES_PER_PHY];
-	struct cam_req_mgr_kmd_ops     ops;
-	struct cam_req_mgr_crm_cb     *crm_cb;
-	bool                           prgm_cmn_reg_across_csiphy;
-	bool                           en_common_status_reg_dump;
-	bool                           en_lane_status_reg_dump;
-	bool                           en_full_phy_reg_dump;
-	bool                           skip_aux_settings;
-	uint16_t                       preamble_enable;
+	struct cam_req_mgr_kmd_ops               ops;
+	struct cam_req_mgr_crm_cb               *crm_cb;
+	struct cam_csiphy_dev_cdr_sweep_params   cdr_params;
+	struct cam_csiphy_dev_aux_setting_params aux_params;
+	bool                                     prgm_cmn_reg_across_csiphy;
+	bool                                     en_common_status_reg_dump;
+	bool                                     en_lane_status_reg_dump;
+	bool                                     en_full_phy_reg_dump;
+	bool                                     skip_aux_settings;
+	uint16_t                                 preamble_enable;
 };
 
 /**
