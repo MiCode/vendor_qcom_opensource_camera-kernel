@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_MEM_MGR_H_
@@ -180,6 +181,23 @@ int cam_mem_mgr_init(void);
  * @return None
  */
 void cam_mem_mgr_deinit(void);
+
+#ifdef CONFIG_CAM_PRESIL
+/**
+ * @brief: Put dma-buf for input dmabuf
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
+ */
+int cam_mem_mgr_put_dmabuf_from_fd(uint64_t input_dmabuf);
+
+/**
+ * @brief: Create a fd for dma-buf
+ *
+ * @return Status of operation. Negative in case of error. Zero or
+ *       Positive otherwise.
+ */
+int cam_mem_mgr_get_fd_from_dmabuf(uint64_t input_dmabuf);
+#endif /* ifdef CONFIG_CAM_PRESIL */
 
 /**
  * @brief: Copy buffer content to presil mem for all buffers of

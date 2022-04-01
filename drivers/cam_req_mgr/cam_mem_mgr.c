@@ -1860,7 +1860,7 @@ struct dma_buf *cam_mem_mgr_get_dma_buf(int fd)
 	return dmabuf;
 }
 
-int cam_presil_put_dmabuf_from_fd(uint64_t input_dmabuf)
+int cam_mem_mgr_put_dmabuf_from_fd(uint64_t input_dmabuf)
 {
 	struct dma_buf *dmabuf = (struct dma_buf *)(uint64_t)input_dmabuf;
 	int idx = 0;
@@ -1889,9 +1889,8 @@ int cam_presil_put_dmabuf_from_fd(uint64_t input_dmabuf)
 
 	return 0;
 }
-EXPORT_SYMBOL(cam_presil_put_dmabuf_from_fd);
 
-int cam_presil_get_fd_from_dmabuf(uint64_t input_dmabuf)
+int cam_mem_mgr_get_fd_from_dmabuf(uint64_t input_dmabuf)
 {
 	int fd_for_dmabuf = -1;
 	struct dma_buf *dmabuf = (struct dma_buf *)(uint64_t)input_dmabuf;
@@ -1942,7 +1941,6 @@ int cam_presil_get_fd_from_dmabuf(uint64_t input_dmabuf)
 
 	return (int)fd_for_dmabuf;
 }
-EXPORT_SYMBOL(cam_presil_get_fd_from_dmabuf);
 
 int cam_mem_mgr_send_buffer_to_presil(int32_t iommu_hdl, int32_t buf_handle)
 {
