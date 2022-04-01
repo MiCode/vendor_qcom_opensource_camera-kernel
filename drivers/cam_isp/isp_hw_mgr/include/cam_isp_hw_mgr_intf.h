@@ -48,7 +48,7 @@
  * Maximum configuration entry size  - This is based on the
  * worst case DUAL IFE use case plus some margin.
  */
-#define CAM_ISP_CTX_CFG_MAX                     25
+#define CAM_ISP_CTX_CFG_MAX                     30
 
 /*
  * Maximum configuration entry size including SFE & CSID - This is based on the
