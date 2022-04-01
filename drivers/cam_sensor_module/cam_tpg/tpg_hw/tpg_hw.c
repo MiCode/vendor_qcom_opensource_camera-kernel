@@ -475,11 +475,47 @@ int tpg_hw_release(struct tpg_hw *hw)
 	return rc;
 }
 
+enum cam_vote_level get_tpg_clk_level(
+		struct tpg_hw *hw)
+{
+	uint32_t cam_vote_level = 0;
+	uint32_t last_valid_vote = 0;
+	uint64_t clk = 0;
+	struct cam_hw_soc_info *soc_info;
+
+	if (!hw || !hw->soc_info)
+		return -EINVAL;
+
+	soc_info = hw->soc_info;
+	clk = hw->global_config.tpg_clock;
+
+	for (cam_vote_level = 0;
+			cam_vote_level < CAM_MAX_VOTE; cam_vote_level++) {
+		if (soc_info->clk_level_valid[cam_vote_level] != true)
+			continue;
+
+		if (soc_info->clk_rate[cam_vote_level]
+			[soc_info->src_clk_idx] >= clk) {
+			CAM_INFO(CAM_TPG,
+				"match detected %s : %llu:%d level : %d",
+				soc_info->clk_name[soc_info->src_clk_idx],
+				clk,
+				soc_info->clk_rate[cam_vote_level]
+				[soc_info->src_clk_idx],
+				cam_vote_level);
+			return cam_vote_level;
+		}
+		last_valid_vote = cam_vote_level;
+	}
+	return last_valid_vote;
+}
+
 static int tpg_hw_configure_init_settings(
 		struct tpg_hw *hw,
 		struct tpg_hw_initsettings *settings)
 {
 	int rc = 0;
+	int clk_level = 0;
 
 	if (!hw || !hw->hw_info || !hw->hw_info->ops)
 		return -EINVAL;
@@ -489,7 +525,8 @@ static int tpg_hw_configure_init_settings(
 	case TPG_HW_VERSION_1_1:
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
-		rc = tpg_hw_soc_enable(hw, CAM_SVS_VOTE);
+		clk_level = get_tpg_clk_level(hw);
+		rc = tpg_hw_soc_enable(hw, clk_level);
 		if (hw->hw_info->ops->init)
 			rc = hw->hw_info->ops->init(hw, settings);
 		break;
