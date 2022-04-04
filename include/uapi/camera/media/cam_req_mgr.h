@@ -289,6 +289,36 @@ struct cam_req_mgr_link_control {
 };
 
 /**
+ * struct cam_req_mgr_link_properties
+ * @version: Input param - Version number
+ * @session_hdl: Input param - Identifier for CSL session
+ * @link_hdl: Input Param - Identifier for link
+ * @properties_mask: Input Param - Properties mask to indicate if current
+ *                   link enables some special properties
+ * @num_valid_params: Input Param - Number of valid params
+ * @param_mask: Input Param - Mask to indicate what are the parameters
+ * @params: Input Param - Parameters passed from user space
+ */
+/* CAM_REQ_MGR_LINK_PROPERTIES */
+struct cam_req_mgr_link_properties {
+	__s32 version;
+	__s32 session_hdl;
+	__s32 link_hdl;
+	__u32 properties_mask;
+	__s32 num_valid_params;
+	__u32 param_mask;
+	__s32 params[6];
+};
+
+/**
+ * Request Manager : Link properties codes
+ * @CAM_LINK_PROPERTY_NONE                     : No special property
+ * @CAM_LINK_PROPERTY_SENSOR_STANDBY_AFTER_EOF : Standby the sensor after EOF
+ */
+#define CAM_LINK_PROPERTY_NONE                      0
+#define CAM_LINK_PROPERTY_SENSOR_STANDBY_AFTER_EOF  BIT(0)
+
+/**
  * cam_req_mgr specific opcode ids
  */
 #define CAM_REQ_MGR_CREATE_DEV_NODES            (CAM_COMMON_OPCODE_MAX + 1)
@@ -307,6 +337,7 @@ struct cam_req_mgr_link_control {
 #define CAM_REQ_MGR_LINK_V2                     (CAM_COMMON_OPCODE_MAX + 14)
 #define CAM_REQ_MGR_REQUEST_DUMP                (CAM_COMMON_OPCODE_MAX + 15)
 #define CAM_REQ_MGR_SCHED_REQ_V2                (CAM_COMMON_OPCODE_MAX + 16)
+#define CAM_REQ_MGR_LINK_PROPERTIES             (CAM_COMMON_OPCODE_MAX + 17)
 
 /* end of cam_req_mgr opcodes */
 
@@ -498,6 +529,7 @@ struct cam_mem_cache_ops_cmd {
  * @CAM_REQ_MGR_ICP_ERROR_SYSTEM_FAILURE       : ICP system failure
  * @CAM_REQ_MGR_CSID_MISSING_EOT               : CSID is missing EOT on one or more lanes
  * @CAM_REQ_MGR_CSID_RX_PKT_PAYLOAD_CORRUPTION : CSID long packet payload CRC mismatch
+ * @CAM_REQ_MGR_SENSOR_STREAM_OFF_FAILED       : Failed to stream off sensor
  */
 #define CAM_REQ_MGR_ISP_UNREPORTED_ERROR                 0
 #define CAM_REQ_MGR_LINK_STALLED_ERROR                   BIT(0)
@@ -514,6 +546,7 @@ struct cam_mem_cache_ops_cmd {
 #define CAM_REQ_MGR_ICP_SYSTEM_FAILURE                   BIT(11)
 #define CAM_REQ_MGR_CSID_MISSING_EOT                     BIT(12)
 #define CAM_REQ_MGR_CSID_RX_PKT_PAYLOAD_CORRUPTION       BIT(13)
+#define CAM_REQ_MGR_SENSOR_STREAM_OFF_FAILED             BIT(14)
 
 /**
  * struct cam_req_mgr_error_msg
