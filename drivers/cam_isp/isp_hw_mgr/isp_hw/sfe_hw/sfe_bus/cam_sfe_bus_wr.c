@@ -2388,9 +2388,9 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 	uint32_t *reg_val_pair;
 	uint32_t img_addr = 0, img_offset = 0;
 	uint32_t num_regval_pairs = 0;
-	uint32_t i, j, k, size = 0;
+	uint32_t i, j, size = 0;
 	uint32_t frame_inc = 0, val;
-	uint32_t loop_size = 0, stride = 0, slice_h = 0;
+	uint32_t stride = 0, slice_h = 0;
 	dma_addr_t iova;
 
 	bus_priv = (struct cam_sfe_bus_wr_priv *) priv;
@@ -2511,41 +2511,37 @@ skip_cache_cfg:
 				wm_data->index, reg_val_pair[j-1]);
 		}
 
-		if (wm_data->index > 7)
-			loop_size = wm_data->irq_subsample_period + 1;
-		else
-			loop_size = 1;
-
 		/* WM Image address */
-		for (k = 0; k < loop_size; k++) {
-			iova = (update_buf->wm_update->image_buf[i] +
-				wm_data->offset + k * frame_inc);
-			update_buf->wm_update->image_buf_offset[i] =
+		iova = update_buf->wm_update->image_buf[i] +
 				wm_data->offset;
+		update_buf->wm_update->image_buf_offset[i] =
+			wm_data->offset;
 
-			if (cam_smmu_is_expanded_memory()) {
-				img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
-				img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
+		if (cam_smmu_is_expanded_memory()) {
+			img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
+			img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
+			/* Align frame inc to 256 bytes */
+			frame_inc = CAM_36BIT_INTF_GET_IOVA_BASE(frame_inc);
 
-				/* Only write to offset register in 36-bit enabled HW */
-				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->addr_cfg, img_offset);
-				CAM_DBG(CAM_SFE, "WM:%d image offset 0x%X",
-					wm_data->index, img_offset);
-			} else {
-				img_addr = iova;
-			}
-
+			/* Only write to offset register in 36-bit enabled HW */
 			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-				wm_data->hw_regs->image_addr, img_addr);
-
-			CAM_DBG(CAM_SFE, "WM:%d image address 0x%x", wm_data->index, img_addr);
+				wm_data->hw_regs->addr_cfg, img_offset);
+			CAM_DBG(CAM_SFE, "WM:%d image offset 0x%X",
+				wm_data->index, img_offset);
+		} else {
+			img_addr = iova;
 		}
 
 		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			wm_data->hw_regs->image_addr, img_addr);
+
+		CAM_DBG(CAM_SFE, "WM:%d image address 0x%x", wm_data->index, img_addr);
+
+		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 			wm_data->hw_regs->frame_incr, frame_inc);
-		CAM_DBG(CAM_SFE, "WM:%d frame_inc %d",
-			wm_data->index, reg_val_pair[j-1]);
+		CAM_DBG(CAM_SFE, "WM:%d frame_inc %d expanded mem: %s",
+			wm_data->index, reg_val_pair[j-1],
+			CAM_BOOL_TO_YESNO(cam_smmu_is_expanded_memory));
 
 		/* enable the WM */
 		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
@@ -2599,9 +2595,9 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 	struct cam_sfe_bus_wr_out_data         *sfe_out_data = NULL;
 	struct cam_sfe_bus_wr_wm_resource_data *wm_data = NULL;
 	struct cam_sfe_bus_cache_dbg_cfg       *cache_dbg_cfg = NULL;
-	uint32_t i, k;
+	uint32_t i;
 	uint32_t frame_inc = 0, val, img_addr = 0, img_offset = 0;
-	uint32_t loop_size = 0, stride = 0, slice_h = 0;
+	uint32_t stride = 0, slice_h = 0;
 	dma_addr_t iova;
 
 	bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
@@ -2665,40 +2661,35 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 				wm_data->index, wm_data->h_init);
 		}
 
-		if (wm_data->index > 7)
-			loop_size = wm_data->irq_subsample_period + 1;
-		else
-			loop_size = 1;
-
 		/* WM Image address */
-		for (k = 0; k < loop_size; k++) {
-			iova = update_buf->wm_update->image_buf[i] +
-				wm_data->offset + k * frame_inc;
+		iova = update_buf->wm_update->image_buf[i] +
+			wm_data->offset;
 
-			if (cam_smmu_is_expanded_memory()) {
-				img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
-				img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
+		if (cam_smmu_is_expanded_memory()) {
+			img_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
+			img_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
+			frame_inc = CAM_36BIT_INTF_GET_IOVA_BASE(frame_inc);
 
-				CAM_DBG(CAM_SFE, "WM:%d image address offset: 0x%x",
-					wm_data->index, img_offset);
-				cam_io_w_mb(img_offset,
-					wm_data->common_data->mem_base + wm_data->hw_regs->addr_cfg);
-			} else {
-				img_addr = iova;
-			}
-
-			CAM_DBG(CAM_SFE, "WM:%d image address: 0x%x, offset: 0x%x",
-				wm_data->index, img_addr, wm_data->offset);
-
-			cam_io_w_mb(img_addr,
-				wm_data->common_data->mem_base + wm_data->hw_regs->image_addr);
+			CAM_DBG(CAM_SFE, "WM:%d image address offset: 0x%x",
+				wm_data->index, img_offset);
+			cam_io_w_mb(img_offset,
+				wm_data->common_data->mem_base + wm_data->hw_regs->addr_cfg);
+		} else {
+			img_addr = iova;
 		}
 
+		CAM_DBG(CAM_SFE, "WM:%d image address: 0x%x, offset: 0x%x",
+			wm_data->index, img_addr, wm_data->offset);
+
+		cam_io_w_mb(img_addr,
+			wm_data->common_data->mem_base + wm_data->hw_regs->image_addr);
 		cam_io_w_mb(frame_inc,
-				wm_data->common_data->mem_base +
-				wm_data->hw_regs->frame_incr);
-		CAM_DBG(CAM_SFE, "WM:%d frame_inc %d",
-			wm_data->index, frame_inc);
+			wm_data->common_data->mem_base +
+			wm_data->hw_regs->frame_incr);
+
+		CAM_DBG(CAM_SFE, "WM:%d frame_inc: %d expanded_mem: %s",
+			wm_data->index, frame_inc,
+			CAM_BOOL_TO_YESNO(cam_smmu_is_expanded_memory));
 
 		wm_data->cache_cfg = 0;
 		if ((!cache_dbg_cfg->disable_for_scratch) &&
