@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -146,7 +146,8 @@ static int cam_lrme_mgr_util_packet_validate(struct cam_packet *packet,
 static int cam_lrme_mgr_util_prepare_io_buffer(int32_t iommu_hdl,
 	struct cam_hw_prepare_update_args *prepare,
 	struct cam_lrme_hw_io_buffer *input_buf,
-	struct cam_lrme_hw_io_buffer *output_buf, uint32_t io_buf_size)
+	struct cam_lrme_hw_io_buffer *output_buf, uint32_t io_buf_size,
+	struct list_head *buf_tracker)
 {
 	int rc = -EINVAL;
 	uint32_t num_in_buf, num_out_buf, i, j, plane;
@@ -173,7 +174,7 @@ static int cam_lrme_mgr_util_prepare_io_buffer(int32_t iommu_hdl,
 				break;
 
 			rc = cam_mem_get_io_buf(io_cfg[i].mem_handle[plane],
-				iommu_hdl, &io_addr[plane], &size, NULL);
+				iommu_hdl, &io_addr[plane], &size, NULL, buf_tracker);
 			if (rc) {
 				CAM_ERR(CAM_LRME, "Cannot get io buf for %d %d",
 					plane, rc);
@@ -930,7 +931,7 @@ static int cam_lrme_mgr_hw_prepare_update(void *hw_mgr_priv,
 	rc = cam_lrme_mgr_util_prepare_io_buffer(
 		hw_mgr->device_iommu.non_secure, args,
 		config_args.input_buf, config_args.output_buf,
-		CAM_LRME_MAX_IO_BUFFER);
+		CAM_LRME_MAX_IO_BUFFER, args->buf_tracker);
 	if (rc) {
 		CAM_ERR(CAM_LRME, "Error in prepare IO Buf %d", rc);
 		goto error;

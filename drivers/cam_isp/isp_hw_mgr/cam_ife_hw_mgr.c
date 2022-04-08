@@ -8155,7 +8155,7 @@ static int cam_isp_scratch_buf_update_util(
 	}
 
 	rc = cam_mem_get_io_buf(buffer_info->mem_handle,
-		mmu_hdl, &io_addr, &size, NULL);
+		mmu_hdl, &io_addr, &size, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_ISP,
 			"no scratch buf addr for res: 0x%x",
@@ -10854,7 +10854,8 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 
 static int cam_ife_mgr_util_insert_frame_header(
 	struct cam_kmd_buf_info *kmd_buf,
-	struct cam_isp_prepare_hw_update_data *prepare_hw_data)
+	struct cam_isp_prepare_hw_update_data *prepare_hw_data,
+	struct list_head *buf_tracker)
 {
 	int mmu_hdl = -1, rc = 0;
 	dma_addr_t iova_addr;
@@ -10868,7 +10869,7 @@ static int cam_ife_mgr_util_insert_frame_header(
 			hw_mgr->mgr_common.img_iommu_hdl;
 
 	rc = cam_mem_get_io_buf(kmd_buf->handle, mmu_hdl,
-		&iova_addr, &len, NULL);
+		&iova_addr, &len, NULL, buf_tracker);
 	if (rc) {
 		CAM_ERR(CAM_ISP,
 			"Failed to get io addr for handle = %d for mmu_hdl = %u",
@@ -12087,7 +12088,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 	struct list_head                        *res_list_ife_rd_tmp = NULL;
 	struct cam_isp_cmd_buf_count             cmd_buf_count = {0};
 	struct cam_isp_check_io_cfg_for_scratch  check_for_scratch = {0};
-	struct cam_isp_io_buf_info          io_buf_info = {0};
+	struct cam_isp_io_buf_info               io_buf_info = {0};
 
 	if (!hw_mgr_priv || !prepare_hw_update_args) {
 		CAM_ERR(CAM_ISP, "Invalid args");
@@ -12098,7 +12099,6 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 	ctx = (struct cam_ife_hw_mgr_ctx *) prepare->ctxt_to_hw_map;
 	hw_mgr = (struct cam_ife_hw_mgr *)hw_mgr_priv;
-
 
 	CAM_DBG(CAM_REQ, "ctx[%pK][%u] Enter for req_id %lld",
 		ctx, ctx->ctx_index, prepare->packet->header.request_id);
@@ -12114,7 +12114,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 	if (ctx->ctx_config & CAM_IFE_CTX_CFG_FRAME_HEADER_TS) {
 		rc = cam_ife_mgr_util_insert_frame_header(&prepare_hw_data->kmd_cmd_buff_info,
-			prepare_hw_data);
+			prepare_hw_data, prepare->buf_tracker);
 		if (rc)
 			return rc;
 
@@ -12124,11 +12124,11 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 	if (ctx->flags.internal_cdm)
 		rc = cam_packet_util_process_patches(prepare->packet,
-			hw_mgr->mgr_common.img_iommu_hdl,
+			prepare->buf_tracker, hw_mgr->mgr_common.img_iommu_hdl,
 			hw_mgr->mgr_common.img_iommu_hdl_secure, true);
 	else
 		rc = cam_packet_util_process_patches(prepare->packet,
-			hw_mgr->mgr_common.cmd_iommu_hdl,
+			prepare->buf_tracker, hw_mgr->mgr_common.cmd_iommu_hdl,
 			hw_mgr->mgr_common.cmd_iommu_hdl_secure, true);
 
 	if (rc) {
@@ -15672,6 +15672,7 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
 		CAM_ERR(CAM_ISP, "Unable to create worker, ctx_idx: %u", ctx_pool->ctx_index);
 		goto end;
 	}
+
 	/* Populate sys cache info */
 	rc = cam_ife_mgr_populate_sys_cache_id();
 	if (rc == -EFAULT) {

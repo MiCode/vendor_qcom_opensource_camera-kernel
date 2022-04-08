@@ -5452,7 +5452,7 @@ static int cam_icp_mgr_pkt_validation(struct cam_icp_hw_ctx_data *ctx_data,
 
 static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 	struct cam_packet *packet, struct cam_icp_hw_ctx_data *ctx_data,
-	uint32_t *fw_cmd_buf_iova_addr)
+	uint32_t *fw_cmd_buf_iova_addr, struct list_head *buf_tracker)
 {
 	int rc = 0;
 	int i;
@@ -5471,12 +5471,13 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		if (cmd_desc[i].type == CAM_CMD_BUF_FW) {
 			rc = cam_mem_get_io_buf(cmd_desc[i].mem_handle,
-				hw_mgr->iommu_hdl, &addr, &len, NULL);
+				hw_mgr->iommu_hdl, &addr, &len, NULL, buf_tracker);
 			if (rc) {
 				CAM_ERR(CAM_ICP, "%s: get cmd buf failed %x",
 					ctx_data->ctx_id_string, hw_mgr->iommu_hdl);
 				return rc;
 			}
+
 			/* FW buffers are expected to be within 32-bit address range */
 			*fw_cmd_buf_iova_addr = addr;
 
@@ -5624,7 +5625,7 @@ static int cam_icp_process_stream_settings(
 	for (i = 0; i < cmd_mem_regions->num_regions; i++) {
 		rc = cam_mem_get_io_buf(
 			cmd_mem_regions->map_info_array[i].mem_handle,
-			hw_mgr->iommu_hdl, &iova, &len, NULL);
+			hw_mgr->iommu_hdl, &iova, &len, NULL, NULL);
 		if (rc) {
 			CAM_ERR(CAM_ICP,
 				"%s: Failed to get cmd region iova for handle %u",
@@ -5909,7 +5910,7 @@ static int cam_icp_packet_generic_blob_handler(void *user_data,
 		CAM_DBG(CAM_ICP, "%s: buf handle %d", ctx_data->ctx_id_string,
 			dev_io_info.io_config_cmd_handle);
 		rc = cam_mem_get_io_buf(dev_io_info.io_config_cmd_handle, hw_mgr->iommu_hdl,
-			blob->io_buf_addr, &io_buf_size, NULL);
+			blob->io_buf_addr, &io_buf_size, NULL, NULL);
 		if (rc)
 			CAM_ERR(CAM_ICP, "%s: Failed in blob update", ctx_data->ctx_id_string);
 		else
@@ -6173,7 +6174,7 @@ static int cam_icp_mgr_prepare_hw_update(void *hw_mgr_priv,
 	}
 
 	rc = cam_icp_mgr_process_cmd_desc(hw_mgr, packet,
-		ctx_data, &fw_cmd_buf_iova_addr);
+		ctx_data, &fw_cmd_buf_iova_addr, prepare_args->buf_tracker);
 	if (rc) {
 		mutex_unlock(&ctx_data->ctx_mutex);
 		return rc;
@@ -6182,8 +6183,8 @@ static int cam_icp_mgr_prepare_hw_update(void *hw_mgr_priv,
 	CAM_DBG(CAM_REQ, "%s: req id = %lld", ctx_data->ctx_id_string,
 		packet->header.request_id);
 	/* Update Buffer Address from handles and patch information */
-	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_hdl,
-		hw_mgr->iommu_sec_hdl, true);
+	rc = cam_packet_util_process_patches(packet, prepare_args->buf_tracker,
+		hw_mgr->iommu_hdl, hw_mgr->iommu_sec_hdl, true);
 	if (rc) {
 		mutex_unlock(&ctx_data->ctx_mutex);
 		return rc;
@@ -6646,7 +6647,7 @@ static int cam_icp_mgr_synx_send_test_cmd(
 	synx_test_cmd.size = sizeof(synx_test_cmd);
 
 	rc = cam_mem_get_io_buf(synx_test_params->ip_mem_hdl, hw_mgr->iommu_hdl,
-		&iova, &size, NULL);
+		&iova, &size, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "Failed to get buf for hdl: %d rc: %d",
 			synx_test_params->ip_mem_hdl, rc);
@@ -6657,7 +6658,7 @@ static int cam_icp_mgr_synx_send_test_cmd(
 	synx_test_cmd.input_size = (uint32_t)size;
 
 	rc = cam_mem_get_io_buf(synx_test_params->op_mem_hdl, hw_mgr->iommu_hdl,
-		&iova, &size, NULL);
+		&iova, &size, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "Failed to get buf for hdl: %d rc: %d",
 			synx_test_params->ip_mem_hdl, rc);
@@ -7165,7 +7166,7 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	rc = cam_mem_get_io_buf(
 		icp_dev_acquire_info->io_config_cmd_handle,
 		hw_mgr->iommu_hdl,
-		&io_buf_addr, &io_buf_size, NULL);
+		&io_buf_addr, &io_buf_size, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "%s: unable to get src buf info from io desc",
 			ctx_data->ctx_id_string);

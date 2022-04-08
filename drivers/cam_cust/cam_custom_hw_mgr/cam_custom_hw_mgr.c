@@ -1183,7 +1183,7 @@ static int cam_custom_add_io_buffers(
 					io_cfg[i].mem_handle[plane_id],
 					iommu_hdl,
 					&prepare_hw_data->io_addr[plane_id],
-					&size, NULL);
+					&size, NULL, NULL);
 				if (rc) {
 					CAM_ERR(CAM_CUSTOM,
 						"No io addr for plane: %d",

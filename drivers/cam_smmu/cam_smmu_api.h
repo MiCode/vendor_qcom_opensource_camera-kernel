@@ -84,6 +84,23 @@ struct cam_csf_version {
 };
 
 /**
+ * @brief : cam_smmu_buffer_tracker
+ *
+ * @param: list      : list to be inserted into list of tracked buggers
+ * @param: ref_count : Ptr to kref object of a physical buffer allocated per CB
+ * @param: ion_fd    : fd of buffer
+ * @param: i_ino     : inode of buffer
+ * @param: cb_name   : CB which this buffer belongs to
+ */
+struct cam_smmu_buffer_tracker {
+	struct list_head list;
+	struct kref *ref_count;
+	int ion_fd;
+	unsigned long i_ino;
+	const char *cb_name;
+};
+
+/**
  * @brief          : cam_smmu_pf_info
  *
  * @param domain           : Iommu domain received in iommu page fault handler
@@ -186,11 +203,12 @@ int cam_smmu_ops(int handle, enum cam_smmu_ops_param op);
  * @len_ptr     : Length of buffer mapped returned by CAM SMMU driver.
  * @region_id   : Memory region identifier
  * @is_internal: Specifies if this buffer is kernel allocated.
+ * @ref_count:   Double ptr to store ref_cnt object in memmgr.
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_smmu_map_user_iova(int handle, int ion_fd, struct dma_buf *dmabuf,
 	bool dis_delayed_unmap, enum cam_smmu_map_dir dir, dma_addr_t *dma_addr, size_t *len_ptr,
-	enum cam_smmu_region_id region_id, bool is_internal);
+	enum cam_smmu_region_id region_id, bool is_internal, struct kref **ref_count);
 
 /**
  * @brief        : Maps kernel space IOVA for calling driver
@@ -219,11 +237,13 @@ int cam_smmu_map_kernel_iova(int handle,
  * @param ion_fd: ION handle identifying the memory buffer.
  * @param dma_buf: DMA Buf handle identifying the memory buffer.
  * @param region_id: Region id from which to unmap buffer.
+ * @param force_unmap: If this unmap operation is part of memmgr cleanup
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_smmu_unmap_user_iova(int handle,
-	int ion_fd, struct dma_buf *dma_buf, enum cam_smmu_region_id region_id);
+	int ion_fd, struct dma_buf *dma_buf, enum cam_smmu_region_id region_id,
+	bool force_unmap);
 
 /**
  * @brief       : Unmaps kernel IOVA for calling driver
@@ -328,11 +348,14 @@ void cam_smmu_unset_client_page_fault_handler(int handle, void *token);
  * @param dma_buf: DMA buf of memory to map to
  * @param paddr_ptr: Pointer IOVA address that will be returned
  * @param len_ptr: Length of memory mapped
+ * @param buf_tracker: List to add tracked buffers to
+ * @param ref_count: Double ptr to ref_count object for memmgr table
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_smmu_get_iova(int handle, int ion_fd, struct dma_buf *dma_buf,
-	dma_addr_t *paddr_ptr, size_t *len_ptr);
+	dma_addr_t *paddr_ptr, size_t *len_ptr, struct list_head *buf_tracker,
+	struct kref **ref_count);
 
 /**
  * @brief Maps memory from an ION fd into IOVA space
@@ -342,11 +365,14 @@ int cam_smmu_get_iova(int handle, int ion_fd, struct dma_buf *dma_buf,
  * @param dma_buf: DMA Buf of memory to map to
  * @param paddr_ptr: Pointer IOVA address that will be returned
  * @param len_ptr: Length of memory mapped
+ * @param buf_tracker: List to add tracked buffers to
+ * @param ref_count: Double ptr to ref_count object for memmgr table
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_smmu_get_stage2_iova(int handle, int ion_fd, struct dma_buf *dma_buf,
-	dma_addr_t *paddr_ptr, size_t *len_ptr);
+	dma_addr_t *paddr_ptr, size_t *len_ptr, struct list_head *buf_tracker,
+	struct kref **ref_count);
 
 /**
  * @brief Unmaps memory from context bank
@@ -368,11 +394,13 @@ int cam_smmu_put_iova(int handle, int ion_fd, struct dma_buf *dma_buf);
  * @param dir: DMA Direction for the mapping
  * @param dma_addr: Returned IOVA address after mapping
  * @param len_ptr: Length of memory mapped
+ * @param ref_count: Double ptr to store ref_cnt object in memmgr
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_smmu_map_stage2_iova(int handle, int ion_fd, struct dma_buf *dmabuf,
-	enum cam_smmu_map_dir dir, dma_addr_t *dma_addr, size_t *len_ptr);
+	enum cam_smmu_map_dir dir, dma_addr_t *dma_addr, size_t *len_ptr,
+	struct kref **ref_count);
 
 /**
  * @brief Unmaps secure memopry for SMMU handle
@@ -380,10 +408,12 @@ int cam_smmu_map_stage2_iova(int handle, int ion_fd, struct dma_buf *dmabuf,
  * @param handle: SMMU handle identifying secure context bank
  * @param ion_fd: ION fd to unmap
  * @param dma_buf: DMA Buf to unmap
+ * @param force_unmap: If this unmap operation is part of memmgr cleanup
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-int cam_smmu_unmap_stage2_iova(int handle, int ion_fd, struct dma_buf *dma_buf);
+int cam_smmu_unmap_stage2_iova(int handle, int ion_fd, struct dma_buf *dma_buf,
+	bool force_unmap);
 
 /**
  * @brief Allocates firmware for context bank
@@ -540,5 +570,22 @@ int cam_smmu_driver_init(struct cam_csf_version *csf_ver, int32_t *num_cbs);
  * @brief : API to deinitialize any initialized SMMU config
  */
 void cam_smmu_driver_deinit(void);
+
+/**
+ * @brief : API to putref on tracked buffers whoose ref counts
+ *          are incremented
+ */
+void cam_smmu_buffer_tracker_putref(struct list_head *mapped_io_list);
+
+/**
+ * @brief : API to putref on a specific tracked buffer
+ */
+void cam_smmu_buffer_tracker_buffer_putref(struct cam_smmu_buffer_tracker *entry);
+
+/**
+ * @brief : Add tracked buffers to list that belongs to a context
+ */
+int cam_smmu_add_buf_to_track_list(int ion_fd, unsigned long inode,
+	struct kref **ref_count, struct list_head *buf_tracker, int idx);
 
 #endif /* _CAM_SMMU_API_H_ */

@@ -865,7 +865,7 @@ int cam_hw_cdm_submit_gen_irq(
 		core->bl_fifo[fifo_idx].bl_tag, cdm_cmd->cmd_arrary_count, cdm_cmd->cookie);
 
 	rc = cam_mem_get_io_buf(cdm_cmd->genirq_buff->handle, core->iommu_hdl.non_secure,
-		&hw_vaddr_ptr, &len, NULL);
+		&hw_vaddr_ptr, &len, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Getting a hwva from mem_hdl failed. rc: %d", rc);
 		return -EINVAL;
@@ -972,7 +972,7 @@ int cam_hw_cdm_submit_debug_gen_irq(
 		core->bl_fifo[fifo_idx].bl_tag, cdm_cmd->cmd_arrary_count, cdm_cmd->cookie);
 
 	rc = cam_mem_get_io_buf(cdm_cmd->genirq_buff->handle, core->iommu_hdl.non_secure,
-		&hw_vaddr_ptr, &len, NULL);
+		&hw_vaddr_ptr, &len, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Getting a hwva from mem_hdl failed. rc: %d", rc);
 		return -EINVAL;
@@ -1101,7 +1101,7 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 		if (req->data->type == CAM_CDM_BL_CMD_TYPE_MEM_HANDLE) {
 			rc = cam_mem_get_io_buf(cdm_cmd->cmd[i].bl_addr.mem_handle,
 				core->iommu_hdl.non_secure, &hw_vaddr_ptr,
-				&len, NULL);
+				&len, NULL, NULL);
 			if (rc) {
 				CAM_ERR(CAM_CDM,
 					"Getting a hwva from mem_hdl failed. rc: %d, cmd_ent: %u",

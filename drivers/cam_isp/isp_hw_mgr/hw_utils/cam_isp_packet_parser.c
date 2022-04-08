@@ -839,6 +839,7 @@ static int cam_isp_add_io_buffers_util(
 	struct cam_isp_hw_get_cmd_update    update_buf;
 	struct cam_isp_hw_get_wm_update     bus_port_update;
 	struct cam_hw_fence_map_entry      *out_map_entry = NULL;
+	struct cam_smmu_buffer_tracker     *old_head_entry, *new_head_entry;
 	uint32_t                            kmd_buf_remain_size;
 	uint32_t                            plane_id, num_entries;
 	dma_addr_t                         *image_buf_addr;
@@ -873,6 +874,9 @@ static int cam_isp_add_io_buffers_util(
 		return -EINVAL;
 	}
 
+	old_head_entry = list_first_entry_or_null(buf_info->prepare->buf_tracker,
+		struct cam_smmu_buffer_tracker, list);
+
 	memset(io_addr, 0, sizeof(io_addr));
 	for (plane_id = 0; plane_id < CAM_PACKET_MAX_PLANES; plane_id++) {
 		if (!io_cfg->mem_handle[plane_id])
@@ -905,7 +909,8 @@ static int cam_isp_add_io_buffers_util(
 		}
 
 		rc = cam_mem_get_io_buf(io_cfg->mem_handle[plane_id],
-			mmu_hdl, &io_addr[plane_id], &size, NULL);
+			mmu_hdl, &io_addr[plane_id], &size, NULL,
+			(!plane_id) ? buf_info->prepare->buf_tracker : NULL);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "no io addr for plane%d", plane_id);
 			rc = -ENOMEM;
@@ -1008,6 +1013,17 @@ static int cam_isp_add_io_buffers_util(
 					plane_id++)
 					image_buf_addr[plane_id] = io_addr[plane_id] +
 						image_buf_offset[plane_id];
+			}
+
+			new_head_entry =
+				list_first_entry_or_null(buf_info->prepare->buf_tracker,
+					struct cam_smmu_buffer_tracker, list);
+			if (new_head_entry && old_head_entry != new_head_entry) {
+				out_map_entry->buffer_tracker = new_head_entry;
+				CAM_DBG(CAM_ISP,
+					"[SMMU_BT] Tracking io_buf, buf_handle: 0x%x, fd: 0x%x, res_id: %d",
+					io_cfg->mem_handle[0],
+					out_map_entry->buffer_tracker->ion_fd, res->res_id);
 			}
 		}
 	}
