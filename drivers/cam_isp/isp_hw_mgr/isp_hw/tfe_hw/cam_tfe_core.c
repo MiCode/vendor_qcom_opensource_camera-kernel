@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -712,7 +713,7 @@ static int cam_tfe_irq_bottom_half(void *handler_priv,
 			CAM_ISP_HW_TFE_IN_RDI2) &&
 			(top_priv->in_rsrc[i].res_state ==
 			CAM_ISP_RESOURCE_STATE_STREAMING) &&
-			top_priv->in_rsrc[i].rdi_only_ctx) {
+			top_priv->in_rsrc[i].is_rdi_primary_res) {
 			rdi_priv = (struct cam_tfe_rdi_data *)
 				top_priv->in_rsrc[i].res_priv;
 			event_cb = rdi_priv->event_cb;
@@ -1962,7 +1963,7 @@ int cam_tfe_top_release(void *device_priv,
 	in_res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 	in_res->cdm_ops = NULL;
 	in_res->tasklet_info = NULL;
-	in_res->rdi_only_ctx = 0;
+	in_res->is_rdi_primary_res = 0;
 
 	return 0;
 }
@@ -2194,7 +2195,7 @@ int cam_tfe_top_start(struct cam_tfe_hw_core_info *core_info,
 		in_res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
 
 		/* Enable the irq */
-		if (in_res->rdi_only_ctx)
+		if (in_res->is_rdi_primary_res)
 			cam_tfe_irq_config(core_info,
 				rsrc_rdi_data->reg_data->subscribe_irq_mask,
 				CAM_TFE_TOP_IRQ_REG_NUM, true);
@@ -2284,7 +2285,7 @@ int cam_tfe_top_stop(struct cam_tfe_hw_core_info *core_info,
 		cam_io_w_mb(0x0, rsrc_rdi_data->mem_base +
 			rsrc_rdi_data->rdi_reg->rdi_module_config);
 
-		if (in_res->rdi_only_ctx)
+		if (in_res->is_rdi_primary_res)
 			cam_tfe_irq_config(core_info,
 				rsrc_rdi_data->reg_data->subscribe_irq_mask,
 				CAM_TFE_TOP_IRQ_REG_NUM, false);

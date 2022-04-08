@@ -375,7 +375,7 @@ static void cam_tfe_hw_mgr_stop_hw_res(
 				CAM_ISP_HW_CMD_STOP_BUS_ERR_IRQ,
 				&dummy_args, sizeof(dummy_args));
 		}
-		isp_hw_res->hw_res[i]->rdi_only_ctx = false;
+		isp_hw_res->hw_res[i]->is_rdi_primary_res = false;
 	}
 }
 
@@ -605,7 +605,7 @@ static int cam_tfe_mgr_csid_stop_hw(
 		hw_intf->hw_ops.stop(hw_intf->hw_priv, &stop, sizeof(stop));
 
 		for (i = 0; i < cnt; i++)
-			stop_res[i]->rdi_only_ctx = false;
+			stop_res[i]->is_rdi_primary_res = false;
 	}
 
 	return 0;
@@ -3286,7 +3286,7 @@ start_only:
 		case CAM_ISP_TFE_OUT_RES_RDI_1:
 		case CAM_ISP_TFE_OUT_RES_RDI_2:
 			if (!res_rdi_context_set && ctx->is_rdi_only_context) {
-				hw_mgr_res->hw_res[0]->rdi_only_ctx =
+				hw_mgr_res->hw_res[0]->is_rdi_primary_res =
 					ctx->is_rdi_only_context;
 				res_rdi_context_set = true;
 				primary_rdi_out_res = hw_mgr_res->res_id;
@@ -3316,7 +3316,7 @@ start_only:
 		 * subscription should be sufficient
 		 */
 		if (primary_rdi_in_res == hw_mgr_res->res_id)
-			hw_mgr_res->hw_res[0]->rdi_only_ctx =
+			hw_mgr_res->hw_res[0]->is_rdi_primary_res =
 				ctx->is_rdi_only_context;
 
 		rc = cam_tfe_hw_mgr_start_hw_res(hw_mgr_res, ctx);
@@ -5261,7 +5261,6 @@ static int cam_tfe_hw_mgr_handle_csid_event(
 			break;
 
 		error_event_data.error_type = err_type;
-		error_event_data.error_code = CAM_REQ_MGR_CSID_FATAL_ERROR;
 		cam_tfe_hw_mgr_find_affected_ctx(&error_event_data,
 			event_info->hw_idx,
 			&recovery_data);
@@ -5310,8 +5309,6 @@ static int cam_tfe_hw_mgr_handle_hw_err(
 		error_event_data.recovery_enabled = true;
 	else
 		error_event_data.recovery_enabled = false;
-
-	error_event_data.error_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
 
 	rc = cam_tfe_hw_mgr_find_affected_ctx(&error_event_data,
 		core_idx, &recovery_data);

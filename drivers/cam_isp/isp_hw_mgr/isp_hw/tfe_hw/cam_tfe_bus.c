@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/ratelimit.h>
@@ -1397,7 +1398,7 @@ static int cam_tfe_bus_acquire_tfe_out(void *priv, void *acquire_args,
 
 	bus_priv->tasklet_info = acq_args->tasklet;
 	rsrc_data->num_wm = num_wm;
-	rsrc_node->rdi_only_ctx = 0;
+	rsrc_node->is_rdi_primary_res = 0;
 	rsrc_node->res_id = out_acquire_args->out_port_info->res_id;
 	rsrc_node->cdm_ops = out_acquire_args->cdm_ops;
 	rsrc_data->cdm_util_ops = out_acquire_args->cdm_ops;
@@ -1563,7 +1564,7 @@ static int cam_tfe_bus_start_tfe_out(void *hw_priv,
 	rc = cam_tfe_bus_start_comp_grp(rsrc_data->comp_grp);
 
 	if (rsrc_data->is_dual && !rsrc_data->is_master &&
-		!tfe_out->rdi_only_ctx)
+		!tfe_out->is_rdi_primary_res)
 		goto end;
 
 	if (common_data->rup_irq_enable[rup_group_id])
