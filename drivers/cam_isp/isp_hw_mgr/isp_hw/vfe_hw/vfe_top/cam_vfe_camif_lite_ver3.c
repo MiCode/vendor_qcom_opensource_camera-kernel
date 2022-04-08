@@ -888,7 +888,7 @@ static void cam_vfe_camif_lite_print_status(uint32_t *status,
 
 		if (status_0 & 0x40000000) {
 			CAM_INFO(CAM_ISP, "PD PIPE OVERFLOW");
-			cam_cpas_log_votes();
+			cam_cpas_log_votes(false);
 		}
 	}
 
@@ -1020,7 +1020,7 @@ print_state:
 
 	if ((err_type == CAM_VFE_IRQ_STATUS_OVERFLOW) &&
 		bus_overflow_status)
-		cam_cpas_log_votes();
+		cam_cpas_log_votes(false);
 
 }
 

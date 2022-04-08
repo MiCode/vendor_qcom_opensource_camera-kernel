@@ -179,6 +179,18 @@ static int cam_ife_csid_ver2_set_debug(
 			csid_hw->debug_info.rx_mask |=
 				IFE_CSID_VER2_RX_UNMAPPED_VC_DT;
 			break;
+		case CAM_IFE_CSID_DEBUG_ENABLE_VOTE_UP_IRQ:
+			csid_hw->debug_info.top_mask |=
+				IFE_CSID_VER2_TOP_INFO_VOTE_UP;
+			break;
+		case CAM_IFE_CSID_DEBUG_ENABLE_VOTE_DN_IRQ:
+			csid_hw->debug_info.top_mask |=
+				IFE_CSID_VER2_TOP_INFO_VOTE_DN;
+			break;
+		case CAM_IFE_CSID_DEBUG_ENABLE_ERR_NO_VOTE_DN_IRQ:
+			csid_hw->debug_info.top_mask |=
+				IFE_CSID_VER2_TOP_ERR_NO_VOTE_DN;
+			break;
 		default:
 			break;
 		}
@@ -305,6 +317,36 @@ static int cam_ife_csid_ver2_put_evt_payload(
 	return 0;
 }
 
+static int cam_ife_csid_ver2_top_info_irq_top_half(
+	uint32_t                                   evt_id,
+	struct cam_irq_th_payload                 *th_payload)
+{
+	int rc = 0;
+	struct cam_ife_csid_ver2_hw               *csid_hw = NULL;
+	struct cam_ife_csid_ver2_evt_payload      *evt_payload;
+
+	csid_hw = th_payload->handler_priv;
+
+	rc  = cam_ife_csid_ver2_get_evt_payload(csid_hw, &evt_payload,
+			&csid_hw->path_free_payload_list,
+			&csid_hw->path_payload_lock);
+	if (rc) {
+		CAM_WARN_RATE_LIMIT(CAM_ISP, "CSID:%d get payload failed, TOP info status: 0x%x",
+			csid_hw->hw_intf->hw_idx,
+			th_payload->evt_status_arr[0]);
+		return rc;
+	}
+
+	CAM_DBG(CAM_ISP, "CSID:%d TOP info status: 0x%x", csid_hw->hw_intf->hw_idx,
+		th_payload->evt_status_arr[0]);
+
+	evt_payload->irq_reg_val = th_payload->evt_status_arr[0];
+	ktime_get_boottime_ts64(&evt_payload->timestamp);
+	th_payload->evt_payload_priv = evt_payload;
+
+	return 0;
+}
+
 static int cam_ife_csid_ver2_top_err_irq_top_half(
 	uint32_t                                   evt_id,
 	struct cam_irq_th_payload                 *th_payload)
@@ -312,11 +354,8 @@ static int cam_ife_csid_ver2_top_err_irq_top_half(
 	int rc = 0;
 	struct cam_ife_csid_ver2_hw               *csid_hw = NULL;
 	struct cam_ife_csid_ver2_evt_payload      *evt_payload;
-	struct cam_ife_csid_ver2_reg_info         *csid_reg = NULL;
 
 	csid_hw = th_payload->handler_priv;
-	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-			csid_hw->core_info->csid_reg;
 
 	rc  = cam_ife_csid_ver2_get_evt_payload(csid_hw, &evt_payload,
 			&csid_hw->path_free_payload_list,
@@ -332,6 +371,7 @@ static int cam_ife_csid_ver2_top_err_irq_top_half(
 	}
 
 	evt_payload->irq_reg_val = th_payload->evt_status_arr[0];
+	ktime_get_boottime_ts64(&evt_payload->timestamp);
 	th_payload->evt_payload_priv = evt_payload;
 
 	return 0;
@@ -484,7 +524,7 @@ static int cam_ife_csid_ver2_path_top_half(
 	}
 
 	evt_payload->irq_reg_val = th_payload->evt_status_arr[0];
-
+	ktime_get_boottime_ts64(&evt_payload->timestamp);
 	th_payload->evt_payload_priv = evt_payload;
 
 	return 0;
@@ -1292,6 +1332,27 @@ void cam_ife_csid_hw_ver2_rdi_line_buffer_conflict_handler(
 
 }
 
+void cam_ife_csid_hw_ver2_drv_err_handler(void *csid)
+{
+	struct cam_ife_csid_ver2_hw       *csid_hw  = csid;
+	struct cam_ife_csid_ver2_reg_info *csid_reg = csid_hw->core_info->csid_reg;
+	struct cam_hw_soc_info            *soc_info = &csid_hw->hw_info->soc_info;
+	void __iomem                      *base =
+		soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
+	uint32_t cfg0_val = 0, cfg1_val = 0, cfg2_val = 0, debug_drv_0_val = 0, debug_drv_1_val = 0;
+
+	cfg0_val = cam_io_r_mb(base + csid_reg->cmn_reg->drv_cfg0_addr);
+	cfg1_val = cam_io_r_mb(base + csid_reg->cmn_reg->drv_cfg1_addr);
+	cfg2_val = cam_io_r_mb(base + csid_reg->cmn_reg->drv_cfg2_addr);
+	debug_drv_0_val = cam_io_r_mb(base + csid_reg->cmn_reg->debug_drv_0_addr);
+	debug_drv_1_val = cam_io_r_mb(base + csid_reg->cmn_reg->debug_drv_1_addr);
+
+	CAM_INFO(CAM_ISP,
+		"CSID[%d] DRV cfg0:0x%x cfg1:0x%x cfg2:0x%x qtimer_val [start:end] [0x%x : 0x%x]",
+		csid_hw->hw_intf->hw_idx, cfg0_val, cfg1_val, cfg2_val, debug_drv_0_val,
+		debug_drv_1_val);
+}
+
 void cam_ife_csid_hw_ver2_mup_mismatch_handler(
 	void *csid, void *resource)
 {
@@ -1456,7 +1517,8 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	struct cam_isp_resource_node *res,
 	uint32_t                     index,
 	uint32_t                     err_mask,
-	uint32_t                     irq_status)
+	uint32_t                     irq_status,
+	struct cam_ife_csid_ver2_evt_payload *evt_payload)
 {
 	const uint8_t                          **irq_reg_tag;
 	const struct cam_ife_csid_ver2_reg_info *csid_reg;
@@ -1497,9 +1559,11 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	bit_pos = 0;
 	while (status) {
 		if (status & 0x1)
-			CAM_INFO(CAM_ISP, "CSID[%d] IRQ %s %s ",
+			CAM_INFO(CAM_ISP, "CSID[%d] IRQ %s %s timestamp:[%lld:%lld]",
 				csid_hw->hw_intf->hw_idx, irq_reg_tag[index],
-				csid_reg->path_irq_desc[bit_pos].desc);
+				csid_reg->path_irq_desc[bit_pos].desc,
+				evt_payload->timestamp.tv_sec,
+				evt_payload->timestamp.tv_nsec);
 
 		bit_pos++;
 		status >>= 1;
@@ -1518,6 +1582,57 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	}
 
 	return err_type;
+}
+
+static int cam_ife_csid_ver2_top_info_irq_bottom_half(
+	void                                      *handler_priv,
+	void                                      *evt_payload_priv)
+{
+	struct cam_ife_csid_ver2_evt_payload       *payload;
+	struct cam_ife_csid_ver2_hw                *csid_hw = NULL;
+	uint32_t                                    irq_status;
+
+	if (!handler_priv || !evt_payload_priv) {
+		CAM_ERR(CAM_ISP, "Invalid params");
+		return -EINVAL;
+	}
+
+	payload = evt_payload_priv;
+	csid_hw = handler_priv;
+
+	irq_status = payload->irq_reg_val & csid_hw->debug_info.top_mask;
+	if (!irq_status) {
+		CAM_ERR(CAM_ISP, "Unexpected Scenario");
+		return 0;
+	}
+
+	if (irq_status & IFE_CSID_VER2_TOP_INFO_VOTE_UP) {
+		cam_cpas_log_votes(true);
+		CAM_INFO(CAM_ISP, "CSID:%d INFO_VOTE_UP timestamp:[%lld:%lld]",
+			csid_hw->hw_intf->hw_idx, payload->timestamp.tv_sec,
+			payload->timestamp.tv_nsec);
+	}
+
+	if (irq_status & IFE_CSID_VER2_TOP_INFO_VOTE_DN) {
+		cam_cpas_log_votes(true);
+		CAM_INFO(CAM_ISP, "CSID:%d INFO_VOTE_DN timestamp:[%lld:%lld]",
+			csid_hw->hw_intf->hw_idx, payload->timestamp.tv_sec,
+			payload->timestamp.tv_nsec);
+	}
+
+	if (irq_status & IFE_CSID_VER2_TOP_ERR_NO_VOTE_DN) {
+		CAM_INFO(CAM_ISP, "CSID:%d ERR_NO_VOTE_DN timestamp:[%lld:%lld]",
+			csid_hw->hw_intf->hw_idx, payload->timestamp.tv_sec,
+			payload->timestamp.tv_nsec);
+
+		cam_ife_csid_hw_ver2_drv_err_handler(csid_hw);
+	}
+
+	cam_ife_csid_ver2_put_evt_payload(csid_hw, &payload,
+		&csid_hw->path_free_payload_list,
+		&csid_hw->path_payload_lock);
+
+	return 0;
 }
 
 static int cam_ife_csid_ver2_top_err_irq_bottom_half(
@@ -1555,8 +1670,10 @@ static int cam_ife_csid_ver2_top_err_irq_bottom_half(
 			CAM_ERR(CAM_ISP, "%s %s",
 				csid_reg->top_irq_desc[i].err_name,
 				csid_reg->top_irq_desc[i].desc);
+
 			if (csid_reg->top_irq_desc[i].err_handler)
 				csid_reg->top_irq_desc[i].err_handler(csid_hw);
+
 			event_type |= csid_reg->top_irq_desc[i].err_type;
 		}
 	}
@@ -1697,7 +1814,7 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	err_type = cam_ife_csid_ver2_parse_path_irq_status(
 		csid_hw, res,
 		CAM_IFE_CSID_IRQ_REG_IPP,
-		err_mask, irq_status_ipp);
+		err_mask, irq_status_ipp, payload);
 
 	if (err_type)
 		cam_ife_csid_ver2_handle_event_err(csid_hw,
@@ -1778,9 +1895,10 @@ static int cam_ife_csid_ver2_ppp_bottom_half(
 			csid_hw->hw_intf->hw_idx);
 		goto unlock;
 	}
+
 	err_type = cam_ife_csid_ver2_parse_path_irq_status(
 		csid_hw, res, CAM_IFE_CSID_IRQ_REG_PPP,
-		err_mask, irq_status_ppp);
+		err_mask, irq_status_ppp, payload);
 
 	if (err_type)
 		cam_ife_csid_ver2_handle_event_err(csid_hw,
@@ -1873,7 +1991,7 @@ static int cam_ife_csid_ver2_rdi_bottom_half(
 
 	err_type = cam_ife_csid_ver2_parse_path_irq_status(csid_hw, res,
 		path_cfg->irq_reg_idx,
-		err_mask, irq_status_rdi);
+		err_mask, irq_status_rdi, payload);
 
 	spin_unlock(&csid_hw->lock_state);
 	if (err_type) {
@@ -4086,6 +4204,7 @@ static int cam_ife_csid_ver2_enable_hw(
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg = NULL;
 	uint32_t top_err_irq_mask = 0;
 	uint32_t buf_done_irq_mask = 0;
+	uint32_t top_info_irq_mask = 0;
 
 	if (csid_hw->flags.device_enabled) {
 		CAM_DBG(CAM_ISP, "CSID[%d] hw has already been enabled",
@@ -4170,6 +4289,27 @@ static int cam_ife_csid_ver2_enable_hw(
 			csid_hw->buf_done_irq_handle);
 		rc = -EINVAL;
 		goto unsubscribe_top_err;
+	}
+
+	if (csid_hw->debug_info.top_mask) {
+		top_info_irq_mask = csid_hw->debug_info.top_mask;
+		csid_hw->top_info_irq_handle = cam_irq_controller_subscribe_irq(
+						csid_hw->top_irq_controller,
+						CAM_IRQ_PRIORITY_1,
+						&top_info_irq_mask,
+						csid_hw,
+						cam_ife_csid_ver2_top_info_irq_top_half,
+						cam_ife_csid_ver2_top_info_irq_bottom_half,
+						csid_hw->tasklet,
+						&tasklet_bh_api,
+						CAM_IRQ_EVT_GROUP_0);
+
+		if (csid_hw->top_info_irq_handle < 1) {
+			CAM_ERR(CAM_ISP, "CSID[%d] Subscribe Top Info Irq fail",
+				csid_hw->hw_intf->hw_idx);
+			return -EINVAL;
+			goto unsubscribe_top_err;
+		}
 	}
 
 	csid_hw->flags.device_enabled = true;
@@ -4579,6 +4719,12 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 			csid_hw->top_irq_controller,
 			csid_hw->top_err_irq_handle);
 		csid_hw->top_err_irq_handle = 0;
+	}
+
+	if (csid_hw->debug_info.top_mask) {
+		cam_irq_controller_unsubscribe_irq(csid_hw->top_irq_controller,
+			csid_hw->top_info_irq_handle);
+		csid_hw->top_info_irq_handle = 0;
 	}
 
 	cam_ife_csid_ver2_disable_csi2(csid_hw);

@@ -12,6 +12,10 @@
 #include "cam_ife_csid_soc.h"
 #include "cam_ife_csid_common.h"
 
+#define IFE_CSID_VER2_TOP_INFO_VOTE_UP                BIT(16)
+#define IFE_CSID_VER2_TOP_INFO_VOTE_DN                BIT(17)
+#define IFE_CSID_VER2_TOP_ERR_NO_VOTE_DN              BIT(18)
+
 #define IFE_CSID_VER2_RX_DL0_EOT_CAPTURED             BIT(0)
 #define IFE_CSID_VER2_RX_DL1_EOT_CAPTURED             BIT(1)
 #define IFE_CSID_VER2_RX_DL2_EOT_CAPTURED             BIT(2)
@@ -114,6 +118,18 @@ struct cam_ife_csid_ver2_top_cfg {
 struct cam_ife_csid_ver2_evt_payload {
 	struct list_head            list;
 	uint32_t                    irq_reg_val;
+	struct timespec64           timestamp;
+};
+
+/*
+ * struct cam_ife_csid_ver2_camif_data: place holder for camif parameters
+ *
+ * @epoch0_cfg:   Epoch 0 configuration value
+ * @epoch1_cfg:   Epoch 1 configuration value
+ */
+struct cam_ife_csid_ver2_camif_data {
+	uint32_t epoch0;
+	uint32_t epoch1;
 };
 
 /*
@@ -382,6 +398,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t drv_cfg0_addr;
 	uint32_t drv_cfg1_addr;
 	uint32_t drv_cfg2_addr;
+	uint32_t debug_drv_0_addr;
+	uint32_t debug_drv_1_addr;
 
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;
@@ -558,6 +576,8 @@ struct cam_ife_csid_ver2_reg_info {
  * @tasklet:                  Tasklet for irq events
  * @reset_irq_handle:         Reset irq handle
  * @buf_done_irq_handle:      Buf done irq handle
+ * @top_err_irq_handle:       Top Err IRQ handle
+ * @top_info_irq_handle:      Top Info IRQ handle
  * @sync_mode:                Master/Slave modes
  * @mup:                      MUP for incoming VC of next frame
  * @discard_frame_per_path:   Count of paths dropping initial frames
@@ -601,6 +621,7 @@ struct cam_ife_csid_ver2_hw {
 	int                                    reset_irq_handle;
 	int                                    buf_done_irq_handle;
 	int                                    top_err_irq_handle;
+	int                                    top_info_irq_handle;
 	enum cam_isp_hw_sync_mode              sync_mode;
 	uint32_t                               mup;
 	atomic_t                               discard_frame_per_path;
@@ -647,5 +668,7 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(void *csid_hw, void 
 void cam_ife_csid_ver2_print_format_measure_info(void *csid_hw, void *res);
 void cam_ife_csid_hw_ver2_mup_mismatch_handler(void *csid_hw, void *res);
 void cam_ife_csid_hw_ver2_rdi_line_buffer_conflict_handler(void *csid_hw);
+void cam_ife_csid_hw_ver2_drv_err_handler(void *csid);
+
 
 #endif

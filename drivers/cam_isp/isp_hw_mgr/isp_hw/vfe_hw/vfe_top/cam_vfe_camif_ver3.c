@@ -1283,7 +1283,7 @@ print_state:
 	if ((err_type == CAM_VFE_IRQ_STATUS_OVERFLOW) &&
 		((camif_priv->cam_common_cfg.input_mux_sel_pp & 0x3) ||
 		(bus_overflow_status)))
-		cam_cpas_log_votes();
+		cam_cpas_log_votes(false);
 }
 
 static int cam_vfe_camif_ver3_handle_irq_top_half(uint32_t evt_id,

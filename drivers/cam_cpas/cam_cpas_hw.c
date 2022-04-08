@@ -2384,7 +2384,7 @@ static int cam_cpas_hw_get_hw_info(void *hw_priv,
 	return 0;
 }
 
-static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw)
+static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw, bool ddr_only)
 {
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	struct cam_cpas_private_soc *soc_private =
@@ -2393,8 +2393,9 @@ static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw)
 	struct cam_cpas_tree_node *curr_node;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 
-	if ((cpas_core->streamon_clients > 0) && soc_private->enable_smart_qos)
+	if ((cpas_core->streamon_clients > 0) && soc_private->enable_smart_qos && !ddr_only)
 		cam_cpas_print_smart_qos_priority(cpas_hw);
+
 
 	/*
 	 * First print rpmh registers as early as possible to catch nearest
@@ -2438,6 +2439,9 @@ static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw)
 				i, offset_fe, fe_val, offset_be, be_val);
 		}
 	}
+
+	if (ddr_only)
+		return 0;
 
 	for (i = 0; i < cpas_core->num_axi_ports; i++) {
 		if (cpas_core->axi_port[i].bus_client.common_data.is_drv_port) {
@@ -3131,7 +3135,16 @@ static int cam_cpas_hw_process_cmd(void *hw_priv,
 		break;
 	}
 	case CAM_CPAS_HW_CMD_LOG_VOTE: {
-		rc = cam_cpas_log_vote(hw_priv);
+		bool *ddr_only;
+
+		if (sizeof(bool) != arg_size) {
+			CAM_ERR(CAM_CPAS, "cmd_type %d, size mismatch %d",
+				cmd_type, arg_size);
+			break;
+		}
+
+		ddr_only = (bool *) cmd_args;
+		rc = cam_cpas_log_vote(hw_priv, *ddr_only);
 		break;
 	}
 

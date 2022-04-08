@@ -579,9 +579,8 @@ int cam_cpas_start(uint32_t client_handle,
 }
 EXPORT_SYMBOL(cam_cpas_start);
 
-void cam_cpas_log_votes(void)
+void cam_cpas_log_votes(bool ddr_only)
 {
-	uint32_t dummy_args;
 	int rc;
 
 	if (!CAM_CPAS_INTF_INITIALIZED()) {
@@ -592,8 +591,8 @@ void cam_cpas_log_votes(void)
 	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
 		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
 			g_cpas_intf->hw_intf->hw_priv,
-			CAM_CPAS_HW_CMD_LOG_VOTE, &dummy_args,
-			sizeof(dummy_args));
+			CAM_CPAS_HW_CMD_LOG_VOTE, &ddr_only,
+			sizeof(ddr_only));
 		if (rc)
 			CAM_ERR(CAM_CPAS, "Failed in process_cmd, rc=%d", rc);
 	} else {

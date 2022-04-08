@@ -61,6 +61,9 @@
 #define CAM_IFE_CSID_DEBUG_ENABLE_HBI_VBI_INFO            BIT(7)
 #define CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF              BIT(8)
 #define CAM_IFE_DEBUG_ENABLE_UNMAPPED_VC_DT_IRQ           BIT(9)
+#define CAM_IFE_CSID_DEBUG_ENABLE_VOTE_UP_IRQ             BIT(10)
+#define CAM_IFE_CSID_DEBUG_ENABLE_VOTE_DN_IRQ             BIT(11)
+#define CAM_IFE_CSID_DEBUG_ENABLE_ERR_NO_VOTE_DN_IRQ      BIT(12)
 
 /* Binning supported masks. Binning support changes for specific paths
  * and also for targets. With the mask, we handle the supported features
@@ -300,6 +303,7 @@ struct cam_ife_csid_hw_counters {
  * @rx_capture_vc:         rx packet vc capture
  * @rx_capture_dt:         rx packet dt capture
  * @rst_capture_strobes:   rx packet capture rst strobes
+ * @top_mask:              Debug mask for top irq
  * @rx_mask:               Debug mask for rx irq
  * @path_mask:             Debug mask for path irq
  * @test_bus_val:          CSID test bus value
@@ -311,6 +315,7 @@ struct cam_ife_csid_debug_info {
 	uint32_t                          rx_capture_vc;
 	uint32_t                          rx_capture_dt;
 	uint32_t                          rst_capture_strobes;
+	uint32_t                          top_mask;
 	uint32_t                          rx_mask;
 	uint32_t                          path_mask;
 	uint32_t                          test_bus_val;

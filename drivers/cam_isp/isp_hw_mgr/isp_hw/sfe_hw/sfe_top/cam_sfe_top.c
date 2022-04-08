@@ -883,7 +883,7 @@ static int cam_sfe_top_handle_overflow(
 	cam_sfe_top_print_debug_reg_info(top_priv);
 
 	if (bus_overflow_status) {
-		cam_cpas_log_votes();
+		cam_cpas_log_votes(false);
 		overflow_info->is_bus_overflow = true;
 	}
 

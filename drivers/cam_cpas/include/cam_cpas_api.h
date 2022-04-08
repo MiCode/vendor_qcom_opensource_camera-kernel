@@ -769,10 +769,12 @@ const char *cam_cpas_axi_util_drv_vote_lvl_to_string(
  * @brief: API to print the all bw votes of axi client. It also print the
  *     applied camnoc axi clock vote value and ahb vote value
  *
+ * @ddr_only: Print only DDR info
+ *
  * @return 0 on success.
  *
  */
-void cam_cpas_log_votes(void);
+void cam_cpas_log_votes(bool ddr_only);
 
 /**
  * cam_cpas_select_qos_settings()

@@ -256,11 +256,10 @@ static const struct cam_ife_csid_top_irq_desc cam_ife_csid_780_top_irq_desc[] = 
 		.bitmask  = BIT(1),
 		.err_type = CAM_ISP_HW_ERROR_CSID_SENSOR_SWITCH_ERROR,
 		.err_name = "FATAL_SENSOR_SWITCHING_IRQ",
-		.desc = "Fatal Error duirng dynamically switching between 2 sensors",
+		.desc = "Fatal Error during dynamically switching between 2 sensors",
 	},
 	{
 		.bitmask  = BIT(18),
-		.err_type = CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW,
 		.err_name = "ERROR_NO_VOTE_DN",
 		.desc = "vote_up is asserted before IDLE is encountered in a frame",
 	},
@@ -269,6 +268,7 @@ static const struct cam_ife_csid_top_irq_desc cam_ife_csid_780_top_irq_desc[] = 
 		.err_type = CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW,
 		.err_name = "ERROR_VOTE_UP_LATE",
 		.desc = "vote_up is asserted at the same time as an SOF",
+		.err_handler = cam_ife_csid_hw_ver2_drv_err_handler,
 	},
 	{
 		.bitmask  = BIT(20),
@@ -1244,6 +1244,8 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.drv_cfg0_addr                           = 0x13c,
 	.drv_cfg1_addr                           = 0x140,
 	.drv_cfg2_addr                           = 0x144,
+	.debug_drv_0_addr                        = 0x148,
+	.debug_drv_1_addr                        = 0x14C,
 
 	/*configurations */
 	.major_version                           = 6,
@@ -1292,7 +1294,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.ipp_irq_mask_all                        = 0x7FFF,
 	.rdi_irq_mask_all                        = 0x7FFF,
 	.ppp_irq_mask_all                        = 0xFFFF,
-	.top_err_irq_mask                        = 0x1C0002,
+	.top_err_irq_mask                        = 0x180002,
 	.rst_loc_path_only_val                   = 0x0,
 	.rst_loc_complete_csid_val               = 0x1,
 	.rst_mode_frame_boundary_val             = 0x0,
