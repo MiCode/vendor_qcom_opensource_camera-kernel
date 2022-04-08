@@ -611,7 +611,6 @@ static int cam_cpastop_reset_irq(struct cam_hw_info *cpas_hw)
 #if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
 	static int counter;
 	bool wait_for_irq = false;
-	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 
 	if (counter == 0)  {
 		CAM_INFO(CAM_CPAS, "Enabling camnoc test irq");

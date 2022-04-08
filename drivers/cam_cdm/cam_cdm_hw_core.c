@@ -2209,7 +2209,7 @@ int cam_hw_cdm_deinit(void *hw_priv,
 	return rc;
 }
 
-#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+#ifdef CONFIG_CAM_TEST_IRQ_LINE
 static int cam_cdm_test_irq_line(void *hw_priv)
 {
 	struct cam_hw_info *cdm_hw = hw_priv;
