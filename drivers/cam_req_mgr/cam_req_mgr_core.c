@@ -70,6 +70,7 @@ void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 	link->wq_congestion = false;
 	link->try_for_internal_recovery = false;
 	atomic_set(&link->eof_event_cnt, 0);
+	link->properties_mask = CAM_LINK_PROPERTY_NONE;
 	__cam_req_mgr_reset_apply_data(link);
 
 	for (i = 0; i < MAXIMUM_LINKS_PER_SESSION - 1; i++)
@@ -3157,6 +3158,37 @@ end:
 }
 
 /**
+ * cam_req_mgr_notify_eof_event()
+ *
+ * @brief  : This runs in workqueue thread context. Call core funcs to
+ *           notify eof event to sub devices.
+ * @link   : link info
+ *
+ */
+static void cam_req_mgr_notify_eof_event(struct cam_req_mgr_core_link *link)
+{
+	int                                  i;
+	struct cam_req_mgr_connected_device *dev = NULL;
+	struct cam_req_mgr_link_evt_data     evt_data;
+
+	for (i = 0; i < link->num_devs; i++) {
+		dev = &link->l_dev[i];
+		if (!dev)
+			continue;
+
+		evt_data.dev_hdl = dev->dev_hdl;
+		evt_data.evt_type = CAM_REQ_MGR_LINK_EVT_EOF;
+		evt_data.link_hdl = link->link_hdl;
+
+		if (dev->ops && dev->ops->process_evt)
+			dev->ops->process_evt(&evt_data);
+	}
+
+	CAM_DBG(CAM_CRM, "Notify EOF event done on link:0x%x",
+		link->link_hdl);
+}
+
+/**
  * cam_req_mgr_process_trigger()
  *
  * @brief: This runs in workque thread context. Call core funcs to check
@@ -3222,6 +3254,9 @@ static int cam_req_mgr_process_trigger(void *priv, void *data)
 
 			__cam_req_mgr_reset_req_slot(link, idx);
 		}
+	} else if (trigger_data->trigger == CAM_TRIGGER_POINT_EOF) {
+		if (link->properties_mask & CAM_LINK_PROPERTY_SENSOR_STANDBY_AFTER_EOF)
+			cam_req_mgr_notify_eof_event(link);
 	}
 
 	/*
@@ -3657,10 +3692,12 @@ static int cam_req_mgr_cb_notify_trigger(
 	 * Reduce the workq overhead when there is
 	 * not any eof event found.
 	 */
-	if ((!atomic_read(&link->eof_event_cnt)) &&
-		(trigger == CAM_TRIGGER_POINT_EOF)) {
-		CAM_DBG(CAM_CRM, "Not any request to schedule at EOF");
-		goto end;
+	if (trigger == CAM_TRIGGER_POINT_EOF) {
+		if (!atomic_read(&link->eof_event_cnt) &&
+			!(link->properties_mask & CAM_LINK_PROPERTY_SENSOR_STANDBY_AFTER_EOF)) {
+			CAM_DBG(CAM_CRM, "No any request to schedule at EOF");
+			goto end;
+		}
 	}
 
 	spin_lock_bh(&link->link_state_spin_lock);
@@ -4706,6 +4743,68 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 	}
 	mutex_unlock(&g_crm_core_dev->crm_lock);
 end:
+	return rc;
+}
+
+int cam_req_mgr_link_properties(struct cam_req_mgr_link_properties *properties)
+{
+	int                                    i, rc = 0;
+	struct cam_req_mgr_core_link          *link = NULL;
+	struct cam_req_mgr_connected_device   *dev;
+	struct cam_req_mgr_link_evt_data       evt_data;
+
+	mutex_lock(&g_crm_core_dev->crm_lock);
+	link = (struct cam_req_mgr_core_link *)
+		cam_get_device_priv(properties->link_hdl);
+	if (!link || (link->link_hdl != properties->link_hdl)) {
+		CAM_ERR(CAM_CRM, "link: %s, properties->link_hdl:0x%x, link->link_hdl:0x%x",
+			CAM_IS_NULL_TO_STR(link), properties->link_hdl,
+			(!link) ? CAM_REQ_MGR_DEFAULT_HDL_VAL : link->link_hdl);
+		rc = -EINVAL;
+		goto end;
+	}
+
+	if (link->state != CAM_CRM_LINK_STATE_READY) {
+		CAM_ERR(CAM_CRM,
+			"Only can config link 0x%x properties in ready state",
+			link->link_hdl);
+		rc = -EAGAIN;
+		goto end;
+	}
+
+	mutex_lock(&link->lock);
+	link->properties_mask = properties->properties_mask;
+
+	for (i = 0; i < link->num_devs; i++) {
+		dev = &link->l_dev[i];
+
+		if (!dev)
+			continue;
+
+		evt_data.dev_hdl = dev->dev_hdl;
+		evt_data.link_hdl = link->link_hdl;
+		evt_data.evt_type = CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES;
+		evt_data.u.properties_mask = link->properties_mask;
+
+		if (dev->ops && dev->ops->process_evt) {
+			rc = dev->ops->process_evt(&evt_data);
+			if (rc) {
+				CAM_ERR(CAM_CRM,
+					"Failed to set properties on link 0x%x dev 0x%x",
+					link->link_hdl, dev->dev_hdl);
+				mutex_unlock(&link->lock);
+				goto end;
+			}
+		}
+	}
+
+	mutex_unlock(&link->lock);
+
+	CAM_DBG(CAM_CRM, "link 0x%x set properties successfully, properties mask:0x%x",
+		link->link_hdl, link->properties_mask);
+
+end:
+	mutex_unlock(&g_crm_core_dev->crm_lock);
 	return rc;
 }
 

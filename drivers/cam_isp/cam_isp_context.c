@@ -2299,7 +2299,7 @@ static int __cam_isp_ctx_handle_buf_done_in_activated_state(
 	return rc;
 }
 
-static int __cam_isp_ctx_apply_req_offline(
+static int __cam_isp_ctx_apply_pending_req(
 	void *priv, void *data)
 {
 	int rc = 0;
@@ -2323,13 +2323,22 @@ static int __cam_isp_ctx_apply_req_offline(
 		goto end;
 	}
 
-	if ((ctx->state != CAM_CTX_ACTIVATED) ||
-		(!atomic_read(&ctx_isp->rxd_epoch)) ||
-		(ctx_isp->substate_activated == CAM_ISP_CTX_ACTIVATED_APPLIED))
-		goto end;
+	if (ctx_isp->vfps_aux_context) {
+		if (ctx_isp->substate_activated == CAM_ISP_CTX_ACTIVATED_APPLIED)
+			goto end;
 
-	if (ctx_isp->active_req_cnt >= 2)
-		goto end;
+		if (ctx_isp->active_req_cnt >= 1)
+			goto end;
+	} else {
+		if ((ctx->state != CAM_CTX_ACTIVATED) ||
+			(!atomic_read(&ctx_isp->rxd_epoch)) ||
+			(ctx_isp->substate_activated == CAM_ISP_CTX_ACTIVATED_APPLIED))
+			goto end;
+
+		if (ctx_isp->active_req_cnt >= 2)
+			goto end;
+	}
+
 
 	spin_lock_bh(&ctx->lock);
 	req = list_first_entry(&ctx->pending_req_list, struct cam_ctx_request,
@@ -2395,7 +2404,7 @@ end:
 	return rc;
 }
 
-static int __cam_isp_ctx_schedule_apply_req_offline(
+static int __cam_isp_ctx_schedule_apply_req(
 	struct cam_isp_context *ctx_isp)
 {
 	int rc = 0;
@@ -2407,7 +2416,7 @@ static int __cam_isp_ctx_schedule_apply_req_offline(
 		return -ENOMEM;
 	}
 
-	task->process_cb = __cam_isp_ctx_apply_req_offline;
+	task->process_cb = __cam_isp_ctx_apply_pending_req;
 	rc = cam_req_mgr_workq_enqueue_task(task, ctx_isp, CRM_TASK_PRIORITY_0);
 	if (rc)
 		CAM_ERR(CAM_ISP, "Failed to schedule task rc:%d", rc);
@@ -2444,7 +2453,7 @@ static int __cam_isp_ctx_offline_epoch_in_activated_state(
 		}
 	}
 
-	__cam_isp_ctx_schedule_apply_req_offline(ctx_isp);
+	__cam_isp_ctx_schedule_apply_req(ctx_isp);
 
 	/*
 	 * If no valid request, wait for RUP shutter posted after buf done
@@ -5872,6 +5881,7 @@ static int __cam_isp_ctx_release_dev_in_top_state(struct cam_context *ctx,
 	ctx_isp->hw_acquired = false;
 	ctx_isp->init_received = false;
 	ctx_isp->offline_context = false;
+	ctx_isp->vfps_aux_context = false;
 	ctx_isp->rdi_only_context = false;
 	ctx_isp->req_info.last_bufdone_req_id = 0;
 	ctx_isp->v4l2_event_sub_ids = 0;
@@ -6046,7 +6056,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 			goto put_ref;
 		}
 
-		if (ctx_isp->offline_context) {
+		if ((ctx_isp->offline_context) || (ctx_isp->vfps_aux_context)) {
 			__cam_isp_ctx_enqueue_request_in_order(ctx, req, true);
 		} else if (ctx->ctx_crm_intf->add_req) {
 			memset(&add_req, 0, sizeof(add_req));
@@ -6078,9 +6088,11 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		"Preprocessing Config req_id %lld successful on ctx %u",
 		req->request_id, ctx->ctx_id);
 
-	if (ctx_isp->offline_context && atomic_read(&ctx_isp->rxd_epoch)) {
-		__cam_isp_ctx_schedule_apply_req_offline(ctx_isp);
-	}
+	if (ctx_isp->offline_context && atomic_read(&ctx_isp->rxd_epoch))
+		__cam_isp_ctx_schedule_apply_req(ctx_isp);
+	else if (ctx_isp->vfps_aux_context &&
+		(req_isp->hw_update_data.packet_opcode_type != CAM_ISP_PACKET_INIT_DEV))
+		__cam_isp_ctx_schedule_apply_req(ctx_isp);
 
 	return rc;
 
@@ -6537,7 +6549,7 @@ end:
 	return rc;
 }
 
-static void cam_req_mgr_process_workq_offline_ife_worker(struct work_struct *w)
+static void cam_req_mgr_process_workq_apply_req_worker(struct work_struct *w)
 {
 	cam_req_mgr_process_workq(w);
 }
@@ -6685,20 +6697,23 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 			cam_isp_ctx_offline_state_machine_irq;
 		ctx_isp->substate_machine = NULL;
 		ctx_isp->offline_context = true;
-
-		rc = cam_req_mgr_workq_create("offline_ife", 20,
-			&ctx_isp->workq, CRM_WORKQ_USAGE_IRQ, 0,
-			cam_req_mgr_process_workq_offline_ife_worker);
-		if (rc)
-			CAM_ERR(CAM_ISP,
-				"Failed to create workq for offline IFE rc:%d",
-				rc);
 	} else {
 		CAM_DBG(CAM_ISP, "Session has PIX or PIX and RDI resources");
 		ctx_isp->substate_machine_irq =
 			cam_isp_ctx_activated_state_machine_irq;
 		ctx_isp->substate_machine =
 			cam_isp_ctx_activated_state_machine;
+	}
+
+	if (ctx_isp->offline_context || ctx_isp->vfps_aux_context) {
+		rc = cam_req_mgr_workq_create("ife_apply_req", 20,
+			&ctx_isp->workq, CRM_WORKQ_USAGE_IRQ, 0,
+			cam_req_mgr_process_workq_apply_req_worker);
+		if (rc)
+			CAM_ERR(CAM_ISP,
+				"Failed to create workq for IFE rc:%d offline: %s vfps: %s",
+				rc, CAM_BOOL_TO_YESNO(ctx_isp->offline_context),
+				CAM_BOOL_TO_YESNO(ctx_isp->vfps_aux_context));
 	}
 
 	ctx_isp->hw_ctx = param.ctxt_to_hw_map;
@@ -7450,9 +7465,20 @@ static int __cam_isp_ctx_process_evt(struct cam_context *ctx,
 	struct cam_req_mgr_link_evt_data *link_evt_data)
 {
 	int rc = 0;
+	struct cam_isp_context *ctx_isp =
+		(struct cam_isp_context *) ctx->ctx_priv;
+
+	if ((ctx->state == CAM_CTX_ACQUIRED) &&
+		(link_evt_data->evt_type != CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES)) {
+		CAM_WARN(CAM_ISP,
+			"Get unexpect evt:%d in acquired state",
+			link_evt_data->evt_type);
+		return -EINVAL;
+	}
 
 	switch (link_evt_data->evt_type) {
 	case CAM_REQ_MGR_LINK_EVT_ERR:
+	case CAM_REQ_MGR_LINK_EVT_EOF:
 		/* No handling */
 		break;
 	case CAM_REQ_MGR_LINK_EVT_PAUSE:
@@ -7479,6 +7505,15 @@ static int __cam_isp_ctx_process_evt(struct cam_context *ctx,
 		}
 		link_evt_data->try_for_recovery = internal_recovery_skipped;
 	}
+		break;
+	case CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES:
+		if (link_evt_data->u.properties_mask &
+			CAM_LINK_PROPERTY_SENSOR_STANDBY_AFTER_EOF)
+			ctx_isp->vfps_aux_context = true;
+		else
+			ctx_isp->vfps_aux_context = false;
+		CAM_DBG(CAM_ISP, "vfps_aux_context:%s on ctx: %u",
+			CAM_BOOL_TO_YESNO(ctx_isp->vfps_aux_context), ctx->ctx_id);
 		break;
 	default:
 		CAM_WARN(CAM_ISP,
@@ -7721,6 +7756,7 @@ static struct cam_ctx_ops
 			.link = __cam_isp_ctx_link_in_acquired,
 			.unlink = __cam_isp_ctx_unlink_in_acquired,
 			.get_dev_info = __cam_isp_ctx_get_dev_info_in_acquired,
+			.process_evt = __cam_isp_ctx_process_evt,
 			.flush_req = __cam_isp_ctx_flush_req_in_top_state,
 			.dump_req = __cam_isp_ctx_dump_in_top_state,
 		},

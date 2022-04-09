@@ -82,6 +82,9 @@ struct sensor_intf_params {
  * @pipeline_delay: Sensor pipeline delay
  * @sensor_name: Sensor name
  * @aon_camera_id: AON Camera ID associated with this sensor
+ * @last_applied_req: Last applied request id
+ * @is_flushed: Indicate if the request has been flushed
+ * @stream_off_after_eof: Indicates if sensor needs to stream off after eof
  */
 struct cam_sensor_ctrl_t {
 	char                           device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -111,6 +114,9 @@ struct cam_sensor_ctrl_t {
 	uint16_t                       pipeline_delay;
 	char                           sensor_name[CAM_SENSOR_NAME_MAX_SIZE];
 	uint8_t                        aon_camera_id;
+	int64_t                        last_applied_req;
+	bool                           is_flushed;
+	bool                           stream_off_after_eof;
 };
 
 /**

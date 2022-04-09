@@ -197,16 +197,20 @@ enum cam_req_mgr_device_id {
 
 /**
  * enum cam_req_mgr_link_evt_type
- * @CAM_REQ_MGR_LINK_EVT_ERR             : error on the link from any of the
- *                                         connected devices
- * @CAM_REQ_MGR_LINK_EVT_PAUSE           : to pause the link
- * @CAM_REQ_MGR_LINK_EVT_RESUME          : resumes the link which was paused
- * @CAM_REQ_MGR_LINK_EVT_SOF_FREEZE      : request manager has detected an
- *                                         sof freeze
- * @CAM_REQ_MGR_LINK_EVT_STALLED         : Indicate to all connected devices
- *                                         that the pipeline is stalled.
- *                                         Devices can handle accordingly
- * @CAM_REQ_MGR_LINK_EVT_MAX             : invalid event type
+ * @CAM_REQ_MGR_LINK_EVT_ERR               : error on the link from any of the
+ *                                           connected devices
+ * @CAM_REQ_MGR_LINK_EVT_PAUSE             : to pause the link
+ * @CAM_REQ_MGR_LINK_EVT_RESUME            : resumes the link which was paused
+ * @CAM_REQ_MGR_LINK_EVT_SOF_FREEZE        : request manager has detected an
+ *                                           sof freeze
+ * @CAM_REQ_MGR_LINK_EVT_STALLED           : Indicate to all connected devices
+ *                                           that the pipeline is stalled.
+ *                                           Devices can handle accordingly
+ * @CAM_REQ_MGR_LINK_EVT_EOF               : Indicate to all connected devices
+ *                                           that we get an EOF
+ * @CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES : Notify sub devices of the properties
+ *                                           updating
+ * @CAM_REQ_MGR_LINK_EVT_MAX               : invalid event type
  */
 enum cam_req_mgr_link_evt_type {
 	CAM_REQ_MGR_LINK_EVT_ERR,
@@ -214,6 +218,8 @@ enum cam_req_mgr_link_evt_type {
 	CAM_REQ_MGR_LINK_EVT_RESUME,
 	CAM_REQ_MGR_LINK_EVT_SOF_FREEZE,
 	CAM_REQ_MGR_LINK_EVT_STALLED,
+	CAM_REQ_MGR_LINK_EVT_EOF,
+	CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES,
 	CAM_REQ_MGR_LINK_EVT_MAX,
 };
 
@@ -290,7 +296,6 @@ struct cam_req_mgr_add_request {
 	uint32_t skip_at_eof;
 	bool     trigger_eof;
 };
-
 
 /**
  * struct cam_req_mgr_notify_stop
@@ -377,9 +382,11 @@ struct cam_req_mgr_flush_request {
  * struct cam_req_mgr_event_data
  * @link_hdl          : link handle
  * @req_id            : request id
- * @evt_type          : link event
  * @try_for_recovery  : Link is stalled allow subdevices to recover if
  *                      possible
+ * @evt_type          : link event
+ * @error             : error code
+ * @properties_mask   : properties mask
  */
 struct cam_req_mgr_link_evt_data {
 	int32_t  link_hdl;
@@ -389,6 +396,7 @@ struct cam_req_mgr_link_evt_data {
 	enum cam_req_mgr_link_evt_type evt_type;
 	union {
 		enum cam_req_mgr_device_error error;
+		uint32_t properties_mask;
 	} u;
 };
 

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2018,2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SENSOR_CORE_H_
@@ -74,6 +75,13 @@ int cam_sensor_publish_dev_info(struct cam_req_mgr_device_info *info);
  * This API establishes link with sensor subdevice with req mgr
  */
 int cam_sensor_establish_link(struct cam_req_mgr_core_dev_link_setup *link);
+
+/**
+ * @evt_data: Event data info
+ *
+ * This API processes the event which is published by request mgr
+ */
+int cam_sensor_process_evt(struct cam_req_mgr_link_evt_data *evt_data);
 
 /**
  * @s_ctrl: Sensor ctrl structure
