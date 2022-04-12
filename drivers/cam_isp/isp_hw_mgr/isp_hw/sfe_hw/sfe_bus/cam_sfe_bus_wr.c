@@ -206,6 +206,19 @@ struct cam_sfe_bus_wr_priv {
 static int cam_sfe_bus_subscribe_error_irq(
 	struct cam_sfe_bus_wr_priv  *bus_priv);
 
+static inline int32_t cam_sfe_bus_wr_get_out_type(
+	struct cam_sfe_bus_wr_priv *bus_priv,
+	int32_t index)
+{
+	int32_t sfe_out_type = CAM_SFE_BUS_SFE_OUT_MAX;
+
+	if (bus_priv && bus_priv->sfe_out_hw_info)
+		sfe_out_type =
+			bus_priv->sfe_out_hw_info[index].sfe_out_type;
+
+	return sfe_out_type;
+}
+
 static bool cam_sfe_bus_can_be_secure(uint32_t out_type)
 {
 	switch (out_type) {
@@ -446,14 +459,22 @@ static void cam_sfe_bus_wr_get_constraint_errors(
 	bool                       *skip_error_notify,
 	struct cam_sfe_bus_wr_priv *bus_priv)
 {
-	uint32_t i, j, constraint_errors;
+	uint32_t i, j, constraint_errors, sfe_out_type;
 	uint8_t *wm_name = NULL;
 	struct cam_isp_resource_node              *out_rsrc_node = NULL;
 	struct cam_sfe_bus_wr_out_data            *out_rsrc_data = NULL;
 	struct cam_sfe_bus_wr_wm_resource_data    *wm_data   = NULL;
 
 	for (i = 0; i < bus_priv->num_out; i++) {
-		out_rsrc_node = &bus_priv->sfe_out[i];
+		sfe_out_type = cam_sfe_bus_wr_get_out_type(bus_priv, i);
+		if ((sfe_out_type < 0) ||
+			(sfe_out_type >= CAM_SFE_BUS_SFE_OUT_MAX)) {
+			CAM_ERR(CAM_SFE, "Invalid sfe out type:%d",
+				sfe_out_type);
+			return;
+		}
+
+		out_rsrc_node = &bus_priv->sfe_out[sfe_out_type];
 		if (!out_rsrc_node || !out_rsrc_node->res_priv) {
 			CAM_DBG(CAM_ISP,
 				"SFE out:%d out rsrc node or data is NULL", i);
@@ -1891,7 +1912,7 @@ static int cam_sfe_bus_init_sfe_out_resource(
 	struct cam_sfe_bus_wr_out_data       *rsrc_data = NULL;
 	int rc = 0, i = 0;
 	int32_t sfe_out_type =
-		hw_info->sfe_out_hw_info[index].sfe_out_type;
+		cam_sfe_bus_wr_get_out_type(bus_priv, index);
 
 	if (sfe_out_type < 0 ||
 		sfe_out_type >= CAM_SFE_BUS_SFE_OUT_MAX) {
@@ -2107,6 +2128,7 @@ static int cam_sfe_bus_wr_user_dump(
 	struct cam_isp_hw_dump_args               *dump_args;
 	uint32_t                                   i, j = 0;
 	int                                        rc = 0;
+	int32_t                                    sfe_out_type;
 
 
 	if (!bus_priv || !cmd_args) {
@@ -2132,7 +2154,15 @@ static int cam_sfe_bus_wr_user_dump(
 	}
 
 	for (i = 0; i < bus_priv->num_out; i++) {
-		rsrc_node = &bus_priv->sfe_out[i];
+		sfe_out_type = cam_sfe_bus_wr_get_out_type(bus_priv, i);
+		if ((sfe_out_type < 0) ||
+			(sfe_out_type >= CAM_SFE_BUS_SFE_OUT_MAX)) {
+			CAM_ERR(CAM_SFE, "Invalid sfe out type:%d",
+				sfe_out_type);
+			return -EINVAL;
+		}
+
+		rsrc_node = &bus_priv->sfe_out[sfe_out_type];
 		if (!rsrc_node)
 			continue;
 
@@ -2225,14 +2255,22 @@ static int cam_sfe_bus_wr_err_irq_top_half(uint32_t evt_id,
 static void cam_sfe_bus_wr_print_violation_info(
 	uint32_t status, struct cam_sfe_bus_wr_priv *bus_priv)
 {
-	int i, j, wm_idx;
+	int i, j, wm_idx, sfe_out_type;
 	struct cam_isp_resource_node           *sfe_out = NULL;
 	struct cam_isp_resource_node           *wm_res = NULL;
 	struct cam_sfe_bus_wr_out_data         *rsrc_data = NULL;
 	struct cam_sfe_bus_wr_wm_resource_data *wm_data = NULL;
 
 	for (i = 0; i < bus_priv->num_out; i++) {
-		sfe_out = &bus_priv->sfe_out[i];
+		sfe_out_type = cam_sfe_bus_wr_get_out_type(bus_priv, i);
+		if ((sfe_out_type < 0) ||
+			(sfe_out_type >= CAM_SFE_BUS_SFE_OUT_MAX)) {
+			CAM_ERR(CAM_SFE, "Invalid sfe out type:%d",
+				sfe_out_type);
+			return;
+		}
+
+		sfe_out = &bus_priv->sfe_out[sfe_out_type];
 		rsrc_data = (struct cam_sfe_bus_wr_out_data *)
 			sfe_out->res_priv;
 
@@ -2301,9 +2339,18 @@ static int cam_sfe_bus_wr_irq_bottom_half(
 		if (common_data->event_cb) {
 			struct cam_isp_resource_node      *out_rsrc_node = NULL;
 			struct cam_sfe_bus_wr_out_data    *out_rsrc_data = NULL;
+			int32_t                            sfe_out_type;
 
 			for (i = 0; i < bus_priv->num_out; i++) {
-				out_rsrc_node = &bus_priv->sfe_out[i];
+				sfe_out_type = cam_sfe_bus_wr_get_out_type(bus_priv, i);
+				if ((sfe_out_type < 0) ||
+					(sfe_out_type >= CAM_SFE_BUS_SFE_OUT_MAX)) {
+					CAM_ERR(CAM_SFE, "Invalid sfe out type:%d",
+					sfe_out_type);
+					return -EINVAL;
+				}
+
+				out_rsrc_node = &bus_priv->sfe_out[sfe_out_type];
 
 				if (!out_rsrc_node || !out_rsrc_node->res_priv)
 					continue;
