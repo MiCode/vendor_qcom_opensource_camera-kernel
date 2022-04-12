@@ -154,6 +154,7 @@
 #define CAM_ISP_RDI1_PATH         0x10
 #define CAM_ISP_RDI2_PATH         0x20
 #define CAM_ISP_RDI3_PATH         0x40
+#define CAM_ISP_RDI4_PATH         0x80
 
 /* Per Path Usage Data */
 #define CAM_ISP_USAGE_INVALID     0
