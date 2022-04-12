@@ -4639,6 +4639,9 @@ static int cam_ife_csid_ver2_top_cfg(
 		} else if (top_args->core_idx == 1) {
 			csid_hw->top_cfg.input_core_type =
 				CAM_IFE_CSID_INPUT_CORE_SEL_SFE_1;
+		} else if (top_args->core_idx == 2) {
+			csid_hw->top_cfg.input_core_type =
+				CAM_IFE_CSID_INPUT_CORE_SEL_SFE_2;
 		} else {
 			rc = -EINVAL;
 			CAM_ERR(CAM_ISP,

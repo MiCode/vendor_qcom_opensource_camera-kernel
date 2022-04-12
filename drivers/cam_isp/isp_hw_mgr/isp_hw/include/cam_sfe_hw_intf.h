@@ -12,7 +12,6 @@
 #include "cam_cpas_api.h"
 
 #define SFE_CORE_BASE_IDX           0
-#define CAM_SFE_HW_NUM_MAX          2
 #define CAM_SFE_PERF_CNT_MAX        2
 
 enum cam_sfe_core_id {
