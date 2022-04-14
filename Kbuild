@@ -162,19 +162,19 @@ camera-$(CONFIG_SPECTRA_ICP) += \
 	drivers/cam_icp/icp_hw/ipe_hw/ipe_dev.o \
 	drivers/cam_icp/icp_hw/ipe_hw/ipe_core.o \
 	drivers/cam_icp/icp_hw/ipe_hw/ipe_soc.o \
-	drivers/cam_icp/icp_hw/a5_hw/a5_dev.o \
-	drivers/cam_icp/icp_hw/a5_hw/a5_core.o \
-	drivers/cam_icp/icp_hw/a5_hw/a5_soc.o \
-	drivers/cam_icp/icp_hw/lx7_hw/lx7_dev.o \
-	drivers/cam_icp/icp_hw/lx7_hw/lx7_core.o \
-	drivers/cam_icp/icp_hw/lx7_hw/lx7_soc.o \
+	drivers/cam_icp/icp_hw/icp_proc/icp_v1_hw/cam_icp_v1_dev.o \
+	drivers/cam_icp/icp_hw/icp_proc/icp_v1_hw/cam_icp_v1_core.o \
+	drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_dev.o \
+	drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_core.o \
+	drivers/cam_icp/icp_hw/icp_proc/icp_common/cam_icp_proc_common.o \
+	drivers/cam_icp/icp_hw/icp_proc/icp_common/cam_icp_soc_common.o \
+	drivers/cam_icp/icp_hw/icp_proc/cam_icp_proc.o \
 	drivers/cam_icp/icp_hw/bps_hw/bps_dev.o \
 	drivers/cam_icp/icp_hw/bps_hw/bps_core.o \
 	drivers/cam_icp/icp_hw/bps_hw/bps_soc.o \
 	drivers/cam_icp/cam_icp_subdev.o \
 	drivers/cam_icp/cam_icp_context.o \
-	drivers/cam_icp/hfi.o \
-	drivers/cam_icp/utils/cam_icp_utils.o
+	drivers/cam_icp/hfi.o
 
 camera-$(CONFIG_SPECTRA_JPEG) += \
 	drivers/cam_jpeg/jpeg_hw/jpeg_enc_hw/jpeg_enc_dev.o \

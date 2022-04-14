@@ -1052,7 +1052,7 @@ static int cam_hfi_presil_setup(struct hfi_mem_info *hfi_mem)
 static int cam_hfi_presil_set_init_request(void)
 {
 	CAM_DBG(CAM_PRESIL, "notifying pchost to start HFI init...");
-	cam_presil_send_event(CAM_PRESIL_EVENT_HFI_REG_A5_HW_VERSION_TO_START_HFI_INIT, 0xFF);
+	cam_presil_send_event(CAM_PRESIL_EVENT_HFI_REG_ICP_V1_HW_VERSION_TO_START_HFI_INIT, 0xFF);
 	CAM_DBG(CAM_PRESIL, "got done with PCHOST HFI init...");
 
 	return 0;

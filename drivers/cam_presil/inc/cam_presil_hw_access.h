@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_PRESIL_HW_ACCESS_H_
@@ -12,14 +13,14 @@
 #define CAM_PRESIL_CLIENT_ID_EVA    0x2
 
 /* presil events to carry shared values from HW-KMD to PC-HOST CSim Wrapper */
-#define CAM_PRESIL_EVENT_HFI_REG_BASE                             0x600
+#define CAM_PRESIL_EVENT_HFI_REG_BASE                                0x600
 #define CAM_PRESIL_EVENT_HFI_REG(n) (CAM_PRESIL_EVENT_HFI_REG_BASE + (n * 4))
-#define CAM_PRESIL_EVENT_HFI_REG_CMD_Q_IOVA                      CAM_PRESIL_EVENT_HFI_REG(1)
-#define CAM_PRESIL_EVENT_HFI_REG_MSG_Q_IOVA                      CAM_PRESIL_EVENT_HFI_REG(2)
-#define CAM_PRESIL_EVENT_HFI_REG_DBG_Q_IOVA                      CAM_PRESIL_EVENT_HFI_REG(3)
-#define CAM_PRESIL_EVENT_HFI_REG_SFR_LEN                         CAM_PRESIL_EVENT_HFI_REG(4)
-#define CAM_PRESIL_EVENT_HFI_REG_A5_HW_VERSION_TO_START_HFI_INIT CAM_PRESIL_EVENT_HFI_REG(13)
-#define CAM_PRESIL_EVENT_HFI_REG_ON_FIRST_REG_START_FW_DOWNLOAD    0x638   /* write FF to start */
+#define CAM_PRESIL_EVENT_HFI_REG_CMD_Q_IOVA                          CAM_PRESIL_EVENT_HFI_REG(1)
+#define CAM_PRESIL_EVENT_HFI_REG_MSG_Q_IOVA                          CAM_PRESIL_EVENT_HFI_REG(2)
+#define CAM_PRESIL_EVENT_HFI_REG_DBG_Q_IOVA                          CAM_PRESIL_EVENT_HFI_REG(3)
+#define CAM_PRESIL_EVENT_HFI_REG_SFR_LEN                             CAM_PRESIL_EVENT_HFI_REG(4)
+#define CAM_PRESIL_EVENT_HFI_REG_ICP_V1_HW_VERSION_TO_START_HFI_INIT CAM_PRESIL_EVENT_HFI_REG(13)
+#define CAM_PRESIL_EVENT_HFI_REG_ON_FIRST_REG_START_FW_DOWNLOAD      0x638   /* write FF to start */
 
 
 /*

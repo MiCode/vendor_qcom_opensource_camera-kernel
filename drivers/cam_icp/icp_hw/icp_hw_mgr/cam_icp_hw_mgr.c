@@ -27,7 +27,6 @@
 #include "cam_hw_mgr_intf.h"
 #include "cam_icp_hw_mgr_intf.h"
 #include "cam_icp_hw_mgr.h"
-#include "cam_a5_hw_intf.h"
 #include "cam_bps_hw_intf.h"
 #include "cam_ipe_hw_intf.h"
 #include "cam_smmu_api.h"
@@ -37,8 +36,6 @@
 #include "hfi_session_defs.h"
 #include "hfi_sys_defs.h"
 #include "cam_req_mgr_workq.h"
-#include "a5_core.h"
-#include "lx7_core.h"
 #include "hfi_sys_defs.h"
 #include "cam_debug_util.h"
 #include "cam_soc_util.h"
@@ -47,6 +44,7 @@
 #include "cam_common_util.h"
 #include "cam_mem_mgr_api.h"
 #include "cam_presil_hw_access.h"
+#include "cam_icp_proc.h"
 
 #define ICP_WORKQ_TASK_CMD_TYPE 1
 #define ICP_WORKQ_TASK_MSG_TYPE 2
@@ -55,18 +53,6 @@
 	((dev_type == CAM_ICP_RES_TYPE_BPS) ? ICP_CLK_HW_BPS : ICP_CLK_HW_IPE)
 
 #define ICP_DEVICE_IDLE_TIMEOUT 400
-
-static const struct hfi_ops hfi_a5_ops = {
-	.irq_raise = cam_a5_irq_raise,
-	.irq_enable = cam_a5_irq_enable,
-	.iface_addr = cam_a5_iface_addr,
-};
-
-static const struct hfi_ops hfi_lx7_ops = {
-	.irq_raise = cam_lx7_irq_raise,
-	.irq_enable = cam_lx7_irq_enable,
-	.iface_addr = cam_lx7_iface_addr,
-};
 
 static struct cam_icp_hw_mgr icp_hw_mgr;
 
@@ -1525,7 +1511,7 @@ static int cam_icp_update_clk_rate(struct cam_icp_hw_mgr *hw_mgr,
 				&clk_upd_cmd, sizeof(clk_upd_cmd));
 		}
 
-		/* update a5 clock */
+		/* update ICP Proc clock */
 		CAM_DBG(CAM_PERF, "Update ICP clk to level [%d]",
 			clk_upd_cmd.clk_level);
 		icp_dev_intf->hw_ops.process_cmd(icp_dev_intf->hw_priv,
@@ -4232,6 +4218,7 @@ static int cam_icp_mgr_hfi_init(struct cam_icp_hw_mgr *hw_mgr)
 	struct cam_hw_info *icp_dev = NULL;
 	struct hfi_mem_info hfi_mem;
 	const struct hfi_ops *hfi_ops;
+	int rc;
 
 	icp_dev_intf = hw_mgr->icp_dev_intf;
 	if (!icp_dev_intf) {
@@ -4299,10 +4286,11 @@ static int cam_icp_mgr_hfi_init(struct cam_icp_hw_mgr *hw_mgr)
 	hfi_mem.fw_uncached.iova = icp_hw_mgr.hfi_mem.fw_uncached.iova;
 	hfi_mem.fw_uncached.len = icp_hw_mgr.hfi_mem.fw_uncached.len;
 
-	if (icp_dev_intf->hw_type == CAM_ICP_DEV_LX7)
-		hfi_ops = &hfi_lx7_ops;
-	else
-		hfi_ops = &hfi_a5_ops;
+	rc = cam_icp_get_hfi_device_ops(icp_dev_intf->hw_type, &hfi_ops);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Fail to get HFI device ops rc: %d", rc);
+		return rc;
+	}
 
 	return cam_hfi_init(&hfi_mem, hfi_ops, icp_dev, 0);
 }
@@ -6591,29 +6579,18 @@ end:
 
 static int cam_icp_mgr_alloc_devs(struct device_node *np)
 {
-	struct cam_hw_intf **devices;
+	struct cam_hw_intf **devices = NULL;
 	int rc, icp_hw_type;
 	uint32_t num;
 
 	memset(icp_hw_mgr.devices, 0, sizeof(icp_hw_mgr.devices));
 
-	if (!of_property_read_u32(np, "num-a5", &num)) {
-		icp_hw_type = CAM_ICP_DEV_A5;
-	} else if (!of_property_read_u32(np, "num-lx7", &num)) {
-		icp_hw_type = CAM_ICP_DEV_LX7;
-	} else {
-		CAM_ERR(CAM_ICP, "missing processor device num prop");
-		return -ENODEV;
-	}
+	rc = cam_icp_alloc_processor_devs(np, &icp_hw_type, &devices);
 
-	devices = kcalloc(num, sizeof(*devices), GFP_KERNEL);
-	if (!devices) {
-		CAM_ERR(CAM_ICP, "icp device allocation failed");
-		return -ENOMEM;
+	if (rc) {
+		CAM_ERR(CAM_ICP, "ICP proc devices allocation failed rc=%d", rc);
+		return rc;
 	}
-
-	CAM_DBG(CAM_ICP, "allocated device iface for %s",
-		icp_hw_type == CAM_ICP_DEV_A5 ? "A5" : "LX7");
 	icp_hw_mgr.devices[icp_hw_type] = devices;
 
 	rc = of_property_read_u32(np, "num-ipe", &num);
@@ -6730,13 +6707,10 @@ static int cam_icp_mgr_init_devs(struct device_node *np)
 			rc = -EINVAL;
 			goto free_devices;
 		}
-
 		icp_hw_mgr.devices[iface->hw_type][iface->hw_idx] = iface;
 	}
 
-	icp_hw_mgr.icp_dev_intf = icp_hw_mgr.devices[CAM_ICP_DEV_A5] ?
-				icp_hw_mgr.devices[CAM_ICP_DEV_A5][0] :
-				icp_hw_mgr.devices[CAM_ICP_DEV_LX7][0];
+	icp_hw_mgr.icp_dev_intf = CAM_ICP_GET_PROC_DEV_INTF(icp_hw_mgr.devices);
 
 	icp_hw_mgr.bps_dev_intf = icp_hw_mgr.devices[CAM_ICP_DEV_BPS][0];
 	icp_hw_mgr.ipe0_dev_intf = icp_hw_mgr.devices[CAM_ICP_DEV_IPE][0];

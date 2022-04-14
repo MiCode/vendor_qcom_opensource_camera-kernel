@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/build_bug.h>
@@ -26,8 +27,8 @@
 #include "cam_tpg_dev.h"
 #include "cam_flash_dev.h"
 
-#include "a5_core.h"
-#include "lx7_dev.h"
+#include "cam_icp_v1_dev.h"
+#include "cam_icp_v2_dev.h"
 #include "ipe_core.h"
 #include "bps_core.h"
 #include "cam_icp_subdev.h"
@@ -118,8 +119,8 @@ static const struct camera_submodule_component camera_sensor[] = {
 
 static const struct camera_submodule_component camera_icp[] = {
 #ifdef CONFIG_SPECTRA_ICP
-	{&cam_a5_init_module, &cam_a5_exit_module},
-	{&cam_lx7_init_module, &cam_lx7_exit_module},
+	{&cam_icp_v1_init_module, &cam_icp_v1_exit_module},
+	{&cam_icp_v2_init_module, &cam_icp_v2_exit_module},
 	{&cam_ipe_init_module, &cam_ipe_exit_module},
 	{&cam_bps_init_module, &cam_bps_exit_module},
 	{&cam_icp_init_module, &cam_icp_exit_module},

@@ -13,7 +13,6 @@
 #include "cam_icp_hw_intf.h"
 #include "cam_hw_mgr_intf.h"
 #include "cam_hw_intf.h"
-#include "cam_a5_hw_intf.h"
 #include "hfi_session_defs.h"
 #include "hfi_intf.h"
 #include "cam_req_mgr_workq.h"

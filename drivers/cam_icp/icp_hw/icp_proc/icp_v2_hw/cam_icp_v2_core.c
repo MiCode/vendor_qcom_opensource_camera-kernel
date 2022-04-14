@@ -16,88 +16,50 @@
 #include "cam_icp_hw_intf.h"
 #include "hfi_intf.h"
 #include "hfi_sys_defs.h"
-#include "cam_icp_utils.h"
-#include "lx7_core.h"
-#include "lx7_reg.h"
-#include "lx7_soc.h"
+#include "cam_icp_proc_common.h"
+#include "cam_icp_v2_core.h"
+#include "cam_icp_v2_reg.h"
 #include "cam_common_util.h"
 #include "cam_compat.h"
 #include "cam_presil_hw_access.h"
+#include "cam_icp_soc_common.h"
 
 #define TZ_STATE_SUSPEND 0
 #define TZ_STATE_RESUME  1
 
 #define ICP_FW_NAME_MAX_SIZE    32
 
-#define PC_POLL_DELAY_US 100
-#define PC_POLL_TIMEOUT_US 10000
+#define ICP_V2_IRQ_TEST_TIMEOUT 1000
 
-#define LX7_IRQ_TEST_TIMEOUT 1000
+static const struct hfi_ops hfi_icp_v2_ops = {
+	.irq_raise = cam_icp_v2_irq_raise,
+	.irq_enable = cam_icp_v2_irq_enable,
+	.iface_addr = cam_icp_v2_iface_addr,
+};
 
-static int cam_lx7_ubwc_configure(struct cam_hw_soc_info *soc_info)
+static int cam_icp_v2_ubwc_configure(struct cam_hw_soc_info *soc_info)
 {
-	int i = 0, rc, ddr_type;
-	struct lx7_soc_info *soc_priv;
-	uint32_t ipe_ubwc_cfg[UBWC_CONFIG_MAX];
-	uint32_t bps_ubwc_cfg[UBWC_CONFIG_MAX];
+	struct cam_icp_soc_info *soc_priv;
 
-	if (!soc_info || !soc_info->soc_private) {
-		CAM_ERR(CAM_ICP, "invalid LX7 soc info");
+	if (!soc_info)
 		return -EINVAL;
-	}
 
 	soc_priv = soc_info->soc_private;
 
-	ddr_type = cam_get_ddr_type();
-	if (ddr_type == DDR_TYPE_LPDDR5 || ddr_type == DDR_TYPE_LPDDR5X)
-		i = 1;
-
-	ipe_ubwc_cfg[0] = soc_priv->ubwc_cfg.ipe_fetch[i];
-	ipe_ubwc_cfg[1] = soc_priv->ubwc_cfg.ipe_write[i];
-
-	bps_ubwc_cfg[0] = soc_priv->ubwc_cfg.bps_fetch[i];
-	bps_ubwc_cfg[1] = soc_priv->ubwc_cfg.bps_write[i];
-
-	rc = hfi_cmd_ubwc_config_ext(ipe_ubwc_cfg, bps_ubwc_cfg);
-	if (rc)	{
-		CAM_ERR(CAM_ICP, "failed to write UBWC config rc=%d", rc);
-		return rc;
-	}
-
-	return 0;
+	return cam_icp_proc_ubwc_configure(soc_priv->uconfig.ubwc_cfg_ext, 0);
 }
 
-static int cam_lx7_cpas_vote(struct cam_lx7_core_info *core_info,
-			struct cam_icp_cpas_vote *vote)
+static int cam_icp_v2_cpas_vote(struct cam_icp_v2_core_info *core_info,
+	struct cam_icp_cpas_vote *vote)
 {
-	int rc;
-
-	if (!core_info || !vote)
+	if (!core_info)
 		return -EINVAL;
 
-	if (vote->ahb_vote_valid) {
-		rc = cam_cpas_update_ahb_vote(core_info->cpas_handle,
-					&vote->ahb_vote);
-		if (rc) {
-			CAM_ERR(CAM_ICP, "AHB vote update failed rc=%d", rc);
-			return rc;
-		}
-	}
-
-	if (vote->axi_vote_valid) {
-		rc = cam_cpas_update_axi_vote(core_info->cpas_handle,
-					&vote->axi_vote);
-		if (rc) {
-			CAM_ERR(CAM_ICP, "AXI vote update failed rc=%d", rc);
-			return rc;
-		}
-	}
-
-	return 0;
+	return cam_icp_proc_cpas_vote(core_info->cpas_handle, vote);
 }
 
-static bool cam_lx7_cpas_cb(uint32_t handle, void *user_data,
-			struct cam_cpas_irq_data *irq_data)
+static bool cam_icp_v2_cpas_cb(uint32_t handle, void *user_data,
+	struct cam_cpas_irq_data *irq_data)
 {
 	bool ret = false;
 	(void)user_data;
@@ -108,13 +70,13 @@ static bool cam_lx7_cpas_cb(uint32_t handle, void *user_data,
 	switch (irq_data->irq_type) {
 	case CAM_CAMNOC_IRQ_IPE_BPS_UBWC_DECODE_ERROR:
 		CAM_ERR_RATE_LIMIT(CAM_ICP,
-				"IPE/BPS UBWC decode error status=0x%08x",
-				irq_data->u.dec_err.decerr_status.value);
+			"IPE/BPS UBWC decode error status=0x%08x",
+			irq_data->u.dec_err.decerr_status.value);
 		ret = true;
 	case CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR:
 		CAM_ERR_RATE_LIMIT(CAM_ICP,
-				"IPE/BPS UBWC encode error status=0x%08x",
-				irq_data->u.enc_err.encerr_status.value);
+			"IPE/BPS UBWC encode error status=0x%08x",
+			irq_data->u.enc_err.encerr_status.value);
 		ret = true;
 	default:
 		CAM_ERR(CAM_ICP, "unhandled irq_type=%d", irq_data->irq_type);
@@ -124,21 +86,21 @@ static bool cam_lx7_cpas_cb(uint32_t handle, void *user_data,
 	return ret;
 }
 
-int cam_lx7_cpas_register(struct cam_hw_intf *lx7_intf)
+int cam_icp_v2_cpas_register(struct cam_hw_intf *icp_v2_intf)
 {
 	struct cam_cpas_register_params params;
-	struct cam_hw_info *lx7_info;
-	struct cam_lx7_core_info *core_info;
+	struct cam_hw_info *icp_v2_info;
+	struct cam_icp_v2_core_info *core_info;
 	int rc;
 
-	if (!lx7_intf)
+	if (!icp_v2_intf)
 		return -EINVAL;
 
-	lx7_info = lx7_intf->hw_priv;
+	icp_v2_info = icp_v2_intf->hw_priv;
 
-	params.dev = lx7_info->soc_info.dev;
-	params.cell_index = lx7_intf->hw_idx;
-	params.cam_cpas_client_cb = cam_lx7_cpas_cb;
+	params.dev = icp_v2_info->soc_info.dev;
+	params.cell_index = icp_v2_intf->hw_idx;
+	params.cam_cpas_client_cb = cam_icp_v2_cpas_cb;
 	params.userdata = NULL;
 
 	strlcpy(params.identifier, "icp", CAM_HW_IDENTIFIER_LENGTH);
@@ -147,28 +109,28 @@ int cam_lx7_cpas_register(struct cam_hw_intf *lx7_intf)
 	if (rc)
 		return rc;
 
-	core_info = lx7_info->core_info;
+	core_info = icp_v2_info->core_info;
 	core_info->cpas_handle = params.client_handle;
 
 	return rc;
 }
 
-int cam_lx7_cpas_unregister(struct cam_hw_intf *lx7_intf)
+int cam_icp_v2_cpas_unregister(struct cam_hw_intf *icp_v2_intf)
 {
-	struct cam_hw_info *lx7_info;
-	struct cam_lx7_core_info *core_info;
+	struct cam_hw_info *icp_v2_info;
+	struct cam_icp_v2_core_info *core_info;
 
-	if (!lx7_intf)
+	if (!icp_v2_intf)
 		return -EINVAL;
 
-	lx7_info = lx7_intf->hw_priv;
-	core_info = lx7_info->core_info;
+	icp_v2_info = icp_v2_intf->hw_priv;
+	core_info = icp_v2_info->core_info;
 
 	return cam_cpas_unregister_client(core_info->cpas_handle);
 }
 
-static int __lx7_cpas_start(struct cam_lx7_core_info *core_info,
-			struct cam_icp_cpas_vote *vote)
+static int __icp_v2_cpas_start(struct cam_icp_v2_core_info *core_info,
+	struct cam_icp_cpas_vote *vote)
 {
 	int rc;
 
@@ -176,7 +138,7 @@ static int __lx7_cpas_start(struct cam_lx7_core_info *core_info,
 		return -EINVAL;
 
 	rc = cam_cpas_start(core_info->cpas_handle,
-			&vote->ahb_vote, &vote->axi_vote);
+		&vote->ahb_vote, &vote->axi_vote);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "failed to start cpas rc=%d", rc);
 		return rc;
@@ -187,7 +149,7 @@ static int __lx7_cpas_start(struct cam_lx7_core_info *core_info,
 	return 0;
 }
 
-static int cam_lx7_cpas_start(struct cam_lx7_core_info *core_info)
+static int cam_icp_v2_cpas_start(struct cam_icp_v2_core_info *core_info)
 {
 	struct cam_icp_cpas_vote vote;
 
@@ -203,10 +165,10 @@ static int cam_lx7_cpas_start(struct cam_lx7_core_info *core_info)
 	vote.axi_vote.axi_path[0].ddr_ab_bw = CAM_ICP_BW_BYTES_VOTE;
 	vote.axi_vote.axi_path[0].ddr_ib_bw = CAM_ICP_BW_BYTES_VOTE;
 
-	return __lx7_cpas_start(core_info, &vote);
+	return __icp_v2_cpas_start(core_info, &vote);
 }
 
-static int cam_lx7_cpas_stop(struct cam_lx7_core_info *core_info)
+static int cam_icp_v2_cpas_stop(struct cam_icp_v2_core_info *core_info)
 {
 	int rc;
 
@@ -224,30 +186,30 @@ static int cam_lx7_cpas_stop(struct cam_lx7_core_info *core_info)
 	return 0;
 }
 
-int cam_lx7_hw_init(void *priv, void *args, uint32_t arg_size)
+int cam_icp_v2_hw_init(void *priv, void *args, uint32_t arg_size)
 {
-	struct cam_hw_info *lx7 = priv;
+	struct cam_hw_info *icp_v2 = priv;
 	unsigned long flags;
 	int rc;
 	bool send_freq_info = (args == NULL) ? false : *((bool *)args);
 
-	if (!lx7) {
-		CAM_ERR(CAM_ICP, "LX7 device info cannot be NULL");
+	if (!icp_v2) {
+		CAM_ERR(CAM_ICP, "ICP device info cannot be NULL");
 		return -EINVAL;
 	}
 
-	spin_lock_irqsave(&lx7->hw_lock, flags);
-	if (lx7->hw_state == CAM_HW_STATE_POWER_UP) {
-		spin_unlock_irqrestore(&lx7->hw_lock, flags);
+	spin_lock_irqsave(&icp_v2->hw_lock, flags);
+	if (icp_v2->hw_state == CAM_HW_STATE_POWER_UP) {
+		spin_unlock_irqrestore(&icp_v2->hw_lock, flags);
 		return 0;
 	}
-	spin_unlock_irqrestore(&lx7->hw_lock, flags);
+	spin_unlock_irqrestore(&icp_v2->hw_lock, flags);
 
-	rc = cam_lx7_cpas_start(lx7->core_info);
+	rc = cam_icp_v2_cpas_start(icp_v2->core_info);
 	if (rc)
 		return rc;
 
-	rc = cam_lx7_soc_resources_enable(&lx7->soc_info);
+	rc = cam_icp_soc_resources_enable(&icp_v2->soc_info);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "failed to enable soc resources rc=%d", rc);
 		goto soc_fail;
@@ -255,64 +217,64 @@ int cam_lx7_hw_init(void *priv, void *args, uint32_t arg_size)
 		if (send_freq_info) {
 			int32_t clk_rate = 0;
 
-			clk_rate = clk_get_rate(lx7->soc_info.clk[lx7->soc_info.src_clk_idx]);
+			clk_rate = clk_get_rate(icp_v2->soc_info.clk[icp_v2->soc_info.src_clk_idx]);
 			hfi_send_freq_info(clk_rate);
 		}
 	}
 
-	spin_lock_irqsave(&lx7->hw_lock, flags);
-	lx7->hw_state = CAM_HW_STATE_POWER_UP;
-	spin_unlock_irqrestore(&lx7->hw_lock, flags);
+	spin_lock_irqsave(&icp_v2->hw_lock, flags);
+	icp_v2->hw_state = CAM_HW_STATE_POWER_UP;
+	spin_unlock_irqrestore(&icp_v2->hw_lock, flags);
 
 	return 0;
 
 soc_fail:
-	cam_lx7_cpas_stop(lx7->core_info);
+	cam_icp_v2_cpas_stop(icp_v2->core_info);
 	return rc;
 }
 
-int cam_lx7_hw_deinit(void *priv, void *args, uint32_t arg_size)
+int cam_icp_v2_hw_deinit(void *priv, void *args, uint32_t arg_size)
 {
-	struct cam_hw_info *lx7_info = priv;
+	struct cam_hw_info *icp_v2_info = priv;
 	unsigned long flags;
 	int rc;
 	bool send_freq_info = (args == NULL) ? false : *((bool *)args);
 
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "LX7 device info cannot be NULL");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "ICP device info cannot be NULL");
 		return -EINVAL;
 	}
 
-	spin_lock_irqsave(&lx7_info->hw_lock, flags);
-	if (lx7_info->hw_state == CAM_HW_STATE_POWER_DOWN) {
-		spin_unlock_irqrestore(&lx7_info->hw_lock, flags);
+	spin_lock_irqsave(&icp_v2_info->hw_lock, flags);
+	if (icp_v2_info->hw_state == CAM_HW_STATE_POWER_DOWN) {
+		spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
 		return 0;
 	}
-	spin_unlock_irqrestore(&lx7_info->hw_lock, flags);
+	spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
 
 	if (send_freq_info)
 		hfi_send_freq_info(0);
 
-	rc = cam_lx7_soc_resources_disable(&lx7_info->soc_info);
+	rc = cam_icp_soc_resources_disable(&icp_v2_info->soc_info);
 	if (rc)
 		CAM_WARN(CAM_ICP,
 			"failed to disable soc resources rc=%d", rc);
 
-	rc = cam_lx7_cpas_stop(lx7_info->core_info);
+	rc = cam_icp_v2_cpas_stop(icp_v2_info->core_info);
 	if (rc)
 		CAM_WARN(CAM_ICP, "cpas stop failed rc=%d", rc);
 
-	spin_lock_irqsave(&lx7_info->hw_lock, flags);
-	lx7_info->hw_state = CAM_HW_STATE_POWER_DOWN;
-	spin_unlock_irqrestore(&lx7_info->hw_lock, flags);
+	spin_lock_irqsave(&icp_v2_info->hw_lock, flags);
+	icp_v2_info->hw_state = CAM_HW_STATE_POWER_DOWN;
+	spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
 
 	return rc;
 }
 
-static void prepare_boot(struct cam_hw_info *lx7_info,
-			struct cam_icp_boot_args *args)
+static void prepare_boot(struct cam_hw_info *icp_v2_info,
+	struct cam_icp_boot_args *args)
 {
-	struct cam_lx7_core_info *core_info = lx7_info->core_info;
+	struct cam_icp_v2_core_info *core_info = icp_v2_info->core_info;
 	unsigned long flags;
 
 	if (!args->use_sec_pil) {
@@ -321,82 +283,81 @@ static void prepare_boot(struct cam_hw_info *lx7_info,
 		core_info->fw_params.fw_buf_len = args->firmware.len;
 	}
 
-	spin_lock_irqsave(&lx7_info->hw_lock, flags);
+	spin_lock_irqsave(&icp_v2_info->hw_lock, flags);
 	core_info->irq_cb.data = args->irq_cb.data;
 	core_info->irq_cb.cb = args->irq_cb.cb;
-	spin_unlock_irqrestore(&lx7_info->hw_lock, flags);
+	spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
 }
 
-static void prepare_shutdown(struct cam_hw_info *lx7_info)
+static void prepare_shutdown(struct cam_hw_info *icp_v2_info)
 {
-	struct cam_lx7_core_info *core_info = lx7_info->core_info;
+	struct cam_icp_v2_core_info *core_info = icp_v2_info->core_info;
 	unsigned long flags;
 
 	core_info->fw_params.fw_buf = 0x0;
 	core_info->fw_params.fw_kva_addr = 0x0;
 	core_info->fw_params.fw_buf_len = 0x0;
 
-	spin_lock_irqsave(&lx7_info->hw_lock, flags);
+	spin_lock_irqsave(&icp_v2_info->hw_lock, flags);
 	core_info->irq_cb.data = NULL;
 	core_info->irq_cb.cb = NULL;
-	spin_unlock_irqrestore(&lx7_info->hw_lock, flags);
+	spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
 }
 
 /* Used if ICP_SYS is not protected */
-static int __cam_lx7_power_collapse(struct cam_hw_info *lx7_info)
+static int __cam_icp_v2_power_collapse(struct cam_hw_info *icp_v2_info)
 {
 	uint32_t status = 0;
 	void __iomem *base;
 
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "invalid lx7 dev info");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "invalid ICP dev info");
 		return -EINVAL;
 	}
 
-	base = lx7_info->soc_info.reg_map[LX7_SYS_BASE].mem_base;
+	base = icp_v2_info->soc_info.reg_map[ICP_V2_SYS_BASE].mem_base;
 
 	/**
 	 * Need to poll here to confirm that FW has triggered WFI
 	 * and Host can then proceed. No interrupt is expected
 	 * from FW at this time.
 	 */
-	if (cam_common_read_poll_timeout(base + ICP_LX7_SYS_STATUS,
+	if (cam_common_read_poll_timeout(base + ICP_V2_SYS_STATUS,
 		PC_POLL_DELAY_US, PC_POLL_TIMEOUT_US,
-		ICP_LX7_STANDBYWFI, ICP_LX7_STANDBYWFI,
+		ICP_V2_STANDBYWFI, ICP_V2_STANDBYWFI,
 		&status)) {
 		CAM_ERR(CAM_ICP, "WFI poll timed out: status=0x%08x", status);
 		return -ETIMEDOUT;
 	}
 
-	cam_io_w_mb(0x0, base + ICP_LX7_SYS_CONTROL);
+	cam_io_w_mb(0x0, base + ICP_V2_SYS_CONTROL);
 	return 0;
 }
 
 /* Used if ICP_SYS is not protected */
-static int __cam_lx7_power_resume(struct cam_hw_info *lx7_info)
+static int __cam_icp_v2_power_resume(struct cam_hw_info *icp_v2_info)
 {
 	void __iomem *base;
-	struct lx7_soc_info    *soc_priv;
-	struct cam_hw_soc_info *soc_info;
+	struct cam_icp_soc_info    *soc_priv;
+	struct cam_hw_soc_info     *soc_info;
 
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "invalid lx7 dev info");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "invalid ICP dev info");
 		return -EINVAL;
 	}
 
-	soc_info = &lx7_info->soc_info;
+	soc_info = &icp_v2_info->soc_info;
 	soc_priv = soc_info->soc_private;
-	base = lx7_info->soc_info.reg_map[LX7_SYS_BASE].mem_base;
+	base = icp_v2_info->soc_info.reg_map[ICP_V2_SYS_BASE].mem_base;
 
-	cam_io_w_mb(ICP_LX7_FUNC_RESET,
-		base + ICP_LX7_SYS_RESET);
+	cam_io_w_mb(ICP_V2_FUNC_RESET,
+		base + ICP_V2_SYS_RESET);
 
-	if (soc_priv->icp_qos_val)
-		cam_io_w_mb(soc_priv->icp_qos_val,
-			base + ICP_LX7_SYS_ACCESS);
+	if (soc_priv->qos_val)
+		cam_io_w_mb(soc_priv->qos_val, base + ICP_V2_SYS_ACCESS);
 
-	cam_io_w_mb(ICP_LX7_EN_CPU,
-		base + ICP_LX7_SYS_CONTROL);
+	cam_io_w_mb(ICP_V2_EN_CPU,
+		base + ICP_V2_SYS_CONTROL);
 
 	return 0;
 }
@@ -410,9 +371,9 @@ static int32_t __cam_non_sec_load_fw(void *device_priv)
 	char firmware_name[ICP_FW_NAME_MAX_SIZE] = {0};
 	const char               *fw_name;
 	const uint8_t            *fw_start = NULL;
-	struct cam_hw_info       *lx7_dev = device_priv;
+	struct cam_hw_info       *icp_v2_dev = device_priv;
 	struct cam_hw_soc_info   *soc_info = NULL;
-	struct cam_lx7_core_info *core_info = NULL;
+	struct cam_icp_v2_core_info *core_info = NULL;
 	struct platform_device   *pdev = NULL;
 
 	if (!device_priv) {
@@ -420,8 +381,8 @@ static int32_t __cam_non_sec_load_fw(void *device_priv)
 		return -EINVAL;
 	}
 
-	soc_info = &lx7_dev->soc_info;
-	core_info = (struct cam_lx7_core_info *)lx7_dev->core_info;
+	soc_info = &icp_v2_dev->soc_info;
+	core_info = (struct cam_icp_v2_core_info *)icp_v2_dev->core_info;
 	pdev = soc_info->pdev;
 
 	/**
@@ -493,10 +454,10 @@ fw_download_failed:
 	return rc;
 }
 #else /* #ifndef CONFIG_CAM_PRESIL */
-static int __cam_non_sec_load_fw(struct cam_hw_info *lx7_info)
+static int __cam_non_sec_load_fw(struct cam_hw_info *icp_v2_info)
 {
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "invalid lx7 dev info");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "Invalid ICP dev info");
 		return -EINVAL;
 	}
 
@@ -507,17 +468,17 @@ static int __cam_non_sec_load_fw(struct cam_hw_info *lx7_info)
 #endif /* #ifndef CONFIG_CAM_PRESIL */
 
 /* Used for non secure FW load */
-static int cam_lx7_non_sec_boot(
-	struct cam_hw_info *lx7_info,
+static int cam_icp_v2_non_sec_boot(
+	struct cam_hw_info *icp_v2_info,
 	struct cam_icp_boot_args *args,
 	uint32_t arg_size)
 {
 	int rc;
 
-	if (!lx7_info || !args) {
+	if (!icp_v2_info || !args) {
 		CAM_ERR(CAM_ICP,
-			"invalid args: lx7_dev=%pK args=%pK",
-			lx7_info, args);
+			"invalid args: icp_v2_dev=%pK args=%pK",
+			icp_v2_info, args);
 		return -EINVAL;
 	}
 
@@ -526,30 +487,30 @@ static int cam_lx7_non_sec_boot(
 		return -EINVAL;
 	}
 
-	if (lx7_info->soc_info.num_mem_block != LX7_BASE_MAX) {
+	if (icp_v2_info->soc_info.num_mem_block != ICP_V2_BASE_MAX) {
 		CAM_ERR(CAM_ICP, "check ICP SYS reg config in DT..");
 		return -EINVAL;
 	}
 
-	prepare_boot(lx7_info, args);
+	prepare_boot(icp_v2_info, args);
 
-	rc = __cam_non_sec_load_fw(lx7_info);
+	rc = __cam_non_sec_load_fw(icp_v2_info);
 	if (rc) {
 		CAM_ERR(CAM_ICP,
 			"firmware download failed rc=%d", rc);
 		goto err;
 	}
 
-	rc = __cam_lx7_power_resume(lx7_info);
+	rc = __cam_icp_v2_power_resume(icp_v2_info);
 	if (rc) {
-		CAM_ERR(CAM_ICP, "lx7 boot failed rc=%d", rc);
+		CAM_ERR(CAM_ICP, "ICP boot failed rc=%d", rc);
 		goto err;
 	}
 
 	return 0;
 
 err:
-	prepare_shutdown(lx7_info);
+	prepare_shutdown(icp_v2_info);
 	return rc;
 }
 
@@ -645,20 +606,19 @@ out:
 }
 #endif
 
-static int cam_lx7_boot(struct cam_hw_info *lx7_info,
-			struct cam_icp_boot_args *args,
-			uint32_t arg_size)
+static int cam_icp_v2_boot(struct cam_hw_info *icp_v2_info,
+	struct cam_icp_boot_args *args, uint32_t arg_size)
 {
 	int rc;
-	struct cam_lx7_core_info *core_info = NULL;
+	struct cam_icp_v2_core_info *core_info = NULL;
 
 	if (!IS_REACHABLE(CONFIG_QCOM_MDT_LOADER))
 		return -EOPNOTSUPP;
 
-	if (!lx7_info || !args) {
+	if (!icp_v2_info || !args) {
 		CAM_ERR(CAM_ICP,
-			"invalid args: lx7_info=%pK args=%pK",
-			lx7_info, args);
+			"invalid args: icp_v2_info=%pK args=%pK",
+			icp_v2_info, args);
 		return -EINVAL;
 	}
 
@@ -667,11 +627,11 @@ static int cam_lx7_boot(struct cam_hw_info *lx7_info,
 		return -EINVAL;
 	}
 
-	core_info = (struct cam_lx7_core_info *)lx7_info->core_info;
-	prepare_boot(lx7_info, args);
+	core_info = (struct cam_icp_v2_core_info *)icp_v2_info->core_info;
+	prepare_boot(icp_v2_info, args);
 
 #if IS_REACHABLE(CONFIG_QCOM_MDT_LOADER)
-	rc = __load_firmware(lx7_info->soc_info.pdev);
+	rc = __load_firmware(icp_v2_info->soc_info.pdev);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "firmware loading failed rc=%d", rc);
 		goto err;
@@ -687,52 +647,52 @@ static int cam_lx7_boot(struct cam_hw_info *lx7_info,
 	core_info->use_sec_pil = true;
 	return 0;
 err:
-	prepare_shutdown(lx7_info);
+	prepare_shutdown(icp_v2_info);
 	return rc;
 }
 
-static int cam_lx7_shutdown(struct cam_hw_info *lx7_info)
+static int cam_icp_v2_shutdown(struct cam_hw_info *icp_v2_info)
 {
 	int rc = 0;
-	struct cam_lx7_core_info *core_info =
-		(struct cam_lx7_core_info *)lx7_info->core_info;
+	struct cam_icp_v2_core_info *core_info =
+		(struct cam_icp_v2_core_info *)icp_v2_info->core_info;
 
-	prepare_shutdown(lx7_info);
+	prepare_shutdown(icp_v2_info);
 
 	if (core_info->use_sec_pil)
 		rc = qcom_scm_pas_shutdown(CAM_FW_PAS_ID);
 	else {
 		void __iomem *base;
 
-		base = lx7_info->soc_info.reg_map[LX7_SYS_BASE].mem_base;
-		cam_io_w_mb(0x0, base + ICP_LX7_SYS_CONTROL);
+		base = icp_v2_info->soc_info.reg_map[ICP_V2_SYS_BASE].mem_base;
+		cam_io_w_mb(0x0, base + ICP_V2_SYS_CONTROL);
 	}
 
 	core_info->use_sec_pil = false;
 	return rc;
 }
 
-static void __cam_lx7_core_reg_dump(
-	struct cam_hw_info *lx7_info, uint32_t dump_type)
+static void __cam_icp_v2_core_reg_dump(
+	struct cam_hw_info *icp_v2_info, uint32_t dump_type)
 {
 	int i;
 	size_t len = 0;
 	char log_info[512];
-	void __iomem *cirq_base = lx7_info->soc_info.reg_map[LX7_CIRQ_BASE].mem_base;
-	void __iomem *csr_base = lx7_info->soc_info.reg_map[LX7_CSR_BASE].mem_base;
-	void __iomem *csr_gp_base =  csr_base + LX7_GEN_PURPOSE_REG_OFFSET;
+	void __iomem *cirq_base = icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base;
+	void __iomem *csr_base = icp_v2_info->soc_info.reg_map[ICP_V2_CSR_BASE].mem_base;
+	void __iomem *csr_gp_base =  csr_base + ICP_V2_GEN_PURPOSE_REG_OFFSET;
 
 	if (dump_type & CAM_ICP_DUMP_STATUS_REGISTERS)
 		CAM_INFO(CAM_ICP,
 			"CIRQ IB_status0:0x%x IB_Status1:0x%x PFault:0x%x CSR debug_status:0x%x debug_ctrl:0x%x",
-			cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_IB_STATUS0),
-			cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_IB_STATUS1),
-			cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_PFAULT_INFO),
-			cam_io_r_mb(csr_base + LX7_CSR_DBG_STATUS_REG_OFFSET),
-			cam_io_r_mb(csr_base + LX7_CSR_DBG_CTRL_REG_OFFSET));
+			cam_io_r_mb(cirq_base + ICP_V2_CIRQ_IB_STATUS0),
+			cam_io_r_mb(cirq_base + ICP_V2_CIRQ_IB_STATUS1),
+			cam_io_r_mb(cirq_base + ICP_V2_CIRQ_PFAULT_INFO),
+			cam_io_r_mb(csr_base + ICP_V2_CSR_DBG_STATUS_REG_OFFSET),
+			cam_io_r_mb(csr_base + ICP_V2_CSR_DBG_CTRL_REG_OFFSET));
 
 	if (dump_type & CAM_ICP_DUMP_CSR_REGISTERS) {
-		for (i = 0; i < LX7_CSR_GP_REG_COUNT;) {
+		for (i = 0; i < ICP_V2_CSR_GP_REG_COUNT;) {
 			CAM_INFO_BUF(CAM_ICP, log_info, 512, &len,
 				"GP_%d: 0x%x GP_%d: 0x%x GP_%d: 0x%x GP_%d: 0x%x",
 				i, cam_io_r_mb(csr_gp_base + (i << 2)),
@@ -747,13 +707,12 @@ static void __cam_lx7_core_reg_dump(
 }
 
 /* API controls collapse/resume of ICP */
-static int cam_lx7_core_control(
-	struct cam_hw_info *lx7_info,
+static int cam_icp_v2_core_control(struct cam_hw_info *icp_v2_info,
 	uint32_t state)
 {
 	int rc = 0;
-	struct cam_lx7_core_info *core_info =
-		(struct cam_lx7_core_info *)lx7_info->core_info;
+	struct cam_icp_v2_core_info *core_info =
+		(struct cam_icp_v2_core_info *)icp_v2_info->core_info;
 
 	if (core_info->use_sec_pil) {
 		rc = qcom_scm_set_remote_state(state, CAM_FW_PAS_ID);
@@ -761,49 +720,46 @@ static int cam_lx7_core_control(
 			CAM_ERR(CAM_ICP,
 				"remote state set to %s failed rc=%d",
 				(state == TZ_STATE_RESUME ? "resume" : "suspend"), rc);
-			__cam_lx7_core_reg_dump(lx7_info, CAM_ICP_DUMP_STATUS_REGISTERS);
+			__cam_icp_v2_core_reg_dump(icp_v2_info, CAM_ICP_DUMP_STATUS_REGISTERS);
 		}
 	} else {
 		if (state == TZ_STATE_RESUME) {
-			rc = __cam_lx7_power_resume(lx7_info);
+			rc = __cam_icp_v2_power_resume(icp_v2_info);
 			if (rc)
-				CAM_ERR(CAM_ICP, "lx7 resume failed rc=%d", rc);
+				CAM_ERR(CAM_ICP, "ICP resume failed rc=%d", rc);
 		} else {
-			rc = __cam_lx7_power_collapse(lx7_info);
+			rc = __cam_icp_v2_power_collapse(icp_v2_info);
 			if (rc)
-				CAM_ERR(CAM_ICP, "lx7 collapse failed rc=%d", rc);
+				CAM_ERR(CAM_ICP, "ICP collapse failed rc=%d", rc);
 		}
 	}
 
 	return rc;
 }
 
-static inline int cam_lx7_download_fw(
-	struct cam_hw_info *lx7_info,
-	struct cam_icp_boot_args *args,
-	uint32_t arg_size)
+static inline int cam_icp_v2_download_fw(struct cam_hw_info *icp_v2_info,
+	struct cam_icp_boot_args *args, uint32_t arg_size)
 {
 	int rc;
 
 	CAM_INFO(CAM_ICP, "Loading Secure PIL : %s", CAM_BOOL_TO_YESNO(args->use_sec_pil));
 
 	if (args->use_sec_pil)
-		rc = cam_lx7_boot(
-			lx7_info, args, arg_size);
+		rc = cam_icp_v2_boot(
+			icp_v2_info, args, arg_size);
 	else
-		rc = cam_lx7_non_sec_boot(
-			lx7_info, args, arg_size);
+		rc = cam_icp_v2_non_sec_boot(
+			icp_v2_info, args, arg_size);
 
 	return rc;
 }
 
-static int __cam_lx7_update_clk_rate(
-	struct cam_hw_info *lx7_info,
+static int __cam_icp_v2_update_clk_rate(struct cam_hw_info *icp_v2_info,
 	int32_t *clk_lvl)
 {
 	int32_t clk_level = 0, rc;
 	struct cam_ahb_vote       ahb_vote;
-	struct cam_lx7_core_info *core_info = NULL;
+	struct cam_icp_v2_core_info *core_info = NULL;
 	struct cam_hw_soc_info   *soc_info = NULL;
 
 	if (!clk_lvl) {
@@ -811,8 +767,8 @@ static int __cam_lx7_update_clk_rate(
 		return -EINVAL;
 	}
 
-	soc_info = &lx7_info->soc_info;
-	core_info = lx7_info->core_info;
+	soc_info = &icp_v2_info->soc_info;
+	core_info = icp_v2_info->core_info;
 	if (!core_info || !soc_info) {
 		CAM_ERR(CAM_ICP, "Invalid args");
 		return -EINVAL;
@@ -821,7 +777,7 @@ static int __cam_lx7_update_clk_rate(
 	clk_level = *((int32_t *)clk_lvl);
 	CAM_DBG(CAM_ICP,
 		"Update ICP clock to level [%d]", clk_level);
-	rc = cam_lx7_update_clk_rate(soc_info, clk_level);
+	rc = cam_icp_soc_update_clk_rate(soc_info, clk_level);
 	if (rc)
 		CAM_WARN(CAM_ICP,
 			"Failed to update clk to level: %d rc: %d",
@@ -838,73 +794,53 @@ static int __cam_lx7_update_clk_rate(
 	return rc;
 }
 
-static int __cam_lx7_fw_mini_dump(
-	struct cam_lx7_core_info       *core_info,
-	struct cam_icp_hw_dump_args    *args)
+static int __cam_icp_v2_fw_mini_dump(struct cam_icp_v2_core_info *core_info,
+	struct cam_icp_hw_dump_args *args)
 {
-	u8                          *dest;
-	u8                          *src;
-	struct cam_icp_hw_dump_args *dump_args = args;
-
-	if (!core_info || !dump_args) {
-		CAM_ERR(CAM_ICP, "invalid params %pK %pK", core_info, dump_args);
+	if (!core_info) {
+		CAM_ERR(CAM_ICP, "Invalid param %pK", core_info);
 		return -EINVAL;
 	}
 
-	if (!core_info->fw_params.fw_kva_addr || !dump_args->cpu_addr) {
-		CAM_ERR(CAM_ICP, "invalid params %pK, 0x%zx",
-		    core_info->fw_params.fw_kva_addr, dump_args->cpu_addr);
-		return -EINVAL;
-	}
-
-	if (dump_args->buf_len < core_info->fw_params.fw_buf_len) {
-		CAM_WARN(CAM_ICP, "Insufficient Len %lu fw_len %llu",
-			dump_args->buf_len, core_info->fw_params.fw_buf_len);
-		return -ENOSPC;
-	}
-
-	dest = (u8 *)dump_args->cpu_addr;
-	src = (u8 *)core_info->fw_params.fw_kva_addr;
-	memcpy_fromio(dest, src, core_info->fw_params.fw_buf_len);
-	dump_args->offset = core_info->fw_params.fw_buf_len;
-	return 0;
+	return cam_icp_proc_mini_dump(args, core_info->fw_params.fw_kva_addr,
+		core_info->fw_params.fw_buf_len);
 }
 
-int cam_lx7_process_cmd(void *priv, uint32_t cmd_type,
-			void *args, uint32_t arg_size)
+int cam_icp_v2_process_cmd(void *priv, uint32_t cmd_type,
+	void *args, uint32_t arg_size)
 {
-	struct cam_hw_info *lx7_info = priv;
+	struct cam_hw_info *icp_v2_info = priv;
 	int rc = -EINVAL;
 
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "LX7 device info cannot be NULL");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "ICP device info cannot be NULL");
 		return -EINVAL;
 	}
 
 	switch (cmd_type) {
 	case CAM_ICP_CMD_PROC_SHUTDOWN:
-		rc = cam_lx7_shutdown(lx7_info);
+		rc = cam_icp_v2_shutdown(icp_v2_info);
 		break;
 	case CAM_ICP_CMD_PROC_BOOT:
-		rc = cam_lx7_download_fw(lx7_info, args, arg_size);
+		rc = cam_icp_v2_download_fw(icp_v2_info, args, arg_size);
 		break;
 	case CAM_ICP_CMD_POWER_COLLAPSE:
-		rc = cam_lx7_core_control(lx7_info, TZ_STATE_SUSPEND);
+		rc = cam_icp_v2_core_control(icp_v2_info, TZ_STATE_SUSPEND);
 		break;
 	case CAM_ICP_CMD_POWER_RESUME:
-		rc = cam_lx7_core_control(lx7_info, TZ_STATE_RESUME);
+		rc = cam_icp_v2_core_control(icp_v2_info, TZ_STATE_RESUME);
 		break;
 	case CAM_ICP_CMD_VOTE_CPAS:
-		rc = cam_lx7_cpas_vote(lx7_info->core_info, args);
+		rc = cam_icp_v2_cpas_vote(icp_v2_info->core_info, args);
 		break;
 	case CAM_ICP_CMD_CPAS_START:
-		rc = __lx7_cpas_start(lx7_info->core_info, args);
+		rc = __icp_v2_cpas_start(icp_v2_info->core_info, args);
 		break;
 	case CAM_ICP_CMD_CPAS_STOP:
-		rc = cam_lx7_cpas_stop(lx7_info->core_info);
+		rc = cam_icp_v2_cpas_stop(icp_v2_info->core_info);
 		break;
 	case CAM_ICP_CMD_UBWC_CFG:
-		rc = cam_lx7_ubwc_configure(&lx7_info->soc_info);
+		rc = cam_icp_v2_ubwc_configure(&icp_v2_info->soc_info);
 		break;
 	case CAM_ICP_SEND_INIT:
 		hfi_send_system_cmd(HFI_CMD_SYS_INIT, 0, 0);
@@ -915,15 +851,15 @@ int cam_lx7_process_cmd(void *priv, uint32_t cmd_type,
 		rc = 0;
 		break;
 	case CAM_ICP_CMD_CLK_UPDATE: {
-		rc = __cam_lx7_update_clk_rate(lx7_info, args);
+		rc = __cam_icp_v2_update_clk_rate(icp_v2_info, args);
 		break;
 	}
 	case CAM_ICP_CMD_HW_DUMP:
-		/* Not supported for lx7 */
+		/* Not supported for ICP_V2 */
 		rc = 0;
 		break;
 	case CAM_ICP_CMD_HW_MINI_DUMP: {
-		rc = __cam_lx7_fw_mini_dump(lx7_info->core_info, args);
+		rc = __cam_icp_v2_fw_mini_dump(icp_v2_info->core_info, args);
 		break;
 	}
 	case CAM_ICP_CMD_HW_REG_DUMP: {
@@ -935,7 +871,7 @@ int cam_lx7_process_cmd(void *priv, uint32_t cmd_type,
 		}
 
 		dump_type = *(uint32_t *) args;
-		__cam_lx7_core_reg_dump(lx7_info, dump_type);
+		__cam_icp_v2_core_reg_dump(icp_v2_info, dump_type);
 		rc = 0;
 		break;
 	}
@@ -947,131 +883,141 @@ int cam_lx7_process_cmd(void *priv, uint32_t cmd_type,
 	return rc;
 }
 
-irqreturn_t cam_lx7_handle_irq(int irq_num, void *data)
+irqreturn_t cam_icp_v2_handle_irq(int irq_num, void *data)
 {
-	struct cam_hw_info *lx7_info = data;
-	struct cam_lx7_core_info *core_info = NULL;
+	struct cam_hw_info *icp_v2_info = data;
+	struct cam_icp_v2_core_info *core_info = NULL;
 	bool recover = false;
 	uint32_t status = 0;
 	void __iomem *cirq_base;
 
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "invalid LX7 device info");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "invalid ICP device info");
 		return IRQ_NONE;
 	}
 
-	core_info = lx7_info->core_info;
-	cirq_base = lx7_info->soc_info.reg_map[LX7_CIRQ_BASE].mem_base;
+	core_info = icp_v2_info->core_info;
+	cirq_base = icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base;
 
-	status = cam_io_r_mb(cirq_base + ICP_LX7_CIRQ_OB_STATUS);
+	status = cam_io_r_mb(cirq_base + ICP_V2_CIRQ_OB_STATUS);
 
-	cam_io_w_mb(status, cirq_base + ICP_LX7_CIRQ_OB_CLEAR);
-	cam_io_w_mb(LX7_IRQ_CLEAR_CMD, cirq_base + ICP_LX7_CIRQ_OB_IRQ_CMD);
+	cam_io_w_mb(status, cirq_base + ICP_V2_CIRQ_OB_CLEAR);
+	cam_io_w_mb(ICP_V2_IRQ_CLEAR_CMD, cirq_base + ICP_V2_CIRQ_OB_IRQ_CMD);
 
 	if (core_info->is_irq_test) {
-		CAM_INFO(CAM_ICP, "LX7 IRQ verified (status=0x%x)", status);
+		CAM_INFO(CAM_ICP, "ICP_V2 IRQ verified (status=0x%x)", status);
 		core_info->is_irq_test = false;
-		complete(&lx7_info->hw_complete);
+		complete(&icp_v2_info->hw_complete);
 		return IRQ_HANDLED;
 	}
 
-	if (status & LX7_WDT_BITE_WS0) {
+	if (status & ICP_V2_WDT_BITE_WS0) {
 		/* WD clear sequence - SW listens only to WD0 */
 		cam_io_w_mb(0x0,
-			lx7_info->soc_info.reg_map[LX7_WD0_BASE].mem_base +
-			ICP_LX7_WD_CTRL);
+			icp_v2_info->soc_info.reg_map[ICP_V2_WD0_BASE].mem_base +
+			ICP_V2_WD_CTRL);
 		cam_io_w_mb(0x1,
-			lx7_info->soc_info.reg_map[LX7_WD0_BASE].mem_base +
-			ICP_LX7_WD_INTCLR);
-		CAM_ERR_RATE_LIMIT(CAM_ICP, "Fatal: Watchdog Bite from LX7");
+			icp_v2_info->soc_info.reg_map[ICP_V2_WD0_BASE].mem_base +
+			ICP_V2_WD_INTCLR);
+		CAM_ERR_RATE_LIMIT(CAM_ICP, "Fatal: Watchdog Bite from ICP");
 		recover = true;
 	}
 
-	spin_lock(&lx7_info->hw_lock);
+	spin_lock(&icp_v2_info->hw_lock);
 	if (core_info->irq_cb.cb)
 		core_info->irq_cb.cb(core_info->irq_cb.data,
-						recover);
-	spin_unlock(&lx7_info->hw_lock);
+			recover);
+	spin_unlock(&icp_v2_info->hw_lock);
 
 	return IRQ_HANDLED;
 }
 
-void cam_lx7_irq_raise(void *priv)
+void cam_icp_v2_irq_raise(void *priv)
 {
-	struct cam_hw_info *lx7_info = priv;
+	struct cam_hw_info *icp_v2_info = priv;
 
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "invalid LX7 device info");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "Invalid ICP device info");
 		return;
 	}
 
-	cam_io_w_mb(LX7_HOST2ICPINT,
-		lx7_info->soc_info.reg_map[LX7_CIRQ_BASE].mem_base +
-		ICP_LX7_CIRQ_HOST2ICPINT);
+	cam_io_w_mb(ICP_V2_HOST2ICPINT,
+		icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base +
+		ICP_V2_CIRQ_HOST2ICPINT);
 }
 
-void cam_lx7_irq_enable(void *priv)
+void cam_icp_v2_irq_enable(void *priv)
 {
-	struct cam_hw_info *lx7_info = priv;
+	struct cam_hw_info *icp_v2_info = priv;
 
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "invalid LX7 device info");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "Invalid ICP device info");
 		return;
 	}
 
-	cam_io_w_mb(LX7_WDT_BITE_WS0 | LX7_ICP2HOSTINT,
-		lx7_info->soc_info.reg_map[LX7_CIRQ_BASE].mem_base +
-		ICP_LX7_CIRQ_OB_MASK);
+	cam_io_w_mb(ICP_V2_WDT_BITE_WS0 | ICP_V2_ICP2HOSTINT,
+		icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base +
+		ICP_V2_CIRQ_OB_MASK);
 }
 
-int cam_lx7_test_irq_line(void *priv)
+int cam_icp_v2_test_irq_line(void *priv)
 {
-	struct cam_hw_info *lx7_info = priv;
-	struct cam_lx7_core_info *core_info = NULL;
+	struct cam_hw_info *icp_v2_info = priv;
+	struct cam_icp_v2_core_info *core_info = NULL;
 	void __iomem *cirq_membase;
 	unsigned long rem_jiffies;
 
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "invalid LX7 device info");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "invalid ICP device info");
 		return -EINVAL;
 	}
 
-	core_info = lx7_info->core_info;
-	cirq_membase = lx7_info->soc_info.reg_map[LX7_CIRQ_BASE].mem_base;
+	core_info = icp_v2_info->core_info;
+	cirq_membase = icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base;
 
-	reinit_completion(&lx7_info->hw_complete);
+	reinit_completion(&icp_v2_info->hw_complete);
 	core_info->is_irq_test = true;
 
-	cam_lx7_hw_init(priv, NULL, 0);
+	cam_icp_v2_hw_init(priv, NULL, 0);
 
-	cam_io_w_mb(LX7_WDT_BARK_WS0, cirq_membase + ICP_LX7_CIRQ_OB_MASK);
-	cam_io_w_mb(LX7_WDT_BARK_WS0, cirq_membase + ICP_LX7_CIRQ_OB_SET);
-	cam_io_w_mb(LX7_IRQ_SET_CMD, cirq_membase + ICP_LX7_CIRQ_OB_IRQ_CMD);
+	cam_io_w_mb(ICP_V2_WDT_BARK_WS0, cirq_membase + ICP_V2_CIRQ_OB_MASK);
+	cam_io_w_mb(ICP_V2_WDT_BARK_WS0, cirq_membase + ICP_V2_CIRQ_OB_SET);
+	cam_io_w_mb(ICP_V2_IRQ_SET_CMD, cirq_membase + ICP_V2_CIRQ_OB_IRQ_CMD);
 
-	rem_jiffies = cam_common_wait_for_completion_timeout(&lx7_info->hw_complete,
-		msecs_to_jiffies(LX7_IRQ_TEST_TIMEOUT));
+	rem_jiffies = cam_common_wait_for_completion_timeout(&icp_v2_info->hw_complete,
+		msecs_to_jiffies(ICP_V2_IRQ_TEST_TIMEOUT));
 	if (!rem_jiffies)
-		CAM_ERR(CAM_ICP, "LX7 IRQ verification timed out");
+		CAM_ERR(CAM_ICP, "ICP IRQ verification timed out");
 
-	cam_io_w_mb(0, cirq_membase + ICP_LX7_CIRQ_OB_MASK);
-	cam_lx7_hw_deinit(priv, NULL, 0);
+	cam_io_w_mb(0, cirq_membase + ICP_V2_CIRQ_OB_MASK);
+	cam_icp_v2_hw_deinit(priv, NULL, 0);
 
 	core_info->is_irq_test = false;
 
 	return 0;
 }
 
-void __iomem *cam_lx7_iface_addr(void *priv)
+void __iomem *cam_icp_v2_iface_addr(void *priv)
 {
-	struct cam_hw_info *lx7_info = priv;
+	struct cam_hw_info *icp_v2_info = priv;
 	void __iomem *base;
 
-	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "invalid LX7 device info");
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "invalid icp device info");
 		return ERR_PTR(-EINVAL);
 	}
 
-	base = lx7_info->soc_info.reg_map[LX7_CSR_BASE].mem_base;
+	base = icp_v2_info->soc_info.reg_map[ICP_V2_CSR_BASE].mem_base;
 
-	return base + LX7_GEN_PURPOSE_REG_OFFSET;
+	return base + ICP_V2_GEN_PURPOSE_REG_OFFSET;
+}
+
+void cam_icp_v2_populate_hfi_ops(const struct hfi_ops **hfi_proc_ops)
+{
+	if (!hfi_proc_ops) {
+		CAM_ERR(CAM_ICP, "Invalid hfi ops argument");
+		return;
+	}
+
+	*hfi_proc_ops = &hfi_icp_v2_ops;
 }
