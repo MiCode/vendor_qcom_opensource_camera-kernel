@@ -842,7 +842,8 @@ static int __cam_req_mgr_check_next_req_slot(
 		if (in_q->wr_idx != idx)
 			CAM_WARN(CAM_CRM,
 				"CHECK here wr %d, rd %d", in_q->wr_idx, idx);
-		__cam_req_mgr_inc_idx(&in_q->wr_idx, 1, in_q->num_slots);
+		else
+			__cam_req_mgr_inc_idx(&in_q->wr_idx, 1, in_q->num_slots);
 	}
 
 	return rc;
@@ -2032,8 +2033,7 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 				}
 			}
 
-			if (slot->req_id > 0)
-				in_q->last_applied_idx = idx;
+			in_q->last_applied_idx = idx;
 
 			__cam_req_mgr_dec_idx(
 				&idx, reset_step + 1,
