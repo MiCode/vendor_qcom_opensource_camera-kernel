@@ -1226,8 +1226,10 @@ static struct cam_sfe_bus_wr_hw_info sfe680_bus_wr_hw_info = {
 			.error_description = "Meta Stride unalign"
 		},
 	},
+	.comp_done_shift = {
+		17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+	},
 	.num_comp_grp         = 10,
-	.comp_done_shift      = 17,
 	.line_done_cfg        = 0x11,
 	.top_irq_shift        = 0x0,
 	.pack_align_shift     = 0x5,

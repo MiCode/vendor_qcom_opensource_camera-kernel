@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -154,8 +155,9 @@ struct cam_sfe_bus_sfe_out_hw_info {
  * @sfe_out_hw_info:       SFE output capability
  * @num_cons_err:          Number of contraint errors in list
  * @constraint_error_list: Static list of all constraint errors
+ * @comp_done_shift:       List of buf done mask shift values for
+ *                         each comp grp
  * @num_comp_grp:          Number of composite groups
- * @comp_done_shift:       Mask shift for comp done mask
  * @line_done_cfg:         Line done cfg for wr/rd sync
  * @top_irq_shift:         Mask shift for top level BUS WR irq
  * @pack_align_shift:      Packer format alignment bit shift
@@ -172,8 +174,8 @@ struct cam_sfe_bus_wr_hw_info {
 	uint32_t num_cons_err;
 	struct cam_sfe_constraint_error_info
 		constraint_error_list[CAM_SFE_BUS_CONS_ERR_MAX];
+	uint32_t comp_done_shift[CAM_SFE_BUS_WR_COMP_GRP_MAX];
 	uint32_t num_comp_grp;
-	uint32_t comp_done_shift;
 	uint32_t line_done_cfg;
 	uint32_t top_irq_shift;
 	uint32_t pack_align_shift;

@@ -88,7 +88,6 @@ struct cam_sfe_bus_wr_common_data {
 	uint32_t                                    secure_mode;
 	uint32_t                                    num_sec_out;
 	uint32_t                                    addr_no_sync;
-	uint32_t                                    comp_done_shift;
 	uint32_t                                    line_done_cfg;
 	uint32_t                                    pack_align_shift;
 	uint32_t                                    max_bw_counter_limit;
@@ -146,6 +145,7 @@ struct cam_sfe_bus_wr_wm_resource_data {
 
 struct cam_sfe_bus_wr_comp_grp_data {
 	enum cam_sfe_bus_wr_comp_grp_type          comp_grp_type;
+	uint32_t                                   comp_done_shift;
 	struct cam_sfe_bus_wr_common_data         *common_data;
 
 	uint32_t                                   is_master;
@@ -1205,11 +1205,9 @@ static int cam_sfe_bus_start_comp_grp(
 		return 0;
 
 	/* CSID buf done register */
-	bus_irq_reg_mask[0] =
-		(0x1 << (rsrc_data->comp_grp_type +
-		rsrc_data->common_data->comp_done_shift));
+	bus_irq_reg_mask[0] = BIT(rsrc_data->comp_done_shift);
 
-	CAM_DBG(CAM_SFE, "Start Done SFE:%d comp_grp:%d",
+	CAM_DBG(CAM_SFE, "Start Done SFE:%d comp_grp:%d buf_done_mask:0x%x",
 		rsrc_data->common_data->core_index,
 		rsrc_data->comp_grp_type,
 		bus_irq_reg_mask[0]);
@@ -1248,6 +1246,7 @@ static int cam_sfe_bus_wr_init_comp_grp(uint32_t index,
 	rsrc_data->comp_grp_type   = index;
 	rsrc_data->common_data     = &bus_priv->common_data;
 	rsrc_data->dual_slave_core = CAM_SFE_CORE_MAX;
+	rsrc_data->comp_done_shift = hw_info->comp_done_shift[index];
 
 	list_add_tail(&comp_grp->list, &bus_priv->free_comp_grp);
 
@@ -1758,8 +1757,7 @@ static int cam_sfe_bus_handle_sfe_out_done_top_half(
 
 	status_0 = th_payload->evt_status_arr[CAM_SFE_IRQ_BUS_REG_STATUS0];
 
-	if (status_0 & BIT(resource_data->comp_grp_type +
-		rsrc_data->common_data->comp_done_shift)) {
+	if (status_0 & BIT(resource_data->comp_done_shift)) {
 		trace_cam_log_event("bufdone", "bufdone_IRQ",
 			status_0, resource_data->comp_grp_type);
 	}
@@ -1791,8 +1789,7 @@ static int cam_sfe_bus_handle_comp_done_bottom_half(
 	cam_sfe_irq_regs = evt_payload->irq_reg_val;
 	status_0 = cam_sfe_irq_regs[CAM_SFE_IRQ_BUS_REG_STATUS0];
 
-	if (status_0 & BIT(rsrc_data->comp_grp_type +
-		rsrc_data->common_data->comp_done_shift)) {
+	if (status_0 & BIT(rsrc_data->comp_done_shift)) {
 		evt_payload->evt_id = CAM_ISP_HW_EVENT_DONE;
 		rc = CAM_SFE_IRQ_STATUS_SUCCESS;
 	}
@@ -3423,7 +3420,6 @@ int cam_sfe_bus_wr_init(
 		CAM_SOC_GET_REG_MAP_START(soc_info, SFE_CORE_BASE_IDX);
 	bus_priv->common_data.hw_intf              = hw_intf;
 	bus_priv->common_data.common_reg           = &hw_info->common_reg;
-	bus_priv->common_data.comp_done_shift      = hw_info->comp_done_shift;
 	bus_priv->common_data.line_done_cfg        = hw_info->line_done_cfg;
 	bus_priv->common_data.pack_align_shift     = hw_info->pack_align_shift;
 	bus_priv->common_data.max_bw_counter_limit = hw_info->max_bw_counter_limit;
