@@ -27,6 +27,7 @@
 #define CAM_ISP_SFE_OUT_BAYER_RS_STATS_0      (CAM_ISP_SFE_OUT_RES_BASE + 14)
 #define CAM_ISP_SFE_OUT_BAYER_RS_STATS_1      (CAM_ISP_SFE_OUT_RES_BASE + 15)
 #define CAM_ISP_SFE_OUT_BAYER_RS_STATS_2      (CAM_ISP_SFE_OUT_RES_BASE + 16)
+#define CAM_ISP_SFE_OUT_HDR_STATS             (CAM_ISP_SFE_OUT_RES_BASE + 17)
 
 /* This Macro is deprecated and shall not be used */
 #define CAM_ISP_SFE_OUT_RES_MAX               (CAM_ISP_SFE_OUT_RES_BASE + 17)

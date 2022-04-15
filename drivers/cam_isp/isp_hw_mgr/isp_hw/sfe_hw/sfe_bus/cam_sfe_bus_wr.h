@@ -10,9 +10,9 @@
 
 #include "cam_sfe_bus.h"
 
-#define CAM_SFE_BUS_WR_MAX_CLIENTS     16
-#define CAM_SFE_BUS_WR_MAX_SUB_GRPS    6
-#define CAM_SFE_BUS_CONS_ERR_MAX       32
+#define CAM_SFE_BUS_WR_MAX_CLIENTS        17
+#define CAM_SFE_BUS_WR_MAX_SUB_GRPS       6
+#define CAM_SFE_BUS_CONS_ERR_MAX          32
 
 enum cam_sfe_bus_wr_src_grp {
 	CAM_SFE_BUS_WR_SRC_GRP_0,
@@ -35,6 +35,7 @@ enum cam_sfe_bus_wr_comp_grp_type {
 	CAM_SFE_BUS_WR_COMP_GRP_7,
 	CAM_SFE_BUS_WR_COMP_GRP_8,
 	CAM_SFE_BUS_WR_COMP_GRP_9,
+	CAM_SFE_BUS_WR_COMP_GRP_10,
 	CAM_SFE_BUS_WR_COMP_GRP_MAX,
 };
 
@@ -56,6 +57,7 @@ enum cam_sfe_bus_sfe_out_type {
 	CAM_SFE_BUS_SFE_OUT_BAYER_RS_1,
 	CAM_SFE_BUS_SFE_OUT_BAYER_RS_2,
 	CAM_SFE_BUS_SFE_OUT_IR,
+	CAM_SFE_BUS_SFE_OUT_HDR_STATS,
 	CAM_SFE_BUS_SFE_OUT_MAX,
 };
 

@@ -241,6 +241,7 @@ static bool cam_sfe_bus_can_be_secure(uint32_t out_type)
 	case CAM_SFE_BUS_SFE_OUT_BAYER_RS_0:
 	case CAM_SFE_BUS_SFE_OUT_BAYER_RS_1:
 	case CAM_SFE_BUS_SFE_OUT_BAYER_RS_2:
+	case CAM_SFE_BUS_SFE_OUT_HDR_STATS:
 	default:
 		return false;
 	}
@@ -284,6 +285,8 @@ static enum cam_sfe_bus_sfe_out_type
 		return CAM_SFE_BUS_SFE_OUT_BAYER_RS_1;
 	case CAM_ISP_SFE_OUT_BAYER_RS_STATS_2:
 		return CAM_SFE_BUS_SFE_OUT_BAYER_RS_2;
+	case CAM_ISP_SFE_OUT_HDR_STATS:
+		return CAM_SFE_BUS_SFE_OUT_HDR_STATS;
 	default:
 		return CAM_SFE_BUS_SFE_OUT_MAX;
 	}
@@ -344,6 +347,9 @@ static int cam_sfe_bus_get_comp_sfe_out_res_id_list(
 
 	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BAYER_RS_2)))
 		out_list[count++] = CAM_ISP_SFE_OUT_BAYER_RS_STATS_2;
+
+	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_HDR_STATS)))
+		out_list[count++] = CAM_ISP_SFE_OUT_HDR_STATS;
 
 	*num_out = count;
 	return 0;
@@ -789,7 +795,6 @@ static int cam_sfe_bus_acquire_wm(
 		rsrc_data->height = 0;
 		rsrc_data->stride = 1;
 		rsrc_data->en_cfg = (0x1 << 16) | 0x1;
-
 	} else if (sfe_out_res_id == CAM_SFE_BUS_SFE_OUT_LCR) {
 		switch (rsrc_data->format) {
 		case CAM_FORMAT_PLAIN16_10:
@@ -806,6 +811,21 @@ static int cam_sfe_bus_acquire_wm(
 			CAM_ERR(CAM_SFE, "Invalid format %d out_type:%d",
 				rsrc_data->format, sfe_out_res_id);
 			return -EINVAL;
+		}
+	} else if (sfe_out_res_id == CAM_SFE_BUS_SFE_OUT_HDR_STATS) {
+		rsrc_data->en_cfg = 0x1;
+		rsrc_data->stride = rsrc_data->width;
+		switch (rsrc_data->format) {
+		case CAM_FORMAT_PLAIN16_10:
+		case CAM_FORMAT_PLAIN16_12:
+		case CAM_FORMAT_PLAIN16_14:
+		case CAM_FORMAT_PLAIN16_16:
+			/* LSB aligned */
+			rsrc_data->pack_fmt |=
+				(1 << bus_priv->common_data.pack_align_shift);
+			break;
+		default:
+			break;
 		}
 	} else {
 		CAM_ERR(CAM_SFE, "Invalid out_type:%d requested",
