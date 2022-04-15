@@ -18,6 +18,30 @@
 
 static int max_icp_v2_hw_idx = -1;
 
+struct cam_icp_v2_hw_info cam_icp_v2_hw_info[] = {
+	{
+		.ob_irq_status = 0xC,
+		.ob_irq_mask   = 0x0,
+		.ob_irq_clear  = 0x4,
+		.ob_irq_set    = 0x8,
+		.ob_irq_cmd    = 0x10,
+		.host2icpint   = 0x124,
+		.pfault_info   = 0x128,
+	},
+};
+
+struct cam_icp_v2_hw_info cam_icp_v2_1_hw_info[] = {
+	{
+		.ob_irq_status = 0x20C,
+		.ob_irq_mask   = 0x200,
+		.ob_irq_clear  = 0x204,
+		.ob_irq_set    = 0x208,
+		.ob_irq_cmd    = 0x210,
+		.host2icpint   = 0x300,
+		.pfault_info   = 0x400,
+	},
+};
+
 uint32_t cam_icp_v2_get_device_num(void)
 {
 	return max_icp_v2_hw_idx + 1;
@@ -54,7 +78,15 @@ static int cam_icp_v2_component_bind(struct device *dev,
 	struct cam_hw_intf *icp_v2_intf = NULL;
 	struct cam_hw_info *icp_v2_info = NULL;
 	struct cam_icp_v2_core_info *core_info = NULL;
+	const struct of_device_id *match_dev = NULL;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	match_dev = of_match_device(
+		pdev->dev.driver->of_match_table, &pdev->dev);
+	if (!match_dev) {
+		CAM_DBG(CAM_ICP, "No ICP v2 hardware info");
+		return -EINVAL;
+	}
 
 	icp_v2_intf = kzalloc(sizeof(*icp_v2_intf), GFP_KERNEL);
 	if (!icp_v2_intf)
@@ -72,6 +104,7 @@ static int cam_icp_v2_component_bind(struct device *dev,
 		goto free_hw_info;
 	}
 
+	core_info->hw_info = (struct cam_icp_v2_hw_info *)match_dev->data;
 	icp_v2_info->core_info = core_info;
 
 	rc = cam_icp_v2_soc_info_init(&icp_v2_info->soc_info, pdev);
@@ -88,6 +121,10 @@ static int cam_icp_v2_component_bind(struct device *dev,
 		CAM_ERR(CAM_ICP, "soc resources init failed rc=%d", rc);
 		goto free_soc_info;
 	}
+
+	rc = cam_icp_v2_core_init(&icp_v2_info->soc_info, core_info);
+	if (rc)
+		goto free_soc_info;
 
 	icp_v2_intf->hw_priv = icp_v2_info;
 	icp_v2_intf->hw_type = CAM_ICP_DEV_ICP_V2;
@@ -148,8 +185,15 @@ static const struct component_ops cam_icp_v2_component_ops = {
 };
 
 static const struct of_device_id cam_icp_v2_match[] = {
-	{ .compatible = "qcom,cam-icp_v2"},
-	{},
+	{
+		.compatible = "qcom,cam-icp_v2",
+		.data = &cam_icp_v2_hw_info,
+	},
+	{
+		.compatible = "qcom,cam-icp_v2_1",
+		.data = &cam_icp_v2_1_hw_info,
+	},
+	{}
 };
 MODULE_DEVICE_TABLE(of, cam_icp_v2_match);
 

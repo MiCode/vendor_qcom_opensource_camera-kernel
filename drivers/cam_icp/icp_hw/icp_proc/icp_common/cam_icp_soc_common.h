@@ -10,9 +10,10 @@
 #include "cam_soc_util.h"
 #include "cam_icp_hw_intf.h"
 
-#define ICP_UBWC_CFG_MAX   2
-#define CAM_ICP_V1_VERSION 0x0100
-#define CAM_ICP_V2_VERSION 0x0200
+#define ICP_UBWC_CFG_MAX     2
+#define CAM_ICP_V1_VERSION   0x0100
+#define CAM_ICP_V2_VERSION   0x0200
+#define CAM_ICP_V2_1_VERSION 0x0201
 
 /**
  * struct cam_icp_ubwc_cfg - ICP ubwc cfg

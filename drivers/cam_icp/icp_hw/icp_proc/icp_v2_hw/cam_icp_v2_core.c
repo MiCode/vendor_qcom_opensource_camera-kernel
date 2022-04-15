@@ -18,7 +18,6 @@
 #include "hfi_sys_defs.h"
 #include "cam_icp_proc_common.h"
 #include "cam_icp_v2_core.h"
-#include "cam_icp_v2_reg.h"
 #include "cam_common_util.h"
 #include "cam_compat.h"
 #include "cam_presil_hw_access.h"
@@ -307,15 +306,19 @@ static void prepare_shutdown(struct cam_hw_info *icp_v2_info)
 /* Used if ICP_SYS is not protected */
 static int __cam_icp_v2_power_collapse(struct cam_hw_info *icp_v2_info)
 {
+	int32_t sys_base_idx;
 	uint32_t status = 0;
 	void __iomem *base;
+	struct cam_icp_v2_core_info *core_info = NULL;
 
 	if (!icp_v2_info) {
 		CAM_ERR(CAM_ICP, "invalid ICP dev info");
 		return -EINVAL;
 	}
 
-	base = icp_v2_info->soc_info.reg_map[ICP_V2_SYS_BASE].mem_base;
+	core_info = icp_v2_info->core_info;
+	sys_base_idx = core_info->reg_base_idx[ICP_V2_SYS_BASE];
+	base = icp_v2_info->soc_info.reg_map[sys_base_idx].mem_base;
 
 	/**
 	 * Need to poll here to confirm that FW has triggered WFI
@@ -337,9 +340,11 @@ static int __cam_icp_v2_power_collapse(struct cam_hw_info *icp_v2_info)
 /* Used if ICP_SYS is not protected */
 static int __cam_icp_v2_power_resume(struct cam_hw_info *icp_v2_info)
 {
+	int32_t sys_base_idx;
 	void __iomem *base;
-	struct cam_icp_soc_info    *soc_priv;
-	struct cam_hw_soc_info     *soc_info;
+	struct cam_icp_soc_info     *soc_priv;
+	struct cam_hw_soc_info      *soc_info;
+	struct cam_icp_v2_core_info *core_info = NULL;
 
 	if (!icp_v2_info) {
 		CAM_ERR(CAM_ICP, "invalid ICP dev info");
@@ -347,8 +352,10 @@ static int __cam_icp_v2_power_resume(struct cam_hw_info *icp_v2_info)
 	}
 
 	soc_info = &icp_v2_info->soc_info;
+	core_info = icp_v2_info->core_info;
 	soc_priv = soc_info->soc_private;
-	base = icp_v2_info->soc_info.reg_map[ICP_V2_SYS_BASE].mem_base;
+	sys_base_idx = core_info->reg_base_idx[ICP_V2_SYS_BASE];
+	base = icp_v2_info->soc_info.reg_map[sys_base_idx].mem_base;
 
 	cam_io_w_mb(ICP_V2_FUNC_RESET,
 		base + ICP_V2_SYS_RESET);
@@ -662,9 +669,10 @@ static int cam_icp_v2_shutdown(struct cam_hw_info *icp_v2_info)
 	if (core_info->use_sec_pil)
 		rc = qcom_scm_pas_shutdown(CAM_FW_PAS_ID);
 	else {
+		int32_t sys_base_idx = core_info->reg_base_idx[ICP_V2_SYS_BASE];
 		void __iomem *base;
 
-		base = icp_v2_info->soc_info.reg_map[ICP_V2_SYS_BASE].mem_base;
+		base = icp_v2_info->soc_info.reg_map[sys_base_idx].mem_base;
 		cam_io_w_mb(0x0, base + ICP_V2_SYS_CONTROL);
 	}
 
@@ -676,20 +684,20 @@ static void __cam_icp_v2_core_reg_dump(
 	struct cam_hw_info *icp_v2_info, uint32_t dump_type)
 {
 	int i;
+	int32_t csr_base_idx;
 	size_t len = 0;
 	char log_info[512];
-	void __iomem *cirq_base = icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base;
-	void __iomem *csr_base = icp_v2_info->soc_info.reg_map[ICP_V2_CSR_BASE].mem_base;
-	void __iomem *csr_gp_base =  csr_base + ICP_V2_GEN_PURPOSE_REG_OFFSET;
+	struct cam_icp_v2_core_info *core_info = icp_v2_info->core_info;
+	void __iomem *irq_base, *csr_base, *csr_gp_base;
+
+	csr_base_idx = core_info->reg_base_idx[ICP_V2_CSR_BASE];
+	csr_base =  icp_v2_info->soc_info.reg_map[csr_base_idx].mem_base;
+	csr_gp_base = csr_base + ICP_V2_GEN_PURPOSE_REG_OFFSET;
+	irq_base = icp_v2_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base;
 
 	if (dump_type & CAM_ICP_DUMP_STATUS_REGISTERS)
-		CAM_INFO(CAM_ICP,
-			"CIRQ IB_status0:0x%x IB_Status1:0x%x PFault:0x%x CSR debug_status:0x%x debug_ctrl:0x%x",
-			cam_io_r_mb(cirq_base + ICP_V2_CIRQ_IB_STATUS0),
-			cam_io_r_mb(cirq_base + ICP_V2_CIRQ_IB_STATUS1),
-			cam_io_r_mb(cirq_base + ICP_V2_CIRQ_PFAULT_INFO),
-			cam_io_r_mb(csr_base + ICP_V2_CSR_DBG_STATUS_REG_OFFSET),
-			cam_io_r_mb(csr_base + ICP_V2_CSR_DBG_CTRL_REG_OFFSET));
+		CAM_INFO(CAM_ICP, "ICP PFault status:0x%x",
+			cam_io_r_mb(irq_base + core_info->hw_info->pfault_info));
 
 	if (dump_type & CAM_ICP_DUMP_CSR_REGISTERS) {
 		for (i = 0; i < ICP_V2_CSR_GP_REG_COUNT;) {
@@ -889,7 +897,8 @@ irqreturn_t cam_icp_v2_handle_irq(int irq_num, void *data)
 	struct cam_icp_v2_core_info *core_info = NULL;
 	bool recover = false;
 	uint32_t status = 0;
-	void __iomem *cirq_base;
+	int32_t wd0_base_idx;
+	void __iomem *irq_base;
 
 	if (!icp_v2_info) {
 		CAM_ERR(CAM_ICP, "invalid ICP device info");
@@ -897,12 +906,12 @@ irqreturn_t cam_icp_v2_handle_irq(int irq_num, void *data)
 	}
 
 	core_info = icp_v2_info->core_info;
-	cirq_base = icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base;
+	irq_base = icp_v2_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base;
 
-	status = cam_io_r_mb(cirq_base + ICP_V2_CIRQ_OB_STATUS);
+	status = cam_io_r_mb(irq_base + core_info->hw_info->ob_irq_status);
 
-	cam_io_w_mb(status, cirq_base + ICP_V2_CIRQ_OB_CLEAR);
-	cam_io_w_mb(ICP_V2_IRQ_CLEAR_CMD, cirq_base + ICP_V2_CIRQ_OB_IRQ_CMD);
+	cam_io_w_mb(status, irq_base + core_info->hw_info->ob_irq_clear);
+	cam_io_w_mb(ICP_V2_IRQ_CLEAR_CMD, irq_base + core_info->hw_info->ob_irq_cmd);
 
 	if (core_info->is_irq_test) {
 		CAM_INFO(CAM_ICP, "ICP_V2 IRQ verified (status=0x%x)", status);
@@ -911,13 +920,15 @@ irqreturn_t cam_icp_v2_handle_irq(int irq_num, void *data)
 		return IRQ_HANDLED;
 	}
 
+	/* WD clear sequence - SW listens only to WD0 */
 	if (status & ICP_V2_WDT_BITE_WS0) {
-		/* WD clear sequence - SW listens only to WD0 */
+		wd0_base_idx = core_info->reg_base_idx[ICP_V2_WD0_BASE];
+
 		cam_io_w_mb(0x0,
-			icp_v2_info->soc_info.reg_map[ICP_V2_WD0_BASE].mem_base +
+			icp_v2_info->soc_info.reg_map[wd0_base_idx].mem_base +
 			ICP_V2_WD_CTRL);
 		cam_io_w_mb(0x1,
-			icp_v2_info->soc_info.reg_map[ICP_V2_WD0_BASE].mem_base +
+			icp_v2_info->soc_info.reg_map[wd0_base_idx].mem_base +
 			ICP_V2_WD_INTCLR);
 		CAM_ERR_RATE_LIMIT(CAM_ICP, "Fatal: Watchdog Bite from ICP");
 		recover = true;
@@ -935,36 +946,40 @@ irqreturn_t cam_icp_v2_handle_irq(int irq_num, void *data)
 void cam_icp_v2_irq_raise(void *priv)
 {
 	struct cam_hw_info *icp_v2_info = priv;
+	struct cam_icp_v2_core_info *core_info = NULL;
 
 	if (!icp_v2_info) {
 		CAM_ERR(CAM_ICP, "Invalid ICP device info");
 		return;
 	}
 
+	core_info = icp_v2_info->core_info;
 	cam_io_w_mb(ICP_V2_HOST2ICPINT,
-		icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base +
-		ICP_V2_CIRQ_HOST2ICPINT);
+		icp_v2_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base +
+		core_info->hw_info->host2icpint);
 }
 
 void cam_icp_v2_irq_enable(void *priv)
 {
 	struct cam_hw_info *icp_v2_info = priv;
+	struct cam_icp_v2_core_info *core_info = NULL;
 
 	if (!icp_v2_info) {
 		CAM_ERR(CAM_ICP, "Invalid ICP device info");
 		return;
 	}
 
+	core_info = icp_v2_info->core_info;
 	cam_io_w_mb(ICP_V2_WDT_BITE_WS0 | ICP_V2_ICP2HOSTINT,
-		icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base +
-		ICP_V2_CIRQ_OB_MASK);
+		icp_v2_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base +
+		core_info->hw_info->ob_irq_mask);
 }
 
 int cam_icp_v2_test_irq_line(void *priv)
 {
 	struct cam_hw_info *icp_v2_info = priv;
 	struct cam_icp_v2_core_info *core_info = NULL;
-	void __iomem *cirq_membase;
+	void __iomem *irq_membase;
 	unsigned long rem_jiffies;
 
 	if (!icp_v2_info) {
@@ -973,23 +988,23 @@ int cam_icp_v2_test_irq_line(void *priv)
 	}
 
 	core_info = icp_v2_info->core_info;
-	cirq_membase = icp_v2_info->soc_info.reg_map[ICP_V2_CIRQ_BASE].mem_base;
+	irq_membase = icp_v2_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base;
 
 	reinit_completion(&icp_v2_info->hw_complete);
 	core_info->is_irq_test = true;
 
 	cam_icp_v2_hw_init(priv, NULL, 0);
 
-	cam_io_w_mb(ICP_V2_WDT_BARK_WS0, cirq_membase + ICP_V2_CIRQ_OB_MASK);
-	cam_io_w_mb(ICP_V2_WDT_BARK_WS0, cirq_membase + ICP_V2_CIRQ_OB_SET);
-	cam_io_w_mb(ICP_V2_IRQ_SET_CMD, cirq_membase + ICP_V2_CIRQ_OB_IRQ_CMD);
+	cam_io_w_mb(ICP_V2_WDT_BARK_WS0, irq_membase + core_info->hw_info->ob_irq_mask);
+	cam_io_w_mb(ICP_V2_WDT_BARK_WS0, irq_membase + core_info->hw_info->ob_irq_set);
+	cam_io_w_mb(ICP_V2_IRQ_SET_CMD, irq_membase + core_info->hw_info->ob_irq_cmd);
 
 	rem_jiffies = cam_common_wait_for_completion_timeout(&icp_v2_info->hw_complete,
 		msecs_to_jiffies(ICP_V2_IRQ_TEST_TIMEOUT));
 	if (!rem_jiffies)
 		CAM_ERR(CAM_ICP, "ICP IRQ verification timed out");
 
-	cam_io_w_mb(0, cirq_membase + ICP_V2_CIRQ_OB_MASK);
+	cam_io_w_mb(0, irq_membase + core_info->hw_info->ob_irq_mask);
 	cam_icp_v2_hw_deinit(priv, NULL, 0);
 
 	core_info->is_irq_test = false;
@@ -999,7 +1014,9 @@ int cam_icp_v2_test_irq_line(void *priv)
 
 void __iomem *cam_icp_v2_iface_addr(void *priv)
 {
+	int32_t csr_base_idx;
 	struct cam_hw_info *icp_v2_info = priv;
+	struct cam_icp_v2_core_info *core_info = NULL;
 	void __iomem *base;
 
 	if (!icp_v2_info) {
@@ -1007,7 +1024,9 @@ void __iomem *cam_icp_v2_iface_addr(void *priv)
 		return ERR_PTR(-EINVAL);
 	}
 
-	base = icp_v2_info->soc_info.reg_map[ICP_V2_CSR_BASE].mem_base;
+	core_info = icp_v2_info->core_info;
+	csr_base_idx = core_info->reg_base_idx[ICP_V2_CSR_BASE];
+	base = icp_v2_info->soc_info.reg_map[csr_base_idx].mem_base;
 
 	return base + ICP_V2_GEN_PURPOSE_REG_OFFSET;
 }
@@ -1020,4 +1039,109 @@ void cam_icp_v2_populate_hfi_ops(const struct hfi_ops **hfi_proc_ops)
 	}
 
 	*hfi_proc_ops = &hfi_icp_v2_ops;
+}
+
+static int cam_icp_v2_setup_register_base_indexes(
+	struct cam_hw_soc_info *soc_info, uint32_t hw_version,
+	int32_t regbase_index[], int32_t num_reg_map)
+{
+	int rc;
+	uint32_t index;
+
+	if (num_reg_map > ICP_V2_BASE_MAX) {
+		CAM_ERR(CAM_ICP, "Number of reg maps: %d exceeds max: %d",
+			num_reg_map, ICP_V2_BASE_MAX);
+		return -EINVAL;
+	}
+
+	if (soc_info->num_mem_block > CAM_SOC_MAX_BLOCK) {
+		CAM_ERR(CAM_ICP, "Invalid number of mem blocks: %d",
+			soc_info->num_mem_block);
+		return -EINVAL;
+	}
+
+	rc = cam_common_util_get_string_index(soc_info->mem_block_name,
+		soc_info->num_mem_block, "icp_csr", &index);
+	if ((rc == 0) && (index < num_reg_map)) {
+		regbase_index[ICP_V2_CSR_BASE] = index;
+	} else {
+		CAM_ERR(CAM_ICP,
+			"Failed to get index for icp_csr, rc: %d index: %u num_reg_map: %u",
+			rc, index, num_reg_map);
+		return -EINVAL;
+	}
+
+	rc = cam_common_util_get_string_index(soc_info->mem_block_name,
+		soc_info->num_mem_block, "icp_wd0", &index);
+	if ((rc == 0) && (index < num_reg_map)) {
+		regbase_index[ICP_V2_WD0_BASE] = index;
+	} else {
+		CAM_ERR(CAM_ICP,
+			"Failed to get index for icp_wd0, rc: %d index: %u num_reg_map: %u",
+			rc, index, num_reg_map);
+		return -EINVAL;
+	}
+
+	if (hw_version == CAM_ICP_V2_VERSION) {
+		rc = cam_common_util_get_string_index(soc_info->mem_block_name,
+			soc_info->num_mem_block, "icp_cirq", &index);
+		if ((rc == 0) && (index < num_reg_map)) {
+			regbase_index[ICP_V2_CIRQ_BASE] = index;
+		} else {
+			CAM_ERR(CAM_ICP,
+				"Failed to get index for icp_cirq, rc: %d index: %u num_reg_map: %u",
+				rc, index, num_reg_map);
+			return -EINVAL;
+		}
+	} else {
+		/* Optional for other versions */
+		regbase_index[ICP_V2_CIRQ_BASE] = -1;
+	}
+
+	/* optional - ICP SYS map */
+	rc = cam_common_util_get_string_index(soc_info->mem_block_name,
+		soc_info->num_mem_block, "icp_sys", &index);
+	if ((rc == 0) && (index < num_reg_map)) {
+		regbase_index[ICP_V2_SYS_BASE] = index;
+	}  else {
+		CAM_DBG(CAM_ICP,
+			"Failed to get index for icp_sys, rc: %d index: %u num_reg_map: %u",
+			rc, index, num_reg_map);
+		regbase_index[ICP_V2_SYS_BASE] = -1;
+	}
+
+	return 0;
+}
+
+int cam_icp_v2_core_init(
+	struct cam_hw_soc_info *soc_info,
+	struct cam_icp_v2_core_info *core_info)
+{
+	int rc = 0;
+	struct cam_icp_soc_info *soc_priv;
+
+	soc_priv = (struct cam_icp_soc_info *)soc_info->soc_private;
+
+	rc = cam_icp_v2_setup_register_base_indexes(soc_info,
+		soc_priv->hw_version, core_info->reg_base_idx, ICP_V2_BASE_MAX);
+	if (rc)
+		return rc;
+
+	/* Associate OB/HOST2ICP IRQ reg base */
+	switch (soc_priv->hw_version) {
+	case CAM_ICP_V2_1_VERSION:
+		core_info->irq_regbase_idx =
+			core_info->reg_base_idx[ICP_V2_CSR_BASE];
+		break;
+	case CAM_ICP_V2_VERSION:
+		core_info->irq_regbase_idx =
+			core_info->reg_base_idx[ICP_V2_CIRQ_BASE];
+		break;
+	default:
+		CAM_ERR(CAM_ICP, "Unsupported ICP HW version: %u",
+			soc_priv->hw_version);
+		rc = -EINVAL;
+	}
+
+	return rc;
 }
