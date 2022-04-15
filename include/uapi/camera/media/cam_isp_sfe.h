@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_ISP_SFE_H__
@@ -27,6 +28,7 @@
 #define CAM_ISP_SFE_OUT_BAYER_RS_STATS_1      (CAM_ISP_SFE_OUT_RES_BASE + 15)
 #define CAM_ISP_SFE_OUT_BAYER_RS_STATS_2      (CAM_ISP_SFE_OUT_RES_BASE + 16)
 
+/* This Macro is deprecated and shall not be used */
 #define CAM_ISP_SFE_OUT_RES_MAX               (CAM_ISP_SFE_OUT_RES_BASE + 17)
 
 /* SFE input port resource type */

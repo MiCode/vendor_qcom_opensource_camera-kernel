@@ -30,7 +30,6 @@ enum cam_ife_ctx_master_type {
 
 /* IFE resource constants */
 #define CAM_IFE_HW_IN_RES_MAX            (CAM_ISP_IFE_IN_RES_MAX & 0xFF)
-#define CAM_SFE_HW_OUT_RES_MAX           (CAM_ISP_SFE_OUT_RES_MAX & 0xFF)
 #define CAM_IFE_HW_RES_POOL_MAX          64
 
 /* IFE_HW_MGR ctx config */
@@ -301,8 +300,7 @@ struct cam_ife_hw_mgr_ctx {
 	struct list_head                           res_list_sfe_src;
 	struct list_head                           res_list_ife_in_rd;
 	struct cam_isp_hw_mgr_res                 *res_list_ife_out;
-	struct cam_isp_hw_mgr_res                  res_list_sfe_out[
-							CAM_SFE_HW_OUT_RES_MAX];
+	struct cam_isp_hw_mgr_res                 *res_list_sfe_out;
 	struct list_head                           free_res_list;
 	struct cam_isp_hw_mgr_res                  res_pool[CAM_IFE_HW_RES_POOL_MAX];
 	uint32_t                                   num_acq_vfe_out;

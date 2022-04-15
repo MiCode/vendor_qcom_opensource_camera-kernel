@@ -160,6 +160,7 @@ struct cam_sfe_bus_sfe_out_hw_info {
  * @num_comp_grp:          Number of composite groups
  * @line_done_cfg:         Line done cfg for wr/rd sync
  * @top_irq_shift:         Mask shift for top level BUS WR irq
+ * @max_out_res:           maximum number of sfe out res in uapi
  * @pack_align_shift:      Packer format alignment bit shift
  * @max_bw_counter_limit:  Max BW counter limit
  */
@@ -178,6 +179,7 @@ struct cam_sfe_bus_wr_hw_info {
 	uint32_t num_comp_grp;
 	uint32_t line_done_cfg;
 	uint32_t top_irq_shift;
+	uint32_t max_out_res;
 	uint32_t pack_align_shift;
 	uint32_t max_bw_counter_limit;
 };

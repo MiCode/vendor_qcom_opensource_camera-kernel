@@ -1232,6 +1232,7 @@ static struct cam_sfe_bus_wr_hw_info sfe680_bus_wr_hw_info = {
 	.num_comp_grp         = 10,
 	.line_done_cfg        = 0x11,
 	.top_irq_shift        = 0x0,
+	.max_out_res          = CAM_ISP_SFE_OUT_RES_BASE + 13,
 	.pack_align_shift     = 0x5,
 	.max_bw_counter_limit = 0xFF,
 };
