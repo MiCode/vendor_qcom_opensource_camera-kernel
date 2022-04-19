@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SENSOR_DEV_H_
@@ -86,7 +87,7 @@ struct sensor_intf_params {
  * @last_flush_req: Last request to flush
  * @pipeline_delay: Sensor pipeline delay
  * @sensor_name: Sensor name
- * @is_aon_user: To determine whether sensor is AON user or not
+ * @aon_camera_id: AON Camera ID associated with this sensor
  */
 struct cam_sensor_ctrl_t {
 	char                           device_name[
@@ -114,9 +115,8 @@ struct cam_sensor_ctrl_t {
 	bool                           bob_pwm_switch;
 	uint32_t                       last_flush_req;
 	uint16_t                       pipeline_delay;
-	char                           sensor_name[
-		CAM_SENSOR_NAME_MAX_SIZE];
-	bool                           is_aon_user;
+	char                           sensor_name[CAM_SENSOR_NAME_MAX_SIZE];
+	uint8_t                        aon_camera_id;
 };
 
 /**

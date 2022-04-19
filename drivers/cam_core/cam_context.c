@@ -11,6 +11,7 @@
 #include "cam_context.h"
 #include "cam_debug_util.h"
 #include "cam_node.h"
+#include "cam_context_utils.h"
 
 static int cam_context_handle_hw_event(void *context, uint32_t evt_id,
 	void *evt_data)
@@ -311,10 +312,27 @@ int cam_context_mini_dump_from_hw(struct cam_context *ctx,
 	return rc;
 }
 
-int cam_context_dump_pf_info(struct cam_context *ctx,
-	struct cam_smmu_pf_info *pf_info)
+int cam_context_dump_pf_info(void *data, void *args)
 {
+	struct cam_context *ctx = data;
+	struct cam_hw_dump_pf_args *pf_args = args;
 	int rc = 0;
+
+	if (!pf_args) {
+		CAM_ERR(CAM_CORE, "PF args is NULL");
+		return -EINVAL;
+	}
+
+	if (!ctx) {
+		CAM_ERR(CAM_CORE, "Context is NULL");
+		if (pf_args->pf_context_info.force_send_pf_evt) {
+			rc = cam_context_send_pf_evt(ctx, pf_args);
+			if (rc)
+				CAM_ERR(CAM_CORE,
+					"Failed to notify PF event to userspace rc: %d", rc);
+		}
+		return -EINVAL;
+	}
 
 	if (!ctx->state_machine) {
 		CAM_ERR(CAM_CORE, "Context is not ready");
@@ -326,7 +344,7 @@ int cam_context_dump_pf_info(struct cam_context *ctx,
 		(ctx->state < CAM_CTX_STATE_MAX)) {
 		if (ctx->state_machine[ctx->state].pagefault_ops) {
 			rc = ctx->state_machine[ctx->state].pagefault_ops(
-				ctx, pf_info);
+				ctx, pf_args);
 		} else {
 			CAM_WARN(CAM_CORE, "No dump ctx in dev %d, state %d",
 				ctx->dev_hdl, ctx->state);
@@ -768,4 +786,32 @@ void cam_context_getref(struct cam_context *ctx)
 		"ctx device hdl %ld, ref count %d, dev_name %s",
 		ctx->dev_hdl, refcount_read(&(ctx->refcount.refcount)),
 		ctx->dev_name);
+}
+
+int cam_context_add_err_inject(struct cam_context *ctx, void *err_param)
+{
+	int rc = 0;
+
+	if (!ctx->state_machine) {
+		CAM_ERR(CAM_CORE, "Context is not ready");
+		return -EINVAL;
+	}
+
+	mutex_lock(&ctx->ctx_mutex);
+	if ((ctx->state > CAM_CTX_AVAILABLE) &&
+		(ctx->state < CAM_CTX_STATE_MAX)) {
+		if (ctx->state_machine[ctx->state].err_inject_ops) {
+			rc = ctx->state_machine[ctx->state].err_inject_ops(
+				ctx, err_param);
+		} else {
+			CAM_WARN(CAM_CORE, "No err inject ops in dev %d,state %d",
+				ctx->dev_hdl, ctx->state);
+		}
+	} else {
+		rc = -EINVAL;
+	}
+
+	mutex_unlock(&ctx->ctx_mutex);
+
+	return rc;
 }

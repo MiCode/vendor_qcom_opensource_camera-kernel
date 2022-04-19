@@ -22,6 +22,8 @@ static  struct cam_common_mini_dump_dev_info g_minidump_dev_info;
 
 #define CAM_PRESIL_POLL_DELAY 20
 
+static struct cam_common_err_inject_info g_err_inject_info;
+
 static uint timeout_multiplier = 1;
 module_param(timeout_multiplier, uint, 0644);
 
@@ -336,3 +338,202 @@ int cam_common_user_dump_helper(
 
 	return 0;
 }
+
+int cam_common_register_err_inject_cb(
+	cam_common_err_inject_cb err_inject_cb,
+	enum cam_common_err_inject_hw_id hw_id)
+{
+	int rc = 0;
+
+	if (g_err_inject_info.num_hw_registered >= CAM_COMMON_ERR_INJECT_HW_MAX) {
+		CAM_ERR(CAM_UTIL, "No free index available");
+		return -EINVAL;
+	}
+
+	if (!err_inject_cb || hw_id >= CAM_COMMON_ERR_INJECT_HW_MAX) {
+		CAM_ERR(CAM_UTIL, "Invalid params");
+		return -EINVAL;
+	}
+
+	g_err_inject_info.err_inject_cb[hw_id] = err_inject_cb;
+	g_err_inject_info.num_hw_registered++;
+	CAM_DBG(CAM_UTIL, "err inject cb registered for HW_id:%d, total registered: %d", hw_id,
+		g_err_inject_info.num_hw_registered);
+	return rc;
+}
+
+int cam_common_release_err_params(uint64_t dev_hdl)
+{
+	int rc = 0;
+	struct list_head *pos = NULL, *pos_next = NULL;
+	struct cam_err_inject_param *err_param;
+
+	if (!g_err_inject_info.is_list_initialised)
+		return -EINVAL;
+
+	if (list_empty(&g_err_inject_info.active_err_ctx_list)) {
+		CAM_ERR(CAM_UTIL, "list is empty");
+		return -EINVAL;
+	}
+	list_for_each_safe(pos, pos_next, &g_err_inject_info.active_err_ctx_list) {
+		err_param = list_entry(pos, struct cam_err_inject_param, list);
+		if (err_param->dev_hdl == dev_hdl) {
+			CAM_INFO(CAM_UTIL, "entry deleted for %llu dev hdl", dev_hdl);
+			list_del(pos);
+			kfree(err_param);
+		}
+	}
+	return rc;
+}
+
+static int cam_err_inject_set(const char *kmessage,
+	const struct kernel_param *kp)
+{
+	int     rc                                         = 0;
+	char    tmp_buff[CAM_COMMON_ERR_INJECT_BUFFER_LEN] = {'\0'};
+	char    *token_start, *token_end;
+	struct  cam_err_inject_param *err_params           = NULL;
+	uint8_t param_counter                              = 0;
+
+	err_params = kzalloc(sizeof(struct cam_err_inject_param), GFP_KERNEL);
+	if (!err_params) {
+		CAM_ERR(CAM_UTIL, "no free memory");
+		return -ENOMEM;
+	}
+
+	memset(tmp_buff, 0, CAM_COMMON_ERR_INJECT_BUFFER_LEN);
+	rc = strscpy(tmp_buff, kmessage, CAM_COMMON_ERR_INJECT_BUFFER_LEN);
+	if (rc == -E2BIG)
+		goto free;
+
+	token_start = tmp_buff;
+	token_end   = tmp_buff;
+
+	CAM_INFO(CAM_UTIL, "parsing input param for cam_err_inject: %s", tmp_buff);
+	while (token_start != NULL) {
+		strsep(&token_end, ":");
+		switch (param_counter) {
+		case HW_NAME:
+			if (strcmp(token_start, CAM_COMMON_IFE_NODE) == 0)
+				err_params->hw_id = CAM_COMMON_ERR_INJECT_HW_ISP;
+			else if (strcmp(token_start, CAM_COMMON_ICP_NODE) == 0)
+				err_params->hw_id = CAM_COMMON_ERR_INJECT_HW_ICP;
+			else if (strcmp(token_start, CAM_COMMON_JPEG_NODE) == 0)
+				err_params->hw_id = CAM_COMMON_ERR_INJECT_HW_JPEG;
+			else {
+				CAM_ERR(CAM_UTIL, "invalid camera hardware [ %s ]", token_start);
+					goto free;
+			}
+			break;
+		case REQ_ID:
+			if (kstrtou64(token_start, 0, &(err_params->req_id)))
+				goto free;
+			break;
+		case ERR_TYPE:
+			if (kstrtou32(token_start, 0, &(err_params->err_type)))
+				goto free;
+			break;
+		case ERR_CODE:
+			if (kstrtou32(token_start, 0, &(err_params->err_code)))
+				goto free;
+			break;
+		case DEV_HDL:
+			if (kstrtou64(token_start, 0, &(err_params->dev_hdl)))
+				goto free;
+			break;
+		default:
+			CAM_ERR(CAM_UTIL, "Insuffiecient parameter count [%d] ", param_counter);
+			goto free;
+		}
+
+		param_counter++;
+		token_start = token_end;
+	}
+
+	if (param_counter < CAM_COMMON_ERR_INJECT_PARAM_NUM) {
+		CAM_ERR(CAM_UTIL, "Insuffiecient parameter count [%d]", param_counter);
+		goto free;
+	}
+
+	CAM_INFO(CAM_UTIL, "parsed params: req_id: %llu err_type: %u, err_code: %u dev_hdl: %llu",
+		err_params->req_id, err_params->err_type, err_params->err_code,
+		err_params->dev_hdl);
+
+	if (g_err_inject_info.err_inject_cb[err_params->hw_id]) {
+		rc = g_err_inject_info.err_inject_cb[err_params->hw_id](err_params);
+		if (rc)
+			goto free;
+		else {
+			if (!g_err_inject_info.is_list_initialised) {
+				INIT_LIST_HEAD(&g_err_inject_info.active_err_ctx_list);
+				g_err_inject_info.is_list_initialised = true;
+			}
+
+			list_add(&err_params->list, &g_err_inject_info.active_err_ctx_list);
+		}
+	} else {
+		CAM_ERR(CAM_UTIL, "Handler for HW_id [%d] not registered", err_params->hw_id);
+		goto free;
+	}
+
+	if (rc)
+		CAM_ERR(CAM_UTIL, "No Dev_hdl found: [%d]", err_params->dev_hdl);
+
+	return rc;
+free:
+	kfree(err_params);
+	return -EINVAL;
+}
+
+static int cam_err_inject_get(char *buffer,
+	const struct kernel_param *kp)
+{
+	uint8_t hw_name[10];
+	uint16_t buff_max_size = CAM_COMMON_ERR_MODULE_PARAM_MAX_LENGTH;
+	struct cam_err_inject_param *err_param;
+	int ret = 0;
+
+	if (!g_err_inject_info.is_list_initialised)
+		return scnprintf(buffer, buff_max_size, "uninitialised");
+
+	else if (!list_empty(&g_err_inject_info.active_err_ctx_list)) {
+		list_for_each_entry(err_param, &g_err_inject_info.active_err_ctx_list, list) {
+			switch (err_param->hw_id) {
+			case CAM_COMMON_ERR_INJECT_HW_ISP:
+				strscpy(hw_name, CAM_COMMON_IFE_NODE, 10);
+				break;
+			case CAM_COMMON_ERR_INJECT_HW_ICP:
+				strscpy(hw_name, CAM_COMMON_ICP_NODE, 10);
+				break;
+			case CAM_COMMON_ERR_INJECT_HW_JPEG:
+				strscpy(hw_name, CAM_COMMON_JPEG_NODE, 10);
+				break;
+			default:
+				strscpy(hw_name, "undef", 10);
+			}
+			ret += scnprintf(buffer+ret, buff_max_size,
+				"hw_name: %s req_id: %u err_type: %u err_code: %u dev_hdl: %d\n",
+				hw_name, err_param->req_id, err_param->err_type,
+				err_param->err_code, err_param->dev_hdl);
+
+			CAM_DBG(CAM_UTIL, "output buffer: %s", buffer);
+
+			if (ret < buff_max_size) {
+				buff_max_size = buff_max_size - ret;
+			} else {
+				CAM_WARN(CAM_UTIL, "out buff max limit reached");
+				break;
+			}
+		}
+		return ret;
+	}
+
+	return scnprintf(buffer, buff_max_size, "uninitialised");
+}
+
+static const struct kernel_param_ops cam_error_inject_ops = {
+	.set = cam_err_inject_set,
+	.get = cam_err_inject_get
+};
+
+module_param_cb(cam_error_inject, &cam_error_inject_ops, NULL, 0644);

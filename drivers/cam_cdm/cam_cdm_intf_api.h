@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CDM_API_H_
@@ -9,6 +10,7 @@
 #include <media/cam_defs.h>
 #include "cam_cdm_util.h"
 #include "cam_soc_util.h"
+#include "cam_packet_util.h"
 
 #define CAM_CDM_BL_CMD_MAX  25
 
@@ -73,7 +75,8 @@ enum cam_cdm_bl_fifo_queue {
  *                     @handle : CDM Client handle
  *                     @userdata : Private data given at the time of acquire
  *                     @status : Callback status
- *                     @cookie : Cookie if the callback is gen irq status
+ *                     @cookie : Cookie if the callback is gen irq status or
+ *                               pf_args if it is page fault
  * @base_array_cnt : Input number of ioremapped address pair pointing
  *                     in base_array, needed only if selected cdm is a virtual.
  * @base_array : Input pointer to ioremapped address pair arrary
@@ -94,7 +97,7 @@ struct cam_cdm_acquire_data {
 	enum cam_cdm_id id;
 	void *userdata;
 	void (*cam_cdm_callback)(uint32_t handle, void *userdata,
-		enum cam_cdm_cb_status status, uint64_t cookie);
+		enum cam_cdm_cb_status status, void *cookie);
 	uint32_t base_array_cnt;
 	struct cam_soc_reg_map *base_array[CAM_SOC_MAX_BLOCK];
 	enum cam_cdm_bl_fifo_queue priority;
@@ -139,6 +142,7 @@ struct cam_cdm_bl_cmd {
  * @type : type of the submitted bl cmd address.
  * @cmd_arrary_count : Input number of BL commands to be submitted to CDM
  * @cookie : Cookie if the callback is gen irq status
+ * @avail_buff_size: Available buffer size in bytes
  * @bl_cmd_array     : Input payload holding the BL cmd's arrary
  *                     to be sumbitted.
  *
@@ -149,6 +153,7 @@ struct cam_cdm_bl_request {
 	void *userdata;
 	enum cam_cdm_bl_cmd_addr_type type;
 	uint32_t cmd_arrary_count;
+	struct cam_kmd_buf_info *genirq_buff;
 	uint64_t cookie;
 	struct cam_cdm_bl_cmd cmd[1];
 };

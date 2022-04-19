@@ -12,6 +12,7 @@
 #include <linux/list.h>
 #include <media/cam_isp.h>
 #include "cam_hw_mgr_intf.h"
+#include "cam_packet_util.h"
 
 /* MAX IFE instance */
 #define CAM_IFE_HW_NUM_MAX       8
@@ -47,7 +48,7 @@
  * Maximum configuration entry size  - This is based on the
  * worst case DUAL IFE use case plus some margin.
  */
-#define CAM_ISP_CTX_CFG_MAX                     25
+#define CAM_ISP_CTX_CFG_MAX                     30
 
 /*
  * Maximum configuration entry size including SFE & CSID - This is based on the
@@ -256,6 +257,7 @@ struct cam_isp_prepare_hw_update_data {
 						CAM_REG_DUMP_MAX_BUF_ENTRIES];
 	uint32_t                              num_reg_dump_buf;
 	struct cam_packet                    *packet;
+	struct cam_kmd_buf_info               kmd_cmd_buff_info;
 	uint32_t                              mup_val;
 	uint32_t                              num_exp;
 	bool                                  mup_en;
@@ -417,11 +419,13 @@ struct cam_isp_start_args {
  * struct cam_isp_lcr_rdi_cfg_args - isp hardware start arguments
  *
  * @rdi_lcr_cfg:            RDI LCR cfg received from User space.
+ * @ife_src_res_id:         IFE SRC res id to be used in sfe context
  * @is_init:                Flag to indicate if init packet.
  *
  */
 struct cam_isp_lcr_rdi_cfg_args {
 	struct cam_isp_lcr_rdi_config *rdi_lcr_cfg;
+	uint32_t                       ife_src_res_id;
 	bool                           is_init;
 };
 

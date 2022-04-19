@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CDM_CORE_COMMON_H_
@@ -27,11 +28,12 @@ extern struct cam_cdm_utils_ops CDM170_ops;
 
 int cam_hw_cdm_init(void *hw_priv, void *init_hw_args, uint32_t arg_size);
 int cam_hw_cdm_deinit(void *hw_priv, void *init_hw_args, uint32_t arg_size);
-int cam_hw_cdm_alloc_genirq_mem(void *hw_priv);
-int cam_hw_cdm_release_genirq_mem(void *hw_priv);
+int cam_hw_cdm_pf_deinit(void *hw_priv, void *init_hw_args,
+	uint32_t arg_size);
 int cam_cdm_get_caps(void *hw_priv, void *get_hw_cap_args, uint32_t arg_size);
 int cam_cdm_stream_ops_internal(void *hw_priv, void *start_args,
 	bool operation);
+int cam_cdm_pf_stream_off_all_clients(struct cam_hw_info *cdm_hw);
 int cam_cdm_stream_start(void *hw_priv, void *start_args, uint32_t size);
 int cam_cdm_stream_stop(void *hw_priv, void *start_args, uint32_t size);
 int cam_cdm_process_cmd(void *hw_priv, uint32_t cmd, void *cmd_args,

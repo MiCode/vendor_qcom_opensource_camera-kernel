@@ -41,6 +41,17 @@ enum cam_context_dump_id {
 	CAM_CTX_DUMP_TYPE_MAX,
 };
 
+/**
+ * enum cam_faulted_mem_type -
+ *    page fault buffer type found in packet
+ *
+ */
+enum cam_faulted_mem_type {
+	CAM_FAULT_BUF_NOT_FOUND,
+	CAM_FAULT_IO_CFG_BUF,
+	CAM_FAULT_PATCH_BUF
+};
+
 #define CAM_CTX_EVT_ID_SUCCESS 0
 #define CAM_CTX_EVT_ID_ERROR   1
 #define CAM_CTX_EVT_ID_CANCEL  2
@@ -51,7 +62,7 @@ typedef int (*cam_hw_event_cb_func)(void *context, uint32_t evt_id,
 
 /* hardware page fault callback function type */
 typedef int (*cam_hw_pagefault_cb_func)(void *context,
-	struct cam_smmu_pf_info *pf_info);
+	void *pf_args);
 
 /* ctx dump callback function type */
 typedef int (*cam_ctx_info_dump_cb_func)(void *context,
@@ -63,6 +74,10 @@ typedef int (*cam_ctx_recovery_cb_func)(void *context,
 
 /* ctx mini dump callback function type */
 typedef int (*cam_ctx_mini_dump_cb_func)(void *context,
+	void *args);
+
+/* ctx error inject callback function type */
+typedef int (*cam_ctx_err_inject_cb_func)(void *context,
 	void *args);
 
 /**
@@ -134,6 +149,10 @@ struct cam_hw_acquire_stream_caps {
  * @context_data:          Context data pointer for the callback function
  * @ctx_id:                Core context id
  * @event_cb:              Callback function array
+ * @sec_pf_evt_cb:         Callback function for secondary page fault from HW to ctx.
+ *                         It's the callback that pertains to a PF not directly on
+ *                         this HW. But a different block to which this HW is
+ *                         associated or is a client of
  * @num_acq:               Total number of acquire in the payload
  * @acquire_info:          Acquired resource array pointer
  * @ctxt_to_hw_map:        HW context (returned)
@@ -153,6 +172,7 @@ struct cam_hw_acquire_args {
 	void                        *context_data;
 	uint32_t                     ctx_id;
 	cam_hw_event_cb_func         event_cb;
+	cam_hw_pagefault_cb_func     sec_pf_evt_cb;
 	uint32_t                     num_acq;
 	uint32_t                     acquire_info_size;
 	uintptr_t                    acquire_info;
@@ -208,12 +228,12 @@ struct cam_hw_stop_args {
 
 
 /**
- * struct cam_hw_mgr_dump_pf_data - page fault debug data
+ * struct cam_hw_mgr_pf_request_info - page fault debug data
  *
  * @packet:     pointer to packet
  * @req:        pointer to req (HW specific)
  */
-struct cam_hw_mgr_dump_pf_data {
+struct cam_hw_mgr_pf_request_info {
 	void    *packet;
 	void    *req;
 };
@@ -240,23 +260,23 @@ struct cam_hw_mgr_dump_pf_data {
  *
  */
 struct cam_hw_prepare_update_args {
-	struct cam_packet              *packet;
-	size_t                          remain_len;
-	void                           *ctxt_to_hw_map;
-	uint32_t                        max_hw_update_entries;
-	struct cam_hw_update_entry     *hw_update_entries;
-	uint32_t                        num_hw_update_entries;
-	uint32_t                        max_out_map_entries;
-	struct cam_hw_fence_map_entry  *out_map_entries;
-	uint32_t                        num_out_map_entries;
-	uint32_t                        max_in_map_entries;
-	struct cam_hw_fence_map_entry  *in_map_entries;
-	uint32_t                        num_in_map_entries;
-	struct cam_cmd_buf_desc         reg_dump_buf_desc[
-					CAM_REG_DUMP_MAX_BUF_ENTRIES];
-	uint32_t                        num_reg_dump_buf;
-	void                           *priv;
-	struct cam_hw_mgr_dump_pf_data *pf_data;
+	struct cam_packet                      *packet;
+	size_t                                  remain_len;
+	void                                   *ctxt_to_hw_map;
+	uint32_t                                max_hw_update_entries;
+	struct cam_hw_update_entry             *hw_update_entries;
+	uint32_t                                num_hw_update_entries;
+	uint32_t                                max_out_map_entries;
+	struct cam_hw_fence_map_entry          *out_map_entries;
+	uint32_t                                num_out_map_entries;
+	uint32_t                                max_in_map_entries;
+	struct cam_hw_fence_map_entry          *in_map_entries;
+	uint32_t                                num_in_map_entries;
+	struct cam_cmd_buf_desc                 reg_dump_buf_desc[
+						CAM_REG_DUMP_MAX_BUF_ENTRIES];
+	uint32_t                                num_reg_dump_buf;
+	void                                   *priv;
+	struct cam_hw_mgr_pf_request_info      *pf_data;
 };
 
 /**
@@ -335,31 +355,59 @@ struct cam_hw_flush_args {
 };
 
 /**
- * struct cam_hw_dump_pf_args - Payload for dump pf info command
+ * struct cam_context_pf_info - Page Fault related info to the faulted context
  *
- * @pf_data:               Debug data for page fault
- * @iova:                  Page fault address
- * @buf_info:              Info about memory buffer where page
- *                               fault occurred
- * @mem_found:             If fault memory found in current
- *                               request
- * @ctx_found              If fault pid found in context acquired hardware
- * @resource_type          Resource type of the port which caused pf
- * @bid:                   Indicate the bus id
- * @pid:                   Indicates unique hw group ports
- * @mid:                   Indicates port id of the camera hw
+ * @mem_type:              Faulted memory type found in packet
+ * @resource_type:         Resource type of the port which caused page fault
+ * @buf_hdl:               Faulted memory handle
+ * @offset:                Offset for faulted buf_hdl
+ * @req_id:                request id for the faulted request
+ * @delta:                 Delta size between faulted address and buffer
+ *                         Or closest-mapped buffer
+ *                         (if faulted addr isn't found to be in any buffer)
+ * @patch_idx:             Index to which patch in the packet is faulted
+ * @mem_flag:              Memory flag of the faulted buffer
+ * @ctx_found:             If fault pid found in context acquired hardware
+ * @force_send_pf_evt:     Must send page fault notification to UMD even if
+ *                         current ctx is not the faulted ctx
+ */
+struct cam_context_pf_info {
+	enum cam_faulted_mem_type mem_type;
+	uint32_t                  resource_type;
+	int32_t                   buf_hdl;
+	uint32_t                  offset;
+	unsigned long             delta;
+	uint32_t                  patch_idx;
+	uint32_t                  mem_flag;
+	uint64_t                  req_id;
+	bool                      ctx_found;
+	bool                      force_send_pf_evt;
+};
+
+/**
+ * struct cam_hw_dump_pf_args - General payload contains all PF relateed info.
  *
+ * @pf_smmu_info:          Page fault info from SMMU driver
+ * @pf_context_info:       Page fault info related to faulted context or
+ *                         faulted request.
+ * @handle_sec_pf:         Indicates if this PF args comes from HW level
  */
 struct cam_hw_dump_pf_args {
-	struct cam_hw_mgr_dump_pf_data  pf_data;
-	unsigned long                   iova;
-	uint32_t                        buf_info;
-	bool                           *mem_found;
-	bool                           *ctx_found;
-	uint32_t                       *resource_type;
-	uint32_t                        bid;
-	uint32_t                        pid;
-	uint32_t                        mid;
+	struct cam_smmu_pf_info    *pf_smmu_info;
+	struct cam_context_pf_info  pf_context_info;
+	bool                        handle_sec_pf;
+};
+
+/**
+ * struct cam_hw_cmd_pf_args - page fault command payload to hw manager.
+ * @pf_args:            Page Fault related info.
+ * @cmd_pf_req_info:    Command payload related to request info. Used to
+ *                      submit to HW for PF processing.
+ *
+ */
+struct cam_hw_cmd_pf_args {
+	struct cam_hw_dump_pf_args          *pf_args;
+	struct cam_hw_mgr_pf_request_info   *pf_req_info;
 };
 
 /**
@@ -404,15 +452,15 @@ enum cam_hw_mgr_command {
  * @ctxt_to_hw_map:        HW context from the acquire
  * @cmd_type               HW command type
  * @internal_args          Arguments for internal command
- * @pf_args                Arguments for Dump PF info command
+ * @pf_cmd_args            Arguments for Dump PF info command
  *
  */
 struct cam_hw_cmd_args {
 	void                               *ctxt_to_hw_map;
 	uint32_t                            cmd_type;
 	union {
-		void                       *internal_args;
-		struct cam_hw_dump_pf_args  pf_args;
+		void                           *internal_args;
+		struct cam_hw_cmd_pf_args      *pf_cmd_args;
 	} u;
 };
 
@@ -497,6 +545,21 @@ struct cam_hw_mini_dump_info {
 };
 
 /**
+ * cam_hw_err_param - cam hHW error injection parameters
+ *
+ * @err_type         error type for the injected error
+ * @err_code         error code for the injected error
+ * @err_req_id       Req Id for which the error is injected
+ * @is_valid         bool flag to indicate if error injection is enabled for a context
+ */
+struct cam_hw_err_param {
+	uint32_t   err_type;
+	uint32_t   err_code;
+	uint64_t   err_req_id;
+	bool       is_valid;
+};
+
+/**
  * cam_hw_mgr_intf - HW manager interface
  *
  * @hw_mgr_priv:               HW manager object
@@ -526,6 +589,7 @@ struct cam_hw_mini_dump_info {
  * @hw_reset:                  Function pointer for HW reset
  * @hw_dump:                   Function pointer for HW dump
  * @hw_recovery:               Function pointer for HW recovery callback
+ * @hw_inject_err              Function pointer for HW error injection callback
  *
  */
 struct cam_hw_mgr_intf {
@@ -549,6 +613,7 @@ struct cam_hw_mgr_intf {
 	int (*hw_reset)(void *hw_priv, void *hw_reset_args);
 	int (*hw_dump)(void *hw_priv, void *hw_dump_args);
 	int (*hw_recovery)(void *hw_priv, void *hw_recovery_args);
+	void (*hw_inject_err)(void *hw_priv, void *hw_err_inject_args);
 };
 
 #endif /* _CAM_HW_MGR_INTF_H_ */

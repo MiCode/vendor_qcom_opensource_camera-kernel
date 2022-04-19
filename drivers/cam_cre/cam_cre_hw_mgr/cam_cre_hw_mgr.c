@@ -3,6 +3,7 @@
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
@@ -2390,76 +2391,20 @@ config_err:
 	return rc;
 }
 
-static void cam_cre_mgr_print_io_bufs(struct cam_packet *packet,
-	int32_t iommu_hdl, int32_t sec_mmu_hdl, uint32_t pf_buf_info,
-	bool *mem_found)
+static void cam_cre_mgr_dump_pf_data(struct cam_cre_hw_mgr  *hw_mgr,
+	struct cam_hw_cmd_pf_args *pf_cmd_args)
 {
-	dma_addr_t iova_addr;
-	size_t     src_buf_size;
-	int        i;
-	int        j;
-	int        rc = 0;
-	int32_t    mmu_hdl;
+	struct cam_packet          *packet;
+	struct cam_hw_dump_pf_args *pf_args;
 
-	struct cam_buf_io_cfg  *io_cfg = NULL;
+	packet = pf_cmd_args->pf_req_info->packet;
+	pf_args = pf_cmd_args->pf_args;
 
-	if (mem_found)
-		*mem_found = false;
+	cam_packet_util_dump_io_bufs(packet, hw_mgr->iommu_hdl,
+		hw_mgr->iommu_sec_hdl, pf_args, false);
 
-	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
-		packet->io_configs_offset / 4);
-
-	for (i = 0; i < packet->num_io_configs; i++) {
-		for (j = 0; j < CAM_PACKET_MAX_PLANES; j++) {
-			if (!io_cfg[i].mem_handle[j])
-				break;
-
-			if (GET_FD_FROM_HANDLE(io_cfg[i].mem_handle[j]) ==
-				pf_buf_info) {
-				CAM_INFO(CAM_CRE,
-					"Found PF at port: %d mem %x fd: %x",
-					io_cfg[i].resource_type,
-					io_cfg[i].mem_handle[j],
-					pf_buf_info);
-				if (mem_found)
-					*mem_found = true;
-			}
-
-			CAM_INFO(CAM_CRE, "port: %d f: %d format: %d dir %d",
-				io_cfg[i].resource_type,
-				io_cfg[i].fence,
-				io_cfg[i].format,
-				io_cfg[i].direction);
-
-			mmu_hdl = cam_mem_is_secure_buf(
-				io_cfg[i].mem_handle[j]) ? sec_mmu_hdl :
-				iommu_hdl;
-			rc = cam_mem_get_io_buf(io_cfg[i].mem_handle[j],
-				mmu_hdl, &iova_addr, &src_buf_size, NULL);
-			if (rc < 0) {
-				CAM_ERR(CAM_UTIL,
-					"get src buf address fail rc %d mem %x",
-					rc, io_cfg[i].mem_handle[j]);
-				continue;
-			}
-
-			CAM_INFO(CAM_CRE,
-				"pln %d dir %d w %d h %d s %u sh %u sz %zu addr 0x%llx off 0x%x memh %x",
-				j, io_cfg[i].direction,
-				io_cfg[i].planes[j].width,
-				io_cfg[i].planes[j].height,
-				io_cfg[i].planes[j].plane_stride,
-				io_cfg[i].planes[j].slice_height,
-				src_buf_size, iova_addr,
-				io_cfg[i].offsets[j],
-				io_cfg[i].mem_handle[j]);
-
-			iova_addr += io_cfg[i].offsets[j];
-
-		}
-	}
-	cam_packet_dump_patch_info(packet, cre_hw_mgr->iommu_hdl,
-		cre_hw_mgr->iommu_sec_hdl);
+	cam_packet_util_dump_patch_info(packet, hw_mgr->iommu_hdl,
+		hw_mgr->iommu_sec_hdl, pf_args);
 }
 
 static int cam_cre_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
@@ -2475,13 +2420,7 @@ static int cam_cre_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 
 	switch (hw_cmd_args->cmd_type) {
 	case CAM_HW_MGR_CMD_DUMP_PF_INFO:
-		cam_cre_mgr_print_io_bufs(
-			hw_cmd_args->u.pf_args.pf_data.packet,
-			hw_mgr->iommu_hdl,
-			hw_mgr->iommu_sec_hdl,
-			hw_cmd_args->u.pf_args.buf_info,
-			hw_cmd_args->u.pf_args.mem_found);
-
+		cam_cre_mgr_dump_pf_data(hw_mgr, hw_cmd_args->u.pf_cmd_args);
 		break;
 	default:
 		CAM_ERR(CAM_CRE, "Invalid cmd");

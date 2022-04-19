@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -30,6 +31,7 @@
 #include "cam_debug_util.h"
 #include "cam_smmu_api.h"
 #include "camera_main.h"
+#include "cam_context_utils.h"
 
 #define OPE_DEV_NAME        "cam-ope"
 
@@ -46,20 +48,34 @@ struct cam_ope_subdev {
 static struct cam_ope_subdev g_ope_dev;
 
 static void cam_ope_dev_iommu_fault_handler(
-	struct cam_smmu_pf_info *pf_info)
+	struct cam_smmu_pf_info *pf_smmu_info)
 {
-	int i = 0;
+	int i, rc;
 	struct cam_node *node = NULL;
+	struct cam_hw_dump_pf_args pf_args = {0};
 
-	if (!pf_info || !pf_info->token) {
-		CAM_ERR(CAM_ISP, "invalid token in page handler cb");
+	if (!pf_smmu_info || !pf_smmu_info->token) {
+		CAM_ERR(CAM_OPE, "invalid token in page handler cb");
 		return;
 	}
 
-	node = (struct cam_node *)pf_info->token;
+	node = (struct cam_node *)pf_smmu_info->token;
+	pf_args.pf_smmu_info = pf_smmu_info;
 
-	for (i = 0; i < node->ctx_size; i++)
-		cam_context_dump_pf_info(&(node->ctx_list[i]), pf_info);
+	for (i = 0; i < node->ctx_size; i++) {
+		cam_context_dump_pf_info(&(node->ctx_list[i]), &pf_args);
+		if (pf_args.pf_context_info.ctx_found)
+			/* found ctx and packet of the faulted address */
+			break;
+	}
+
+	if (i == node->ctx_size) {
+		/* Faulted ctx not found. But report PF to UMD anyway*/
+		rc = cam_context_send_pf_evt(NULL, &pf_args);
+		if (rc)
+			CAM_ERR(CAM_OPE,
+				"Failed to notify PF event to userspace rc: %d", rc);
+	}
 }
 
 static int cam_ope_subdev_open(struct v4l2_subdev *sd,

@@ -16,6 +16,7 @@
 #include "cam_mem_mgr.h"
 #include "cam_node.h"
 #include "cam_req_mgr_util.h"
+#include "cam_req_mgr_dev.h"
 #include "cam_sync_api.h"
 #include "cam_trace.h"
 #include "cam_debug_util.h"
@@ -510,7 +511,7 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 	req->num_out_acked          = 0;
 	req->flushed                = 0;
 	atomic_set(&req->num_in_acked, 0);
-	memset(&req->pf_data, 0, sizeof(struct cam_hw_mgr_dump_pf_data));
+	memset(&req->pf_data, 0, sizeof(struct cam_hw_mgr_pf_request_info));
 
 	remain_len = cam_context_parse_config_cmd(ctx, cmd, &packet);
 	if (IS_ERR(packet)) {
@@ -1193,12 +1194,169 @@ end:
 	return rc;
 }
 
+static void cam_context_util_translate_pf_info_to_string(struct cam_req_mgr_pf_err_msg *pf_msg,
+	char **pf_evt_str, char **pf_type_str, char **pf_stage_str)
+{
+	switch (pf_msg->pf_evt) {
+	case CAM_REQ_MGR_PF_EVT_BUF_NOT_FOUND:
+		*pf_evt_str = "PF Evt: faulting buffer not found";
+		break;
+	case CAM_REQ_MGR_PF_EVT_BUF_FOUND_IO_CFG:
+		*pf_evt_str = "PF Evt: faulting IO Config buffer";
+		break;
+	case CAM_REQ_MGR_PF_EVT_BUF_FOUND_REF_BUF:
+		*pf_evt_str = "PF Evt: faulting Ref buffer";
+		break;
+	case CAM_REQ_MGR_PF_EVT_BUF_FOUND_CDM:
+		*pf_evt_str = "PF Evt: faulting CDM buffer";
+		break;
+	case CAM_REQ_MGR_PF_EVT_BUF_FOUND_SHARED:
+		*pf_evt_str = "PF Evt: faulting shared memory buffer";
+		break;
+	default:
+		CAM_ERR(CAM_CTXT, "Invalid PF Evt %u", pf_msg->pf_evt);
+		*pf_evt_str = "PF Evt: Unknown";
+	}
+
+	switch (pf_msg->pf_type) {
+	case CAM_REQ_MGR_PF_TYPE_NULL:
+		*pf_type_str = "PF Type: faulting addr is NULL";
+		break;
+	case CAM_REQ_MGR_PF_TYPE_OUT_OF_BOUND:
+		*pf_type_str = "PF Type: faulting addr out of bounds";
+		break;
+	case CAM_REQ_MGR_PF_TYPE_MAPPED_REGION:
+		*pf_type_str = "PF Type: faulting addr within mapped region";
+		break;
+	default:
+		CAM_ERR(CAM_CTXT, "Invalid PF Type %u", pf_msg->pf_type);
+		*pf_type_str = "PF Type: Unknown";
+	}
+
+	switch (pf_msg->pf_stage) {
+	case CAM_REQ_MGR_STAGE1_FAULT:
+		*pf_stage_str = "PF Stage: stage 1 (non-secure)";
+		break;
+	case CAM_REQ_MGR_STAGE2_FAULT:
+		*pf_stage_str = "PF Stage: stage 2 (secure)";
+		break;
+	default:
+		CAM_ERR(CAM_CTXT, "Invalid PF Stage %u", pf_msg->pf_stage);
+		*pf_stage_str = "PF Stage: Unknown";
+	}
+}
+
+static void cam_context_get_pf_evt(struct cam_context *ctx,
+	struct cam_context_pf_info  *pf_context_info, struct cam_req_mgr_pf_err_msg *pf_msg,
+	char *log_info, size_t *len, uint32_t buf_size)
+{
+	if (pf_context_info->mem_type != CAM_FAULT_BUF_NOT_FOUND) {
+		pf_msg->buf_hdl = pf_context_info->buf_hdl;
+		pf_msg->offset = pf_context_info->offset;
+		pf_msg->far_delta = pf_context_info->delta;
+		pf_msg->req_id = pf_context_info->req_id;
+
+		CAM_ERR_BUF(CAM_CTXT, log_info, buf_size, len,
+			"buf_hdl: 0x%x, offset: 0x%x, req_id: %llu, delta: 0x%llx",
+			pf_msg->buf_hdl, pf_msg->offset, pf_msg->req_id,
+			pf_msg->far_delta);
+
+		if (pf_context_info->mem_type == CAM_FAULT_PATCH_BUF) {
+			pf_msg->patch_id = pf_context_info->patch_idx;
+			if (pf_context_info->mem_flag & CAM_MEM_FLAG_CMD_BUF_TYPE)
+				pf_msg->pf_evt = CAM_REQ_MGR_PF_EVT_BUF_FOUND_CDM;
+			else if (pf_context_info->mem_flag & CAM_MEM_FLAG_HW_SHARED_ACCESS)
+				pf_msg->pf_evt = CAM_REQ_MGR_PF_EVT_BUF_FOUND_SHARED;
+			else
+				pf_msg->pf_evt = CAM_REQ_MGR_PF_EVT_BUF_FOUND_REF_BUF;
+
+			CAM_ERR_BUF(CAM_CTXT, log_info, buf_size, len,
+				"Faulted patch found in patch index: %u",
+				pf_msg->patch_id);
+		} else
+			pf_msg->pf_evt = CAM_REQ_MGR_PF_EVT_BUF_FOUND_IO_CFG;
+
+	} else
+		pf_msg->pf_evt = CAM_REQ_MGR_PF_EVT_BUF_NOT_FOUND;
+
+}
+
+int32_t cam_context_send_pf_evt(struct cam_context *ctx,
+	struct cam_hw_dump_pf_args *pf_args)
+{
+	struct cam_req_mgr_message           req_msg = {0};
+	struct cam_req_mgr_pf_err_msg       *pf_msg = &req_msg.u.pf_err_msg;
+	struct cam_context_pf_info          *pf_context_info;
+	struct cam_smmu_pf_info             *pf_smmu_info;
+	char log_info[512];
+	int rc = 0;
+	size_t buf_size = 0, len = 0;
+	char *pf_evt_str, *pf_type_str, *pf_stage_str;
+
+	if (!pf_args) {
+		CAM_ERR(CAM_CTXT, "Invalid input PF args");
+		return -EINVAL;
+	}
+
+	buf_size = sizeof(log_info);
+	pf_msg->pf_evt = CAM_REQ_MGR_PF_EVT_BUF_NOT_FOUND;
+	pf_context_info = &(pf_args->pf_context_info);
+	pf_smmu_info = pf_args->pf_smmu_info;
+
+	if (ctx) {
+		req_msg.session_hdl = ctx->session_hdl;
+		pf_msg->device_hdl = ctx->dev_hdl;
+		pf_msg->link_hdl = ctx->link_hdl;
+		pf_msg->port_id = pf_context_info->resource_type;
+
+		CAM_ERR_BUF(CAM_CTXT, log_info, buf_size, &len,
+			"Faulted ctx: [%s][%d] session_hdl: 0x%x, device_hdl: 0x%x, link_hdl: 0x%x, port_id: 0x%x",
+			ctx->dev_name, ctx->ctx_id, req_msg.session_hdl, pf_msg->device_hdl,
+			pf_msg->link_hdl, pf_msg->port_id);
+
+		cam_context_get_pf_evt(ctx, pf_context_info, pf_msg, log_info, &len, buf_size);
+	} else
+		CAM_ERR_BUF(CAM_CTXT, log_info, buf_size, &len, "Faulted ctx NOT found");
+
+	if (pf_smmu_info->iova == 0)
+		pf_msg->pf_type = CAM_REQ_MGR_PF_TYPE_NULL;
+	else if (pf_smmu_info->in_map_region)
+		pf_msg->pf_type = CAM_REQ_MGR_PF_TYPE_MAPPED_REGION;
+	else
+		pf_msg->pf_type = CAM_REQ_MGR_PF_TYPE_OUT_OF_BOUND;
+
+	pf_msg->pf_stage = pf_smmu_info->is_secure;
+	pf_msg->bid = pf_smmu_info->bid;
+	pf_msg->pid = pf_smmu_info->pid;
+	pf_msg->mid = pf_smmu_info->mid;
+
+	cam_context_util_translate_pf_info_to_string(pf_msg, &pf_evt_str,
+		&pf_type_str, &pf_stage_str);
+
+	CAM_ERR_BUF(CAM_CTXT, log_info, buf_size, &len,
+		"%s, %s, %s",
+		pf_evt_str, pf_type_str, pf_stage_str);
+
+	CAM_ERR_BUF(CAM_CTXT, log_info, buf_size, &len,
+		"bid: %u, pid: %u, mid: %u",
+		pf_msg->bid, pf_msg->pid, pf_msg->mid);
+
+	CAM_ERR(CAM_CTXT, "PF INFO: %s", log_info);
+
+	rc = cam_req_mgr_notify_message(&req_msg,
+		V4L_EVENT_CAM_REQ_MGR_PF_ERROR,
+		V4L_EVENT_CAM_REQ_MGR_EVENT);
+
+	return rc;
+}
+
 int32_t cam_context_dump_pf_info_to_hw(struct cam_context *ctx,
-	struct cam_hw_mgr_dump_pf_data *pf_data, bool *mem_found, bool *ctx_found,
-	uint32_t  *resource_type, struct cam_smmu_pf_info *pf_info)
+	struct cam_hw_dump_pf_args *pf_args,
+	struct cam_hw_mgr_pf_request_info *pf_req_info)
 {
 	int rc = 0;
 	struct cam_hw_cmd_args cmd_args;
+	struct cam_hw_cmd_pf_args pf_cmd_args;
 
 	if (!ctx) {
 		CAM_ERR(CAM_CTXT, "Invalid input params %pK ", ctx);
@@ -1214,17 +1372,11 @@ int32_t cam_context_dump_pf_info_to_hw(struct cam_context *ctx,
 	}
 
 	if (ctx->hw_mgr_intf->hw_cmd) {
+		pf_cmd_args.pf_args = pf_args;
+		pf_cmd_args.pf_req_info = pf_req_info;
 		cmd_args.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
 		cmd_args.cmd_type = CAM_HW_MGR_CMD_DUMP_PF_INFO;
-		cmd_args.u.pf_args.pf_data = *pf_data;
-		cmd_args.u.pf_args.iova = pf_info->iova;
-		cmd_args.u.pf_args.buf_info = pf_info->buf_info;
-		cmd_args.u.pf_args.mem_found = mem_found;
-		cmd_args.u.pf_args.ctx_found = ctx_found;
-		cmd_args.u.pf_args.resource_type = resource_type;
-		cmd_args.u.pf_args.bid = pf_info->bid;
-		cmd_args.u.pf_args.pid = pf_info->pid;
-		cmd_args.u.pf_args.mid = pf_info->mid;
+		cmd_args.u.pf_cmd_args = &pf_cmd_args;
 		ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
 			&cmd_args);
 	}
@@ -1285,8 +1437,9 @@ static int cam_context_user_dump(struct cam_context *ctx,
 		CAM_ERR(CAM_CTXT, "[%s][%d] no active request",
 			ctx->dev_name, ctx->ctx_id);
 		spin_unlock_bh(&ctx->lock);
-		return -EIO;
+		return 0;
 	}
+
 	req = list_first_entry(&ctx->active_req_list,
 		struct cam_ctx_request, list);
 	spin_unlock_bh(&ctx->lock);
@@ -1298,6 +1451,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 			dump_args->buf_handle, rc);
 		return rc;
 	}
+
 	if (dump_args->offset >= buf_len) {
 		CAM_WARN(CAM_CTXT, "dump buffer overshoot offset %zu len %zu",
 			dump_args->offset, buf_len);
@@ -1344,10 +1498,11 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	addr = (uint64_t *)(dst + sizeof(struct cam_context_dump_header));
 	start = addr;
 	if (!list_empty(&ctx->wait_req_list)) {
-		list_for_each_entry_safe(req, req_temp, &ctx->wait_req_list, list) {
+		list_for_each_entry_safe(req, req_temp, &ctx->pending_req_list, list) {
 			*addr++ = req->request_id;
 		}
 	}
+
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset += hdr->size +
 		sizeof(struct cam_context_dump_header);
@@ -1361,10 +1516,11 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	addr = (uint64_t *)(dst + sizeof(struct cam_context_dump_header));
 	start = addr;
 	if (!list_empty(&ctx->pending_req_list)) {
-		list_for_each_entry_safe(req, req_temp, &ctx->pending_req_list, list) {
+		list_for_each_entry_safe(req, req_temp, &ctx->wait_req_list, list) {
 			*addr++ = req->request_id;
 		}
 	}
+
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset += hdr->size +
 		sizeof(struct cam_context_dump_header);
@@ -1382,6 +1538,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 			*addr++ = req->request_id;
 		}
 	}
+
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset += hdr->size +
 		sizeof(struct cam_context_dump_header);
@@ -1573,6 +1730,26 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 
 end:
 	*bytes_updated = bytes_written;
+}
+
+int cam_context_err_to_hw(struct cam_context *ctx, void *args)
+{
+	int rc = -EINVAL;
+
+	if (!ctx || !args) {
+		CAM_ERR(CAM_CTXT, "invalid params for error injection");
+		return rc;
+	}
+
+	if (ctx->hw_mgr_intf->hw_inject_err) {
+		ctx->hw_mgr_intf->hw_inject_err(ctx->ctxt_to_hw_map, args);
+		rc = 0;
+	} else {
+		CAM_ERR(CAM_CTXT, "hw_intf cb absent for dev hdl: %lld, ctx id: %lld",
+			ctx->dev_hdl, ctx->ctx_id);
+	}
+
+	return rc;
 }
 
 int cam_context_mini_dump(struct cam_context *ctx, void *args)

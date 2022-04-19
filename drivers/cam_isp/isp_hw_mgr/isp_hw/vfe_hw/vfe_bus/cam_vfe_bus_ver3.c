@@ -3610,6 +3610,8 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 			iova_addr = CAM_36BIT_INTF_GET_IOVA_BASE(iova);
 			iova_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(iova);
 
+			/* Align frame inc to 256 as well */
+			frame_inc = CAM_36BIT_INTF_GET_IOVA_BASE(frame_inc);
 			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 				wm_data->hw_regs->image_addr, iova_addr);
 
@@ -3632,9 +3634,9 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 
 		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 			wm_data->hw_regs->frame_incr, frame_inc);
-		CAM_DBG(CAM_ISP, "WM:%d frame_inc %d",
-			wm_data->index, reg_val_pair[j-1]);
-
+		CAM_DBG(CAM_ISP, "WM:%d frame_inc: %d expanded_mem: %s",
+			wm_data->index, reg_val_pair[j-1],
+			CAM_BOOL_TO_YESNO(cam_smmu_is_expanded_memory));
 
 		/* enable the WM */
 		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,

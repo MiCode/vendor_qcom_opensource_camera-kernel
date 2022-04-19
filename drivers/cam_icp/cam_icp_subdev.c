@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -30,6 +31,8 @@
 #include "cam_debug_util.h"
 #include "cam_smmu_api.h"
 #include "camera_main.h"
+#include "cam_common_util.h"
+#include "cam_context_utils.h"
 
 #define CAM_ICP_DEV_NAME        "cam-icp"
 
@@ -50,20 +53,52 @@ static const struct of_device_id cam_icp_dt_match[] = {
 	{}
 };
 
-static void cam_icp_dev_iommu_fault_handler(struct cam_smmu_pf_info *pf_info)
+static int cam_icp_dev_err_inject_cb(void *err_param)
 {
-	int i = 0;
-	struct cam_node *node = NULL;
+	int i  = 0;
 
-	if (!pf_info || !pf_info->token) {
-		CAM_ERR(CAM_ISP, "invalid token in page handler cb");
+	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
+		if (g_icp_dev.ctx[i].dev_hdl ==
+			((struct cam_err_inject_param *)err_param)->dev_hdl) {
+			CAM_INFO(CAM_ICP, "ICP err inject dev_hdl found:%d",
+				g_icp_dev.ctx[i].dev_hdl);
+			cam_context_add_err_inject(&g_icp_dev.ctx[i], err_param);
+			return 0;
+		}
+	}
+	CAM_ERR(CAM_ICP, "No dev hdl found");
+	return -ENODEV;
+}
+
+static void cam_icp_dev_iommu_fault_handler(struct cam_smmu_pf_info *pf_smmu_info)
+{
+	int i, rc;
+	struct cam_node *node = NULL;
+	struct cam_hw_dump_pf_args pf_args = {0};
+
+	if (!pf_smmu_info || !pf_smmu_info->token) {
+		CAM_ERR(CAM_ICP, "invalid token in page handler cb");
 		return;
 	}
 
-	node = (struct cam_node *)pf_info->token;
+	node = (struct cam_node *)pf_smmu_info->token;
 
-	for (i = 0; i < node->ctx_size; i++)
-		cam_context_dump_pf_info(&(node->ctx_list[i]), pf_info);
+	pf_args.pf_smmu_info = pf_smmu_info;
+
+	for (i = 0; i < node->ctx_size; i++) {
+		cam_context_dump_pf_info(&(node->ctx_list[i]), &pf_args);
+		if (pf_args.pf_context_info.ctx_found)
+			/* found ctx and packet of the faulted address */
+			break;
+	}
+
+	if (i == node->ctx_size) {
+		/* Faulted ctx not found. Report PF to userspace */
+		rc = cam_context_send_pf_evt(NULL, &pf_args);
+		if (rc)
+			CAM_ERR(CAM_ICP,
+				"Failed to notify PF event to userspace rc: %d", rc);
+	}
 }
 
 static void cam_icp_dev_mini_dump_cb(void *priv, void *args)
@@ -222,6 +257,9 @@ static int cam_icp_component_bind(struct device *dev,
 		CAM_ERR(CAM_ICP, "ICP node init failed");
 		goto ctx_fail;
 	}
+
+	cam_common_register_err_inject_cb(cam_icp_dev_err_inject_cb,
+		CAM_COMMON_ERR_INJECT_HW_ICP);
 
 	node->sd_handler = cam_icp_subdev_close_internal;
 	cam_smmu_set_client_page_fault_handler(iommu_hdl,

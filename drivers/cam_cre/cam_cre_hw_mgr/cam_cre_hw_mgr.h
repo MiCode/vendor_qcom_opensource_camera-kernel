@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_CRE_HW_MGR_H
@@ -288,7 +289,7 @@ struct cam_cre_request {
 	struct    cre_io_buf *io_buf[CRE_MAX_BATCH_SIZE][CRE_MAX_IO_BUFS];
 	struct    cam_cre_clk_bw_request clk_info;
 	struct    cam_cre_clk_bw_req_internal_v2 clk_info_v2;
-	struct    cam_hw_mgr_dump_pf_data hang_data;
+	struct    cam_hw_mgr_pf_request_info hang_data;
 	ktime_t   submit_timestamp;
 };
 

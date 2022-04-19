@@ -340,6 +340,7 @@ struct cam_isp_context {
 	int32_t                               trigger_id;
 	int64_t                               last_bufdone_err_apply_req_id;
 	uint32_t                              v4l2_event_sub_ids;
+	struct cam_hw_err_param              err_inject_params;
 	bool                                  aeb_enabled;
 	bool                                  do_internal_recovery;
 };

@@ -613,12 +613,14 @@ struct cam_req_mgr_node_msg {
  * @CAM_REQ_MGR_PF_EVT_BUF_NOT_FOUND          : Faulted buffer not found
  * @CAM_REQ_MGR_PF_EVT_BUF_FOUND_IO_CFG       : Faulted buffer from io_cfg found
  * @CAM_REQ_MGR_PF_EVT_BUF_FOUND_REF_BUF      : Faulted io region buffer in Patch found
- * @CAM_REQ_MGR_PF_EVT_BUF_FOUND_CDM_SHARED   : Fault in cmd buffer/shared region buffer
+ * @CAM_REQ_MGR_PF_EVT_BUF_FOUND_CDM          : Fault in cmd buffer
+ * @CAM_REQ_MGR_PF_EVT_BUF_FOUND_SHARED       : Fault in shared region buffer
  */
 #define CAM_REQ_MGR_PF_EVT_BUF_NOT_FOUND            0
 #define CAM_REQ_MGR_PF_EVT_BUF_FOUND_IO_CFG         1
 #define CAM_REQ_MGR_PF_EVT_BUF_FOUND_REF_BUF        2
-#define CAM_REQ_MGR_PF_EVT_BUF_FOUND_CDM_SHARED     3
+#define CAM_REQ_MGR_PF_EVT_BUF_FOUND_CDM            3
+#define CAM_REQ_MGR_PF_EVT_BUF_FOUND_SHARED         4
 
 /**
  * Faulted Memory Type

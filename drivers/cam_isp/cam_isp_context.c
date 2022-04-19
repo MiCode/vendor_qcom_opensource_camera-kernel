@@ -33,7 +33,7 @@ static struct cam_isp_ctx_debug isp_ctx_debug;
 	max_entries, (ret))
 
 static int cam_isp_context_dump_requests(void *data,
-	struct cam_smmu_pf_info *pf_info);
+	void *pf_args);
 
 static int cam_isp_context_hw_recovery(void *priv, void *data);
 
@@ -549,7 +549,6 @@ static int __cam_isp_ctx_user_dump_state_monitor_array(
 		"Dumping state information for preceding requests");
 
 	index = oldest_entry;
-	__cam_isp_ctx_dump_state_monitor_array(ctx_isp);
 	for (i = 0; i < num_entries; i++) {
 
 		rc = cam_common_user_dump_helper(dump_args,
@@ -954,7 +953,7 @@ static int __cam_isp_ctx_enqueue_init_request(
 			req_isp_old->num_cfg += req_isp_new->num_cfg;
 
 			memcpy(&req_old->pf_data, &req->pf_data,
-				sizeof(struct cam_hw_mgr_dump_pf_data));
+				sizeof(struct cam_hw_mgr_pf_request_info));
 
 			if (req_isp_new->hw_update_data.num_reg_dump_buf) {
 				req_update_new = &req_isp_new->hw_update_data;
@@ -1687,8 +1686,11 @@ static int __cam_isp_ctx_handle_buf_done_for_request(
 			 */
 			req_isp->num_acked++;
 			CAM_DBG(CAM_ISP,
-				"buf done with bubble state %d recovery %d",
-				bubble_state, req_isp->bubble_report);
+				"buf done with bubble state %d recovery %d for req %lld, ctx %u",
+				bubble_state,
+				req_isp->bubble_report,
+				req->request_id,
+				ctx->ctx_id);
 			continue;
 		}
 
@@ -1987,16 +1989,27 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 			 */
 			req_isp->num_acked++;
 			CAM_DBG(CAM_ISP,
-				"buf done with bubble state %d recovery %d",
-				bubble_state, req_isp->bubble_report);
-				/* Process deferred buf_done acks */
+				"buf done with bubble state %d recovery %d for req %lld, ctx %u",
+				bubble_state,
+				req_isp->bubble_report,
+				req->request_id,
+				ctx->ctx_id);
 
+			/* Process deferred buf_done acks */
 			if (req_isp->num_deferred_acks)
 				__cam_isp_handle_deferred_buf_done(ctx_isp, req,
 					true,
 					CAM_SYNC_STATE_SIGNALED_ERROR,
 					CAM_SYNC_ISP_EVENT_BUBBLE);
 
+			if (req_isp->num_acked == req_isp->num_fence_map_out) {
+				rc = __cam_isp_ctx_handle_buf_done_for_req_list(ctx_isp, req);
+				if (rc)
+					CAM_ERR(CAM_ISP,
+						"Error in buf done for req = %llu with rc = %d",
+						req->request_id, rc);
+				return rc;
+			}
 			continue;
 		}
 
@@ -4009,6 +4022,24 @@ static struct cam_isp_ctx_irq_ops
 	},
 };
 
+static inline int cam_isp_context_apply_error(struct cam_hw_err_param *err_params,
+	uint64_t current_req_id, struct cam_context *ctx)
+{
+	int rc = 0;
+
+	if (err_params->err_req_id == current_req_id) {
+		CAM_INFO(CAM_ISP,
+			"Err inject for req: %llu, err_code: %d, err_type: %d ctx id: %d",
+			current_req_id, err_params->err_code, err_params->err_type, ctx->ctx_id);
+
+		__cam_isp_ctx_notify_v4l2_error_event(err_params->err_type, err_params->err_code,
+			current_req_id, ctx);
+		memset(err_params, 0, sizeof(struct cam_hw_err_param));
+		return rc;
+	}
+	return -EINVAL;
+}
+
 static int __cam_isp_ctx_apply_req_in_activated_state(
 	struct cam_context *ctx, struct cam_req_mgr_apply_request *apply,
 	enum cam_isp_ctx_activated_substate next_state)
@@ -4118,6 +4149,13 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 	cfg.init_packet = 0;
 	cfg.reapply_type = req_isp->reapply_type;
 	cfg.cdm_reset_before_apply = req_isp->cdm_reset_before_apply;
+
+	if (ctx_isp->err_inject_params.is_valid) {
+		rc = cam_isp_context_apply_error(&(ctx_isp->err_inject_params),
+			req->request_id, ctx_isp->base);
+		if (!rc)
+			goto end;
+	}
 
 	atomic_set(&ctx_isp->apply_in_progress, 1);
 
@@ -4449,9 +4487,20 @@ static void *cam_isp_ctx_user_dump_stream_info(
 	*addr++ = ctx->ctx_id;
 	*addr++ = ctx->dev_hdl;
 	*addr++ = ctx->link_hdl;
+
+	*addr++ = hw_mgr_ctx->flags.is_dual;
+	*addr++ = hw_mgr_ctx->ctx_type;
+
 	*addr++ = hw_idx[CAM_ISP_HW_SPLIT_LEFT];
+	*addr++ = hw_idx[CAM_ISP_HW_SPLIT_RIGHT];
 	*addr++ = sfe_hw_idx[CAM_ISP_HW_SPLIT_LEFT];
+	*addr++ = sfe_hw_idx[CAM_ISP_HW_SPLIT_RIGHT];
+
 	*addr++ = hw_mgr_ctx->flags.is_sfe_shdr;
+	*addr++ = hw_mgr_ctx->flags.is_sfe_fs;
+	*addr++ = hw_mgr_ctx->flags.dsp_enabled;
+	*addr++ = hw_mgr_ctx->flags.is_offline;
+
 
 	return addr;
 }
@@ -5334,7 +5383,7 @@ static struct cam_isp_ctx_irq_ops
 			__cam_isp_ctx_rdi_only_sof_in_top_state,
 			__cam_isp_ctx_reg_upd_in_sof,
 			NULL,
-			NULL,
+			__cam_isp_ctx_notify_eof_in_activated_state,
 			NULL,
 		},
 	},
@@ -5345,7 +5394,7 @@ static struct cam_isp_ctx_irq_ops
 			__cam_isp_ctx_rdi_only_sof_in_applied_state,
 			__cam_isp_ctx_reg_upd_in_applied_state,
 			NULL,
-			NULL,
+			__cam_isp_ctx_notify_eof_in_activated_state,
 			__cam_isp_ctx_buf_done_in_applied,
 		},
 	},
@@ -5356,7 +5405,7 @@ static struct cam_isp_ctx_irq_ops
 			__cam_isp_ctx_rdi_only_sof_in_top_state,
 			NULL,
 			NULL,
-			NULL,
+			__cam_isp_ctx_notify_eof_in_activated_state,
 			__cam_isp_ctx_buf_done_in_epoch,
 		},
 	},
@@ -5367,7 +5416,7 @@ static struct cam_isp_ctx_irq_ops
 			__cam_isp_ctx_rdi_only_sof_in_bubble_state,
 			__cam_isp_ctx_rdi_only_reg_upd_in_bubble_state,
 			NULL,
-			NULL,
+			__cam_isp_ctx_notify_eof_in_activated_state,
 			__cam_isp_ctx_buf_done_in_bubble,
 		},
 	},
@@ -5378,7 +5427,7 @@ static struct cam_isp_ctx_irq_ops
 			__cam_isp_ctx_rdi_only_sof_in_bubble_applied,
 			__cam_isp_ctx_rdi_only_reg_upd_in_bubble_applied_state,
 			NULL,
-			NULL,
+			__cam_isp_ctx_notify_eof_in_activated_state,
 			__cam_isp_ctx_buf_done_in_bubble_applied,
 		},
 	},
@@ -5625,6 +5674,9 @@ static int __cam_isp_ctx_release_dev_in_top_state(struct cam_context *ctx,
 			&rel_arg);
 		ctx_isp->hw_ctx = NULL;
 	}
+
+	cam_common_release_err_params(ctx->dev_hdl);
+	memset(&(ctx_isp->err_inject_params), 0, sizeof(struct cam_hw_err_param));
 
 	ctx->session_hdl = -1;
 	ctx->dev_hdl = -1;
@@ -6040,6 +6092,7 @@ static int __cam_isp_ctx_acquire_dev_in_available(struct cam_context *ctx,
 	memset(&param, 0, sizeof(param));
 	param.context_data = ctx;
 	param.event_cb = ctx->irq_cb_intf;
+	param.sec_pf_evt_cb = cam_context_dump_pf_info;
 	param.num_acq = cmd->num_resources;
 	param.acquire_info = (uintptr_t) isp_res;
 
@@ -6207,6 +6260,7 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 	memset(&param, 0, sizeof(param));
 	param.context_data = ctx;
 	param.event_cb = ctx->irq_cb_intf;
+	param.sec_pf_evt_cb = cam_context_dump_pf_info;
 	param.num_acq = CAM_API_COMPAT_CONSTANT;
 	param.acquire_info_size = cmd->data_size;
 	param.acquire_info = (uint64_t) acquire_hw_info;
@@ -6359,6 +6413,7 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 	memset(&param, 0, sizeof(param));
 	param.context_data = ctx;
 	param.event_cb = ctx->irq_cb_intf;
+	param.sec_pf_evt_cb = cam_context_dump_pf_info;
 	param.num_acq = CAM_API_COMPAT_CONSTANT;
 	param.acquire_info_size = cmd->data_size;
 	param.acquire_info = (uint64_t) acquire_hw_info;
@@ -7327,6 +7382,69 @@ static int __cam_isp_ctx_handle_irq_in_activated(void *context,
 	return rc;
 }
 
+static int cam_isp_context_inject_error(void *context, void *err_param)
+{
+	int rc = 0;
+	struct cam_context *ctx = (struct cam_context *)context;
+	struct cam_isp_context *ctx_isp = ctx->ctx_priv;
+	uint64_t req_id;
+	uint32_t err_code;
+	uint32_t err_type;
+
+	if (!err_param) {
+		CAM_ERR(CAM_ISP, "err_param not valid");
+		return -EINVAL;
+	}
+
+	req_id     = ((struct cam_err_inject_param *)err_param)->req_id;
+	err_type   = ((struct cam_err_inject_param *)err_param)->err_type;
+	err_code   = ((struct cam_err_inject_param *)err_param)->err_code;
+
+	switch (err_type) {
+	case CAM_REQ_MGR_ERROR_TYPE_RECOVERY:
+		switch (err_code) {
+		case CAM_REQ_MGR_LINK_STALLED_ERROR:
+		case CAM_REQ_MGR_CSID_FIFO_OVERFLOW_ERROR:
+		case CAM_REQ_MGR_CSID_RECOVERY_OVERFLOW_ERROR:
+		case CAM_REQ_MGR_CSID_PIXEL_COUNT_MISMATCH:
+		case CAM_REQ_MGR_CSID_ERR_ON_SENSOR_SWITCHING:
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+			return -EINVAL;
+		}
+		break;
+	case CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY:
+		switch (err_code) {
+		case CAM_REQ_MGR_CSID_FATAL_ERROR:
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+			return -EINVAL;
+		}
+		break;
+	case CAM_REQ_MGR_ERROR_TYPE_SOF_FREEZE:
+		err_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		break;
+	case CAM_REQ_MGR_ERROR_TYPE_PAGE_FAULT:
+		err_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		break;
+	default:
+		CAM_ERR(CAM_ISP, "err type not supported %d", err_type);
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_ISP, "inject err isp code: %d type: %d ctx id: %d",
+		err_code, err_type, ctx->ctx_id);
+
+	ctx_isp->err_inject_params.err_code = err_code;
+	ctx_isp->err_inject_params.err_type = err_type;
+	ctx_isp->err_inject_params.err_req_id   = req_id;
+	ctx_isp->err_inject_params.is_valid = true;
+
+	return rc;
+}
+
 /* top state machine */
 static struct cam_ctx_ops
 	cam_isp_ctx_top_state_machine[CAM_CTX_STATE_MAX] = {
@@ -7363,6 +7481,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
+		.err_inject_ops = cam_isp_context_inject_error,
 	},
 	/* Ready */
 	{
@@ -7381,6 +7500,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
+		.err_inject_ops = cam_isp_context_inject_error,
 	},
 	/* Flushed */
 	{
@@ -7398,6 +7518,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
+		.err_inject_ops = cam_isp_context_inject_error,
 	},
 	/* Activated */
 	{
@@ -7421,6 +7542,7 @@ static struct cam_ctx_ops
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
 		.recovery_ops = cam_isp_context_hw_recovery,
+		.err_inject_ops = cam_isp_context_inject_error,
 	},
 };
 
@@ -7437,68 +7559,70 @@ static int cam_isp_context_hw_recovery(void *priv, void *data)
 	return rc;
 }
 
-static int cam_isp_context_dump_requests(void *data,
-	struct cam_smmu_pf_info *pf_info)
+static void cam_isp_context_find_faulted_context(struct cam_context *ctx,
+	struct list_head *req_list, struct cam_hw_dump_pf_args *pf_args, bool *found)
 {
-
-	struct cam_context *ctx = (struct cam_context *)data;
 	struct cam_ctx_request *req = NULL;
 	struct cam_ctx_request *req_temp = NULL;
-	struct cam_isp_ctx_req *req_isp  = NULL;
-	struct cam_isp_prepare_hw_update_data *hw_update_data = NULL;
-	struct cam_hw_mgr_dump_pf_data *pf_dbg_entry = NULL;
-	struct cam_req_mgr_message       req_msg = {0};
-	struct cam_isp_context          *ctx_isp;
-	uint32_t  resource_type = 0;
-	bool mem_found = false, ctx_found = false, send_error = false;
+	int rc;
+
+	*found = false;
+	list_for_each_entry_safe(req, req_temp, req_list, list) {
+		CAM_INFO(CAM_ISP, "List req_id: %llu ctx id: %u",
+			req->request_id, ctx->ctx_id);
+
+		rc = cam_context_dump_pf_info_to_hw(ctx, pf_args, &req->pf_data);
+		if (rc)
+			CAM_ERR(CAM_ISP, "Failed to dump pf info");
+		/*
+		 * Found faulted buffer. Even if faulted ctx is found, but
+		 * continue to search for faulted buffer
+		 */
+		if (pf_args->pf_context_info.mem_type != CAM_FAULT_BUF_NOT_FOUND) {
+			*found = true;
+			break;
+		}
+	}
+}
+
+static int cam_isp_context_dump_requests(void *data, void *args)
+{
+	struct cam_context         *ctx = (struct cam_context *)data;
+	struct cam_isp_context     *ctx_isp;
+	struct cam_hw_dump_pf_args *pf_args = (struct cam_hw_dump_pf_args *)args;
 	int rc = 0;
+	bool found;
 
-	struct cam_isp_context *isp_ctx =
-		(struct cam_isp_context *)ctx->ctx_priv;
+	if (!ctx || !pf_args) {
+		CAM_ERR(CAM_ISP, "Invalid ctx %pK or pf args %pK",
+			ctx, pf_args);
+		return -EINVAL;
+	}
 
-	if (!isp_ctx) {
+	ctx_isp = (struct cam_isp_context *)ctx->ctx_priv;
+	if (!ctx_isp) {
 		CAM_ERR(CAM_ISP, "Invalid isp ctx");
 		return -EINVAL;
 	}
 
-	CAM_INFO(CAM_ISP, "iommu fault handler for isp ctx %d state %d",
+	if (pf_args->handle_sec_pf)
+		goto end;
+
+	CAM_INFO(CAM_ISP,
+		"Iterating over active list for isp ctx %d state %d",
 		ctx->ctx_id, ctx->state);
+	cam_isp_context_find_faulted_context(ctx, &ctx->active_req_list,
+		pf_args, &found);
+	if (found)
+		goto end;
 
-	list_for_each_entry_safe(req, req_temp,
-		&ctx->active_req_list, list) {
-		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-		hw_update_data = &req_isp->hw_update_data;
-		pf_dbg_entry = &(req->pf_data);
-		CAM_INFO(CAM_ISP, "Active List: req_id : %lld ",
-			req->request_id);
-
-		rc = cam_context_dump_pf_info_to_hw(ctx, pf_dbg_entry,
-			&mem_found, &ctx_found, &resource_type, pf_info);
-		if (rc)
-			CAM_ERR(CAM_ISP, "Failed to dump pf info");
-
-		if (ctx_found)
-			send_error = true;
-	}
-
-	CAM_INFO(CAM_ISP, "Iterating over wait_list of isp ctx %d state %d",
-			ctx->ctx_id, ctx->state);
-
-	list_for_each_entry_safe(req, req_temp,
-		&ctx->wait_req_list, list) {
-		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-		hw_update_data = &req_isp->hw_update_data;
-		pf_dbg_entry = &(req->pf_data);
-		CAM_INFO(CAM_ISP, "Wait List: req_id : %lld ", req->request_id);
-
-		rc = cam_context_dump_pf_info_to_hw(ctx, pf_dbg_entry,
-			&mem_found, &ctx_found, &resource_type, pf_info);
-		if (rc)
-			CAM_ERR(CAM_ISP, "Failed to dump pf info");
-
-		if (ctx_found)
-			send_error = true;
-	}
+	CAM_INFO(CAM_ISP,
+		"Iterating over waiting list of isp ctx %d state %d",
+		ctx->ctx_id, ctx->state);
+	cam_isp_context_find_faulted_context(ctx, &ctx->wait_req_list,
+		pf_args, &found);
+	if (found)
+		goto end;
 
 	/*
 	 * In certain scenarios we observe both overflow and SMMU pagefault
@@ -7508,61 +7632,37 @@ static int cam_isp_context_dump_requests(void *data,
 	 * and all the subsequent requests to the pending list while handling
 	 * overflow error.
 	 */
-
 	CAM_INFO(CAM_ISP,
 		"Iterating over pending req list of isp ctx %d state %d",
 		ctx->ctx_id, ctx->state);
+	cam_isp_context_find_faulted_context(ctx, &ctx->pending_req_list,
+		pf_args, &found);
+	if (found)
+		goto end;
 
-	list_for_each_entry_safe(req, req_temp,
-		&ctx->pending_req_list, list) {
-		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-		hw_update_data = &req_isp->hw_update_data;
-		pf_dbg_entry = &(req->pf_data);
-		CAM_INFO(CAM_ISP, "Pending List: req_id : %lld ",
-			req->request_id);
-
-		rc = cam_context_dump_pf_info_to_hw(ctx, pf_dbg_entry,
-			&mem_found, &ctx_found, &resource_type, pf_info);
-		if (rc)
-			CAM_ERR(CAM_ISP, "Failed to dump pf info");
-
-		if (ctx_found)
-			send_error = true;
-	}
-
-	if (resource_type) {
-		ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
-		CAM_ERR(CAM_ISP,
+end:
+	if (pf_args->pf_context_info.resource_type) {
+		ctx_isp = (struct cam_isp_context *)ctx->ctx_priv;
+		CAM_INFO(CAM_ISP,
 			"Page fault on resource:%s (0x%x) ctx id:%d frame id:%d reported id:%lld applied id:%lld",
-			__cam_isp_resource_handle_id_to_type(
-			ctx_isp->isp_device_type, resource_type),
-			resource_type, ctx->ctx_id, ctx_isp->frame_id,
+			__cam_isp_resource_handle_id_to_type(ctx_isp->isp_device_type,
+				pf_args->pf_context_info.resource_type),
+			pf_args->pf_context_info.resource_type, ctx->ctx_id, ctx_isp->frame_id,
 			ctx_isp->reported_req_id, ctx_isp->last_applied_req_id);
 	}
 
-	if (send_error) {
-		CAM_INFO(CAM_ISP,
-			"page fault notifying to umd ctx %u session_hdl:%d device_hdl:%d link_hdl:%d",
-			ctx->ctx_id, ctx->session_hdl,
-			ctx->dev_hdl, ctx->link_hdl);
+	/*
+	 * Send PF notification to UMD if PF found on current CTX
+	 * or it is forced to send PF notification to UMD even if no
+	 * faulted context found
+	 */
+	if (pf_args->pf_context_info.ctx_found ||
+			pf_args->pf_context_info.force_send_pf_evt)
+		rc = cam_context_send_pf_evt(ctx, pf_args);
+	if (rc)
+		CAM_ERR(CAM_ISP,
+			"Failed to notify PF event to userspace rc: %d", rc);
 
-		req_msg.session_hdl = ctx->session_hdl;
-		req_msg.u.err_msg.device_hdl = ctx->dev_hdl;
-		req_msg.u.err_msg.error_type =
-			CAM_REQ_MGR_ERROR_TYPE_PAGE_FAULT;
-		req_msg.u.err_msg.link_hdl = ctx->link_hdl;
-		req_msg.u.err_msg.request_id = 0;
-		req_msg.u.err_msg.resource_size = 0x0;
-		req_msg.u.err_msg.error_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
-
-		if (cam_req_mgr_notify_message(&req_msg,
-				V4L_EVENT_CAM_REQ_MGR_ERROR,
-				V4L_EVENT_CAM_REQ_MGR_EVENT))
-			CAM_ERR(CAM_ISP,
-				"could not send page fault notification ctx %u session_hdl:%d device_hdl:%d link_hdl:%d",
-				ctx->ctx_id, ctx->session_hdl,
-				ctx->dev_hdl, ctx->link_hdl);
-	}
 	return rc;
 }
 

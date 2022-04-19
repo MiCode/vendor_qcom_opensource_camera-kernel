@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -19,23 +20,55 @@
 #include "cam_debug_util.h"
 #include "cam_smmu_api.h"
 #include "camera_main.h"
+#include "cam_common_util.h"
+#include "cam_context_utils.h"
 
 static struct cam_isp_dev g_isp_dev;
 
-static void cam_isp_dev_iommu_fault_handler(struct cam_smmu_pf_info *pf_info)
+static int cam_isp_dev_err_inject_cb(void *err_param)
 {
-	int i = 0;
-	struct cam_node *node = NULL;
+	int i  = 0;
 
-	if (!pf_info || !pf_info->token) {
+	for (i = 0; i < g_isp_dev.max_context; i++) {
+		if ((g_isp_dev.ctx[i].dev_hdl) ==
+			((struct cam_err_inject_param *)err_param)->dev_hdl) {
+			cam_context_add_err_inject(&g_isp_dev.ctx[i], err_param);
+			return 0;
+		}
+	}
+	CAM_ERR(CAM_ISP, "no dev hdl found for IFE");
+	return -ENODEV;
+}
+
+static void cam_isp_dev_iommu_fault_handler(struct cam_smmu_pf_info *pf_smmu_info)
+{
+	int i, rc;
+	struct cam_node *node = NULL;
+	struct cam_hw_dump_pf_args pf_args = {0};
+
+	if (!pf_smmu_info || !pf_smmu_info->token) {
 		CAM_ERR(CAM_ISP, "invalid token in page handler cb");
 		return;
 	}
 
-	node = (struct cam_node *)pf_info->token;
+	node = (struct cam_node *)pf_smmu_info->token;
 
-	for (i = 0; i < node->ctx_size; i++)
-		cam_context_dump_pf_info(&(node->ctx_list[i]), pf_info);
+	pf_args.pf_smmu_info = pf_smmu_info;
+
+	for (i = 0; i < node->ctx_size; i++) {
+		cam_context_dump_pf_info(&(node->ctx_list[i]), &pf_args);
+		if (pf_args.pf_context_info.ctx_found)
+			/* Faulted ctx found */
+			break;
+	}
+
+	if (i == node->ctx_size) {
+		/* Faulted ctx not found. Report PF to userspace */
+		rc = cam_context_send_pf_evt(NULL, &pf_args);
+		if (rc)
+			CAM_ERR(CAM_ISP,
+				"Failed to notify PF event to userspace rc: %d", rc);
+	}
 }
 
 static const struct of_device_id cam_isp_dt_match[] = {
@@ -179,6 +212,9 @@ static int cam_isp_dev_component_bind(struct device *dev,
 			goto kfree;
 		}
 	}
+
+	cam_common_register_err_inject_cb(cam_isp_dev_err_inject_cb,
+		CAM_COMMON_ERR_INJECT_HW_ISP);
 
 	rc = cam_node_init(node, &hw_mgr_intf, g_isp_dev.ctx,
 			g_isp_dev.max_context, CAM_ISP_DEV_NAME);

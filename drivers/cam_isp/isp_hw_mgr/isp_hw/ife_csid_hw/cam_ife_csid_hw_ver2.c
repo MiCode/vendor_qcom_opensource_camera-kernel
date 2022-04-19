@@ -2958,19 +2958,6 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 	CAM_DBG(CAM_ISP, "CSID:%u RDI:%u cfg1:0x%x",
 		csid_hw->hw_intf->hw_idx, res->res_id, cfg1);
 
-	/* set frame drop pattern to 0 and period to 1 */
-	cam_io_w_mb(1, mem_base + path_reg->frm_drop_period_addr);
-	cam_io_w_mb(0, mem_base + path_reg->frm_drop_pattern_addr);
-
-	/*TODO Need to check for any hw errata like 480 and 580*/
-	/* set pxl drop pattern to 0 and period to 1 */
-	cam_io_w_mb(0, mem_base + path_reg->pix_drop_pattern_addr);
-	cam_io_w_mb(1, mem_base + path_reg->pix_drop_period_addr);
-
-	/* set line drop pattern to 0 and period to 1 */
-	cam_io_w_mb(0, mem_base + path_reg->line_drop_pattern_addr);
-	cam_io_w_mb(1, mem_base + path_reg->line_drop_period_addr);
-
 	/* Enable the RDI path */
 	val = cam_io_r_mb(mem_base + path_reg->cfg0_addr);
 	val |= (1 << cmn_reg->path_en_shift_val);
@@ -3144,16 +3131,6 @@ static int cam_ife_csid_ver2_init_config_pxl_path(
 		csid_hw->hw_intf->hw_idx, res->res_id, cfg1);
 
 	cam_io_w_mb(cfg1, mem_base + path_reg->cfg1_addr);
-
-	/* set frame drop pattern to 0 and period to 1 */
-	cam_io_w_mb(1, mem_base + path_reg->frm_drop_period_addr);
-	cam_io_w_mb(0, mem_base + path_reg->frm_drop_pattern_addr);
-	/* set pxl drop pattern to 0 and period to 1 */
-	cam_io_w_mb(0, mem_base + path_reg->pix_drop_pattern_addr);
-	cam_io_w_mb(1, mem_base + path_reg->pix_drop_period_addr);
-	/* set line drop pattern to 0 and period to 1 */
-	cam_io_w_mb(0, mem_base + path_reg->line_drop_pattern_addr);
-	cam_io_w_mb(1, mem_base + path_reg->line_drop_period_addr);
 
 	/* Enable the Pxl path */
 	val = cam_io_r_mb(mem_base + path_reg->cfg0_addr);

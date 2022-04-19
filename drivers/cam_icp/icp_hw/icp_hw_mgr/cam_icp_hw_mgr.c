@@ -37,7 +37,6 @@
 #include "hfi_session_defs.h"
 #include "hfi_sys_defs.h"
 #include "cam_req_mgr_workq.h"
-#include "cam_mem_mgr.h"
 #include "a5_core.h"
 #include "lx7_core.h"
 #include "hfi_sys_defs.h"
@@ -2248,6 +2247,33 @@ static const char *cam_icp_error_handle_id_to_type(
 	return name;
 }
 
+static inline void cam_icp_mgr_validate_inject_err(uint64_t current_req_id, uint32_t *event_id,
+		struct cam_hw_done_event_data *buf_data, struct cam_icp_hw_ctx_data *ctx_data)
+{
+	if (ctx_data->err_inject_params.err_req_id == current_req_id) {
+		switch (ctx_data->err_inject_params.err_code) {
+		case CAM_SYNC_ICP_EVENT_FRAME_PROCESS_FAILURE:
+			*event_id = CAM_CTX_EVT_ID_ERROR;
+			buf_data->evt_param = CAM_SYNC_ICP_EVENT_FRAME_PROCESS_FAILURE;
+			break;
+		case CAM_SYNC_ICP_EVENT_CONFIG_ERR:
+			*event_id = CAM_CTX_EVT_ID_ERROR;
+			buf_data->evt_param = CAM_SYNC_ICP_EVENT_CONFIG_ERR;
+			break;
+		default:
+			CAM_INFO(CAM_ICP, "ICP error code not supported: %d",
+				ctx_data->err_inject_params.err_code);
+			return;
+		}
+	} else
+		return;
+
+	CAM_INFO(CAM_ICP, "ICP Err Induced! err_code: %u, req_id: %llu",
+		ctx_data->err_inject_params.err_code, current_req_id);
+
+	memset(&(ctx_data->err_inject_params), 0, sizeof(struct cam_hw_err_param));
+}
+
 static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 {
 	int i;
@@ -2346,6 +2372,9 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 	CAM_TRACE(CAM_ICP,
 		"[%s]: BufDone Req %llu event_id %d",
 		ctx_data->ctx_id_string, hfi_frame_process->request_id[idx], event_id);
+
+	if (ctx_data->err_inject_params.is_valid)
+		cam_icp_mgr_validate_inject_err(request_id, &event_id, &buf_data, ctx_data);
 
 	buf_data.request_id = hfi_frame_process->request_id[idx];
 	icp_done_evt.evt_id = event_id;
@@ -3914,6 +3943,8 @@ static int cam_icp_mgr_release_ctx(struct cam_icp_hw_mgr *hw_mgr, int ctx_id)
 	}
 
 	mutex_lock(&hw_mgr->ctx_data[ctx_id].ctx_mutex);
+	memset(&(hw_mgr->ctx_data[ctx_id].err_inject_params), 0,
+		sizeof(struct cam_hw_err_param));
 	cam_icp_remove_ctx_bw(hw_mgr, &hw_mgr->ctx_data[ctx_id]);
 	if (hw_mgr->ctx_data[ctx_id].state !=
 		CAM_ICP_CTX_STATE_ACQUIRED) {
@@ -5448,77 +5479,6 @@ static int cam_icp_mgr_update_hfi_frame_process(
 	return rc;
 }
 
-static void cam_icp_mgr_print_io_bufs(struct cam_packet *packet,
-	int32_t iommu_hdl, int32_t sec_mmu_hdl, uint32_t pf_buf_info,
-	bool *mem_found)
-{
-	dma_addr_t iova_addr;
-	size_t     src_buf_size;
-	int        i;
-	int        j;
-	int        rc = 0;
-	int32_t    mmu_hdl;
-
-	struct cam_buf_io_cfg  *io_cfg = NULL;
-
-	if (mem_found)
-		*mem_found = false;
-
-	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
-		packet->io_configs_offset / 4);
-
-	for (i = 0; i < packet->num_io_configs; i++) {
-		for (j = 0; j < CAM_PACKET_MAX_PLANES; j++) {
-			if (!io_cfg[i].mem_handle[j])
-				break;
-
-			if (GET_FD_FROM_HANDLE(io_cfg[i].mem_handle[j]) ==
-				pf_buf_info) {
-				CAM_INFO(CAM_ICP,
-					"Found PF at port: %d mem %x fd: %x",
-					io_cfg[i].resource_type,
-					io_cfg[i].mem_handle[j],
-					pf_buf_info);
-				if (mem_found)
-					*mem_found = true;
-			}
-
-			CAM_INFO(CAM_ICP, "port: %d f: %u format: %d dir %d",
-				io_cfg[i].resource_type,
-				io_cfg[i].fence,
-				io_cfg[i].format,
-				io_cfg[i].direction);
-
-			mmu_hdl = cam_mem_is_secure_buf(
-				io_cfg[i].mem_handle[j]) ? sec_mmu_hdl :
-				iommu_hdl;
-			rc = cam_mem_get_io_buf(io_cfg[i].mem_handle[j],
-				mmu_hdl, &iova_addr, &src_buf_size, NULL);
-			if (rc < 0) {
-				CAM_ERR(CAM_UTIL,
-					"get src buf address fail rc %d", rc);
-				continue;
-			}
-
-			CAM_INFO(CAM_ICP,
-				"pln %d dir %d w %d h %d s %u sh %u sz %zu addr 0x%llx off 0x%x memh %x",
-				j, io_cfg[i].direction,
-				io_cfg[i].planes[j].width,
-				io_cfg[i].planes[j].height,
-				io_cfg[i].planes[j].plane_stride,
-				io_cfg[i].planes[j].slice_height,
-				src_buf_size, iova_addr,
-				io_cfg[i].offsets[j],
-				io_cfg[i].mem_handle[j]);
-
-			iova_addr += io_cfg[i].offsets[j];
-
-		}
-	}
-	cam_packet_dump_patch_info(packet, icp_hw_mgr.iommu_hdl,
-		icp_hw_mgr.iommu_sec_hdl);
-}
-
 static int cam_icp_mgr_config_stream_settings(
 	void *hw_mgr_priv, void *hw_stream_settings)
 {
@@ -6898,6 +6858,26 @@ void cam_icp_mgr_destroy_wq(void)
 	cam_req_mgr_workq_destroy(&icp_hw_mgr.cmd_work);
 }
 
+static void cam_icp_mgr_dump_pf_data(struct cam_icp_hw_mgr *hw_mgr,
+	struct cam_hw_cmd_pf_args *pf_cmd_args)
+{
+	struct cam_packet          *packet;
+	struct cam_hw_dump_pf_args *pf_args;
+
+	packet = pf_cmd_args->pf_req_info->packet;
+	pf_args = pf_cmd_args->pf_args;
+
+	/*
+	 * res_id_support is false since ICP doesn't have knowledge
+	 * of res_id. FW submits packet to HW
+	 */
+	cam_packet_util_dump_io_bufs(packet, hw_mgr->iommu_hdl,
+		hw_mgr->iommu_sec_hdl, pf_args, false);
+
+	cam_packet_util_dump_patch_info(packet, hw_mgr->iommu_hdl,
+		hw_mgr->iommu_sec_hdl, pf_args);
+}
+
 static int cam_icp_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 {
 	int rc = 0;
@@ -6911,19 +6891,26 @@ static int cam_icp_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 
 	switch (hw_cmd_args->cmd_type) {
 	case CAM_HW_MGR_CMD_DUMP_PF_INFO:
-		cam_icp_mgr_print_io_bufs(
-			hw_cmd_args->u.pf_args.pf_data.packet,
-			hw_mgr->iommu_hdl,
-			hw_mgr->iommu_sec_hdl,
-			hw_cmd_args->u.pf_args.buf_info,
-			hw_cmd_args->u.pf_args.mem_found);
-
+		cam_icp_mgr_dump_pf_data(hw_mgr, hw_cmd_args->u.pf_cmd_args);
 		break;
 	default:
 		CAM_ERR(CAM_ICP, "Invalid cmd");
 	}
 
 	return rc;
+}
+
+static void cam_icp_mgr_inject_err(void *hw_mgr_priv, void *hw_err_inject_args)
+{
+	struct cam_icp_hw_ctx_data *ctx_data = hw_mgr_priv;
+
+	ctx_data->err_inject_params.err_code   = ((struct cam_err_inject_param *)
+		hw_err_inject_args)->err_code;
+	ctx_data->err_inject_params.err_type   = ((struct cam_err_inject_param *)
+		hw_err_inject_args)->err_type;
+	ctx_data->err_inject_params.err_req_id = ((struct cam_err_inject_param *)
+		hw_err_inject_args)->req_id;
+	ctx_data->err_inject_params.is_valid   = true;
 }
 
 int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
@@ -6955,6 +6942,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	hw_mgr_intf->hw_flush = cam_icp_mgr_hw_flush;
 	hw_mgr_intf->hw_cmd = cam_icp_mgr_cmd;
 	hw_mgr_intf->hw_dump = cam_icp_mgr_hw_dump;
+	hw_mgr_intf->hw_inject_err = cam_icp_mgr_inject_err;
 
 	icp_hw_mgr.secure_mode = CAM_SECURE_MODE_NON_SECURE;
 	icp_hw_mgr.mini_dump_cb = mini_dump_cb;
@@ -6991,7 +6979,8 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 		(camera_hw_version == CAM_CPAS_TITAN_680_V100) ||
 		(camera_hw_version == CAM_CPAS_TITAN_680_V110) ||
 		(camera_hw_version == CAM_CPAS_TITAN_780_V100) ||
-		(camera_hw_version == CAM_CPAS_TITAN_640_V200)) {
+		(camera_hw_version == CAM_CPAS_TITAN_640_V200) ||
+		(camera_hw_version == CAM_CPAS_TITAN_880_V100)) {
 		if (cam_caps & CPAS_TITAN_IPE0_CAP_BIT)
 			icp_hw_mgr.ipe0_enable = true;
 		if (cam_caps & CPAS_BPS_BIT)

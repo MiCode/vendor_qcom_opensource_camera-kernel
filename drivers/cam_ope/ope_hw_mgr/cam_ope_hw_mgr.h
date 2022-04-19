@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_OPE_HW_MGR_H
@@ -60,7 +61,8 @@
 #define CLK_HW_MAX                 0x1
 
 #define OPE_DEVICE_IDLE_TIMEOUT    400
-#define OPE_REQUEST_TIMEOUT        200
+#define OPE_REQUEST_RT_TIMEOUT        200
+#define OPE_REQUEST_NRT_TIMEOUT        400
 
 /**
  * struct cam_ope_clk_bw_request_v2
@@ -405,11 +407,12 @@ struct cam_ope_request {
 	uint8_t num_stripe_cmd_bufs[OPE_MAX_BATCH_SIZE][OPE_MAX_STRIPES];
 	struct ope_kmd_buffer ope_kmd_buf;
 	struct ope_debug_buffer ope_debug_buf;
+	struct cam_kmd_buf_info genirq_buff_info;
 	struct ope_io_buf *io_buf[OPE_MAX_BATCH_SIZE][OPE_MAX_IO_BUFS];
 	struct cam_cdm_bl_request *cdm_cmd;
 	struct cam_ope_clk_bw_request clk_info;
 	struct cam_ope_clk_bw_req_internal_v2 clk_info_v2;
-	struct cam_hw_mgr_dump_pf_data hang_data;
+	struct cam_hw_mgr_pf_request_info hang_data;
 	ktime_t submit_timestamp;
 };
 
@@ -447,6 +450,7 @@ struct cam_ope_cdm {
  * @clk_watch_dog:   Clock watchdog
  * @clk_watch_dog_reset_counter: Reset counter
  * @last_flush_req: last flush req for this ctx
+ * @req_timer_timeout: req timer timeout value
  */
 struct cam_ope_ctx {
 	void *context_priv;
@@ -470,6 +474,7 @@ struct cam_ope_ctx {
 	uint32_t clk_watch_dog_reset_counter;
 	uint64_t last_flush_req;
 	bool pf_mid_found;
+	uint64_t req_timer_timeout;
 };
 
 /**

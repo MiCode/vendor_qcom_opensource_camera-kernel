@@ -106,10 +106,10 @@ struct cam_ife_csid_ver2_top_cfg {
 	uint32_t      input_core_type;
 	uint32_t      dual_sync_core_sel;
 	uint32_t      master_slave_sel;
+	uint32_t      rdi_lcr;
 	bool          dual_en;
 	bool          offline_sfe_en;
 	bool          out_ife_en;
-	bool          rdi_lcr;
 };
 
 struct cam_ife_csid_ver2_evt_payload {

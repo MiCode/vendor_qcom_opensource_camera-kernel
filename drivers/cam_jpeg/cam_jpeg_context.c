@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -8,6 +9,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
+#include <media/cam_sync.h>
 #include "cam_mem_mgr.h"
 #include "cam_jpeg_context.h"
 #include "cam_context_utils.h"
@@ -16,22 +18,18 @@
 
 static const char jpeg_dev_name[] = "cam-jpeg";
 
-static int cam_jpeg_context_dump_active_request(void *data,
-	struct cam_smmu_pf_info *pf_info)
+static int cam_jpeg_context_dump_active_request(void *data, void *args)
 {
 
-	struct cam_context *ctx = (struct cam_context *)data;
-	struct cam_ctx_request          *req = NULL;
-	struct cam_ctx_request          *req_temp = NULL;
-	struct cam_hw_mgr_dump_pf_data  *pf_dbg_entry = NULL;
-	uint32_t  resource_type = 0;
+	struct cam_context         *ctx = (struct cam_context *)data;
+	struct cam_ctx_request     *req = NULL;
+	struct cam_ctx_request     *req_temp = NULL;
+	struct cam_hw_dump_pf_args *pf_args = (struct cam_hw_dump_pf_args *)args;
 	int rc = 0;
-	int closest_port;
-	bool b_mem_found = false, b_ctx_found = false;
 
-
-	if (!ctx) {
-		CAM_ERR(CAM_JPEG, "Invalid ctx");
+	if (!ctx || !pf_args) {
+		CAM_ERR(CAM_JPEG, "Invalid ctx %pK or pf args %pK",
+			ctx, pf_args);
 		return -EINVAL;
 	}
 
@@ -40,19 +38,23 @@ static int cam_jpeg_context_dump_active_request(void *data,
 
 	list_for_each_entry_safe(req, req_temp,
 			&ctx->active_req_list, list) {
-		pf_dbg_entry = &(req->pf_data);
-		closest_port = -1;
-		CAM_INFO(CAM_JPEG, "req_id : %lld ", req->request_id);
+		CAM_INFO(CAM_JPEG, "Active req_id: %lld, ctx_id: %u",
+			req->request_id, ctx->ctx_id);
 
-		rc = cam_context_dump_pf_info_to_hw(ctx, pf_dbg_entry,
-			&b_mem_found, &b_ctx_found, &resource_type, pf_info);
+		rc = cam_context_dump_pf_info_to_hw(ctx, pf_args, &req->pf_data);
 		if (rc)
-			CAM_ERR(CAM_JPEG, "Failed to dump pf info");
-
-		if (b_mem_found)
-			CAM_ERR(CAM_JPEG, "Found page fault in req %lld %d",
-				req->request_id, rc);
+			CAM_ERR(CAM_JPEG, "Failed to dump pf info ctx_id: %u state: %d",
+				ctx->ctx_id, ctx->state);
 	}
+
+	if (pf_args->pf_context_info.ctx_found) {
+		/* Send PF notification to UMD if PF found on current CTX */
+		rc = cam_context_send_pf_evt(ctx, pf_args);
+		if (rc)
+			CAM_ERR(CAM_JPEG,
+				"Failed to notify PF event to userspace rc: %d", rc);
+	}
+
 	return rc;
 }
 
@@ -96,6 +98,8 @@ static int __cam_jpeg_ctx_release_dev_in_acquired(struct cam_context *ctx,
 	rc = cam_context_release_dev_to_hw(ctx, cmd);
 	if (rc)
 		CAM_ERR(CAM_JPEG, "Unable to release device %d", rc);
+
+	cam_common_release_err_params(ctx->dev_hdl);
 
 	ctx->state = CAM_CTX_AVAILABLE;
 
@@ -153,6 +157,57 @@ static int __cam_jpeg_ctx_stop_dev_in_acquired(struct cam_context *ctx,
 	return rc;
 }
 
+static int cam_jpeg_context_inject_error(void *context, void *err_param)
+{
+	int rc = 0;
+	struct cam_context *ctx = (struct cam_context *)context;
+	uint64_t req_id;
+	uint32_t err_code;
+	uint32_t err_type;
+
+	if (!err_param) {
+		CAM_ERR(CAM_ISP, "err_param not valid");
+		return -EINVAL;
+	}
+
+	req_id     = ((struct cam_err_inject_param *)err_param)->req_id;
+	err_code   = ((struct cam_err_inject_param *)err_param)->err_code;
+	err_type   = ((struct cam_err_inject_param *)err_param)->err_type;
+
+	switch (err_type) {
+	case CAM_REQ_MGR_RETRY_EVENT:
+		switch (err_code) {
+		case CAM_REQ_MGR_JPEG_THUBNAIL_SIZE_ERROR:
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+			return -EINVAL;
+		}
+		break;
+	case CAM_SYNC_STATE_SIGNALED_ERROR:
+		switch (err_code) {
+		case CAM_SYNC_JPEG_EVENT_INVLD_CMD:
+		case CAM_SYNC_JPEG_EVENT_SET_IRQ_CB:
+		case CAM_SYNC_JPEG_EVENT_HW_RESET_FAILED:
+		case CAM_SYNC_JPEG_EVENT_CDM_CHANGE_BASE_ERR:
+		case CAM_SYNC_JPEG_EVENT_CDM_CONFIG_ERR:
+		case CAM_SYNC_JPEG_EVENT_START_HW_ERR:
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+			return -EINVAL;
+		}
+		break;
+	default:
+		CAM_ERR(CAM_ISP, "err type not supported %d", err_type);
+		return -EINVAL;
+	}
+
+	rc = cam_context_err_to_hw(ctx, err_param);
+
+	return rc;
+}
+
 /* top state machine */
 static struct cam_ctx_ops
 	cam_jpeg_ctx_state_machine[CAM_CTX_STATE_MAX] = {
@@ -184,6 +239,7 @@ static struct cam_ctx_ops
 		.irq_ops = __cam_jpeg_ctx_handle_buf_done_in_acquired,
 		.pagefault_ops = cam_jpeg_context_dump_active_request,
 		.mini_dump_ops = cam_jpeg_context_mini_dump,
+		.err_inject_ops = cam_jpeg_context_inject_error,
 	},
 	/* Ready */
 	{
