@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SFE_BUS_RD_H_
@@ -30,6 +31,7 @@ struct cam_sfe_bus_rd_reg_offset_common {
 	uint32_t test_bus_ctrl;
 	uint32_t security_cfg;
 	uint32_t cons_violation_status;
+	uint32_t ccif_violation_status;
 	struct cam_irq_controller_reg_info irq_reg_info;
 };
 

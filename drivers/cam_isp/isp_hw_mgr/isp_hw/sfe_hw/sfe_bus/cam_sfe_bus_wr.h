@@ -89,6 +89,7 @@ struct cam_sfe_bus_reg_offset_common {
 	uint32_t debug_status_top;
 	uint32_t test_bus_ctrl;
 	uint32_t top_irq_mask_0;
+	uint32_t qos_eos_cfg;
 	struct cam_irq_controller_reg_info irq_reg_info;
 };
 
