@@ -38,10 +38,6 @@ static const char drv_name[] = "sfe_bus_wr";
 #define MAX_REG_VAL_PAIR_SIZE    \
 	(MAX_BUF_UPDATE_REG_NUM * 2 * CAM_PACKET_MAX_PLANES)
 
-static uint32_t bus_wr_error_irq_mask[1] = {
-	0xD0000000,
-};
-
 enum cam_sfe_bus_wr_packer_format {
 	PACKER_FMT_PLAIN_128,
 	PACKER_FMT_PLAIN_8,
@@ -93,6 +89,7 @@ struct cam_sfe_bus_wr_common_data {
 	uint32_t                                    max_bw_counter_limit;
 	bool                                        err_irq_subscribe;
 	cam_hw_mgr_event_cb_func                    event_cb;
+	uint32_t                                    irq_err_mask;
 
 	uint32_t                                    sfe_debug_cfg;
 	struct cam_sfe_bus_cache_dbg_cfg            cache_dbg_cfg;
@@ -199,9 +196,8 @@ struct cam_sfe_bus_wr_priv {
 	int                                 bus_irq_handle;
 	int                                 error_irq_handle;
 	void                               *tasklet_info;
-	uint32_t                            num_cons_err;
-	struct cam_sfe_constraint_error_info      *constraint_error_list;
-	struct cam_sfe_bus_sfe_out_hw_info        *sfe_out_hw_info;
+	struct cam_sfe_bus_wr_constraint_error_info *constraint_error_info;
+	struct cam_sfe_bus_sfe_out_hw_info   *sfe_out_hw_info;
 };
 
 static int cam_sfe_bus_subscribe_error_irq(
@@ -447,17 +443,18 @@ static void cam_sfe_bus_wr_print_constraint_errors(
 	uint8_t *wm_name,
 	uint32_t constraint_errors)
 {
+	struct cam_sfe_bus_wr_constraint_error_info *constraint_err_info;
 	uint32_t i;
 
-	CAM_INFO(CAM_ISP, "Constraint violation bitflags: 0x%X",
+	CAM_ERR(CAM_ISP, "Constraint violation bitflags: 0x%X",
 		constraint_errors);
 
-	for (i = 0; i < bus_priv->num_cons_err; i++) {
-		if (bus_priv->constraint_error_list[i].bitmask &
+	constraint_err_info = bus_priv->constraint_error_info;
+	for (i = 0; i < constraint_err_info->num_cons_err; i++) {
+		if (constraint_err_info->constraint_error_list[i].bitmask &
 			constraint_errors) {
-			CAM_INFO(CAM_ISP, "WM: %s %s",
-				wm_name, bus_priv->constraint_error_list[i]
-				.error_description);
+			CAM_ERR(CAM_SFE, "WM: %s Error_desc: %s", wm_name,
+				constraint_err_info->constraint_error_list[i].error_description);
 		}
 	}
 }
@@ -466,11 +463,16 @@ static void cam_sfe_bus_wr_get_constraint_errors(
 	bool                       *skip_error_notify,
 	struct cam_sfe_bus_wr_priv *bus_priv)
 {
-	uint32_t i, j, constraint_errors, sfe_out_type;
+	uint32_t i, j, cons_err, sfe_out_type;
 	uint8_t *wm_name = NULL;
 	struct cam_isp_resource_node              *out_rsrc_node = NULL;
 	struct cam_sfe_bus_wr_out_data            *out_rsrc_data = NULL;
 	struct cam_sfe_bus_wr_wm_resource_data    *wm_data   = NULL;
+	struct cam_sfe_bus_wr_common_data         *common_data = NULL;
+	struct cam_sfe_bus_wr_constraint_error_info      *cons_err_info = NULL;
+	bool out_rsrc_is_rdi;
+
+	cons_err_info = bus_priv->constraint_error_info;
 
 	for (i = 0; i < bus_priv->num_out; i++) {
 		sfe_out_type = cam_sfe_bus_wr_get_out_type(bus_priv, i);
@@ -489,32 +491,52 @@ static void cam_sfe_bus_wr_get_constraint_errors(
 		}
 
 		out_rsrc_data = out_rsrc_node->res_priv;
+		common_data = out_rsrc_data->common_data;
+
+		if ((out_rsrc_data->out_type >= CAM_SFE_BUS_SFE_OUT_RDI0) &&
+			(out_rsrc_data->out_type <= CAM_SFE_BUS_SFE_OUT_RDI4))
+			out_rsrc_is_rdi = true;
+		else
+			out_rsrc_is_rdi = false;
+
 		for (j = 0; j < out_rsrc_data->num_wm; j++) {
 			wm_data = out_rsrc_data->wm_res[j].res_priv;
 			wm_name = out_rsrc_data->wm_res[j].res_name;
-			if (wm_data) {
-				constraint_errors = cam_io_r_mb(
-					bus_priv->common_data.mem_base +
-					wm_data->hw_regs->debug_status_1);
-				if (!constraint_errors)
-					continue;
+			if (!wm_data)
+				continue;
 
-				/*
-				 * Due to a HW bug in constraint checker skip addr unalign
-				 * for RDI clients
-				 */
-				if ((out_rsrc_data->out_type >= CAM_SFE_BUS_SFE_OUT_RDI0) &&
-					(out_rsrc_data->out_type <= CAM_SFE_BUS_SFE_OUT_RDI4) &&
-					(constraint_errors >> 21)) {
-					*skip_error_notify = true;
-					CAM_DBG(CAM_SFE, "WM: %s constraint_error: 0x%x",
-						wm_name, constraint_errors);
-					continue;
-				}
+			cons_err = cam_io_r_mb(common_data->mem_base +
+				wm_data->hw_regs->debug_status_1);
+			if (!cons_err)
+				continue;
 
-				cam_sfe_bus_wr_print_constraint_errors(
-					bus_priv, wm_name, constraint_errors);
+			/*
+			 * Due to HW bug in constraint checker which signals false alert,
+			 * skip image addr unalign constraint error for RDI WMs on
+			 * SFE v780 or older and skip image width unalign constraint error
+			 * for any WM when programmed in frame base mode.
+			 */
+
+			if (out_rsrc_is_rdi && (cons_err &
+				BIT(cons_err_info->img_addr_unalign_shift))) {
+				*skip_error_notify = true;
+				CAM_DBG(CAM_SFE,
+					"Ignoring Image Addr Unalign error on SFE[%u] out rsrc: %u WM: %s",
+				common_data->core_index, out_rsrc_data->out_type, wm_name);
+				continue;
 			}
+
+			if ((cons_err & BIT(cons_err_info->img_width_unalign_shift)) &&
+				(wm_data->en_cfg & BIT(16))) {
+				*skip_error_notify = true;
+				CAM_DBG(CAM_SFE,
+					"Ignoring Image Width Unalign error on SFE[%u] out rsrc: %u WM: %s in frame based mode",
+					common_data->core_index, out_rsrc_data->out_type, wm_name);
+				continue;
+			}
+
+			cam_sfe_bus_wr_print_constraint_errors(
+				bus_priv, wm_name, cons_err);
 		}
 	}
 }
@@ -1776,7 +1798,7 @@ static int cam_sfe_bus_handle_sfe_out_done_top_half(
 
 	th_payload->evt_payload_priv = evt_payload;
 
-	status_0 = th_payload->evt_status_arr[CAM_SFE_IRQ_BUS_REG_STATUS0];
+	status_0 = th_payload->evt_status_arr[CAM_SFE_IRQ_BUS_WR_REG_STATUS0];
 
 	if (status_0 & BIT(resource_data->comp_done_shift)) {
 		trace_cam_log_event("bufdone", "bufdone_IRQ",
@@ -1808,7 +1830,7 @@ static int cam_sfe_bus_handle_comp_done_bottom_half(
 	}
 
 	cam_sfe_irq_regs = evt_payload->irq_reg_val;
-	status_0 = cam_sfe_irq_regs[CAM_SFE_IRQ_BUS_REG_STATUS0];
+	status_0 = cam_sfe_irq_regs[CAM_SFE_IRQ_BUS_WR_REG_STATUS0];
 
 	if (status_0 & BIT(rsrc_data->comp_done_shift)) {
 		evt_payload->evt_id = CAM_ISP_HW_EVENT_DONE;
@@ -2313,7 +2335,7 @@ static int cam_sfe_bus_wr_irq_bottom_half(
 	void *handler_priv, void *evt_payload_priv)
 {
 	int i;
-	uint32_t status = 0, cons_violation = 0;
+	uint32_t status = 0;
 	bool skip_err_notify = false;
 	struct cam_sfe_bus_wr_priv            *bus_priv = handler_priv;
 	struct cam_sfe_bus_wr_common_data     *common_data;
@@ -2325,22 +2347,27 @@ static int cam_sfe_bus_wr_irq_bottom_half(
 
 	common_data = &bus_priv->common_data;
 
-	status = evt_payload->irq_reg_val[CAM_SFE_IRQ_BUS_REG_STATUS0];
-	cons_violation = (status >> 28) & 0x1;
+	status = evt_payload->irq_reg_val[CAM_SFE_IRQ_BUS_WR_REG_STATUS0];
 
-	CAM_ERR(CAM_SFE,
-		"SFE:%d status0 0x%x Image Size violation status 0x%x CCIF violation status 0x%x",
-		bus_priv->common_data.core_index, status,
-		evt_payload->image_size_violation_status,
-		evt_payload->ccif_violation_status);
+	if (status & CAM_SFE_BUS_WR_IRQ_CCIF_VIOLATION)
+		CAM_ERR(CAM_SFE, "SFE:%d status0 0x%x CCIF Violation status 0x%x",
+			bus_priv->common_data.core_index, status,
+			evt_payload->ccif_violation_status);
 
-	if (evt_payload->image_size_violation_status)
+	if (status & CAM_SFE_BUS_WR_IRQ_IMAGE_SIZE_VIOLATION) {
+		CAM_ERR(CAM_SFE, "SFE:%d status0 0x%x Image Size Violation status 0x%x",
+			bus_priv->common_data.core_index, status,
+			evt_payload->image_size_violation_status);
 		cam_sfe_bus_wr_print_violation_info(
 			evt_payload->image_size_violation_status,
 			bus_priv);
+	}
 
-	if (cons_violation)
+	if (status & CAM_SFE_BUS_WR_IRQ_CONS_VIOLATION) {
+		CAM_ERR(CAM_SFE, "SFE:%d status0 0x%x Constraint Violation",
+			bus_priv->common_data.core_index, status);
 		cam_sfe_bus_wr_get_constraint_errors(&skip_err_notify, bus_priv);
+	}
 
 	cam_sfe_bus_wr_put_evt_payload(common_data, &evt_payload);
 
@@ -2390,13 +2417,17 @@ static int cam_sfe_bus_wr_irq_bottom_half(
 static int cam_sfe_bus_subscribe_error_irq(
 	struct cam_sfe_bus_wr_priv          *bus_priv)
 {
+	struct cam_sfe_bus_wr_common_data *common_data;
 	uint32_t top_irq_reg_mask[CAM_SFE_IRQ_REGISTERS_MAX] = {0};
+	uint32_t bus_wr_error_irq_mask[CAM_SFE_BUS_WR_IRQ_REGISTERS_MAX] = {0};
 
 	/* Subscribe top IRQ */
 	top_irq_reg_mask[0] = (1 << bus_priv->top_irq_shift);
 
+	common_data = &bus_priv->common_data;
+
 	bus_priv->bus_irq_handle = cam_irq_controller_subscribe_irq(
-		bus_priv->common_data.sfe_irq_controller,
+		common_data->sfe_irq_controller,
 		CAM_IRQ_PRIORITY_0,
 		top_irq_reg_mask,
 		bus_priv,
@@ -2412,12 +2443,14 @@ static int cam_sfe_bus_subscribe_error_irq(
 		return -EFAULT;
 	}
 
-	cam_irq_controller_register_dependent(bus_priv->common_data.sfe_irq_controller,
-		bus_priv->common_data.bus_irq_controller, top_irq_reg_mask);
+	cam_irq_controller_register_dependent(common_data->sfe_irq_controller,
+		common_data->bus_irq_controller, top_irq_reg_mask);
 
 	if (bus_priv->tasklet_info != NULL) {
+		bus_wr_error_irq_mask[0] = common_data->irq_err_mask;
+
 		bus_priv->error_irq_handle = cam_irq_controller_subscribe_irq(
-			bus_priv->common_data.bus_irq_controller,
+			common_data->bus_irq_controller,
 			CAM_IRQ_PRIORITY_0,
 			bus_wr_error_irq_mask,
 			bus_priv,
@@ -2434,7 +2467,7 @@ static int cam_sfe_bus_subscribe_error_irq(
 		}
 	}
 
-	bus_priv->common_data.err_irq_subscribe = true;
+	common_data->err_irq_subscribe = true;
 	CAM_DBG(CAM_SFE, "BUS WR error irq subscribed");
 	return 0;
 }
@@ -3447,9 +3480,9 @@ int cam_sfe_bus_wr_init(
 	bus_priv->common_data.max_bw_counter_limit = hw_info->max_bw_counter_limit;
 	bus_priv->common_data.err_irq_subscribe    = false;
 	bus_priv->common_data.sfe_irq_controller   = sfe_irq_controller;
-	bus_priv->num_cons_err = hw_info->num_cons_err;
-	bus_priv->constraint_error_list = hw_info->constraint_error_list;
-	bus_priv->sfe_out_hw_info = hw_info->sfe_out_hw_info;
+	bus_priv->common_data.irq_err_mask         = hw_info->irq_err_mask;
+	bus_priv->constraint_error_info            = hw_info->constraint_error_info;
+	bus_priv->sfe_out_hw_info                  = hw_info->sfe_out_hw_info;
 	rc = cam_cpas_get_cpas_hw_version(&bus_priv->common_data.hw_version);
 	if (rc) {
 		CAM_ERR(CAM_SFE, "Failed to get hw_version rc:%d", rc);

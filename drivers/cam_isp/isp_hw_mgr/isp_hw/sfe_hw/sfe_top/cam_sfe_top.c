@@ -1153,8 +1153,9 @@ int cam_sfe_top_reserve(void *device_priv,
 
 	if (top_priv->reserve_cnt) {
 		if (top_priv->priv_per_stream != args->priv) {
-			CAM_ERR(CAM_SFE,
-				"Acquiring same SFE[%u] HW res: %u for different streams");
+			CAM_DBG(CAM_SFE,
+				"Acquiring same SFE[%u] HW res: %u for different streams",
+				top_priv->common_data.hw_intf->hw_idx, acquire_args->res_id);
 			rc = -EINVAL;
 			return rc;
 		}

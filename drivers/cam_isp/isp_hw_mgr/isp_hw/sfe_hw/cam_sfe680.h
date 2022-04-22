@@ -444,6 +444,47 @@ static struct cam_irq_register_set sfe680_bus_rd_irq_reg[1] = {
 	},
 };
 
+static struct cam_sfe_bus_rd_constraint_error_desc
+	sfe680_bus_rd_cons_error_desc[CAM_SFE_BUS_RD_CONS_ERR_MAX] = {
+	{
+		.bitmask    = BIT(0),
+		.error_desc = "Image Addr Unalign Latch",
+	},
+	{
+		.bitmask    = BIT(1),
+		.error_desc = "Ubwc Addr Unalign Latch",
+	},
+	{
+		.bitmask    = BIT(2),
+		.error_desc = "Stride Unalign Latch",
+	},
+	{
+		.bitmask    = BIT(3),
+		.error_desc = "Y Unit Unalign Latch",
+	},
+	{
+		.bitmask    = BIT(4),
+		.error_desc = "X Unit Unalign Latch",
+	},
+	{
+		.bitmask    = BIT(5),
+		.error_desc = "Image width Unalign Latch",
+	},
+	{
+		.bitmask    = BIT(6),
+		.error_desc = "Image height Unalign Latch",
+	},
+	{
+		.bitmask    = BIT(7),
+		.error_desc = "Meta Stride Unalign Latch",
+	},
+};
+
+static struct cam_sfe_bus_rd_constraint_error_info sfe680_bus_rd_constraint_error_info = {
+	.constraint_error_list = sfe680_bus_rd_cons_error_desc,
+	.num_cons_err          = 8,
+};
+
 static struct cam_sfe_bus_rd_hw_info sfe680_bus_rd_hw_info = {
 	.common_reg = {
 		.hw_version                   = 0x00000400,
@@ -473,6 +514,10 @@ static struct cam_sfe_bus_rd_hw_info sfe680_bus_rd_hw_info = {
 			.unpacker_cfg             = 0x00000468,
 			.latency_buf_allocation   = 0x0000047C,
 			.system_cache_cfg         = 0x0000049C,
+			.debug_status_cfg         = 0x00000490,
+			.debug_status_0           = 0x00000494,
+			.debug_status_1           = 0x00000498,
+			.name                     = "Fetch0",
 		},
 		/* BUS Client 1 */
 		{
@@ -484,6 +529,10 @@ static struct cam_sfe_bus_rd_hw_info sfe680_bus_rd_hw_info = {
 			.unpacker_cfg             = 0x00000508,
 			.latency_buf_allocation   = 0x0000051C,
 			.system_cache_cfg         = 0x0000053C,
+			.debug_status_cfg         = 0x00000530,
+			.debug_status_0           = 0x00000534,
+			.debug_status_1           = 0x00000538,
+			.name                     = "Fetch1",
 		},
 		/* BUS Client 2 */
 		{
@@ -495,6 +544,10 @@ static struct cam_sfe_bus_rd_hw_info sfe680_bus_rd_hw_info = {
 			.unpacker_cfg             = 0x000005A8,
 			.latency_buf_allocation   = 0x000005BC,
 			.system_cache_cfg         = 0x000005DC,
+			.debug_status_cfg         = 0x000005D0,
+			.debug_status_0           = 0x000005D4,
+			.debug_status_1           = 0x000005D8,
+			.name                     = "Fetch2",
 		},
 	},
 	.num_bus_rd_resc = 3,
@@ -526,6 +579,135 @@ static struct cam_sfe_bus_rd_hw_info sfe680_bus_rd_hw_info = {
 	 * the minimum
 	 */
 	.latency_buf_allocation = 2048,
+	.irq_err_mask           = 0x1,
+	.constraint_error_info  = &sfe680_bus_rd_constraint_error_info,
+};
+
+static struct cam_sfe_bus_wr_constraint_error_desc
+	sfe680_bus_wr_cons_error_desc[CAM_SFE_BUS_CONS_ERR_MAX] = {
+	{
+		.bitmask = BIT(0),
+		.error_description = "PPC 1x1 input not supported"
+	},
+	{
+		.bitmask = BIT(1),
+		.error_description = "PPC 1x2 input not supported"
+	},
+	{
+		.bitmask = BIT(2),
+		.error_description = "PPC 2x1 input not supported"
+	},
+	{
+		.bitmask = BIT(3),
+		.error_description = "PPC 2x2 input not supported"
+	},
+	{
+		.bitmask = BIT(4),
+		.error_description = "Pack 8 BPP format not supported"
+	},
+	{
+		.bitmask = BIT(5),
+		.error_description = "Pack 16 format not supported"
+	},
+	{
+		.bitmask = BIT(6),
+		.error_description = "Pack 32 BPP format not supported"
+	},
+	{
+		.bitmask = BIT(7),
+		.error_description = "Pack 64 BPP format not supported"
+	},
+	{
+		.bitmask = BIT(8),
+		.error_description = "Pack MIPI 20 format not supported"
+	},
+	{
+		.bitmask = BIT(9),
+		.error_description = "Pack MIPI 14 format not supported"
+	},
+	{
+		.bitmask = BIT(10),
+		.error_description = "Pack MIPI 12 format not supported"
+	},
+	{
+		.bitmask = BIT(11),
+		.error_description = "Pack MIPI 10 format not supported"
+	},
+	{
+		.bitmask = BIT(12),
+		.error_description = "Pack 128 BPP format not supported"
+	},
+	{
+		.bitmask = BIT(13),
+		.error_description = "UBWC NV12 format not supported"
+	},
+	{
+		.bitmask = BIT(14),
+		.error_description = "UBWC NV12 4R format not supported"
+	},
+	{
+		.bitmask = BIT(15),
+		.error_description = "UBWC TP10 format not supported"
+	},
+	{
+		.bitmask = BIT(16),
+		.error_description = "Frame based Mode not supported"
+	},
+	{
+		.bitmask = BIT(17),
+		.error_description = "Index based Mode not supported"
+	},
+	{
+		.bitmask = BIT(18),
+		.error_description = "FIFO image addr unalign"
+	},
+	{
+		.bitmask = BIT(19),
+		.error_description = "FIFO ubwc addr unalign"
+	},
+	{
+		.bitmask = BIT(20),
+		.error_description = "FIFO frmheader addr unalign"
+	},
+	{
+		.bitmask = BIT(21),
+		.error_description = "Image address unalign"
+	},
+	{
+		.bitmask = BIT(22),
+		.error_description = "UBWC address unalign"
+	},
+	{
+		.bitmask = BIT(23),
+		.error_description = "Frame Header address unalign"
+	},
+	{
+		.bitmask = BIT(24),
+		.error_description = "Stride unalign"
+	},
+	{
+		.bitmask = BIT(25),
+		.error_description = "X Initialization unalign"
+	},
+	{
+		.bitmask = BIT(26),
+		.error_description = "Image Width unalign"
+	},
+	{
+		.bitmask = BIT(27),
+		.error_description = "Image Height unalign"
+	},
+	{
+		.bitmask = BIT(28),
+		.error_description = "Meta Stride unalign"
+	},
+};
+
+static struct cam_sfe_bus_wr_constraint_error_info sfe680_bus_wr_constraint_error_info = {
+	.constraint_error_list   = sfe680_bus_wr_cons_error_desc,
+	.num_cons_err            = 29,
+	.img_addr_unalign_shift  = 21,
+	.img_width_unalign_shift = 26,
 };
 
 static struct cam_irq_register_set sfe680_bus_wr_irq_reg[1] = {
@@ -1107,125 +1289,7 @@ static struct cam_sfe_bus_wr_hw_info sfe680_bus_wr_hw_info = {
 			.name          = "STATS_BHIST_2",
 		},
 	},
-	.num_cons_err = 29,
-	.constraint_error_list = {
-		{
-			.bitmask = BIT(0),
-			.error_description = "PPC 1x1 input not supported"
-		},
-		{
-			.bitmask = BIT(1),
-			.error_description = "PPC 1x2 input not supported"
-		},
-		{
-			.bitmask = BIT(2),
-			.error_description = "PPC 2x1 input not supported"
-		},
-		{
-			.bitmask = BIT(3),
-			.error_description = "PPC 2x2 input not supported"
-		},
-		{
-			.bitmask = BIT(4),
-			.error_description = "Pack 8 BPP format not supported"
-		},
-		{
-			.bitmask = BIT(5),
-			.error_description = "Pack 16 format not supported"
-		},
-		{
-			.bitmask = BIT(6),
-			.error_description = "Pack 32 BPP format not supported"
-		},
-		{
-			.bitmask = BIT(7),
-			.error_description = "Pack 64 BPP format not supported"
-		},
-		{
-			.bitmask = BIT(8),
-			.error_description = "Pack MIPI 20 format not supported"
-		},
-		{
-			.bitmask = BIT(9),
-			.error_description = "Pack MIPI 14 format not supported"
-		},
-		{
-			.bitmask = BIT(10),
-			.error_description = "Pack MIPI 12 format not supported"
-		},
-		{
-			.bitmask = BIT(11),
-			.error_description = "Pack MIPI 10 format not supported"
-		},
-		{
-			.bitmask = BIT(12),
-			.error_description = "Pack 128 BPP format not supported"
-		},
-		{
-			.bitmask = BIT(13),
-			.error_description = "UBWC NV12 format not supported"
-		},
-		{
-			.bitmask = BIT(14),
-			.error_description = "UBWC NV12 4R format not supported"
-		},
-		{
-			.bitmask = BIT(15),
-			.error_description = "UBWC TP10 format not supported"
-		},
-		{
-			.bitmask = BIT(16),
-			.error_description = "Frame based Mode not supported"
-		},
-		{
-			.bitmask = BIT(17),
-			.error_description = "Index based Mode not supported"
-		},
-		{
-			.bitmask = BIT(18),
-			.error_description = "FIFO image addr unalign"
-		},
-		{
-			.bitmask = BIT(19),
-			.error_description = "FIFO ubwc addr unalign"
-		},
-		{
-			.bitmask = BIT(20),
-			.error_description = "FIFO frmheader addr unalign"
-		},
-		{
-			.bitmask = BIT(21),
-			.error_description = "Image address unalign"
-		},
-		{
-			.bitmask = BIT(22),
-			.error_description = "UBWC address unalign"
-		},
-		{
-			.bitmask = BIT(23),
-			.error_description = "Frame Header address unalign"
-		},
-		{
-			.bitmask = BIT(24),
-			.error_description = "Stride unalign"
-		},
-		{
-			.bitmask = BIT(25),
-			.error_description = "X Initialization unalign"
-		},
-		{
-			.bitmask = BIT(26),
-			.error_description = "Image Width unalign"
-		},
-		{
-			.bitmask = BIT(27),
-			.error_description = "Image Height unalign"
-		},
-		{
-			.bitmask = BIT(28),
-			.error_description = "Meta Stride unalign"
-		},
-	},
+	.constraint_error_info = &sfe680_bus_wr_constraint_error_info,
 	.comp_done_shift = {
 		17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
 	},
@@ -1235,6 +1299,7 @@ static struct cam_sfe_bus_wr_hw_info sfe680_bus_wr_hw_info = {
 	.max_out_res          = CAM_ISP_SFE_OUT_RES_BASE + 13,
 	.pack_align_shift     = 0x5,
 	.max_bw_counter_limit = 0xFF,
+	.irq_err_mask         = 0xD0000000,
 };
 
 static struct cam_irq_register_set sfe680_top_irq_reg_set[1] = {
