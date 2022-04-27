@@ -1320,16 +1320,16 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(
 		decode_fmt = ((cfg0 >>
 			csid_reg->cmn_reg->decode_format_shift_val) &
 			csid_reg->cmn_reg->decode_format_mask);
-		decode_fmt1 = ((cfg1 >>
+		decode_fmt1 = ((vcdt_cfg0 >>
 			csid_reg->cmn_reg->decode_format1_shift_val) &
 			csid_reg->cmn_reg->decode_format_mask);
 		vc = ((cfg0 >> csid_reg->cmn_reg->vc_shift_val) &
 			csid_reg->cmn_reg->vc_mask);
 		dt = ((cfg0 >> csid_reg->cmn_reg->dt_shift_val) &
 			csid_reg->cmn_reg->dt_mask);
-		vc1 = ((cfg1 >> csid_reg->cmn_reg->multi_vcdt_vc1_shift_val) &
+		vc1 = ((vcdt_cfg0 >> csid_reg->cmn_reg->multi_vcdt_vc1_shift_val) &
 			csid_reg->cmn_reg->vc_mask);
-		dt1 = ((cfg1 >> csid_reg->cmn_reg->multi_vcdt_dt1_shift_val) &
+		dt1 = ((vcdt_cfg0 >> csid_reg->cmn_reg->multi_vcdt_dt1_shift_val) &
 			csid_reg->cmn_reg->dt_mask);
 
 		if ((decode_fmt == csid_reg->cmn_reg->decode_format_payload_only) ||
