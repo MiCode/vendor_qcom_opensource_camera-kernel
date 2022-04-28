@@ -138,6 +138,8 @@ struct cam_context_bank_info {
 	bool is_secheap_allocated;
 	bool is_fwuncached_buf_allocated;
 	bool is_qdss_allocated;
+	bool non_fatal_faults_en;
+	bool stall_disable_en;
 
 	struct scratch_mapping scratch_map;
 	struct gen_pool *shared_mem_pool;
@@ -897,6 +899,19 @@ static int cam_smmu_iommu_fault_handler(struct iommu_domain *domain,
 	mutex_unlock(&iommu_cb_set.payload_list_lock);
 
 	cam_smmu_page_fault_work(&iommu_cb_set.smmu_work);
+
+	/*
+	 * If cb has faults marked as non fatal, return handled to SMMU
+	 * This will skip printing any debug info from SMMU, which is also available as
+	 * part of fault handler cb. This will avoid any transaction retries which could
+	 * lead to further fault irqs being triggered
+	 */
+	if (iommu_cb_set.cb_info[idx].non_fatal_faults_en) {
+		CAM_DBG(CAM_SMMU,
+			"PF marked as non-fatal for cb: %s, return success to SMMU",
+			cb_name);
+		return 0;
+	}
 
 	return -ENOSYS;
 }
@@ -4200,13 +4215,24 @@ static int cam_smmu_get_memory_regions_info(struct device_node *of_node,
 	return rc;
 }
 
+static void cam_smmu_check_for_fault_properties(
+	const char *fault_property, struct cam_context_bank_info *cb)
+{
+	if (!strcmp(fault_property, "non-fatal"))
+		cb->non_fatal_faults_en = true;
+	else if (!strcmp(fault_property, "stall-disable"))
+		cb->stall_disable_en = true;
+
+	CAM_DBG(CAM_SMMU, "iommu fault property: %s found for cb: %s",
+		fault_property, cb->name[0]);
+}
+
 static int cam_populate_smmu_context_banks(struct device *dev,
 	enum cam_iommu_type type)
 {
-	int rc = 0;
+	int rc = 0, i, num_fault_props = 0;
 	struct cam_context_bank_info *cb;
 	struct device *ctx = NULL;
-	int i = 0;
 	bool dma_coherent, dma_coherent_hint;
 
 	if (!dev) {
@@ -4299,10 +4325,25 @@ static int cam_populate_smmu_context_banks(struct device *dev,
 			cb->name[0]);
 		goto cb_init_fail;
 	}
-	if (cb->io_support && cb->domain)
+	if (cb->io_support && cb->domain) {
 		iommu_set_fault_handler(cb->domain,
 			cam_smmu_iommu_fault_handler,
 			(void *)cb->name[0]);
+
+		num_fault_props = of_property_count_strings(dev->of_node, "qcom,iommu-faults");
+		if (num_fault_props > 0) {
+			const char *fault_property = NULL;
+
+			for (i = 0; i < num_fault_props; i++) {
+				rc = of_property_read_string_index(dev->of_node,
+					"qcom,iommu-faults", i, &fault_property);
+				if (!rc)
+					cam_smmu_check_for_fault_properties(fault_property, cb);
+			}
+			/* Missing fault property reads is not an error */
+			rc = 0;
+		}
+	}
 
 	if (!dev->dma_parms)
 		dev->dma_parms = devm_kzalloc(dev,
