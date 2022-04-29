@@ -52,6 +52,7 @@
 #define CSIPHY_3PH_COMBO_REGS            8
 #define CSIPHY_2PH_3PH_COMBO_REGS        9
 #define CSIPHY_AUXILIARY_SETTING         10
+#define CSIPHY_CDR_LN_SETTINGS           11
 
 #define CSIPHY_MAX_INSTANCES_PER_PHY     3
 

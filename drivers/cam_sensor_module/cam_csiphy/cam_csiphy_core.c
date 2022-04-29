@@ -964,6 +964,10 @@ static int cam_csiphy_cphy_data_rate_config(
 				}
 			}
 			break;
+			case CSIPHY_CDR_LN_SETTINGS:
+				cam_io_w_mb(reg_data,
+					csiphybase + reg_addr);
+			break;
 			default:
 				CAM_DBG(CAM_CSIPHY, "Do Nothing");
 			break;
