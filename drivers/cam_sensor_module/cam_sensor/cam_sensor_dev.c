@@ -9,6 +9,17 @@
 #include "cam_sensor_soc.h"
 #include "cam_sensor_core.h"
 #include "camera_main.h"
+#include "cam_compat.h"
+
+static struct cam_sensor_i3c_sensor_data {
+	struct cam_sensor_ctrl_t                  *s_ctrl;
+	struct completion                          probe_complete;
+} g_i3c_sensor_data[MAX_CAMERAS];
+
+struct completion *cam_sensor_get_i3c_completion(uint32_t index)
+{
+	return &g_i3c_sensor_data[index].probe_complete;
+}
 
 static int cam_sensor_subdev_close_internal(struct v4l2_subdev *sd,
 	struct v4l2_subdev_fh *fh)
@@ -136,26 +147,58 @@ static int cam_sensor_init_subdev_params(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int rc = 0;
 
-	s_ctrl->v4l2_dev_str.internal_ops =
-		&cam_sensor_internal_ops;
-	s_ctrl->v4l2_dev_str.ops =
-		&cam_sensor_subdev_ops;
-	strlcpy(s_ctrl->device_name, CAMX_SENSOR_DEV_NAME,
-		sizeof(s_ctrl->device_name));
-	s_ctrl->v4l2_dev_str.name =
-		s_ctrl->device_name;
-	s_ctrl->v4l2_dev_str.sd_flags =
-		(V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS);
-	s_ctrl->v4l2_dev_str.ent_function =
-		CAM_SENSOR_DEVICE_TYPE;
+	s_ctrl->v4l2_dev_str.internal_ops = &cam_sensor_internal_ops;
+	s_ctrl->v4l2_dev_str.ops = &cam_sensor_subdev_ops;
+	strscpy(s_ctrl->device_name, CAMX_SENSOR_DEV_NAME, CAM_CTX_DEV_NAME_MAX_LENGTH);
+	s_ctrl->v4l2_dev_str.name = s_ctrl->device_name;
+	s_ctrl->v4l2_dev_str.sd_flags = (V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS);
+	s_ctrl->v4l2_dev_str.ent_function = CAM_SENSOR_DEVICE_TYPE;
 	s_ctrl->v4l2_dev_str.token = s_ctrl;
-	s_ctrl->v4l2_dev_str.close_seq_prior =
-		CAM_SD_CLOSE_MEDIUM_LOW_PRIORITY;
+	s_ctrl->v4l2_dev_str.close_seq_prior = CAM_SD_CLOSE_MEDIUM_LOW_PRIORITY;
 
 	rc = cam_register_subdev(&(s_ctrl->v4l2_dev_str));
 	if (rc)
 		CAM_ERR(CAM_SENSOR, "Fail with cam_register_subdev rc: %d", rc);
 
+	return rc;
+}
+
+static int cam_sensor_i3c_driver_probe(struct i3c_device *client)
+{
+	int32_t rc = 0;
+	struct cam_sensor_ctrl_t       *s_ctrl = NULL;
+	uint32_t                        index;
+	struct device                  *dev;
+
+	dev = i3cdev_to_dev(client);
+
+	CAM_DBG(CAM_SENSOR, "Probe for I3C Slave %s", dev_name(dev));
+
+	rc = of_property_read_u32(dev->of_node, "cell-index", &index);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "device %s failed to read cell-index", dev_name(dev));
+		return rc;
+	}
+
+	if (index >= MAX_CAMERAS) {
+		CAM_ERR(CAM_SENSOR, "Invalid Cell-Index: %u for %s", index, dev_name(dev));
+		return -EINVAL;
+	}
+
+	s_ctrl = g_i3c_sensor_data[index].s_ctrl;
+	if (!s_ctrl) {
+		CAM_ERR(CAM_SENSOR, "S_ctrl is null. I3C Probe before platfom driver probe for %s",
+			dev_name(dev));
+		return -EINVAL;
+	}
+
+	i3cdev_set_drvdata(client, s_ctrl);
+
+	s_ctrl->io_master_info.i3c_client = client;
+
+	complete_all(&g_i3c_sensor_data[index].probe_complete);
+
+	CAM_DBG(CAM_SENSOR, "I3C Probe Finished for %s", dev_name(dev));
 	return rc;
 }
 
@@ -358,6 +401,8 @@ static int cam_sensor_component_bind(struct device *dev,
 		goto free_s_ctrl;
 	}
 
+	CAM_DBG(CAM_SENSOR, "Master Type: %u", s_ctrl->io_master_info.master_type);
+
 	/* Fill platform device id*/
 	pdev->id = soc_info->index;
 
@@ -406,7 +451,10 @@ static int cam_sensor_component_bind(struct device *dev,
 	s_ctrl->sensordata->power_info.dev = &pdev->dev;
 	platform_set_drvdata(pdev, s_ctrl);
 	s_ctrl->sensor_state = CAM_SENSOR_INIT;
-	CAM_DBG(CAM_SENSOR, "Component bound successfully");
+	CAM_DBG(CAM_SENSOR, "Component bound successfully for %s", pdev->name);
+
+	g_i3c_sensor_data[soc_info->index].s_ctrl = s_ctrl;
+	init_completion(&g_i3c_sensor_data[soc_info->index].probe_complete);
 
 	return rc;
 
@@ -464,21 +512,20 @@ static const struct of_device_id cam_sensor_driver_dt_match[] = {
 	{.compatible = "qcom,cam-sensor"},
 	{}
 };
+MODULE_DEVICE_TABLE(of, cam_sensor_driver_dt_match);
 
 static int32_t cam_sensor_driver_platform_probe(
 	struct platform_device *pdev)
 {
 	int rc = 0;
 
-	CAM_DBG(CAM_SENSOR, "Adding Sensor component");
+	CAM_DBG(CAM_SENSOR, "Adding Sensor component for %s", pdev->name);
 	rc = component_add(&pdev->dev, &cam_sensor_component_ops);
 	if (rc)
 		CAM_ERR(CAM_SENSOR, "failed to add component rc: %d", rc);
 
 	return rc;
 }
-
-MODULE_DEVICE_TABLE(of, cam_sensor_driver_dt_match);
 
 struct platform_driver cam_sensor_platform_driver = {
 	.probe = cam_sensor_driver_platform_probe,
@@ -495,7 +542,6 @@ static const struct of_device_id cam_sensor_i2c_driver_dt_match[] = {
 	{.compatible = "qcom,cam-i2c-sensor"},
 	{}
 };
-
 MODULE_DEVICE_TABLE(of, cam_sensor_i2c_driver_dt_match);
 
 static const struct i2c_device_id i2c_id[] = {
@@ -515,20 +561,110 @@ struct i2c_driver cam_sensor_i2c_driver = {
 	},
 };
 
+static struct i3c_device_id sensor_i3c_id[MAX_I3C_DEVICE_ID_ENTRIES + 1];
+
+static struct i3c_driver cam_sensor_i3c_driver = {
+	.id_table = sensor_i3c_id,
+	.probe = cam_sensor_i3c_driver_probe,
+	.remove = cam_sensor_i3c_driver_remove,
+	.driver = {
+		.owner = THIS_MODULE,
+		.name = SENSOR_DRIVER_I3C,
+		.of_match_table = cam_sensor_driver_dt_match,
+		.suppress_bind_attrs = true,
+	},
+};
+
+static int cam_sensor_fill_i3c_device_id(void)
+{
+	struct device_node                      *dev;
+	int                                      num_entries;
+	int                                      i = 0;
+	uint8_t                                  ent_num = 0;
+	uint32_t                                 mid;
+	uint32_t                                 pid;
+	int                                      rc;
+
+	dev = of_find_node_by_path(I3C_SENSOR_DEV_ID_DT_PATH);
+	if (!dev) {
+		CAM_WARN(CAM_SENSOR, "Couldnt Find the i3c-id-table dev node");
+		return 0;
+	}
+
+	num_entries = of_property_count_u32_elems(dev, "i3c-sensor-id-table");
+	if (num_entries <= 0) {
+		CAM_WARN(CAM_SENSOR, "Failed while reading the property. num_entries:%d",
+			num_entries);
+		return 0;
+	}
+
+	while (i < num_entries) {
+		if (ent_num >= MAX_I3C_DEVICE_ID_ENTRIES) {
+			CAM_WARN(CAM_SENSOR, "Num_entries are more than MAX_I3C_DEVICE_ID_ENTRIES");
+			return -ENOMEM;
+		}
+
+		rc = of_property_read_u32_index(dev, "i3c-sensor-id-table", i, &mid);
+		if (rc) {
+			CAM_ERR(CAM_SENSOR, "Failed in reading the MID. rc: %d", rc);
+			return rc;
+		}
+		i++;
+
+		rc = of_property_read_u32_index(dev, "i3c-sensor-id-table", i, &pid);
+		if (rc) {
+			CAM_ERR(CAM_SENSOR, "Failed in reading the PID. rc: %d", rc);
+			return rc;
+		}
+		i++;
+
+		CAM_DBG(CAM_SENSOR, "PID: 0x%x, MID: 0x%x", pid, mid);
+
+		sensor_i3c_id[ent_num].manuf_id = mid;
+		sensor_i3c_id[ent_num].match_flags = I3C_MATCH_MANUF_AND_PART;
+		sensor_i3c_id[ent_num].part_id  = pid;
+		sensor_i3c_id[ent_num].data     = 0;
+
+		ent_num++;
+	}
+
+	return 0;
+}
+
 int cam_sensor_driver_init(void)
 {
-	int32_t rc = 0;
+	int rc;
 
 	rc = platform_driver_register(&cam_sensor_platform_driver);
 	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "platform_driver_register Failed: rc = %d",
-			rc);
+		CAM_ERR(CAM_SENSOR, "platform_driver_register Failed: rc = %d", rc);
 		return rc;
 	}
 
 	rc = i2c_add_driver(&cam_sensor_i2c_driver);
-	if (rc)
+	if (rc) {
 		CAM_ERR(CAM_SENSOR, "i2c_add_driver failed rc = %d", rc);
+		goto i2c_register_err;
+	}
+
+	memset(sensor_i3c_id, 0, sizeof(struct i3c_device_id) * (MAX_I3C_DEVICE_ID_ENTRIES + 1));
+
+	rc = cam_sensor_fill_i3c_device_id();
+	if (rc)
+		goto i3c_register_err;
+
+	rc = i3c_driver_register_with_owner(&cam_sensor_i3c_driver, THIS_MODULE);
+	if (rc) {
+		CAM_ERR(CAM_SENSOR, "i3c_driver registration failed, rc: %d", rc);
+		goto i3c_register_err;
+	}
+
+	return 0;
+
+i3c_register_err:
+	i2c_del_driver(&cam_sensor_i2c_driver);
+i2c_register_err:
+	platform_driver_unregister(&cam_sensor_platform_driver);
 
 	return rc;
 }
@@ -537,6 +673,7 @@ void cam_sensor_driver_exit(void)
 {
 	platform_driver_unregister(&cam_sensor_platform_driver);
 	i2c_del_driver(&cam_sensor_i2c_driver);
+	i3c_driver_unregister(&cam_sensor_i3c_driver);
 }
 
 MODULE_DESCRIPTION("cam_sensor_driver");

@@ -13,6 +13,7 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+extern struct completion *cam_sensor_get_i3c_completion(uint32_t index);
 
 static int cam_sensor_update_req_mgr(
 	struct cam_sensor_ctrl_t *s_ctrl,
@@ -790,7 +791,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	struct cam_sensor_power_ctrl_t *power_info =
 		&s_ctrl->sensordata->power_info;
 	struct timespec64 ts;
+	struct completion *i3c_probe_completion;
 	uint64_t ms, sec, min, hrs;
+	long time_left;
 
 	if (!s_ctrl || !arg) {
 		CAM_ERR(CAM_SENSOR, "s_ctrl is NULL");
@@ -879,6 +882,21 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				goto free_power_settings;
 			}
 		}
+
+		if (s_ctrl->io_master_info.master_type == I3C_MASTER) {
+			i3c_probe_completion =
+				cam_sensor_get_i3c_completion(s_ctrl->soc_info.index);
+
+			time_left = cam_common_wait_for_completion_timeout(
+					i3c_probe_completion,
+					msecs_to_jiffies(CAM_SENSOR_I3C_PROBE_TIMEOUT_MS));
+			if (!time_left) {
+				CAM_ERR(CAM_SENSOR, "Wait for I3C probe timedout for %s",
+					s_ctrl->sensor_name);
+				return -ETIMEDOUT;
+			}
+		}
+
 		/* Match sensor ID */
 		rc = cam_sensor_match_id(s_ctrl);
 		if (rc < 0) {

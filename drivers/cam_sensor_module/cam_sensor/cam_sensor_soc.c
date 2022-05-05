@@ -110,14 +110,19 @@ static int32_t cam_sensor_init_bus_params(struct cam_sensor_ctrl_t *s_ctrl)
 	if (s_ctrl->io_master_info.master_type == CCI_MASTER) {
 		s_ctrl->io_master_info.cci_client = kzalloc(sizeof(
 			struct cam_sensor_cci_client), GFP_KERNEL);
-		if (!(s_ctrl->io_master_info.cci_client))
+		if (!(s_ctrl->io_master_info.cci_client)) {
+			CAM_ERR(CAM_SENSOR, "Memory allocation failed");
 			return -ENOMEM;
+		}
 	} else if (s_ctrl->io_master_info.master_type == I2C_MASTER) {
 		if (!(s_ctrl->io_master_info.client))
 			return -EINVAL;
+	} else if (s_ctrl->io_master_info.master_type == I3C_MASTER) {
+		CAM_DBG(CAM_SENSOR, "I3C Master Type");
 	} else {
 		CAM_ERR(CAM_SENSOR,
-			"Invalid master / Master type Not supported");
+			"Invalid master / Master type Not supported : %d",
+				s_ctrl->io_master_info.master_type);
 		return -EINVAL;
 	}
 
@@ -159,6 +164,13 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "Failed invalid cell_id %d", s_ctrl->id);
 		rc = -EINVAL;
 		goto FREE_SENSOR_DATA;
+	}
+
+	rc = of_property_read_bool(of_node, "i3c-target");
+	if (rc) {
+		CAM_INFO(CAM_SENSOR, "I3C Target");
+		s_ctrl->is_i3c_device = true;
+		s_ctrl->io_master_info.master_type = I3C_MASTER;
 	}
 
 	/* Store the index of BoB regulator if it is available */

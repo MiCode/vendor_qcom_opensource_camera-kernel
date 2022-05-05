@@ -58,9 +58,11 @@ void cam_smmu_util_iommu_custom(struct device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 int cam_req_mgr_ordered_list_cmp(void *priv,
 	const struct list_head *head_1, const struct list_head *head_2);
+void cam_sensor_i3c_driver_remove(struct i3c_device *client);
 #else
 int cam_req_mgr_ordered_list_cmp(void *priv,
 	struct list_head *head_1, struct list_head *head_2);
+int cam_sensor_i3c_driver_remove(struct i3c_device *client);
 #endif
 
 #endif /* _CAM_COMPAT_H_ */

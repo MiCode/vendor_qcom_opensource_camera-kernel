@@ -8,6 +8,7 @@
 #define _CAM_SENSOR_CMN_HEADER_
 
 #include <linux/i2c.h>
+#include <linux/i3c/master.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -19,10 +20,12 @@
 #include <media/cam_sensor.h>
 #include <media/cam_req_mgr.h>
 
-#define MAX_POWER_CONFIG    12
-
-#define MAX_PER_FRAME_ARRAY 32
-#define BATCH_SIZE_MAX      16
+#define MAX_POWER_CONFIG                       12
+#define MAX_PER_FRAME_ARRAY                    32
+#define BATCH_SIZE_MAX                         16
+#define CAM_SENSOR_I3C_PROBE_TIMEOUT_MS        10
+#define I3C_SENSOR_DEV_ID_DT_PATH              "/soc/qcom,cam-i3c-id-table"
+#define MAX_I3C_DEVICE_ID_ENTRIES              MAX_CAMERAS
 
 #define CAM_SENSOR_NAME    "cam-sensor"
 #define CAM_ACTUATOR_NAME  "cam-actuator"

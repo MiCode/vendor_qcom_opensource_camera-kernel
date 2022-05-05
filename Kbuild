@@ -231,6 +231,7 @@ camera-$(CONFIG_SPECTRA_SENSOR) += \
 	drivers/cam_sensor_module/cam_sensor_io/cam_sensor_io.o \
 	drivers/cam_sensor_module/cam_sensor_io/cam_sensor_cci_i2c.o \
 	drivers/cam_sensor_module/cam_sensor_io/cam_sensor_qup_i2c.o \
+	drivers/cam_sensor_module/cam_sensor_io/cam_sensor_qup_i3c.o \
 	drivers/cam_sensor_module/cam_sensor_io/cam_sensor_spi.o \
 	drivers/cam_sensor_module/cam_sensor_utils/cam_sensor_util.o \
 	drivers/cam_sensor_module/cam_res_mgr/cam_res_mgr.o \

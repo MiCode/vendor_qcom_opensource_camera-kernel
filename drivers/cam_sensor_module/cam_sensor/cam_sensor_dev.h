@@ -28,16 +28,9 @@
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
-
-#undef CDBG
-#ifdef CAM_SENSOR_DEBUG
-#define CDBG(fmt, args...) pr_err(fmt, ##args)
-#else
-#define CDBG(fmt, args...) pr_debug(fmt, ##args)
-#endif
-
-#define SENSOR_DRIVER_I2C "cam-i2c-sensor"
-#define CAMX_SENSOR_DEV_NAME "cam-sensor-driver"
+#define SENSOR_DRIVER_I2C                          "cam-i2c-sensor"
+#define CAMX_SENSOR_DEV_NAME                       "cam-sensor-driver"
+#define SENSOR_DRIVER_I3C                          "i3c_camera_sensor"
 
 enum cam_sensor_state_t {
 	CAM_SENSOR_INIT,
@@ -73,6 +66,7 @@ struct sensor_intf_params {
  * @sensor_state: Sensor states
  * @is_probe_succeed: Probe succeeded or not
  * @id: Cell Index
+ * @is_i3c_device: A Flag to indicate whether this sensor is an I3C Device.
  * @of_node: Of node ptr
  * @v4l2_dev_str: V4L2 device structure
  * @sensor_probe_addr_type: Sensor probe address type
@@ -90,8 +84,7 @@ struct sensor_intf_params {
  * @aon_camera_id: AON Camera ID associated with this sensor
  */
 struct cam_sensor_ctrl_t {
-	char                           device_name[
-		CAM_CTX_DEV_NAME_MAX_LENGTH];
+	char                           device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
 	struct platform_device        *pdev;
 	struct cam_hw_soc_info         soc_info;
 	struct mutex                   cam_sensor_mutex;
@@ -102,6 +95,7 @@ struct cam_sensor_ctrl_t {
 	enum cam_sensor_state_t        sensor_state;
 	uint8_t                        is_probe_succeed;
 	uint32_t                       id;
+	bool                           is_i3c_device;
 	struct device_node            *of_node;
 	struct cam_subdev              v4l2_dev_str;
 	uint8_t                        sensor_probe_addr_type;

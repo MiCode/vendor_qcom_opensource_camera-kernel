@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _CAM_OIS_DEV_H_
 #define _CAM_OIS_DEV_H_
@@ -93,6 +94,7 @@ struct cam_ois_intf_params {
  * @io_master_info  :   Information about the communication master
  * @cci_i2c_master  :   I2C structure
  * @v4l2_dev_str    :   V4L2 device structure
+ * @is_i3c_device   :   A Flag to indicate whether this OIS is I3C Device or not.
  * @bridge_intf     :   bridge interface params
  * @i2c_fwinit_data :   ois i2c firmware init settings
  * @i2c_init_data   :   ois i2c init settings
@@ -116,6 +118,7 @@ struct cam_ois_ctrl_t {
 	enum cci_i2c_master_t cci_i2c_master;
 	enum cci_device_num cci_num;
 	struct cam_subdev v4l2_dev_str;
+	bool is_i3c_device;
 	struct cam_ois_intf_params bridge_intf;
 	struct i2c_settings_array i2c_fwinit_data;
 	struct i2c_settings_array i2c_init_data;
