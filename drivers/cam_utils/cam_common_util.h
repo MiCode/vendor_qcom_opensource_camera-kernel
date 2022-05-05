@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_COMMON_UTIL_H_
@@ -29,6 +30,8 @@
 
 #define PTR_TO_U64(ptr) ((uint64_t)(uintptr_t)ptr)
 #define U64_TO_PTR(ptr) ((void *)(uintptr_t)ptr)
+
+#define CAM_TRIGGER_PANIC(format, args...) panic("CAMERA - " format "\n", ##args)
 
 #define CAM_GET_TIMESTAMP(timestamp) ktime_get_real_ts64(&(timestamp))
 #define CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, diff_microsec)         \
