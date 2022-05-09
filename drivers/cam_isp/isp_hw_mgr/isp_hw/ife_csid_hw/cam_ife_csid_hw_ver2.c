@@ -3429,7 +3429,7 @@ static int cam_ife_csid_ver2_program_rdi_path(
 	}
 
 	res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
-
+	path_cfg->irq_reg_idx =  cam_ife_csid_convert_res_to_irq_reg(res->res_id);
 	if (path_cfg->discard_init_frames) {
 		rc = cam_ife_csid_ver2_subscribe_sof_for_discard(
 			path_cfg, csid_hw, res,
