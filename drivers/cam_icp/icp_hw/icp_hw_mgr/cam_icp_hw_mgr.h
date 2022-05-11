@@ -442,6 +442,7 @@ struct cam_icp_hw_mgr {
 	bool bps_clk_state;
 	bool disable_ubwc_comp;
 	atomic_t recovery;
+	uint64_t icp_svs_clk;
 };
 
 /**

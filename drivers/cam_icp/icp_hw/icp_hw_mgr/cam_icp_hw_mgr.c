@@ -169,13 +169,13 @@ static void cam_icp_hw_mgr_reset_clk_info(struct cam_icp_hw_mgr *hw_mgr)
 
 	for (i = 0; i < ICP_CLK_HW_MAX; i++) {
 		hw_mgr->clk_info[i].base_clk = 0;
-		hw_mgr->clk_info[i].curr_clk = ICP_CLK_SVS_HZ;
+		hw_mgr->clk_info[i].curr_clk = hw_mgr->icp_svs_clk;
 		hw_mgr->clk_info[i].threshold = ICP_OVER_CLK_THRESHOLD;
 		hw_mgr->clk_info[i].over_clked = 0;
 		hw_mgr->clk_info[i].uncompressed_bw = CAM_CPAS_DEFAULT_AXI_BW;
 		hw_mgr->clk_info[i].compressed_bw = CAM_CPAS_DEFAULT_AXI_BW;
 	}
-	hw_mgr->icp_default_clk = ICP_CLK_SVS_HZ;
+	hw_mgr->icp_default_clk = hw_mgr->icp_svs_clk;
 }
 
 static int cam_icp_get_actual_clk_rate_idx(
@@ -786,14 +786,39 @@ static void cam_icp_device_timer_cb(struct timer_list *timer_data)
 	spin_unlock_irqrestore(&icp_hw_mgr.hw_mgr_lock, flags);
 }
 
+static int cam_icp_get_svs_clk_info(struct cam_icp_hw_mgr *hw_mgr)
+{
+	int32_t src_clk_idx;
+	struct cam_hw_soc_info *soc_info;
+	struct cam_hw_intf *dev_intf = NULL;
+	struct cam_hw_info *dev = NULL;
+
+	dev_intf = hw_mgr->ipe0_dev_intf;
+	if (!dev_intf) {
+		CAM_ERR(CAM_ICP, "dev_intf is invalid");
+		return -EINVAL;
+	}
+
+	dev = (struct cam_hw_info *)dev_intf->hw_priv;
+	soc_info = &dev->soc_info;
+	src_clk_idx = soc_info->src_clk_idx;
+	hw_mgr->icp_svs_clk = soc_info->clk_rate[CAM_SVS_VOTE][src_clk_idx];
+
+	if (hw_mgr->icp_svs_clk <= 0)
+		hw_mgr->icp_svs_clk = ICP_CLK_SVS_HZ;
+
+	CAM_DBG(CAM_PERF, "icp_svs_clk = %lld", hw_mgr->icp_svs_clk);
+	return 0;
+}
+
 static int cam_icp_clk_info_init(struct cam_icp_hw_mgr *hw_mgr,
 	struct cam_icp_hw_ctx_data *ctx_data)
 {
 	int i, j;
 
 	for (i = 0; i < ICP_CLK_HW_MAX; i++) {
-		hw_mgr->clk_info[i].base_clk = ICP_CLK_SVS_HZ;
-		hw_mgr->clk_info[i].curr_clk = ICP_CLK_SVS_HZ;
+		hw_mgr->clk_info[i].base_clk = hw_mgr->icp_svs_clk;
+		hw_mgr->clk_info[i].curr_clk = hw_mgr->icp_svs_clk;
 		hw_mgr->clk_info[i].threshold = ICP_OVER_CLK_THRESHOLD;
 		hw_mgr->clk_info[i].over_clked = 0;
 		hw_mgr->clk_info[i].uncompressed_bw = CAM_CPAS_DEFAULT_AXI_BW;
@@ -810,7 +835,7 @@ static int cam_icp_clk_info_init(struct cam_icp_hw_mgr *hw_mgr,
 		hw_mgr->clk_info[i].watch_dog_reset_counter = 0;
 	}
 
-	hw_mgr->icp_default_clk = ICP_CLK_SVS_HZ;
+	hw_mgr->icp_default_clk = hw_mgr->icp_svs_clk;
 
 	return 0;
 }
@@ -6999,6 +7024,10 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 		cam_icp_hw_mgr_mini_dump_cb, "cam_icp");
 
 	cam_icp_test_irq_line_at_probe();
+
+	rc = cam_icp_get_svs_clk_info(&icp_hw_mgr);
+	if (rc)
+		goto icp_wq_create_failed;
 
 	return rc;
 
