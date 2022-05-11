@@ -444,15 +444,15 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		}
 		break;
 
-	case CAM_REQ_MGR_SCHED_REQ: {
-		struct cam_req_mgr_sched_request sched_req;
+	case CAM_REQ_MGR_SCHED_REQ_V2: {
+		struct cam_req_mgr_sched_request_v2 sched_req;
 
 		if (k_ioctl->size != sizeof(sched_req))
 			return -EINVAL;
 
 		if (copy_from_user(&sched_req,
 			u64_to_user_ptr(k_ioctl->handle),
-			sizeof(struct cam_req_mgr_sched_request))) {
+			sizeof(struct cam_req_mgr_sched_request_v2))) {
 			return -EFAULT;
 		}
 
@@ -476,21 +476,6 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		}
 		break;
 
-	case CAM_REQ_MGR_SYNC_MODE: {
-		struct cam_req_mgr_sync_mode sync_info;
-
-		if (k_ioctl->size != sizeof(sync_info))
-			return -EINVAL;
-
-		if (copy_from_user(&sync_info,
-			u64_to_user_ptr(k_ioctl->handle),
-			sizeof(struct cam_req_mgr_sync_mode))) {
-			return -EFAULT;
-		}
-
-		rc = cam_req_mgr_sync_config(&sync_info);
-		}
-		break;
 	case CAM_REQ_MGR_ALLOC_BUF: {
 		struct cam_mem_mgr_alloc_cmd cmd;
 		struct cam_mem_mgr_alloc_cmd_v2 cmd_v2 = {0};
@@ -694,8 +679,15 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		rc = cam_req_mgr_link_properties(&cmd);
 		}
 		break;
+	/* Deprecated Opcodes */
+	case CAM_REQ_MGR_SCHED_REQ:
+	case CAM_REQ_MGR_SYNC_MODE:
+		rc = -EBADRQC;
+		CAM_ERR(CAM_CRM, "Unsupported Opcode: %d", k_ioctl->op_code);
+		break;
 	default:
-		return -ENOIOCTLCMD;
+		CAM_ERR(CAM_CRM, "Invalid Opcode %d", k_ioctl->op_code);
+		rc = -ENOIOCTLCMD;
 	}
 
 	return rc;
