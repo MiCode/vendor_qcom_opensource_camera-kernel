@@ -478,6 +478,7 @@ static int cam_icp_v2_non_sec_boot(
 	uint32_t arg_size)
 {
 	int rc;
+	struct cam_icp_soc_info *soc_priv;
 
 	if (!icp_v2_info || !args) {
 		CAM_ERR(CAM_ICP,
@@ -491,8 +492,10 @@ static int cam_icp_v2_non_sec_boot(
 		return -EINVAL;
 	}
 
-	if (icp_v2_info->soc_info.num_mem_block != ICP_V2_BASE_MAX) {
-		CAM_ERR(CAM_ICP, "check ICP SYS reg config in DT..");
+	soc_priv = (struct cam_icp_soc_info *)icp_v2_info->soc_info.soc_private;
+	if (icp_v2_info->soc_info.num_mem_block > ICP_V2_BASE_MAX) {
+		CAM_ERR(CAM_ICP, "check reg config in DT v 0x%x n %d",
+			soc_priv->hw_version, icp_v2_info->soc_info.num_mem_block);
 		return -EINVAL;
 	}
 
