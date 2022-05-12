@@ -12,6 +12,7 @@ static int cam_qup_i3c_rxdata(struct i3c_device *dev_client, unsigned char *rxda
 	enum camera_sensor_i2c_type addr_type, int data_length)
 {
 	int rc;
+	uint32_t us = 0;
 	struct i3c_priv_xfer read_buf[2] = {
 		{
 			.rnw = 0,
@@ -26,7 +27,18 @@ static int cam_qup_i3c_rxdata(struct i3c_device *dev_client, unsigned char *rxda
 	};
 
 	rc = i3c_device_do_priv_xfers(dev_client, read_buf, ARRAY_SIZE(read_buf));
-	if (rc)
+	if (rc == -ENOTCONN) {
+		while (us < CAM_I3C_DEV_PROBE_TIMEOUT_US) {
+			usleep_range(1000, 1005);
+			rc = i3c_device_do_priv_xfers(dev_client, read_buf, ARRAY_SIZE(read_buf));
+			if (rc != -ENOTCONN)
+				break;
+			us += 1000;
+		}
+
+		if (rc)
+			CAM_ERR(CAM_SENSOR, "Retry Failed i3c_read: rc = %d, us = %d", rc, us);
+	} else if (rc)
 		CAM_ERR(CAM_SENSOR, "Failed with i3c_read: rc = %d", rc);
 
 	return rc;
@@ -37,6 +49,7 @@ static int cam_qup_i3c_txdata(struct camera_io_master *dev_client, unsigned char
 	int length)
 {
 	int rc;
+	uint32_t us = 0;
 	struct i3c_priv_xfer write_buf = {
 		.rnw = 0,
 		.len = length,
@@ -44,7 +57,18 @@ static int cam_qup_i3c_txdata(struct camera_io_master *dev_client, unsigned char
 	};
 
 	rc = i3c_device_do_priv_xfers(dev_client->i3c_client, &write_buf, 1);
-	if (rc)
+	if (rc == -ENOTCONN) {
+		while (us < CAM_I3C_DEV_PROBE_TIMEOUT_US) {
+			usleep_range(1000, 1005);
+			rc = i3c_device_do_priv_xfers(dev_client->i3c_client, &write_buf, 1);
+			if (rc != -ENOTCONN)
+				break;
+			us += 1000;
+		}
+
+		if (rc)
+			CAM_ERR(CAM_SENSOR, "Retry Failed i3c_write: rc = %d, us = %d", rc, us);
+	} else if (rc)
 		CAM_ERR(CAM_SENSOR, "Failed with i3c_write: rc = %d", rc);
 
 	return rc;

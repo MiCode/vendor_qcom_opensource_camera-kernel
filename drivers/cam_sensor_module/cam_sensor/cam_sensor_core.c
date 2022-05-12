@@ -866,9 +866,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	struct cam_sensor_power_ctrl_t *power_info =
 		&s_ctrl->sensordata->power_info;
 	struct timespec64 ts;
-	struct completion *i3c_probe_completion;
 	uint64_t ms, sec, min, hrs;
-	long time_left;
 
 	if (!s_ctrl || !arg) {
 		CAM_ERR(CAM_SENSOR, "s_ctrl is NULL");
@@ -943,6 +941,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				);
 			goto free_power_settings;
 		}
+
 		if (s_ctrl->i2c_data.reg_bank_unlock_settings.is_settings_valid) {
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
 				CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_UNLOCK);
@@ -955,20 +954,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				CAM_ERR(CAM_SENSOR,
 					"failed while deleting REG_bank unlock settings");
 				goto free_power_settings;
-			}
-		}
-
-		if (s_ctrl->io_master_info.master_type == I3C_MASTER) {
-			i3c_probe_completion =
-				cam_sensor_get_i3c_completion(s_ctrl->soc_info.index);
-
-			time_left = cam_common_wait_for_completion_timeout(
-					i3c_probe_completion,
-					msecs_to_jiffies(CAM_SENSOR_I3C_PROBE_TIMEOUT_MS));
-			if (!time_left) {
-				CAM_ERR(CAM_SENSOR, "Wait for I3C probe timedout for %s",
-					s_ctrl->sensor_name);
-				return -ETIMEDOUT;
 			}
 		}
 
@@ -1428,9 +1413,9 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int rc;
 	struct cam_sensor_power_ctrl_t *power_info;
-	struct cam_camera_slave_info *slave_info;
-	struct cam_hw_soc_info *soc_info =
-		&s_ctrl->soc_info;
+	struct cam_camera_slave_info   *slave_info;
+	struct cam_hw_soc_info         *soc_info = &s_ctrl->soc_info;
+	struct completion              *i3c_probe_completion = NULL;
 
 	if (!s_ctrl) {
 		CAM_ERR(CAM_SENSOR, "failed: %pK", s_ctrl);
@@ -1469,7 +1454,10 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		}
 	}
 
-	rc = cam_sensor_core_power_up(power_info, soc_info);
+	if (s_ctrl->io_master_info.master_type == I3C_MASTER)
+		i3c_probe_completion = cam_sensor_get_i3c_completion(s_ctrl->soc_info.index);
+
+	rc = cam_sensor_core_power_up(power_info, soc_info, i3c_probe_completion);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "core power up failed:%d", rc);
 		return rc;

@@ -27,23 +27,13 @@
 	static struct mutex mutexname = __MUTEX_INITIALIZER(mutexname)
 
 #define OIS_DRIVER_I2C "cam-i2c-ois"
+#define OIS_DRIVER_I3C "i3c_camera_ois"
 
 enum cam_ois_state {
 	CAM_OIS_INIT,
 	CAM_OIS_ACQUIRE,
 	CAM_OIS_CONFIG,
 	CAM_OIS_START,
-};
-
-/**
- * struct cam_ois_registered_driver_t - registered driver info
- * @platform_driver      :   flag indicates if platform driver is registered
- * @i2c_driver           :   flag indicates if i2c driver is registered
- *
- */
-struct cam_ois_registered_driver_t {
-	bool platform_driver;
-	bool i2c_driver;
 };
 
 /**

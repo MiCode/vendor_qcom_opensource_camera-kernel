@@ -31,8 +31,10 @@
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
 
-#define ACTUATOR_DRIVER_I2C "cam-i2c-actuator"
-#define CAMX_ACTUATOR_DEV_NAME "cam-actuator-driver"
+#define ACTUATOR_DRIVER_I2C                    "cam-i2c-actuator"
+#define CAMX_ACTUATOR_DEV_NAME                 "cam-actuator-driver"
+#define ACTUATOR_DRIVER_I3C                    "i3c_camera_actuator"
+
 
 #define MSM_ACTUATOR_MAX_VREGS (10)
 #define ACTUATOR_MAX_POLL_COUNT 10

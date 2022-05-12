@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ACTUATOR_CORE_H_
@@ -62,5 +63,7 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl, void *arg);
  * This API handles the shutdown ioctl/close
  */
 void cam_actuator_shutdown(struct cam_actuator_ctrl_t *a_ctrl);
+
+struct completion *cam_actuator_get_i3c_completion(uint32_t index);
 
 #endif /* _CAM_ACTUATOR_CORE_H_ */

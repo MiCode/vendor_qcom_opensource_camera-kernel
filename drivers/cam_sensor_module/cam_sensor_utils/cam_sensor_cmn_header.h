@@ -23,7 +23,8 @@
 #define MAX_POWER_CONFIG                       12
 #define MAX_PER_FRAME_ARRAY                    32
 #define BATCH_SIZE_MAX                         16
-#define CAM_SENSOR_I3C_PROBE_TIMEOUT_MS        10
+#define CAM_I3C_DEV_PROBE_TIMEOUT_MS           10
+#define CAM_I3C_DEV_PROBE_TIMEOUT_US          (CAM_I3C_DEV_PROBE_TIMEOUT_MS * 1000)
 #define I3C_SENSOR_DEV_ID_DT_PATH              "/soc/qcom,cam-i3c-id-table"
 #define MAX_I3C_DEVICE_ID_ENTRIES              MAX_CAMERAS
 

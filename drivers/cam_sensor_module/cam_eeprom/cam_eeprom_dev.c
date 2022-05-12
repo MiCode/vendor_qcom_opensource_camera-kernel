@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_eeprom_dev.h"
@@ -9,6 +10,17 @@
 #include "cam_eeprom_core.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
+#include "cam_compat.h"
+
+static struct cam_i3c_eeprom_data {
+	struct cam_eeprom_ctrl_t                  *e_ctrl;
+	struct completion                          probe_complete;
+} g_i3c_eeprom_data[MAX_CAMERAS];
+
+struct completion *cam_eeprom_get_i3c_completion(uint32_t index)
+{
+	return &g_i3c_eeprom_data[index].probe_complete;
+}
 
 static int cam_eeprom_subdev_close_internal(struct v4l2_subdev *sd,
 	struct v4l2_subdev_fh *fh)
@@ -546,6 +558,9 @@ static int cam_eeprom_component_bind(struct device *dev,
 	e_ctrl->cam_eeprom_state = CAM_EEPROM_INIT;
 	CAM_DBG(CAM_EEPROM, "Component bound successfully");
 
+	g_i3c_eeprom_data[e_ctrl->soc_info.index].e_ctrl = e_ctrl;
+	init_completion(&g_i3c_eeprom_data[e_ctrl->soc_info.index].probe_complete);
+
 	return rc;
 free_soc:
 	kfree(soc_private);
@@ -665,6 +680,119 @@ static struct spi_driver cam_eeprom_spi_driver = {
 	.probe = cam_eeprom_spi_driver_probe,
 	.remove = cam_eeprom_spi_driver_remove,
 };
+
+static struct i3c_device_id eeprom_i3c_id[MAX_I3C_DEVICE_ID_ENTRIES + 1];
+
+static int cam_eeprom_i3c_driver_probe(struct i3c_device *client)
+{
+	int32_t rc = 0;
+	struct cam_eeprom_ctrl_t       *e_ctrl = NULL;
+	uint32_t                        index;
+	struct device                  *dev;
+
+	if (!client) {
+		CAM_INFO(CAM_EEPROM, "Null Client pointer");
+		return -EINVAL;
+	}
+
+	dev = &client->dev;
+
+	CAM_DBG(CAM_EEPROM, "Probe for I3C Slave %s", dev_name(dev));
+
+	rc = of_property_read_u32(dev->of_node, "cell-index", &index);
+	if (rc) {
+		CAM_ERR(CAM_EEPROM, "device %s failed to read cell-index", dev_name(dev));
+		return rc;
+	}
+
+	if (index >= MAX_CAMERAS) {
+		CAM_ERR(CAM_EEPROM, "Invalid Cell-Index: %u for %s", index, dev_name(dev));
+		return -EINVAL;
+	}
+
+	e_ctrl = g_i3c_eeprom_data[index].e_ctrl;
+	if (!e_ctrl) {
+		CAM_ERR(CAM_EEPROM, "e_ctrl is null. I3C Probe before platfom driver probe for %s",
+			dev_name(dev));
+		return -EINVAL;
+	}
+
+	e_ctrl->io_master_info.i3c_client = client;
+
+	complete_all(&g_i3c_eeprom_data[index].probe_complete);
+
+	CAM_DBG(CAM_EEPROM, "I3C Probe Finished for %s", dev_name(dev));
+	return rc;
+}
+
+static struct i3c_driver cam_eeprom_i3c_driver = {
+	.id_table = eeprom_i3c_id,
+	.probe = cam_eeprom_i3c_driver_probe,
+	.remove = cam_i3c_driver_remove,
+	.driver = {
+		.owner = THIS_MODULE,
+		.name = EEPROM_DRIVER_I3C,
+		.of_match_table = cam_eeprom_dt_match,
+		.suppress_bind_attrs = true,
+	},
+};
+
+static int cam_eeprom_fill_i3c_device_id(void)
+{
+	struct device_node                      *dev;
+	int                                      num_entries;
+	int                                      i = 0;
+	uint8_t                                  ent_num = 0;
+	uint32_t                                 mid;
+	uint32_t                                 pid;
+	int                                      rc;
+
+	dev = of_find_node_by_path(I3C_SENSOR_DEV_ID_DT_PATH);
+	if (!dev) {
+		CAM_WARN(CAM_EEPROM, "Couldnt Find the i3c-id-table dev node");
+		return 0;
+	}
+
+	num_entries = of_property_count_u32_elems(dev, "i3c-eeprom-id-table");
+	if (num_entries <= 0) {
+		CAM_WARN(CAM_EEPROM, "Failed while reading the property. num_entries:%d",
+			num_entries);
+		return 0;
+	}
+
+	while (i < num_entries) {
+		if (ent_num >= MAX_I3C_DEVICE_ID_ENTRIES) {
+			CAM_WARN(CAM_EEPROM, "Num_entries are more than MAX_I3C_DEVICE_ID_ENTRIES");
+			return -ENOMEM;
+		}
+
+		rc = of_property_read_u32_index(dev, "i3c-eeprom-id-table", i, &mid);
+		if (rc) {
+			CAM_ERR(CAM_EEPROM, "Failed in reading the MID. rc: %d", rc);
+			return rc;
+		}
+		i++;
+
+		rc = of_property_read_u32_index(dev, "i3c-eeprom-id-table", i, &pid);
+		if (rc) {
+			CAM_ERR(CAM_EEPROM, "Failed in reading the PID. rc: %d", rc);
+			return rc;
+		}
+		i++;
+
+		CAM_DBG(CAM_EEPROM, "PID: 0x%x, MID: 0x%x", pid, mid);
+
+		eeprom_i3c_id[ent_num].manuf_id = mid;
+		eeprom_i3c_id[ent_num].match_flags = I3C_MATCH_MANUF_AND_PART;
+		eeprom_i3c_id[ent_num].part_id  = pid;
+		eeprom_i3c_id[ent_num].data     = 0;
+
+		ent_num++;
+	}
+
+	return 0;
+}
+
 int cam_eeprom_driver_init(void)
 {
 	int rc = 0;
@@ -679,14 +807,34 @@ int cam_eeprom_driver_init(void)
 	rc = spi_register_driver(&cam_eeprom_spi_driver);
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "spi_register_driver failed rc = %d", rc);
-		return rc;
+		goto spi_register_err;
 	}
 
 	rc = i2c_add_driver(&cam_eeprom_i2c_driver);
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "i2c_add_driver failed rc = %d", rc);
-		return rc;
+		goto i2c_register_err;
 	}
+
+	memset(eeprom_i3c_id, 0, sizeof(struct i3c_device_id) * (MAX_I3C_DEVICE_ID_ENTRIES + 1));
+
+	rc = cam_eeprom_fill_i3c_device_id();
+	if (rc)
+		goto i3c_register_err;
+
+	rc = i3c_driver_register_with_owner(&cam_eeprom_i3c_driver, THIS_MODULE);
+	if (rc) {
+		CAM_ERR(CAM_EEPROM, "i3c_driver registration failed, rc: %d", rc);
+		goto i3c_register_err;
+	}
+
+	return 0;
+i3c_register_err:
+	i2c_del_driver(&cam_sensor_i2c_driver);
+i2c_register_err:
+	spi_unregister_driver(&cam_eeprom_spi_driver);
+spi_register_err:
+	platform_driver_unregister(&cam_sensor_platform_driver);
 
 	return rc;
 }
@@ -696,6 +844,7 @@ void cam_eeprom_driver_exit(void)
 	platform_driver_unregister(&cam_eeprom_platform_driver);
 	spi_unregister_driver(&cam_eeprom_spi_driver);
 	i2c_del_driver(&cam_eeprom_i2c_driver);
+	i3c_driver_unregister(&cam_eeprom_i3c_driver);
 }
 
 MODULE_DESCRIPTION("CAM EEPROM driver");

@@ -54,10 +54,10 @@ free_power_settings:
 static int32_t cam_actuator_power_up(struct cam_actuator_ctrl_t *a_ctrl)
 {
 	int rc = 0;
-	struct cam_hw_soc_info  *soc_info =
-		&a_ctrl->soc_info;
-	struct cam_actuator_soc_private  *soc_private;
-	struct cam_sensor_power_ctrl_t *power_info;
+	struct cam_hw_soc_info                 *soc_info = &a_ctrl->soc_info;
+	struct cam_actuator_soc_private        *soc_private;
+	struct cam_sensor_power_ctrl_t         *power_info;
+	struct completion                      *i3c_probe_completion = NULL;
 
 	soc_private =
 		(struct cam_actuator_soc_private *)a_ctrl->soc_info.soc_private;
@@ -99,7 +99,10 @@ static int32_t cam_actuator_power_up(struct cam_actuator_ctrl_t *a_ctrl)
 
 	power_info->dev = soc_info->dev;
 
-	rc = cam_sensor_core_power_up(power_info, soc_info);
+	if (a_ctrl->io_master_info.master_type == I3C_MASTER)
+		i3c_probe_completion = cam_actuator_get_i3c_completion(a_ctrl->soc_info.index);
+
+	rc = cam_sensor_core_power_up(power_info, soc_info, i3c_probe_completion);
 	if (rc) {
 		CAM_ERR(CAM_ACTUATOR,
 			"failed in actuator power up rc %d", rc);

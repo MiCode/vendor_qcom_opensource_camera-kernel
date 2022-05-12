@@ -366,7 +366,7 @@ void cam_compat_util_put_dmabuf_va(struct dma_buf *dmabuf, void *vaddr)
 	dma_buf_vunmap(dmabuf, &mapping);
 }
 
-void cam_sensor_i3c_driver_remove(struct i3c_device *client)
+void cam_i3c_driver_remove(struct i3c_device *client)
 {
 	CAM_DBG(CAM_SENSOR, "I3C remove invoked for %s",
 		(client ? dev_name(&client->dev) : "none"));
@@ -411,7 +411,7 @@ void cam_compat_util_put_dmabuf_va(struct dma_buf *dmabuf, void *vaddr)
 	dma_buf_vunmap(dmabuf, vaddr);
 }
 
-int cam_sensor_i3c_driver_remove(struct i3c_device *client)
+int cam_i3c_driver_remove(struct i3c_device *client)
 {
 	CAM_DBG(CAM_SENSOR, "I3C remove invoked for %s",
 		(client ? dev_name(&client->dev) : "none"));
