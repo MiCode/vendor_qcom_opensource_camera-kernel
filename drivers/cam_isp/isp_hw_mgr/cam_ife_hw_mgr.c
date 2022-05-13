@@ -2209,14 +2209,15 @@ static int cam_ife_hw_mgr_acquire_res_sfe_out(
 		case CAM_ISP_HW_SFE_IN_RDI0:
 		case CAM_ISP_HW_SFE_IN_RDI1:
 		case CAM_ISP_HW_SFE_IN_RDI2:
-			/* for sHDR acquire both RDI and PIX ports */
+			/* for FE use-cases  acquire both RDI and PIX ports */
 			rc = cam_ife_hw_mgr_acquire_res_sfe_out_rdi(ife_ctx,
 				sfe_res_iterator, in_port);
 			if (rc)
 				goto err;
 
-			rc = cam_ife_hw_mgr_acquire_res_sfe_out_pix(ife_ctx,
-				sfe_res_iterator, in_port);
+			if (ife_ctx->flags.is_fe_enabled)
+				rc = cam_ife_hw_mgr_acquire_res_sfe_out_pix(ife_ctx,
+					sfe_res_iterator, in_port);
 			break;
 		case CAM_ISP_HW_SFE_IN_RDI3:
 		case CAM_ISP_HW_SFE_IN_RDI4:
