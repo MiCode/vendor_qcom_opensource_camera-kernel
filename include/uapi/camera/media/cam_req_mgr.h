@@ -345,6 +345,7 @@ struct cam_req_mgr_link_properties {
 #define CAM_REQ_MGR_ALLOC_BUF_V2                (CAM_COMMON_OPCODE_MAX + 18)
 #define CAM_REQ_MGR_MAP_BUF_V2                  (CAM_COMMON_OPCODE_MAX + 19)
 #define CAM_REQ_MGR_MEM_CPU_ACCESS_OP           (CAM_COMMON_OPCODE_MAX + 20)
+#define CAM_REQ_MGR_QUERY_CAP                   (CAM_COMMON_OPCODE_MAX + 21)
 
 /* end of cam_req_mgr opcodes */
 
@@ -365,6 +366,7 @@ struct cam_req_mgr_link_properties {
 #define CAM_MEM_FLAG_KMD_DEBUG_FLAG             (1<<14)
 #define CAM_MEM_FLAG_EVA_NOPIXEL                (1<<15)
 #define CAM_MEM_FLAG_HW_AND_CDM_OR_SHARED       (1<<16)
+#define CAM_MEM_FLAG_UBWC_P_HEAP                (1<<17)
 
 
 #define CAM_MEM_MMU_MAX_HANDLE                  16
@@ -424,6 +426,26 @@ struct cam_req_mgr_link_properties {
 #define CAM_MEM_CPU_ACCESS_READ                 BIT(0)
 #define CAM_MEM_CPU_ACCESS_WRITE                BIT(1)
 
+/**
+ * Feature mask returned in query_cap
+ */
+#define CAM_REQ_MGR_MEM_UBWC_P_HEAP_SUPPORTED   BIT(0)
+
+/**
+ * struct cam_req_mgr_query_cap
+ * @version:          Struct version
+ * @feature_mask      Supported features
+ * @num_valid_params: Valid number of params being used
+ * @valid_param_mask: Mask to indicate the field types in params
+ * @params:           Additional params
+ */
+struct cam_req_mgr_query_cap {
+	__u32   version;
+	__u64   feature_mask;
+	__u32   num_valid_params;
+	__u32   valid_param_mask;
+	__s32   params[5];
+};
 
 /**
  * struct cam_mem_alloc_out_params

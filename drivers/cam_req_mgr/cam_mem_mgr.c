@@ -583,6 +583,7 @@ static int cam_mem_mgr_get_dma_heaps(void)
 	tbl.camera_heap = NULL;
 	tbl.camera_uncached_heap = NULL;
 	tbl.secure_display_heap = NULL;
+	tbl.ubwc_p_heap = NULL;
 
 	tbl.system_heap = dma_heap_find("qcom,system");
 	if (IS_ERR_OR_NULL(tbl.system_heap)) {
@@ -611,6 +612,12 @@ static int cam_mem_mgr_get_dma_heaps(void)
 		}
 	}
 
+	tbl.ubwc_p_heap = dma_heap_find("qcom,ubwcp");
+	if (IS_ERR_OR_NULL(tbl.ubwc_p_heap)) {
+		CAM_DBG(CAM_MEM, "qcom ubwcp heap not found, err=%d", PTR_ERR(tbl.ubwc_p_heap));
+		tbl.ubwc_p_heap = NULL;
+	}
+
 	tbl.secure_display_heap = dma_heap_find("qcom,display");
 	if (IS_ERR_OR_NULL(tbl.secure_display_heap)) {
 		rc = PTR_ERR(tbl.secure_display_heap);
@@ -637,15 +644,23 @@ static int cam_mem_mgr_get_dma_heaps(void)
 	}
 
 	CAM_INFO(CAM_MEM,
-		"Heaps : system=%pK, system_uncached=%pK, camera=%pK, camera-uncached=%pK, secure_display=%pK",
+		"Heaps : system=%pK, system_uncached=%pK, camera=%pK, camera-uncached=%pK, secure_display=%pK, ubwc_p_heap=%pK",
 		tbl.system_heap, tbl.system_uncached_heap,
 		tbl.camera_heap, tbl.camera_uncached_heap,
-		tbl.secure_display_heap);
+		tbl.secure_display_heap, tbl.ubwc_p_heap);
 
 	return 0;
 put_heaps:
 	cam_mem_mgr_put_dma_heaps();
 	return rc;
+}
+
+bool cam_mem_mgr_ubwc_p_heap_supported(void)
+{
+	if (tbl.ubwc_p_heap)
+		return true;
+
+	return false;
 }
 
 static int cam_mem_util_get_dma_buf(size_t len,
@@ -715,6 +730,15 @@ static int cam_mem_util_get_dma_buf(size_t len,
 		vmids[num_vmids] = VMID_CP_NON_PIXEL;
 		perms[num_vmids] = PERM_READ | PERM_WRITE;
 		num_vmids++;
+	} else if (cam_flags & CAM_MEM_FLAG_UBWC_P_HEAP) {
+		if (!tbl.ubwc_p_heap) {
+			CAM_ERR(CAM_MEM, "ubwc-p heap is not available, can't allocate");
+			return -EINVAL;
+		}
+
+		heap = tbl.ubwc_p_heap;
+		CAM_DBG(CAM_MEM, "Allocating from ubwc-p heap, size=%d, flags=0x%x",
+			len, cam_flags);
 	} else if (use_cached_heap) {
 		try_heap = tbl.camera_heap;
 		heap = tbl.system_heap;
@@ -793,6 +817,12 @@ end:
 	return rc;
 }
 #else
+
+bool cam_mem_mgr_ubwc_p_heap_supported(void)
+{
+	return false;
+}
+
 static int cam_mem_util_get_dma_buf(size_t len,
 	unsigned int cam_flags,
 	struct dma_buf **buf,
@@ -806,6 +836,11 @@ static int cam_mem_util_get_dma_buf(size_t len,
 
 	if (!buf) {
 		CAM_ERR(CAM_MEM, "Invalid params");
+		return -EINVAL;
+	}
+
+	if (cam_flags & CAM_MEM_FLAG_UBWC_P_HEAP) {
+		CAM_ERR(CAM_MEM, "ubwcp heap not supported");
 		return -EINVAL;
 	}
 
@@ -905,11 +940,25 @@ static int cam_mem_util_check_alloc_flags(struct cam_mem_mgr_alloc_cmd_v2 *cmd)
 
 	if ((cmd->flags & CAM_MEM_FLAG_EVA_NOPIXEL) &&
 		(cmd->flags & CAM_MEM_FLAG_PROTECTED_MODE ||
-		cmd->flags & CAM_MEM_FLAG_KMD_ACCESS)){
+		cmd->flags & CAM_MEM_FLAG_KMD_ACCESS)) {
 		CAM_ERR(CAM_MEM,
 			"Kernel mapping and secure mode not allowed in no pixel mode");
 		return -EINVAL;
 	}
+
+	if (cmd->flags & CAM_MEM_FLAG_UBWC_P_HEAP &&
+		(cmd->flags & CAM_MEM_FLAG_PROTECTED_MODE ||
+		cmd->flags & CAM_MEM_FLAG_EVA_NOPIXEL ||
+		cmd->flags & CAM_MEM_FLAG_KMD_ACCESS ||
+		cmd->flags & CAM_MEM_FLAG_CMD_BUF_TYPE ||
+		cmd->flags & CAM_MEM_FLAG_HW_SHARED_ACCESS ||
+		cmd->flags & CAM_MEM_FLAG_HW_AND_CDM_OR_SHARED)) {
+		CAM_ERR(CAM_MEM,
+			"UBWC-P buffer not supported with this combinatation of flags 0x%x",
+			cmd->flags);
+		return -EINVAL;
+	}
+
 	return 0;
 }
 

@@ -333,7 +333,7 @@ static int cam_unsubscribe_event(struct v4l2_fh *fh,
 static long cam_private_ioctl(struct file *file, void *fh,
 	bool valid_prio, unsigned int cmd, void *arg)
 {
-	int rc;
+	int rc = 0;
 	struct cam_control *k_ioctl;
 
 	if ((!arg) || (cmd != VIDIOC_CAM_CONTROL))
@@ -700,6 +700,30 @@ static long cam_private_ioctl(struct file *file, void *fh,
 	case CAM_REQ_MGR_SYNC_MODE:
 		rc = -EBADRQC;
 		CAM_ERR(CAM_CRM, "Unsupported Opcode: %d", k_ioctl->op_code);
+		break;
+	case CAM_REQ_MGR_QUERY_CAP: {
+		struct cam_req_mgr_query_cap cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_req_mgr_query_cap))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		cmd.feature_mask = 0;
+
+		if (cam_mem_mgr_ubwc_p_heap_supported())
+			cmd.feature_mask |= CAM_REQ_MGR_MEM_UBWC_P_HEAP_SUPPORTED;
+
+		if (copy_to_user(
+			u64_to_user_ptr(k_ioctl->handle),
+			&cmd, sizeof(struct cam_req_mgr_query_cap)))
+			rc = -EFAULT;
+		}
 		break;
 	default:
 		CAM_ERR(CAM_CRM, "Invalid Opcode %d", k_ioctl->op_code);
