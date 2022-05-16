@@ -1352,6 +1352,7 @@ static int cam_sfe_bus_rd_config_rm(void *priv, void *cmd_args,
 	struct cam_sfe_bus_cache_dbg_cfg       *cache_dbg_cfg = NULL;
 	uint32_t width = 0, height = 0, stride = 0, width_in_bytes = 0;
 	uint32_t i, img_addr = 0, img_offset = 0;
+	uint32_t curr_cache_cfg = 0;
 	dma_addr_t iova;
 
 	bus_priv = (struct cam_sfe_bus_rd_priv  *) priv;
@@ -1403,7 +1404,7 @@ static int cam_sfe_bus_rd_config_rm(void *priv, void *cmd_args,
 			rm_data->unpacker_cfg, &width_in_bytes);
 		rm_data->height = height;
 		rm_data->width = width;
-
+		curr_cache_cfg = rm_data->cache_cfg;
 		rm_data->cache_cfg = 0x20;
 		if ((!cache_dbg_cfg->disable_for_scratch) &&
 			(rm_data->enable_caching)) {
@@ -1414,6 +1415,14 @@ static int cam_sfe_bus_rd_config_rm(void *priv, void *cmd_args,
 				rm_data->cache_cfg |= cache_dbg_cfg->scratch_alloc;
 			else
 				rm_data->cache_cfg |= CACHE_ALLOC_FORGET;
+
+			if (cache_dbg_cfg->print_cache_cfg &&
+				(curr_cache_cfg != rm_data->cache_cfg)) {
+				CAM_INFO(CAM_SFE,
+					"SFE:%d Scratch Buff RM:%d current_scid:%d cache_cfg:0x%x",
+					rm_data->common_data->core_index,
+					rm_data->index, rm_data->current_scid, rm_data->cache_cfg);
+			}
 		}
 
 		cam_io_w_mb(rm_data->cache_cfg,
@@ -1478,6 +1487,7 @@ static int cam_sfe_bus_rd_update_rm(void *priv, void *cmd_args,
 	uint32_t width = 0, height = 0, stride = 0, width_in_bytes = 0;
 	uint32_t i, j, size = 0, img_addr = 0, img_offset = 0;
 	dma_addr_t iova;
+	uint32_t curr_cache_cfg = 0;
 
 	bus_priv = (struct cam_sfe_bus_rd_priv  *) priv;
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
@@ -1545,6 +1555,7 @@ static int cam_sfe_bus_rd_update_rm(void *priv, void *cmd_args,
 		rm_data->height = height;
 		rm_data->width = width;
 
+		curr_cache_cfg = rm_data->cache_cfg;
 		rm_data->cache_cfg = 0x20;
 		if (rm_data->enable_caching) {
 			if ((cache_dbg_cfg->disable_for_scratch) &&
@@ -1569,6 +1580,13 @@ static int cam_sfe_bus_rd_update_rm(void *priv, void *cmd_args,
 					rm_data->cache_cfg |= CACHE_ALLOC_FORGET;
 				else
 					rm_data->cache_cfg |= CACHE_ALLOC_DEALLOC;
+			}
+
+			if (cache_dbg_cfg->print_cache_cfg &&
+				(curr_cache_cfg != rm_data->cache_cfg)) {
+				CAM_INFO(CAM_SFE, "SFE:%d RM:%d current_scid:%d cache_cfg:0x%x",
+					rm_data->common_data->core_index,
+					rm_data->index, rm_data->current_scid, rm_data->cache_cfg);
 			}
 		}
 

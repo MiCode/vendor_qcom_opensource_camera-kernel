@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sfe_bus.h"
@@ -108,7 +109,7 @@ void cam_sfe_bus_parse_cache_cfg(
 	uint32_t scratch_alloc_shift = 0, buf_alloc_shift = 0;
 	uint32_t scratch_cfg, buf_cfg, alloc_type;
 
-	if (debug_val >= DISABLE_CACHING_FOR_ALL) {
+	if (debug_val == DISABLE_CACHING_FOR_ALL) {
 		dbg_cfg->disable_all = true;
 		goto end;
 	}
@@ -123,6 +124,7 @@ void cam_sfe_bus_parse_cache_cfg(
 
 	scratch_cfg = (debug_val >> CACHE_SCRATCH_DEBUG_SHIFT) & 0xF;
 	buf_cfg = (debug_val >> CACHE_BUF_DEBUG_SHIFT) & 0xF;
+	dbg_cfg->print_cache_cfg = (bool)(debug_val >> CACHE_BUF_PRINT_DBG_SHIFT);
 
 	/* Check for scratch cfg */
 	if (scratch_cfg == 0xF) {

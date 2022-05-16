@@ -2489,6 +2489,7 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 	uint32_t frame_inc = 0, val;
 	uint32_t stride = 0, slice_h = 0;
 	dma_addr_t iova;
+	uint32_t curr_cache_cfg = 0;
 
 	bus_priv = (struct cam_sfe_bus_wr_priv *) priv;
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
@@ -2537,6 +2538,7 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 			wm_data->index, sfe_out_data->wm_res[i].res_name,
 			reg_val_pair[j-1]);
 
+		curr_cache_cfg = wm_data->cache_cfg;
 		wm_data->cache_cfg = 0;
 		if (wm_data->enable_caching) {
 			if ((cache_dbg_cfg->disable_for_scratch) &&
@@ -2558,6 +2560,13 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 				wm_data->cache_cfg |= cache_dbg_cfg->buf_alloc;
 			else
 				wm_data->cache_cfg |= CACHE_ALLOC_ALLOC;
+
+			if (cache_dbg_cfg->print_cache_cfg &&
+				(curr_cache_cfg != wm_data->cache_cfg)) {
+				CAM_INFO(CAM_SFE, "SFE:%d WM:%d current_scid:%d cache_cfg:0x%x",
+					wm_data->common_data->core_index,
+					wm_data->index, wm_data->current_scid, wm_data->cache_cfg);
+			}
 		}
 
 skip_cache_cfg:
@@ -2696,6 +2705,7 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 	uint32_t frame_inc = 0, val, img_addr = 0, img_offset = 0;
 	uint32_t stride = 0, slice_h = 0;
 	dma_addr_t iova;
+	uint32_t curr_cache_cfg = 0;
 
 	bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
 	update_buf =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
@@ -2788,6 +2798,7 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 			wm_data->index, frame_inc,
 			CAM_BOOL_TO_YESNO(cam_smmu_is_expanded_memory));
 
+		curr_cache_cfg = wm_data->cache_cfg;
 		wm_data->cache_cfg = 0;
 		if ((!cache_dbg_cfg->disable_for_scratch) &&
 			(wm_data->enable_caching)) {
@@ -2798,6 +2809,14 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 				wm_data->cache_cfg |= cache_dbg_cfg->scratch_alloc;
 			else
 				wm_data->cache_cfg |= CACHE_ALLOC_ALLOC;
+
+			if (cache_dbg_cfg->print_cache_cfg &&
+				(curr_cache_cfg != wm_data->cache_cfg)) {
+				CAM_INFO(CAM_SFE,
+					"SFE:%d Scratch Buff WM:%d current_scid:%d cache_cfg:0x%x",
+					wm_data->common_data->core_index,
+					wm_data->index, wm_data->current_scid, wm_data->cache_cfg);
+			}
 		}
 
 		cam_io_w_mb(wm_data->cache_cfg,
