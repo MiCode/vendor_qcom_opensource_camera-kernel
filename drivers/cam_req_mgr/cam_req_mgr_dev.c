@@ -617,6 +617,22 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		}
 
 		rc = cam_mem_mgr_cache_ops(&cmd);
+		}
+		break;
+	case CAM_REQ_MGR_MEM_CPU_ACCESS_OP: {
+		struct cam_mem_cpu_access_op cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_mem_cpu_access_op))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = cam_mem_mgr_cpu_access_op(&cmd);
 		if (rc)
 			rc = -EINVAL;
 		}

@@ -169,6 +169,15 @@ int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd_v2 *cmd);
 int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd);
 
 /**
+ * @brief: Perform cpu access ops on the buffer
+ *
+ * @cmd:   CPU access ops information
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
+ */
+int cam_mem_mgr_cpu_access_op(struct cam_mem_cpu_access_op *cmd);
+
+/**
  * @brief: Initializes the memory manager
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.

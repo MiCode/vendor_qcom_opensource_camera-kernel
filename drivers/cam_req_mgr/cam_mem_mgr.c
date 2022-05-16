@@ -33,12 +33,14 @@ static atomic_t cam_mem_mgr_state = ATOMIC_INIT(CAM_MEM_MGR_UNINITIALIZED);
 
 /* cam_mem_mgr_debug - global struct to keep track of debug settings for mem mgr
  *
- * @dentry               : Directory entry to the mem mgr root folder
- * @alloc_profile_enable : Whether to enable alloc profiling
+ * @dentry                  : Directory entry to the mem mgr root folder
+ * @alloc_profile_enable    : Whether to enable alloc profiling
+ * @override_cpu_access_dir : Override cpu access direction to BIDIRECTIONAL
  */
 static struct {
 	struct dentry *dentry;
 	bool alloc_profile_enable;
+	bool override_cpu_access_dir;
 } g_cam_mem_mgr_debug;
 
 #if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
@@ -195,6 +197,9 @@ static int cam_mem_mgr_create_debug_fs(void)
 
 	debugfs_create_bool("alloc_profile_enable", 0644, g_cam_mem_mgr_debug.dentry,
 		&g_cam_mem_mgr_debug.alloc_profile_enable);
+
+	debugfs_create_bool("override_cpu_access_dir", 0644, g_cam_mem_mgr_debug.dentry,
+		&g_cam_mem_mgr_debug.override_cpu_access_dir);
 end:
 	return rc;
 }
@@ -471,6 +476,94 @@ end:
 	return rc;
 }
 EXPORT_SYMBOL(cam_mem_mgr_cache_ops);
+
+int cam_mem_mgr_cpu_access_op(struct cam_mem_cpu_access_op *cmd)
+{
+	int rc = 0, idx;
+	uint32_t direction;
+
+	if (!atomic_read(&cam_mem_mgr_state)) {
+		CAM_ERR(CAM_MEM, "failed. mem_mgr not initialized");
+		return -EINVAL;
+	}
+
+	if (!cmd) {
+		CAM_ERR(CAM_MEM, "Invalid cmd");
+		return -EINVAL;
+	}
+
+	idx = CAM_MEM_MGR_GET_HDL_IDX(cmd->buf_handle);
+	if (idx >= CAM_MEM_BUFQ_MAX || idx <= 0) {
+		CAM_ERR(CAM_MEM, "Invalid idx=%d, buf_handle 0x%x, access=0x%x",
+			idx, cmd->buf_handle, cmd->access);
+		return -EINVAL;
+	}
+
+	mutex_lock(&tbl.m_lock);
+
+	if (!test_bit(idx, tbl.bitmap)) {
+		CAM_ERR(CAM_MEM, "Buffer at idx=%d is already freed/unmapped", idx);
+		mutex_unlock(&tbl.m_lock);
+		return -EINVAL;
+	}
+
+	mutex_lock(&tbl.bufq[idx].q_lock);
+	mutex_unlock(&tbl.m_lock);
+
+	if (cmd->buf_handle != tbl.bufq[idx].buf_handle) {
+		CAM_ERR(CAM_MEM,
+			"Buffer at idx=%d is different incoming handle 0x%x, actual handle 0x%x",
+			idx, cmd->buf_handle, tbl.bufq[idx].buf_handle);
+		rc = -EINVAL;
+		goto end;
+	}
+
+	CAM_DBG(CAM_MEM, "buf_handle=0x%x, access=0x%x, access_type=0x%x, override_access=%d",
+		cmd->buf_handle, cmd->access, cmd->access_type,
+		g_cam_mem_mgr_debug.override_cpu_access_dir);
+
+	if (cmd->access_type & CAM_MEM_CPU_ACCESS_READ &&
+		cmd->access_type & CAM_MEM_CPU_ACCESS_WRITE) {
+		direction = DMA_BIDIRECTIONAL;
+	} else if (cmd->access_type & CAM_MEM_CPU_ACCESS_READ) {
+		direction = DMA_FROM_DEVICE;
+	} else if (cmd->access_type & CAM_MEM_CPU_ACCESS_WRITE) {
+		direction = DMA_TO_DEVICE;
+	} else {
+		direction = DMA_BIDIRECTIONAL;
+		CAM_WARN(CAM_MEM,
+			"Invalid access type buf_handle=0x%x, access=0x%x, access_type=0x%x",
+			cmd->buf_handle, cmd->access, cmd->access_type);
+	}
+
+	if (g_cam_mem_mgr_debug.override_cpu_access_dir)
+		direction = DMA_BIDIRECTIONAL;
+
+	if (cmd->access & CAM_MEM_BEGIN_CPU_ACCESS) {
+		rc = dma_buf_begin_cpu_access(tbl.bufq[idx].dma_buf, direction);
+		if (rc) {
+			CAM_ERR(CAM_MEM,
+				"dma begin cpu access failed rc=%d, buf_handle=0x%x, access=0x%x, access_type=0x%x",
+				rc, cmd->buf_handle, cmd->access, cmd->access_type);
+			goto end;
+		}
+	}
+
+	if (cmd->access & CAM_MEM_END_CPU_ACCESS) {
+		rc = dma_buf_end_cpu_access(tbl.bufq[idx].dma_buf, direction);
+		if (rc) {
+			CAM_ERR(CAM_MEM,
+				"dma end cpu access failed rc=%d, buf_handle=0x%x, access=0x%x, access_type=0x%x",
+				rc, cmd->buf_handle, cmd->access, cmd->access_type);
+			goto end;
+		}
+	}
+
+end:
+	mutex_unlock(&tbl.bufq[idx].q_lock);
+	return rc;
+}
+EXPORT_SYMBOL(cam_mem_mgr_cpu_access_op);
 
 #if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
 

@@ -344,6 +344,7 @@ struct cam_req_mgr_link_properties {
 #define CAM_REQ_MGR_LINK_PROPERTIES             (CAM_COMMON_OPCODE_MAX + 17)
 #define CAM_REQ_MGR_ALLOC_BUF_V2                (CAM_COMMON_OPCODE_MAX + 18)
 #define CAM_REQ_MGR_MAP_BUF_V2                  (CAM_COMMON_OPCODE_MAX + 19)
+#define CAM_REQ_MGR_MEM_CPU_ACCESS_OP           (CAM_COMMON_OPCODE_MAX + 20)
 
 /* end of cam_req_mgr opcodes */
 
@@ -404,13 +405,24 @@ struct cam_req_mgr_link_properties {
 #define CAM_MEM_DMA_TO_DEVICE                   2
 #define CAM_MEM_DMA_FROM_DEVICE                 3
 
-
 /**
  * memory cache operation
  */
 #define CAM_MEM_CLEAN_CACHE                     1
 #define CAM_MEM_INV_CACHE                       2
 #define CAM_MEM_CLEAN_INV_CACHE                 3
+
+/**
+ * memory CPU access operation
+ */
+#define CAM_MEM_BEGIN_CPU_ACCESS                BIT(0)
+#define CAM_MEM_END_CPU_ACCESS                  BIT(1)
+
+/**
+ * memory CPU access type
+ */
+#define CAM_MEM_CPU_ACCESS_READ                 BIT(0)
+#define CAM_MEM_CPU_ACCESS_WRITE                BIT(1)
 
 
 /**
@@ -558,6 +570,33 @@ struct cam_mem_mgr_release_cmd {
 struct cam_mem_cache_ops_cmd {
 	__s32 buf_handle;
 	__u32 mem_cache_ops;
+};
+
+/**
+ * struct cam_mem_cpu_access_op
+ * @version:          Struct version
+ * @buf_handle:       buffer handle
+ * @access:           CPU access operation. Allowed params :
+ *                    CAM_MEM_BEGIN_CPU_ACCESS
+ *                    CAM_MEM_END_CPU_ACCESS
+ *                    both
+ * @access_type:      CPU access type. Allowed params :
+ *                    CAM_MEM_CPU_ACCESS_READ
+ *                    CAM_MEM_CPU_ACCESS_WRITE
+ *                    both
+ * @num_valid_params: Valid number of params being used
+ * @valid_param_mask: Mask to indicate the field types in params
+ * @params:           Additional params
+ */
+/* CAM_REQ_MGR_MEM_CPU_ACCESS_OP */
+struct cam_mem_cpu_access_op {
+	__u32   version;
+	__s32   buf_handle;
+	__u32   access;
+	__u32   access_type;
+	__u32   num_valid_params;
+	__u32   valid_param_mask;
+	__s32   params[4];
 };
 
 /**
