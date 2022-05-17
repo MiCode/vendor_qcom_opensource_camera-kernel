@@ -885,7 +885,7 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 	struct cam_req_mgr_connected_device **failed_dev)
 {
 	int                                  rc = 0, pd, i, idx;
-	bool                                 req_applied_to_min_pd = false;
+	int64_t                              req_applied_to_min_pd = -1;
 	struct cam_req_mgr_connected_device *dev = NULL;
 	struct cam_req_mgr_apply_request     apply_req;
 	struct cam_req_mgr_link_evt_data     evt_data;
@@ -1089,7 +1089,7 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 			}
 
 			if (pd == link->min_delay)
-				req_applied_to_min_pd = true;
+				req_applied_to_min_pd = apply_req.request_id;
 
 			trace_cam_req_mgr_apply_request(link, &apply_req, dev);
 		}
@@ -1113,11 +1113,11 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 		memcpy(link->req.prev_apply_data, link->req.apply_data,
 			CAM_PIPELINE_DELAY_MAX *
 			sizeof(struct cam_req_mgr_apply));
-		if (req_applied_to_min_pd) {
+		if (req_applied_to_min_pd > 0) {
 			link->open_req_cnt--;
 			CAM_DBG(CAM_REQ,
 				"Open_reqs: %u after successfully applying req:%d",
-				link->open_req_cnt, apply_req.request_id);
+				link->open_req_cnt, req_applied_to_min_pd);
 		}
 	}
 
