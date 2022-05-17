@@ -1027,8 +1027,8 @@ static inline void __cam_csiphy_compute_cdr_value(
 		*cdr_val -= csiphy_device->cdr_params.cdr_tolerance;
 }
 
-static int cam_csiphy_cphy_data_rate_config(
-	struct csiphy_device *csiphy_device, int32_t idx)
+static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device, int32_t idx,
+	uint8_t datarate_variant_idx)
 {
 	int i;
 	unsigned int data_rate_idx;
@@ -1080,7 +1080,20 @@ static int cam_csiphy_cphy_data_rate_config(
 
 		CAM_DBG(CAM_CSIPHY, "table[%d] BW : %llu Selected",
 			data_rate_idx, supported_phy_bw);
-		config_params = drate_settings[data_rate_idx].data_rate_reg_array;
+
+		if (datarate_variant_idx >= CAM_CSIPHY_MAX_DATARATE_VARIANTS) {
+			CAM_ERR(CAM_CSIPHY, "Datarate variant Idx: %u can not exceed %u",
+				datarate_variant_idx, CAM_CSIPHY_MAX_DATARATE_VARIANTS-1);
+			return -EINVAL;
+		}
+
+		config_params =
+			drate_settings[data_rate_idx].data_rate_reg_array[datarate_variant_idx];
+		if (!config_params) {
+			CAM_ERR(CAM_CSIPHY, "Datarate settings are null. datarate variant idx: %u",
+				datarate_variant_idx);
+			return -EINVAL;
+		}
 
 		for (i = 0; i < num_reg_entries; i++) {
 			reg_addr = config_params[i].reg_addr;
@@ -1200,7 +1213,7 @@ static int __cam_csiphy_prgm_bist_reg(struct csiphy_device *csiphy_dev, bool is_
 }
 
 int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
-	int32_t dev_handle)
+	int32_t dev_handle, uint8_t datarate_variant_idx)
 {
 	int32_t      rc = 0;
 	uint32_t     lane_enable = 0;
@@ -1302,7 +1315,7 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 
 
 	if (csiphy_dev->csiphy_info[index].csiphy_3phase) {
-		rc = cam_csiphy_cphy_data_rate_config(csiphy_dev, index);
+		rc = cam_csiphy_cphy_data_rate_config(csiphy_dev, index, datarate_variant_idx);
 		if (rc) {
 			CAM_ERR(CAM_CSIPHY,
 				"Date rate specific configuration failed rc: %d",
@@ -2298,6 +2311,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		struct cam_start_stop_dev_cmd config;
 		int32_t offset;
 		int clk_vote_level = -1;
+		uint8_t data_rate_variant_idx = 0;
 
 		CAM_DBG(CAM_CSIPHY, "START_DEV Called");
 		rc = copy_from_user(&config, (void __user *)cmd->handle,
@@ -2363,7 +2377,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 			if (csiphy_dev->csiphy_info[offset].csiphy_3phase) {
 				rc = cam_csiphy_cphy_data_rate_config(
-					csiphy_dev, offset);
+					csiphy_dev, offset, data_rate_variant_idx);
 				if (rc) {
 					CAM_ERR(CAM_CSIPHY,
 						"Data rate specific configuration failed rc: %d",
@@ -2446,7 +2460,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 				CAM_CSIPHY_PRGM_INDVDL);
 		}
 
-		rc = cam_csiphy_config_dev(csiphy_dev, config.dev_handle);
+		rc = cam_csiphy_config_dev(csiphy_dev, config.dev_handle, data_rate_variant_idx);
 		if (rc < 0) {
 			CAM_ERR(CAM_CSIPHY, "cam_csiphy_config_dev failed");
 			cam_csiphy_disable_hw(csiphy_dev);
