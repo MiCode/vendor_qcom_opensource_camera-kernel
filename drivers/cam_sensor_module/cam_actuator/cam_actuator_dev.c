@@ -238,6 +238,8 @@ static int cam_actuator_i2c_component_bind(struct device *dev,
 		goto unreg_subdev;
 	}
 
+	cam_sensor_module_add_i2c_device((void *) a_ctrl, CAM_SENSOR_ACTUATOR);
+
 	INIT_LIST_HEAD(&(a_ctrl->i2c_data.init_settings.list_head));
 
 	for (i = 0; i < MAX_PER_FRAME_ARRAY; i++)
@@ -394,6 +396,8 @@ static int cam_actuator_platform_component_bind(struct device *dev,
 		rc = -ENOMEM;
 		goto free_soc;
 	}
+
+	cam_sensor_module_add_i2c_device((void *) a_ctrl, CAM_SENSOR_ACTUATOR);
 
 	INIT_LIST_HEAD(&(a_ctrl->i2c_data.init_settings.list_head));
 

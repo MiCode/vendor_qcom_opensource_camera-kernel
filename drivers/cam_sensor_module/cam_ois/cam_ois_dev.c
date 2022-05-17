@@ -233,6 +233,8 @@ static int cam_ois_i2c_component_bind(struct device *dev,
 	if (rc)
 		goto soc_free;
 
+	cam_sensor_module_add_i2c_device((void *) o_ctrl, CAM_SENSOR_OIS);
+
 	o_ctrl->cam_ois_state = CAM_OIS_INIT;
 
 	return rc;
@@ -400,6 +402,8 @@ static int cam_ois_component_bind(struct device *dev,
 		goto unreg_subdev;
 	}
 	o_ctrl->bridge_intf.device_hdl = -1;
+
+	cam_sensor_module_add_i2c_device((void *) o_ctrl, CAM_SENSOR_OIS);
 
 	platform_set_drvdata(pdev, o_ctrl);
 	o_ctrl->cam_ois_state = CAM_OIS_INIT;

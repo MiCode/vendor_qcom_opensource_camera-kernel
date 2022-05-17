@@ -508,6 +508,8 @@ static int cam_flash_component_bind(struct device *dev,
 			goto free_resource;
 	}
 
+	cam_sensor_module_add_i2c_device((void *) fctrl, CAM_SENSOR_FLASH);
+
 	fctrl->bridge_intf.device_hdl = -1;
 	fctrl->bridge_intf.link_hdl = -1;
 	fctrl->bridge_intf.ops.get_dev_info = cam_flash_publish_dev_info;
@@ -674,6 +676,8 @@ static int cam_flash_i2c_component_bind(struct device *dev,
 		rc = -ENOMEM;
 		goto unreg_subdev;
 	}
+
+	cam_sensor_module_add_i2c_device((void *) fctrl, CAM_SENSOR_FLASH);
 
 	INIT_LIST_HEAD(&(fctrl->i2c_data.init_settings.list_head));
 	INIT_LIST_HEAD(&(fctrl->i2c_data.config_settings.list_head));

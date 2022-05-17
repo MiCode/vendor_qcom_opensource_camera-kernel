@@ -289,6 +289,8 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.bubble_update[i].list_head));
 	}
 
+	cam_sensor_module_add_i2c_device((void *) s_ctrl, CAM_SENSOR_DEVICE);
+
 	s_ctrl->bridge_intf.device_hdl = -1;
 	s_ctrl->bridge_intf.link_hdl = -1;
 	s_ctrl->bridge_intf.ops.get_dev_info = cam_sensor_publish_dev_info;
@@ -476,6 +478,8 @@ static int cam_sensor_component_bind(struct device *dev,
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.frame_skip[i].list_head));
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.bubble_update[i].list_head));
 	}
+
+	cam_sensor_module_add_i2c_device((void *) s_ctrl, CAM_SENSOR_DEVICE);
 
 	s_ctrl->bridge_intf.device_hdl = -1;
 	s_ctrl->bridge_intf.link_hdl = -1;
@@ -670,6 +674,8 @@ int cam_sensor_driver_init(void)
 		goto i3c_register_err;
 	}
 
+	cam_sensor_module_debug_register();
+
 	return 0;
 
 i3c_register_err:
@@ -694,6 +700,8 @@ void cam_sensor_driver_exit(void)
 	}
 
 	i3c_driver_unregister(&cam_sensor_i3c_driver);
+
+	cam_sensor_module_debug_deregister();
 }
 
 MODULE_DESCRIPTION("cam_sensor_driver");
