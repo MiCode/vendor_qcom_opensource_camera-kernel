@@ -283,7 +283,7 @@ static const struct cam_ife_csid_top_irq_desc cam_ife_csid_lite_880_top_irq_desc
 	},
 };
 
-static struct cam_irq_register_set cam_ife_csid_lite_880_irq_reg_set[7] = {
+static struct cam_irq_register_set cam_ife_csid_lite_880_irq_reg_set[9] = {
 	/* Top */
 	{
 		.mask_reg_offset   = 0x00001080,
@@ -323,12 +323,14 @@ static struct cam_irq_register_set cam_ife_csid_lite_880_irq_reg_set[7] = {
 		.clear_reg_offset  = 0x00001124,
 		.status_reg_offset = 0x0000111C,
 	},
+	{}, /* no RDI4 */
 	/* IPP */
 	{
 		.mask_reg_offset   = 0x000010B0,
 		.clear_reg_offset  = 0x000010B4,
 		.status_reg_offset = 0x000010AC,
 	},
+	{}, /* no PPP */
 };
 
 static struct cam_irq_controller_reg_info cam_ife_csid_lite_880_top_irq_reg_info = {
