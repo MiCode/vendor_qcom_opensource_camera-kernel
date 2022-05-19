@@ -151,6 +151,19 @@ enum cam_req_mgr_link_state {
 };
 
 /**
+ * enum cam_req_mgr_sync_type
+ * Sync type for syncing info
+ * DELAY_AT_SOF  : inject delay at SOF
+ * DELAY_AT_EOF  : inject delay at EOF
+ * APPLY_AT_EOF  : apply at EOF
+ */
+enum cam_req_mgr_sync_type {
+	CAM_SYNC_TYPE_DELAY_AT_SOF,
+	CAM_SYNC_TYPE_DELAY_AT_EOF,
+	CAM_SYNC_TYPE_APPLY_AT_EOF,
+};
+
+/**
  * struct cam_req_mgr_traverse_result
  * @req_id        : Req id that is not ready
  * @pd            : pipeline delay
