@@ -230,10 +230,6 @@ int cam_icp_v1_init_hw(void *device_priv,
 		CAM_ICP_BW_BYTES_VOTE;
 	cpas_vote.axi_vote.axi_path[0].mnoc_ib_bw =
 		CAM_ICP_BW_BYTES_VOTE;
-	cpas_vote.axi_vote.axi_path[0].ddr_ab_bw =
-		CAM_ICP_BW_BYTES_VOTE;
-	cpas_vote.axi_vote.axi_path[0].ddr_ib_bw =
-		CAM_ICP_BW_BYTES_VOTE;
 
 	rc = cam_cpas_start(core_info->cpas_handle,
 		&cpas_vote.ahb_vote, &cpas_vote.axi_vote);

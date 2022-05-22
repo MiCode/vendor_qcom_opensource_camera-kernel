@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_vfe_top_common.h"
@@ -284,7 +285,7 @@ static int cam_vfe_top_calc_axi_bw_vote(
 				&top_common->req_axi_vote[i].axi_path[0],
 				top_common->req_axi_vote[i].num_paths *
 				sizeof(
-				struct cam_axi_per_path_bw_vote));
+				struct cam_cpas_axi_per_path_bw_vote));
 			num_paths += top_common->req_axi_vote[i].num_paths;
 		}
 	}
@@ -492,11 +493,6 @@ int cam_vfe_top_bw_update(struct cam_vfe_soc_private *soc_private,
 			mux_axi_vote->axi_path[0].mnoc_ab_bw =
 				bw_update->external_bw_bytes;
 			mux_axi_vote->axi_path[0].mnoc_ib_bw =
-				bw_update->external_bw_bytes;
-			/* Make ddr bw same as mnoc bw */
-			mux_axi_vote->axi_path[0].ddr_ab_bw =
-				bw_update->external_bw_bytes;
-			mux_axi_vote->axi_path[0].ddr_ib_bw =
 				bw_update->external_bw_bytes;
 
 			top_common->axi_vote_control[i] =

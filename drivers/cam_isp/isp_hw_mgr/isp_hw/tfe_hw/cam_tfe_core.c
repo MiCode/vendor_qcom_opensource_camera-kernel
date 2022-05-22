@@ -1057,7 +1057,7 @@ static int cam_tfe_top_set_axi_bw_vote(
 				&top_priv->req_axi_vote[i].axi_path[0],
 				top_priv->req_axi_vote[i].num_paths *
 				sizeof(
-				struct cam_axi_per_path_bw_vote));
+				struct cam_cpas_axi_per_path_bw_vote));
 			num_paths += top_priv->req_axi_vote[i].num_paths;
 		}
 	}

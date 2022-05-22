@@ -499,6 +499,27 @@ struct cam_ahb_vote {
 };
 
 /**
+ * struct cam_cpas_axi_per_path_bw_vote - Internal per path bandwidth vote information
+ *
+ * @usage_data:              client usage data (left/right/rdi)
+ * @transac_type:            Transaction type on the path (read/write)
+ * @path_data_type:          Path for which vote is given (video, display, rdi)
+ * @vote_level:              Vote level for this path
+ * @camnoc_bw:               CAMNOC bw for this path
+ * @mnoc_ab_bw:              MNOC AB bw for this path
+ * @mnoc_ib_bw:              MNOC IB bw for this path
+ */
+struct cam_cpas_axi_per_path_bw_vote {
+	uint32_t                      usage_data;
+	uint32_t                      transac_type;
+	uint32_t                      path_data_type;
+	uint32_t                      vote_level;
+	uint64_t                      camnoc_bw;
+	uint64_t                      mnoc_ab_bw;
+	uint64_t                      mnoc_ib_bw;
+};
+
+/**
  * struct cam_axi_vote : AXI vote
  *
  * @num_paths: Number of paths on which BW vote is sent to CPAS
@@ -507,7 +528,7 @@ struct cam_ahb_vote {
  */
 struct cam_axi_vote {
 	uint32_t num_paths;
-	struct cam_axi_per_path_bw_vote axi_path[CAM_CPAS_MAX_PATHS_PER_CLIENT];
+	struct cam_cpas_axi_per_path_bw_vote axi_path[CAM_CPAS_MAX_PATHS_PER_CLIENT];
 };
 
 /**

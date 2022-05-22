@@ -2462,7 +2462,7 @@ static int cam_tfe_classify_vote_info(
 					memcpy(&isp_vote->axi_path[j],
 						&bw_config->axi_path[i],
 						sizeof(struct
-						cam_axi_per_path_bw_vote));
+						cam_cpas_axi_per_path_bw_vote));
 					j++;
 				}
 			}
@@ -2479,7 +2479,7 @@ static int cam_tfe_classify_vote_info(
 					memcpy(&isp_vote->axi_path[j],
 						&bw_config->axi_path[i],
 						sizeof(struct
-						cam_axi_per_path_bw_vote));
+						cam_cpas_axi_per_path_bw_vote));
 					j++;
 				}
 			}
@@ -2500,7 +2500,7 @@ static int cam_tfe_classify_vote_info(
 				memcpy(&isp_vote->axi_path[j],
 					&bw_config->axi_path[i],
 					sizeof(struct
-					cam_axi_per_path_bw_vote));
+					cam_cpas_axi_per_path_bw_vote));
 				j++;
 			}
 		}
@@ -3866,7 +3866,7 @@ static int cam_isp_tfe_blob_clock_update(
 static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 	uint32_t blob_type, uint32_t blob_size, uint8_t *blob_data)
 {
-	int rc = 0;
+	int rc = 0, i;
 	struct cam_isp_generic_blob_info  *blob_info = user_data;
 	struct cam_hw_prepare_update_args *prepare = NULL;
 	struct cam_tfe_hw_mgr_ctx *tfe_mgr_ctx = NULL;
@@ -3984,6 +3984,7 @@ static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 		struct cam_isp_tfe_bw_config_v2    *bw_config =
 			(struct cam_isp_tfe_bw_config_v2 *)blob_data;
 		struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+		struct cam_cpas_axi_per_path_bw_vote *path_vote;
 
 		if (blob_size < sizeof(struct cam_isp_tfe_bw_config_v2)) {
 			CAM_ERR(CAM_ISP, "Invalid blob size %u", blob_size);
@@ -4030,15 +4031,22 @@ static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 			return -EINVAL;
 		}
 
-		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
-			prepare->priv;
-
+		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *) prepare->priv;
 		memset(&prepare_hw_data->bw_clk_config.bw_config_v2,
 			0, sizeof(prepare_hw_data->bw_clk_config.bw_config_v2));
-		bw_config_size = sizeof(struct cam_isp_tfe_bw_config_v2) +
-			((bw_config->num_paths - 1) *
-			sizeof(struct cam_axi_per_path_bw_vote));
-		memcpy(&prepare_hw_data->bw_clk_config.bw_config_v2, bw_config, bw_config_size);
+		prepare_hw_data->bw_clk_config.bw_config_v2.usage_type = bw_config->usage_type;
+		prepare_hw_data->bw_clk_config.bw_config_v2.num_paths = bw_config->num_paths;
+
+		for (i = 0; i < bw_config->num_paths; i++) {
+			path_vote = &prepare_hw_data->bw_clk_config.bw_config_v2.axi_path[i];
+			path_vote.usage_data = bw_config->axi_path[i].usage_data;
+			path_vote.transac_type = bw_config->axi_path[i].transac_type;
+			path_vote.path_data_type = bw_config->axi_path[i].path_data_type;
+			path_vote.vote_level = 0;
+			path_vote.camnoc_bw = bw_config->axi_path[i].camnoc_bw;
+			path_vote.mnoc_ab_bw = bw_config->axi_path[i].mnoc_ab_bw;
+			path_vote.mnoc_ib_bw = bw_config->axi_path[i].mnoc_ib_bw;
+		}
 
 		tfe_mgr_ctx->bw_config_version = CAM_ISP_BW_CONFIG_V2;
 		prepare_hw_data->bw_clk_config.bw_config_valid = true;

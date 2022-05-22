@@ -390,7 +390,7 @@ int cam_sfe_top_calc_axi_bw_vote(struct cam_sfe_top_priv *top_priv,
 				&top_priv->req_axi_vote[i].axi_path[0],
 				top_priv->req_axi_vote[i].num_paths *
 				sizeof(
-				struct cam_axi_per_path_bw_vote));
+				struct cam_cpas_axi_per_path_bw_vote));
 			num_paths += top_priv->req_axi_vote[i].num_paths;
 		}
 	}
@@ -912,6 +912,8 @@ static int cam_sfe_top_apply_clk_bw_update(struct cam_sfe_top_priv *top_priv,
 	if ((!to_be_applied_axi_vote) && (top_priv->bw_state != CAM_CLK_BW_STATE_UNCHANGED)) {
 		CAM_ERR(CAM_PERF, "SFE:%d Invalid BW vote for state:%s", hw_intf->hw_idx,
 			cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+		rc = -EINVAL;
+		goto end;
 	}
 
 	CAM_DBG(CAM_PERF, "SFE:%d APPLY CLK/BW req_id:%ld clk_state:%s bw_state:%s ",

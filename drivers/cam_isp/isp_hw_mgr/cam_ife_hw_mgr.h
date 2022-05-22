@@ -14,6 +14,7 @@
 #include "cam_ife_csid_hw_intf.h"
 #include "cam_tasklet_util.h"
 #include "cam_cdm_intf_api.h"
+#include "cam_cpas_api.h"
 
 /*
  * enum cam_ife_ctx_master_type - HW master type

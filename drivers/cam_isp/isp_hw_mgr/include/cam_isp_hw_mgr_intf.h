@@ -13,6 +13,7 @@
 #include <media/cam_isp.h>
 #include "cam_hw_mgr_intf.h"
 #include "cam_packet_util.h"
+#include "cam_cpas_api.h"
 
 /* MAX IFE instance */
 #define CAM_IFE_HW_NUM_MAX       8
@@ -22,6 +23,7 @@
 #define CAM_SFE_FE_RDI_NUM_MAX   3
 #define CAM_ISP_BW_CONFIG_V1     1
 #define CAM_ISP_BW_CONFIG_V2     2
+#define CAM_ISP_BW_CONFIG_V3     2
 #define CAM_TFE_HW_NUM_MAX       3
 #define CAM_TFE_RDI_NUM_MAX      3
 #define CAM_IFE_SCRATCH_NUM_MAX  2
@@ -181,9 +183,9 @@ struct cam_isp_clock_config_internal {
  * @axi_path                    per path vote info
  */
 struct cam_isp_bw_config_internal_v2 {
-	uint32_t                          usage_type;
-	uint32_t                          num_paths;
-	struct cam_axi_per_path_bw_vote   axi_path[CAM_ISP_MAX_PER_PATH_VOTES];
+	uint32_t                               usage_type;
+	uint32_t                               num_paths;
+	struct cam_cpas_axi_per_path_bw_vote   axi_path[CAM_ISP_MAX_PER_PATH_VOTES];
 };
 
 /**

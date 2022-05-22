@@ -851,7 +851,7 @@ static int cam_cpas_axi_consolidate_path_votes(
 	struct cam_cpas_tree_node *sum_tree_node = NULL;
 	uint32_t transac_type;
 	uint32_t path_data_type;
-	struct cam_axi_per_path_bw_vote *axi_path;
+	struct cam_cpas_axi_per_path_bw_vote *axi_path;
 
 	con_axi_vote->num_paths = 0;
 
@@ -874,7 +874,7 @@ static int cam_cpas_axi_consolidate_path_votes(
 		if (curr_tree_node) {
 			path_found = true;
 			memcpy(axi_path, &axi_vote->axi_path[i],
-				sizeof(struct cam_axi_per_path_bw_vote));
+				sizeof(struct cam_cpas_axi_per_path_bw_vote));
 			con_axi_vote->num_paths++;
 			continue;
 		}
@@ -1588,7 +1588,7 @@ static int cam_cpas_util_create_vote_all_paths(
 {
 	int i, j;
 	uint64_t camnoc_bw, mnoc_ab_bw, mnoc_ib_bw;
-	struct cam_axi_per_path_bw_vote *axi_path;
+	struct cam_cpas_axi_per_path_bw_vote *axi_path;
 
 	if (!cpas_client || !axi_vote)
 		return -EINVAL;
