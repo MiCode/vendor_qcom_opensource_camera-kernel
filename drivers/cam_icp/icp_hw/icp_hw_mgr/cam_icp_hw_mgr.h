@@ -271,6 +271,8 @@ struct cam_ctx_clk_info {
  * @icp_dev_io_info: io config resource
  * @last_flush_req: last flush req for this ctx
  * @err_inject_params: Error injection data for hw_mgr_ctx
+ * @unified_dev_type: Unified dev type which does not hold any priority info.
+ *                    It's either IPE/BPS
  * @abort_timed_out: Indicates if abort timed out
  */
 struct cam_icp_hw_ctx_data {
@@ -296,6 +298,7 @@ struct cam_icp_hw_ctx_data {
 	uint64_t last_flush_req;
 	char ctx_id_string[128];
 	struct cam_hw_err_param err_inject_params;
+	uint32_t unified_dev_type;
 	bool abort_timed_out;
 };
 
