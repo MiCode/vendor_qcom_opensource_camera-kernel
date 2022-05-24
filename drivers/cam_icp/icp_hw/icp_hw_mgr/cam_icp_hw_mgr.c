@@ -2285,6 +2285,47 @@ static inline void cam_icp_mgr_validate_inject_err(uint64_t current_req_id, uint
 	memset(&(ctx_data->err_inject_params), 0, sizeof(struct cam_hw_err_param));
 }
 
+static void cam_icp_mgr_dump_active_req_info(void)
+{
+	struct cam_icp_hw_ctx_data *ctx_data = NULL;
+	char log_info[256];
+	size_t buf_size, len;
+	uint32_t total_active_streams = 0, total_active_requests = 0;
+	int i, j;
+
+	buf_size = sizeof(log_info);
+
+	mutex_lock(&icp_hw_mgr.hw_mgr_mutex);
+	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
+		ctx_data = &icp_hw_mgr.ctx_data[i];
+		mutex_lock(&ctx_data->ctx_mutex);
+		if (ctx_data->state != CAM_ICP_CTX_STATE_ACQUIRED) {
+			mutex_unlock(&ctx_data->ctx_mutex);
+			continue;
+		}
+
+		memset(log_info, 0, buf_size);
+		len = 0;
+		for (j = 0; j < CAM_FRAME_CMD_MAX; j++) {
+			if (!ctx_data->hfi_frame_process.request_id[j])
+				continue;
+
+			len += scnprintf(log_info + len, (buf_size - len), " %llu",
+				ctx_data->hfi_frame_process.request_id[j]);
+			total_active_requests++;
+		}
+		total_active_streams++;
+		CAM_INFO(CAM_ICP, "Requests in ctx: %u type: %s :%s", ctx_data->ctx_id,
+			cam_icp_dev_type_to_name(ctx_data->icp_dev_acquire_info->dev_type),
+			len ? log_info : " None");
+		mutex_unlock(&ctx_data->ctx_mutex);
+	}
+	mutex_unlock(&icp_hw_mgr.hw_mgr_mutex);
+
+	CAM_INFO(CAM_ICP, "Total Active streams: %u, Total active requests: %u",
+		total_active_streams, total_active_requests);
+}
+
 static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 {
 	int i;
@@ -2296,8 +2337,7 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 	struct cam_hw_done_event_data buf_data = {0};
 	struct cam_icp_hw_buf_done_evt_data icp_done_evt;
 	struct cam_icp_hw_error_evt_data icp_err_evt = {0};
-	uint32_t clk_type;
-	uint32_t event_id;
+	uint32_t clk_type, event_id;
 	struct cam_hangdump_mem_regions *mem_regions = NULL;
 
 	ioconfig_ack = (struct hfi_msg_ipebps_async_ack *)msg_ptr;
@@ -2390,8 +2430,13 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 	buf_data.request_id = hfi_frame_process->request_id[idx];
 	icp_done_evt.evt_id = event_id;
 	icp_done_evt.buf_done_data = &buf_data;
-	ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_ICP_EVT_ID_BUF_DONE,
-		&icp_done_evt);
+	if (ctx_data->ctxt_event_cb)
+		ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_ICP_EVT_ID_BUF_DONE,
+			&icp_done_evt);
+	else
+		CAM_ERR(CAM_ICP,
+			"Event callback invalid for ctx: %u [%s] failed to signal req: %llu",
+			ctx_data->ctx_id, ctx_data->ctx_id_string, buf_data.request_id);
 
 	hfi_frame_process->request_id[idx] = 0;
 	if (ctx_data->hfi_frame_process.in_resource[idx] > 0) {
@@ -2403,14 +2448,21 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 	clear_bit(idx, ctx_data->hfi_frame_process.bitmap);
 	hfi_frame_process->fw_process_flag[idx] = false;
 
+	mutex_unlock(&ctx_data->ctx_mutex);
+
 	/* report recovery to userspace if FW encounters no memory */
 	if (ioconfig_ack->err_type == CAMERAICP_ENOMEMORY) {
+		cam_icp_mgr_dump_active_req_info();
+
 		icp_err_evt.err_type = CAM_ICP_HW_ERROR_NO_MEM;
 		icp_err_evt.req_id = request_id;
-		ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_ICP_EVT_ID_ERROR,
-			&icp_err_evt);
+
+		mutex_lock(&ctx_data->ctx_mutex);
+		if (ctx_data->ctxt_event_cb)
+			ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_ICP_EVT_ID_ERROR,
+				&icp_err_evt);
+		mutex_unlock(&ctx_data->ctx_mutex);
 	}
-	mutex_unlock(&ctx_data->ctx_mutex);
 
 	return 0;
 }
