@@ -1033,7 +1033,7 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_lite_880_reg_info = {
 		NULL,
 		&cam_ife_csid_lite_880_path_irq_reg_info[CAM_IFE_PIX_PATH_RES_IPP],
 		},
-	.buf_done_irq_reg_info = &cam_ife_csid_lite_780_buf_done_irq_reg_info,
+	.buf_done_irq_reg_info = &cam_ife_csid_lite_880_buf_done_irq_reg_info,
 	.cmn_reg               = &cam_ife_csid_lite_880_cmn_reg_info,
 	.csi2_reg              = &cam_ife_csid_lite_880_csi2_reg_info,
 	.path_reg[CAM_IFE_PIX_PATH_RES_IPP]   = &cam_ife_csid_lite_880_ipp_reg_info,
