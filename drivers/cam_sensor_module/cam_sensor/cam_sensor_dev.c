@@ -197,7 +197,7 @@ static int cam_sensor_i3c_driver_probe(struct i3c_device *client)
 		return -EINVAL;
 	}
 
-	i3cdev_set_drvdata(client, s_ctrl);
+	dev->driver_data = s_ctrl;
 
 	s_ctrl->io_master_info.i3c_client = client;
 
