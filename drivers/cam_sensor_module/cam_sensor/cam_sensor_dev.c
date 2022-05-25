@@ -170,7 +170,12 @@ static int cam_sensor_i3c_driver_probe(struct i3c_device *client)
 	uint32_t                        index;
 	struct device                  *dev;
 
-	dev = i3cdev_to_dev(client);
+	if (!client) {
+		CAM_ERR(CAM_CSIPHY, "Invalid input args");
+		return -EINVAL;
+	}
+
+	dev = &client->dev;
 
 	CAM_DBG(CAM_SENSOR, "Probe for I3C Slave %s", dev_name(dev));
 
