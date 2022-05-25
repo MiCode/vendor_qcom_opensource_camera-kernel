@@ -4301,22 +4301,22 @@ static struct cam_isp_ctx_irq_ops
 	},
 };
 
-static inline int cam_isp_context_apply_error(struct cam_hw_err_param *err_params,
-	uint64_t current_req_id, struct cam_context *ctx)
+static inline int cam_isp_context_apply_evt_injection(struct cam_context *ctx)
 {
-	int rc = 0;
+	struct cam_isp_context *ctx_isp = ctx->ctx_priv;
+	struct cam_hw_inject_evt_param *evt_inject_params = &ctx_isp->evt_inject_params;
+	struct cam_common_evt_inject_data inject_evt = {0};
+	int rc;
 
-	if (err_params->err_req_id == current_req_id) {
-		CAM_INFO(CAM_ISP,
-			"Err inject for req: %llu, err_code: %d, err_type: %d ctx id: %d",
-			current_req_id, err_params->err_code, err_params->err_type, ctx->ctx_id);
+	inject_evt.evt_params = evt_inject_params;
+	rc = cam_context_apply_evt_injection(ctx, &inject_evt);
+	if (rc)
+		CAM_ERR(CAM_ISP, "Fail to apply event injection ctx_id: %u req_id: %u",
+			ctx->ctx_id, evt_inject_params->req_id);
 
-		__cam_isp_ctx_notify_v4l2_error_event(err_params->err_type, err_params->err_code,
-			current_req_id, ctx);
-		memset(err_params, 0, sizeof(struct cam_hw_err_param));
-		return rc;
-	}
-	return -EINVAL;
+	evt_inject_params->is_valid = false;
+
+	return rc;
 }
 
 static int __cam_isp_ctx_apply_req_in_activated_state(
@@ -4452,9 +4452,9 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 	cfg.reapply_type = req_isp->reapply_type;
 	cfg.cdm_reset_before_apply = req_isp->cdm_reset_before_apply;
 
-	if (ctx_isp->err_inject_params.is_valid) {
-		rc = cam_isp_context_apply_error(&(ctx_isp->err_inject_params),
-			req->request_id, ctx_isp->base);
+	if ((ctx_isp->evt_inject_params.is_valid) &&
+		(req->request_id == ctx_isp->evt_inject_params.req_id)) {
+		rc = cam_isp_context_apply_evt_injection(ctx_isp->base);
 		if (!rc)
 			goto end;
 	}
@@ -5958,8 +5958,8 @@ static int __cam_isp_ctx_release_dev_in_top_state(struct cam_context *ctx,
 		ctx_isp->hw_ctx = NULL;
 	}
 
-	cam_common_release_err_params(ctx->dev_hdl);
-	memset(&(ctx_isp->err_inject_params), 0, sizeof(struct cam_hw_err_param));
+	cam_common_release_evt_params(ctx->dev_hdl);
+	memset(&ctx_isp->evt_inject_params, 0, sizeof(struct cam_hw_inject_evt_param));
 
 	ctx->session_hdl = -1;
 	ctx->dev_hdl = -1;
@@ -7779,65 +7779,106 @@ static int __cam_isp_ctx_handle_irq_in_activated(void *context,
 	return rc;
 }
 
-static int cam_isp_context_inject_error(void *context, void *err_param)
+static int cam_isp_context_validate_event_notify_injection(struct cam_context *ctx,
+	struct cam_hw_inject_evt_param *evt_params)
 {
 	int rc = 0;
-	struct cam_context *ctx = (struct cam_context *)context;
-	struct cam_isp_context *ctx_isp = ctx->ctx_priv;
+	uint32_t evt_type;
 	uint64_t req_id;
-	uint32_t err_code;
-	uint32_t err_type;
 
-	if (!err_param) {
-		CAM_ERR(CAM_ISP, "err_param not valid");
-		return -EINVAL;
+	req_id   = evt_params->req_id;
+	evt_type = evt_params->u.evt_notify.evt_notify_type;
+
+	switch (evt_type) {
+	case V4L_EVENT_CAM_REQ_MGR_ERROR: {
+		struct cam_hw_inject_err_evt_param *err_evt_params =
+			&evt_params->u.evt_notify.u.err_evt_params;
+
+		switch (err_evt_params->err_type) {
+		case CAM_REQ_MGR_ERROR_TYPE_RECOVERY:
+		case CAM_REQ_MGR_ERROR_TYPE_SOF_FREEZE:
+		case CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY:
+		case CAM_REQ_MGR_WARN_TYPE_KMD_RECOVERY:
+			break;
+		default:
+			CAM_ERR(CAM_ISP,
+				"Invalid error type: %u for error event injection err type: %u req id: %llu ctx id: %u dev hdl: %d",
+				err_evt_params->err_type, err_evt_params->err_code,
+				req_id, ctx->ctx_id, ctx->dev_hdl);
+			return -EINVAL;
+		}
+
+		CAM_INFO(CAM_ISP,
+			"Inject ERR evt: err code: %u err type: %u req id: %llu ctx id: %u dev hdl: %d",
+			err_evt_params->err_code, err_evt_params->err_type,
+			req_id, ctx->ctx_id, ctx->dev_hdl);
+		break;
 	}
+	case V4L_EVENT_CAM_REQ_MGR_PF_ERROR: {
+		struct cam_hw_inject_pf_evt_param *pf_evt_params =
+			&evt_params->u.evt_notify.u.pf_evt_params;
+		bool non_fatal_en;
 
-	req_id     = ((struct cam_err_inject_param *)err_param)->req_id;
-	err_type   = ((struct cam_err_inject_param *)err_param)->err_type;
-	err_code   = ((struct cam_err_inject_param *)err_param)->err_code;
+		rc = cam_smmu_is_cb_non_fatal_fault_en(ctx->img_iommu_hdl, &non_fatal_en);
+		if (rc) {
+			CAM_ERR(CAM_ISP,
+				"Fail to query whether device's cb has non-fatal enabled rc:%d",
+				rc);
+			return rc;
+		}
 
-	switch (err_type) {
-	case CAM_REQ_MGR_ERROR_TYPE_RECOVERY:
-		switch (err_code) {
-		case CAM_REQ_MGR_LINK_STALLED_ERROR:
-		case CAM_REQ_MGR_CSID_FIFO_OVERFLOW_ERROR:
-		case CAM_REQ_MGR_CSID_RECOVERY_OVERFLOW_ERROR:
-		case CAM_REQ_MGR_CSID_PIXEL_COUNT_MISMATCH:
-		case CAM_REQ_MGR_CSID_ERR_ON_SENSOR_SWITCHING:
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+		if (!non_fatal_en) {
+			CAM_ERR(CAM_ISP,
+				"Fail to inject page fault event notification. Page fault is fatal for ISP");
 			return -EINVAL;
 		}
+
+		CAM_INFO(CAM_ISP,
+			"Inject PF evt: req_id: %llu ctx id: %u dev hdl: %d ctx found: %hhu",
+			req_id, ctx->ctx_id, ctx->dev_hdl, pf_evt_params->ctx_found);
 		break;
-	case CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY:
-		switch (err_code) {
-		case CAM_REQ_MGR_CSID_FATAL_ERROR:
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
-			return -EINVAL;
-		}
-		break;
-	case CAM_REQ_MGR_ERROR_TYPE_SOF_FREEZE:
-		err_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
-		break;
-	case CAM_REQ_MGR_ERROR_TYPE_PAGE_FAULT:
-		err_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
-		break;
+	}
 	default:
-		CAM_ERR(CAM_ISP, "err type not supported %d", err_type);
+		CAM_ERR(CAM_ISP, "Event notification type not supported: %u", evt_type);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_isp_context_inject_evt(void *context, void *evt_args)
+{
+	struct cam_context *ctx = context;
+	struct cam_isp_context *ctx_isp = NULL;
+	struct cam_hw_inject_evt_param *evt_params = evt_args;
+	int rc = 0;
+
+	if (!ctx || !evt_args) {
+		CAM_ERR(CAM_ISP,
+			"Invalid params ctx %s event args %s",
+			CAM_IS_NULL_TO_STR(ctx), CAM_IS_NULL_TO_STR(evt_args));
 		return -EINVAL;
 	}
 
-	CAM_DBG(CAM_ISP, "inject err isp code: %d type: %d ctx id: %d",
-		err_code, err_type, ctx->ctx_id);
+	ctx_isp = ctx->ctx_priv;
+	if (evt_params->inject_id == CAM_COMMON_EVT_INJECT_NOTIFY_EVENT_TYPE) {
+		rc = cam_isp_context_validate_event_notify_injection(ctx, evt_params);
+		if (rc) {
+			CAM_ERR(CAM_ISP,
+				"Event notification injection failed validation rc: %d", rc);
+			return rc;
+		}
+	} else {
+		CAM_ERR(CAM_ISP, "Buffer done err injection %u not supported by ISP",
+			evt_params->inject_id);
+		return -EINVAL;
+	}
 
-	ctx_isp->err_inject_params.err_code = err_code;
-	ctx_isp->err_inject_params.err_type = err_type;
-	ctx_isp->err_inject_params.err_req_id   = req_id;
-	ctx_isp->err_inject_params.is_valid = true;
+
+	memcpy(&ctx_isp->evt_inject_params, evt_params,
+		sizeof(struct cam_hw_inject_evt_param));
+
+	ctx_isp->evt_inject_params.is_valid = true;
 
 	return rc;
 }
@@ -7879,7 +7920,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
-		.err_inject_ops = cam_isp_context_inject_error,
+		.evt_inject_ops = cam_isp_context_inject_evt,
 	},
 	/* Ready */
 	{
@@ -7898,7 +7939,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
-		.err_inject_ops = cam_isp_context_inject_error,
+		.evt_inject_ops = cam_isp_context_inject_evt,
 	},
 	/* Flushed */
 	{
@@ -7916,7 +7957,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
-		.err_inject_ops = cam_isp_context_inject_error,
+		.evt_inject_ops = cam_isp_context_inject_evt,
 	},
 	/* Activated */
 	{
@@ -7940,7 +7981,7 @@ static struct cam_ctx_ops
 		.pagefault_ops = cam_isp_context_dump_requests,
 		.dumpinfo_ops = cam_isp_context_info_dump,
 		.recovery_ops = cam_isp_context_hw_recovery,
-		.err_inject_ops = cam_isp_context_inject_error,
+		.evt_inject_ops = cam_isp_context_inject_evt,
 	},
 };
 

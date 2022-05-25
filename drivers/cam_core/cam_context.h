@@ -165,7 +165,7 @@ struct cam_ctx_crm_ops {
  *                         context info
  * @recovery_ops:          Function to be invoked to try hardware recovery
  * @mini_dump_ops:         Function for mini dump
- * @err_inject_ops:        Function for error injection
+ * @evt_inject_ops:        Function for event injection
  *
  */
 struct cam_ctx_ops {
@@ -176,7 +176,7 @@ struct cam_ctx_ops {
 	cam_ctx_info_dump_cb_func    dumpinfo_ops;
 	cam_ctx_recovery_cb_func     recovery_ops;
 	cam_ctx_mini_dump_cb_func    mini_dump_ops;
-	cam_ctx_err_inject_cb_func   err_inject_ops;
+	cam_ctx_err_inject_cb_func   evt_inject_ops;
 };
 
 
@@ -601,16 +601,16 @@ void cam_context_putref(struct cam_context *ctx);
 void cam_context_getref(struct cam_context *ctx);
 
 /**
- * cam_context_add_err_inject()
+ * cam_context_add_evt_inject()
  *
- * @brief:     Add error inject parameters through err_inject_ops.
+ * @brief:       Add error inject parameters through evt_inject_ops.
  *
- * @ctx:       Context for which error is to be injected
+ * @ctx:         Context for which error is to be injected
  *
- * @err_param: Error injection parameters
+ * @inject_args: Event injection parameters
  *
  */
-int cam_context_add_err_inject(struct cam_context *ctx,
-	void *err_param);
+int cam_context_add_evt_inject(struct cam_context *ctx,
+	void *inject_args);
 
 #endif  /* _CAM_CONTEXT_H_ */

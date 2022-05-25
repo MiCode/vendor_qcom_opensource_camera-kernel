@@ -1744,21 +1744,126 @@ end:
 	*bytes_updated = bytes_written;
 }
 
-int cam_context_err_to_hw(struct cam_context *ctx, void *args)
+static int cam_context_apply_buf_done_err_injection(struct cam_context *ctx,
+	struct cam_common_evt_inject_data *inject_evt)
 {
-	int rc = -EINVAL;
+	struct cam_hw_done_event_data *buf_done_data = inject_evt->buf_done_data;
+	int rc;
 
-	if (!ctx || !args) {
-		CAM_ERR(CAM_CTXT, "invalid params for error injection");
-		return rc;
+	buf_done_data->evt_param = inject_evt->evt_params->u.buf_err_evt.sync_error;
+	rc = cam_context_buf_done_from_hw(ctx, buf_done_data,
+		CAM_CTX_EVT_ID_ERROR);
+	if (rc)
+		CAM_ERR(CAM_CTXT,
+			"Fail to apply buf done error injection with req id: %llu ctx id: %u rc: %d",
+			buf_done_data->request_id, ctx->ctx_id, rc);
+
+	return rc;
+}
+
+static int cam_context_apply_pf_evt_injection(struct cam_context *ctx,
+	struct cam_hw_inject_evt_param *evt_params)
+{
+	struct cam_hw_dump_pf_args pf_args         = {0};
+	struct cam_smmu_pf_info pf_info            = {0};
+	int rc;
+
+	pf_args.pf_context_info.req_id = evt_params->req_id;
+	pf_args.pf_context_info.ctx_found = evt_params->u.evt_notify.u.pf_evt_params.ctx_found;
+	pf_args.pf_smmu_info = &pf_info;
+
+	rc = cam_context_send_pf_evt(ctx, &pf_args);
+	if (rc)
+		CAM_ERR(CAM_CTXT,
+			"Fail to apply Page Fault event injection with req id: %llu ctx id: %u rc: %d",
+			evt_params->req_id, ctx->ctx_id, rc);
+
+	return rc;
+}
+
+static int cam_context_apply_node_event_injection(struct cam_context *ctx,
+	struct cam_hw_inject_evt_param *evt_params)
+{
+	struct cam_hw_inject_node_evt_param *node_evt_params =
+		&evt_params->u.evt_notify.u.node_evt_params;
+	struct cam_req_mgr_message req_msg                   = {0};
+	int rc;
+
+	req_msg.u.node_msg.request_id  = evt_params->req_id;
+	req_msg.u.node_msg.link_hdl    = ctx->link_hdl;
+	req_msg.u.node_msg.device_hdl  = ctx->dev_hdl;
+	req_msg.u.node_msg.event_type  = node_evt_params->event_type;
+	req_msg.u.node_msg.event_cause = node_evt_params->event_cause;
+	req_msg.session_hdl            = ctx->session_hdl;
+
+	rc = cam_req_mgr_notify_message(&req_msg,
+		V4L_EVENT_CAM_REQ_MGR_ERROR, V4L_EVENT_CAM_REQ_MGR_EVENT);
+	if (rc)
+		CAM_ERR(CAM_CTXT,
+			"Fail to apply error event injection with req id: %llu ctx id: %u rc: %d",
+			evt_params->req_id, ctx->ctx_id, rc);
+
+	return rc;
+}
+
+static int cam_context_apply_error_event_injection(struct cam_context *ctx,
+	struct cam_hw_inject_evt_param *evt_params)
+{
+	struct cam_hw_inject_err_evt_param *err_evt_params =
+		&evt_params->u.evt_notify.u.err_evt_params;
+	struct cam_req_mgr_message req_msg                 = {0};
+	int rc;
+
+	req_msg.u.err_msg.device_hdl    = ctx->dev_hdl;
+	req_msg.u.err_msg.error_type    = err_evt_params->err_type;
+	req_msg.u.err_msg.link_hdl      = ctx->link_hdl;
+	req_msg.u.err_msg.request_id    = evt_params->req_id;
+	req_msg.u.err_msg.resource_size = 0x0;
+	req_msg.u.err_msg.error_code    = err_evt_params->err_code;
+	req_msg.session_hdl             = ctx->session_hdl;
+
+	rc = cam_req_mgr_notify_message(&req_msg,
+		V4L_EVENT_CAM_REQ_MGR_ERROR, V4L_EVENT_CAM_REQ_MGR_EVENT);
+	if (rc)
+		CAM_ERR(CAM_CTXT,
+			"Fail to apply V4L2 Node event injection with req id: %llu ctx id: %u rc: %d",
+			evt_params->req_id, ctx->ctx_id, rc);
+
+	return rc;
+}
+
+int cam_context_apply_evt_injection(struct cam_context *ctx, void *inject_evt_arg)
+{
+	struct cam_common_evt_inject_data *inject_evt;
+	struct cam_hw_inject_evt_param *evt_params;
+	uint32_t evt_notify_type;
+	int rc = 0;
+
+	if (!ctx || !inject_evt_arg) {
+		CAM_ERR(CAM_CTXT, "Invalid parameters ctx %s inject evt args %s",
+			CAM_IS_NULL_TO_STR(ctx), CAM_IS_NULL_TO_STR(inject_evt_arg));
+		return -EINVAL;
 	}
 
-	if (ctx->hw_mgr_intf->hw_inject_err) {
-		ctx->hw_mgr_intf->hw_inject_err(ctx->ctxt_to_hw_map, args);
-		rc = 0;
-	} else {
-		CAM_ERR(CAM_CTXT, "hw_intf cb absent for dev hdl: %lld, ctx id: %lld",
-			ctx->dev_hdl, ctx->ctx_id);
+	inject_evt = inject_evt_arg;
+	evt_params = inject_evt->evt_params;
+
+	switch (evt_params->inject_id) {
+	case CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE:
+		rc = cam_context_apply_buf_done_err_injection(ctx, inject_evt);
+	case CAM_COMMON_EVT_INJECT_NOTIFY_EVENT_TYPE:
+		evt_notify_type = evt_params->u.evt_notify.evt_notify_type;
+		switch (evt_notify_type) {
+		case V4L_EVENT_CAM_REQ_MGR_ERROR:
+			rc = cam_context_apply_error_event_injection(ctx, evt_params);
+			break;
+		case V4L_EVENT_CAM_REQ_MGR_PF_ERROR:
+			rc = cam_context_apply_pf_evt_injection(ctx, evt_params);
+			break;
+		case V4L_EVENT_CAM_REQ_MGR_NODE_EVENT:
+			rc = cam_context_apply_node_event_injection(ctx, evt_params);
+			break;
+		}
 	}
 
 	return rc;

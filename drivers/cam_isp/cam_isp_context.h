@@ -288,6 +288,7 @@ struct cam_isp_context_event_record {
  * @trigger_id:                ID provided by CRM for each ctx on the link
  * @last_bufdone_err_apply_req_id:  last bufdone error apply request id
  * @v4l2_event_sub_ids         contains individual bits representing subscribed v4l2 ids
+ * @evt_inject_params:         event injection parameters
  * @aeb_enabled:               Indicate if stream is for AEB
  * @do_internal_recovery:      Enable KMD halt/reset/resume internal recovery
  *
@@ -345,7 +346,7 @@ struct cam_isp_context {
 	int32_t                               trigger_id;
 	int64_t                               last_bufdone_err_apply_req_id;
 	uint32_t                              v4l2_event_sub_ids;
-	struct cam_hw_err_param              err_inject_params;
+	struct cam_hw_inject_evt_param        evt_inject_params;
 	bool                                  aeb_enabled;
 	bool                                  do_internal_recovery;
 };

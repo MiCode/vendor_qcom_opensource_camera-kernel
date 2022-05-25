@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_JPEG_HW_INTF_H
@@ -82,6 +83,16 @@ struct cam_jpeg_misr_dump_args {
 	bool        enable_bug;
 };
 
+/**
+ * struct cam_jpeg_hw_buf_done_evt_data
+ * @buf_done_data:    buf done payload
+ * @evt_id:           event id (success/cancel/error)
+ */
+struct cam_jpeg_hw_buf_done_evt_data {
+	void      *buf_done_data;
+	uint32_t   evt_id;
+};
+
 enum cam_jpeg_cmd_type {
 	CAM_JPEG_CMD_CDM_CFG,
 	CAM_JPEG_CMD_SET_IRQ_CB,
@@ -92,6 +103,11 @@ enum cam_jpeg_cmd_type {
 	CAM_JPEG_CMD_CONFIG_HW_MISR,
 	CAM_JPEG_CMD_DUMP_HW_MISR_VAL,
 	CAM_JPEG_CMD_MAX,
+};
+
+enum cam_jpeg_hw_event_type {
+	CAM_JPEG_EVT_ID_BUF_DONE,
+	CAM_JPEG_EVT_ID_INDUCE_ERR,
 };
 
 #endif

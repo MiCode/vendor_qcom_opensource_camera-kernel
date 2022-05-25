@@ -25,18 +25,20 @@
 
 static struct cam_isp_dev g_isp_dev;
 
-static int cam_isp_dev_err_inject_cb(void *err_param)
+static int cam_isp_dev_evt_inject_cb(void *inject_args)
 {
-	int i  = 0;
+	struct cam_common_inject_evt_param *inject_params = inject_args;
+	int i;
 
 	for (i = 0; i < g_isp_dev.max_context; i++) {
-		if ((g_isp_dev.ctx[i].dev_hdl) ==
-			((struct cam_err_inject_param *)err_param)->dev_hdl) {
-			cam_context_add_err_inject(&g_isp_dev.ctx[i], err_param);
+		if (g_isp_dev.ctx[i].dev_hdl == inject_params->dev_hdl) {
+			cam_context_add_evt_inject(&g_isp_dev.ctx[i],
+				&inject_params->evt_params);
 			return 0;
 		}
 	}
-	CAM_ERR(CAM_ISP, "no dev hdl found for IFE");
+
+	CAM_ERR(CAM_ISP, "No dev hdl found %d", inject_params->dev_hdl);
 	return -ENODEV;
 }
 
@@ -217,8 +219,8 @@ static int cam_isp_dev_component_bind(struct device *dev,
 		}
 	}
 
-	cam_common_register_err_inject_cb(cam_isp_dev_err_inject_cb,
-		CAM_COMMON_ERR_INJECT_HW_ISP);
+	cam_common_register_evt_inject_cb(cam_isp_dev_evt_inject_cb,
+		CAM_COMMON_EVT_INJECT_HW_ISP);
 
 	rc = cam_node_init(node, &hw_mgr_intf, g_isp_dev.ctx,
 			g_isp_dev.max_context, CAM_ISP_DEV_NAME);

@@ -53,20 +53,20 @@ static const struct of_device_id cam_icp_dt_match[] = {
 	{}
 };
 
-static int cam_icp_dev_err_inject_cb(void *err_param)
+static int cam_icp_dev_evt_inject_cb(void *inject_args)
 {
-	int i  = 0;
+	struct cam_common_inject_evt_param *inject_params = inject_args;
+	int i;
 
 	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
-		if (g_icp_dev.ctx[i].dev_hdl ==
-			((struct cam_err_inject_param *)err_param)->dev_hdl) {
-			CAM_INFO(CAM_ICP, "ICP err inject dev_hdl found:%d",
-				g_icp_dev.ctx[i].dev_hdl);
-			cam_context_add_err_inject(&g_icp_dev.ctx[i], err_param);
+		if (g_icp_dev.ctx[i].dev_hdl == inject_params->dev_hdl) {
+			cam_context_add_evt_inject(&g_icp_dev.ctx[i],
+				&inject_params->evt_params);
 			return 0;
 		}
 	}
-	CAM_ERR(CAM_ICP, "No dev hdl found");
+
+	CAM_ERR(CAM_ICP, "No dev hdl found %d", inject_params->dev_hdl);
 	return -ENODEV;
 }
 
@@ -261,8 +261,8 @@ static int cam_icp_component_bind(struct device *dev,
 		goto ctx_fail;
 	}
 
-	cam_common_register_err_inject_cb(cam_icp_dev_err_inject_cb,
-		CAM_COMMON_ERR_INJECT_HW_ICP);
+	cam_common_register_evt_inject_cb(cam_icp_dev_evt_inject_cb,
+		CAM_COMMON_EVT_INJECT_HW_ICP);
 
 	node->sd_handler = cam_icp_subdev_close_internal;
 	cam_smmu_set_client_page_fault_handler(iommu_hdl,

@@ -468,4 +468,9 @@ bool cam_smmu_need_shared_buffer_padding(void);
  */
 bool cam_smmu_is_expanded_memory(void);
 
+/**
+ * @brief : API to query whether page fault non fatal is enable for a device's context bank
+ */
+int cam_smmu_is_cb_non_fatal_fault_en(int smmu_hdl, bool *non_fatal_en);
+
 #endif /* _CAM_SMMU_API_H_ */

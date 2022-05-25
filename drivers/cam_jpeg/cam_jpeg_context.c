@@ -15,6 +15,7 @@
 #include "cam_context_utils.h"
 #include "cam_debug_util.h"
 #include "cam_packet_util.h"
+#include "cam_jpeg_hw_intf.h"
 
 static const char jpeg_dev_name[] = "cam-jpeg";
 
@@ -95,11 +96,11 @@ static int __cam_jpeg_ctx_release_dev_in_acquired(struct cam_context *ctx,
 {
 	int rc;
 
+	cam_common_release_evt_params(ctx->dev_hdl);
+
 	rc = cam_context_release_dev_to_hw(ctx, cmd);
 	if (rc)
 		CAM_ERR(CAM_JPEG, "Unable to release device %d", rc);
-
-	cam_common_release_err_params(ctx->dev_hdl);
 
 	ctx->state = CAM_CTX_AVAILABLE;
 
@@ -137,10 +138,43 @@ static int __cam_jpeg_ctx_config_dev_in_acquired(struct cam_context *ctx,
 	return cam_context_prepare_dev_to_hw(ctx, cmd);
 }
 
-static int __cam_jpeg_ctx_handle_buf_done_in_acquired(void *ctx,
-	uint32_t evt_id, void *done)
+static int __cam_jpeg_ctx_handle_buf_done_in_acquired(void *ctx, void *done_evt_data)
 {
-	return cam_context_buf_done_from_hw(ctx, done, evt_id);
+	struct cam_jpeg_hw_buf_done_evt_data *buf_done = done_evt_data;
+
+	return cam_context_buf_done_from_hw(ctx, buf_done->buf_done_data,
+		 buf_done->evt_id);
+}
+
+static int __cam_jpeg_ctx_handle_evt_inducement(void *ctx, void *inject_evt_arg)
+{
+	return cam_context_apply_evt_injection(ctx, inject_evt_arg);
+}
+
+static int __cam_jpeg_ctx_handle_hw_event(void *ctx,
+	uint32_t evt_id, void *evt_data)
+{
+	int rc;
+
+	if (!ctx || !evt_data) {
+		CAM_ERR(CAM_JPEG, "Invalid parameters ctx %s evt_data: %s",
+			CAM_IS_NULL_TO_STR(ctx), CAM_IS_NULL_TO_STR(evt_data));
+		return -EINVAL;
+	}
+
+	switch (evt_id) {
+	case CAM_JPEG_EVT_ID_BUF_DONE:
+		rc = __cam_jpeg_ctx_handle_buf_done_in_acquired(ctx, evt_data);
+		break;
+	case CAM_JPEG_EVT_ID_INDUCE_ERR:
+		rc = __cam_jpeg_ctx_handle_evt_inducement(ctx, evt_data);
+		break;
+	default:
+		CAM_ERR(CAM_JPEG, "Invalid event id: %u", evt_id);
+		rc = -EINVAL;
+	}
+
+	return rc;
 }
 
 static int __cam_jpeg_ctx_stop_dev_in_acquired(struct cam_context *ctx,
@@ -157,53 +191,108 @@ static int __cam_jpeg_ctx_stop_dev_in_acquired(struct cam_context *ctx,
 	return rc;
 }
 
-static int cam_jpeg_context_inject_error(void *context, void *err_param)
+static int cam_jpeg_context_validate_event_notify_injection(struct cam_context *ctx,
+	struct cam_hw_inject_evt_param *evt_params)
 {
 	int rc = 0;
-	struct cam_context *ctx = (struct cam_context *)context;
+	uint32_t evt_type;
 	uint64_t req_id;
-	uint32_t err_code;
-	uint32_t err_type;
 
-	if (!err_param) {
-		CAM_ERR(CAM_ISP, "err_param not valid");
-		return -EINVAL;
+	req_id   = evt_params->req_id;
+	evt_type = evt_params->u.evt_notify.evt_notify_type;
+
+	switch (evt_type) {
+	case V4L_EVENT_CAM_REQ_MGR_NODE_EVENT: {
+		struct cam_hw_inject_node_evt_param *node_evt_params =
+			&evt_params->u.evt_notify.u.node_evt_params;
+
+		switch (node_evt_params->event_type) {
+		case CAM_REQ_MGR_RETRY_EVENT:
+			break;
+		default:
+			CAM_ERR(CAM_JPEG,
+				"Invalid event type %u for node event injection event cause: %u req id: %llu ctx id: %u dev hdl: %d",
+				node_evt_params->event_type, node_evt_params->event_cause,
+				req_id, ctx->ctx_id, ctx->dev_hdl);
+			return -EINVAL;
+		}
+
+		CAM_INFO(CAM_JPEG,
+			"Inject Node evt: event type: %u event cause: %u req id: %llu ctx id: %u dev hdl: %d",
+			node_evt_params->event_type, node_evt_params->event_cause,
+			req_id, ctx->ctx_id, ctx->dev_hdl);
+		break;
 	}
+	case V4L_EVENT_CAM_REQ_MGR_PF_ERROR: {
+		struct cam_hw_inject_pf_evt_param *pf_evt_params =
+			&evt_params->u.evt_notify.u.pf_evt_params;
+		bool non_fatal_en;
 
-	req_id     = ((struct cam_err_inject_param *)err_param)->req_id;
-	err_code   = ((struct cam_err_inject_param *)err_param)->err_code;
-	err_type   = ((struct cam_err_inject_param *)err_param)->err_type;
+		rc = cam_smmu_is_cb_non_fatal_fault_en(ctx->img_iommu_hdl, &non_fatal_en);
+		if (rc) {
+			CAM_ERR(CAM_JPEG,
+				"Fail to query whether device's cb has non-fatal enabled rc: %d",
+				rc);
+			return rc;
+		}
 
-	switch (err_type) {
-	case CAM_REQ_MGR_RETRY_EVENT:
-		switch (err_code) {
-		case CAM_REQ_MGR_JPEG_THUBNAIL_SIZE_ERROR:
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
+		if (!non_fatal_en) {
+			CAM_ERR(CAM_JPEG,
+				"Fail to inject page fault event notification. Page fault is fatal for JPEG");
 			return -EINVAL;
 		}
+
+		CAM_INFO(CAM_JPEG,
+			"Inject PF evt: req_id: %llu ctx id: %u dev hdl: %d ctx found: %hhu",
+			req_id, ctx->ctx_id, ctx->dev_hdl, pf_evt_params->ctx_found);
 		break;
-	case CAM_SYNC_STATE_SIGNALED_ERROR:
-		switch (err_code) {
-		case CAM_SYNC_JPEG_EVENT_INVLD_CMD:
-		case CAM_SYNC_JPEG_EVENT_SET_IRQ_CB:
-		case CAM_SYNC_JPEG_EVENT_HW_RESET_FAILED:
-		case CAM_SYNC_JPEG_EVENT_CDM_CHANGE_BASE_ERR:
-		case CAM_SYNC_JPEG_EVENT_CDM_CONFIG_ERR:
-		case CAM_SYNC_JPEG_EVENT_START_HW_ERR:
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "err code not supported %d", err_code);
-			return -EINVAL;
-		}
-		break;
+	}
 	default:
-		CAM_ERR(CAM_ISP, "err type not supported %d", err_type);
+		CAM_ERR(CAM_JPEG, "Event notification type not supported: %u", evt_type);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_jpeg_context_inject_evt(void *context, void *evt_args)
+{
+	struct cam_context *ctx = context;
+	struct cam_hw_inject_evt_param *evt_params = NULL;
+	struct cam_hw_inject_buffer_error_param *buf_err_params = NULL;
+	int rc = 0;
+
+	if (!ctx || !evt_args) {
+		CAM_ERR(CAM_JPEG,
+			"invalid params ctx %s event args %s",
+			CAM_IS_NULL_TO_STR(ctx), CAM_IS_NULL_TO_STR(evt_args));
 		return -EINVAL;
 	}
 
-	rc = cam_context_err_to_hw(ctx, err_param);
+	evt_params = (struct cam_hw_inject_evt_param *)evt_args;
+
+	if (evt_params->inject_id == CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE) {
+		buf_err_params = &evt_params->u.buf_err_evt;
+		if (buf_err_params->sync_error > CAM_SYNC_JPEG_EVENT_START ||
+			buf_err_params->sync_error < CAM_SYNC_JPEG_EVENT_END) {
+			CAM_INFO(CAM_JPEG, "Inject buffer sync error %u ctx id: %u req id %llu",
+				buf_err_params->sync_error, ctx->ctx_id, evt_params->req_id);
+		} else {
+			CAM_ERR(CAM_JPEG, "Invalid buffer sync error %u",
+				buf_err_params->sync_error);
+			return -EINVAL;
+		}
+	} else {
+		rc = cam_jpeg_context_validate_event_notify_injection(ctx, evt_params);
+		if (rc) {
+			CAM_ERR(CAM_JPEG,
+				"Event notification injection failed validation rc: %d", rc);
+			return rc;
+		}
+	}
+
+	if (ctx->hw_mgr_intf->hw_inject_evt)
+		ctx->hw_mgr_intf->hw_inject_evt(ctx->ctxt_to_hw_map, evt_args);
 
 	return rc;
 }
@@ -236,10 +325,10 @@ static struct cam_ctx_ops
 			.dump_dev = __cam_jpeg_ctx_dump_dev_in_acquired,
 		},
 		.crm_ops = { },
-		.irq_ops = __cam_jpeg_ctx_handle_buf_done_in_acquired,
+		.irq_ops = __cam_jpeg_ctx_handle_hw_event,
 		.pagefault_ops = cam_jpeg_context_dump_active_request,
 		.mini_dump_ops = cam_jpeg_context_mini_dump,
-		.err_inject_ops = cam_jpeg_context_inject_error,
+		.evt_inject_ops = cam_jpeg_context_inject_evt,
 	},
 	/* Ready */
 	{

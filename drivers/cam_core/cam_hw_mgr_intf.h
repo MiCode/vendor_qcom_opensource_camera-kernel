@@ -546,18 +546,76 @@ struct cam_hw_mini_dump_info {
 };
 
 /**
- * cam_hw_err_param - cam hHW error injection parameters
+ * cam_hw_inject_err_evt_param - error evt injection parameters
  *
- * @err_type         error type for the injected error
- * @err_code         error code for the injected error
- * @err_req_id       Req Id for which the error is injected
- * @is_valid         bool flag to indicate if error injection is enabled for a context
+ * @err_type:         error type for the injected err evt
+ * @err_code:         error code for the injected err evt
  */
-struct cam_hw_err_param {
-	uint32_t   err_type;
-	uint32_t   err_code;
-	uint64_t   err_req_id;
-	bool       is_valid;
+struct cam_hw_inject_err_evt_param {
+	uint32_t err_type;
+	uint32_t err_code;
+};
+
+/**
+ * cam_hw_inject_node_evt_param - node evt injection parameters
+ * @event_type:       event type for the injected node evt
+ * @event_cause:      event cause for the injected node evt
+ */
+struct cam_hw_inject_node_evt_param {
+	uint32_t event_type;
+	uint32_t event_cause;
+};
+
+/**
+ * cam_hw_inject_pf_evt_param - pf evt injection parameters
+ *
+ * @ctx_found:        flag to indicate if page fault notification sent with ctx or not
+ */
+struct cam_hw_inject_pf_evt_param {
+	bool ctx_found;
+};
+
+/**
+ * cam_hw_inject_evt_notification_param - notify event parameters
+ *
+ * @evt_notify_type:   type of event notification
+ * @u:                 union which can be either error event/Page Fault event/Node event
+ */
+
+struct cam_hw_inject_evt_notification_param {
+	uint32_t evt_notify_type;
+	union {
+		struct cam_hw_inject_err_evt_param  err_evt_params;
+		struct cam_hw_inject_pf_evt_param   pf_evt_params;
+		struct cam_hw_inject_node_evt_param node_evt_params;
+	} u;
+};
+
+/**
+ * cam_hw_inject_buffer_error_param - buffer error injection parameters
+ *
+ * @sync_error:        sync error code
+ */
+struct cam_hw_inject_buffer_error_param {
+	uint32_t sync_error;
+};
+
+/**
+ * cam_hw_inject_evt_param - CRM event injection parameters
+ *
+ * @inject_id:        generic inject identifier
+ * @req_id:           Req Id for which the event is injected
+ * @u:                union which can be either buffer done error/event notification
+ * @is_valid:         bool flag to indicate if event injection is enabled for a context
+ */
+struct cam_hw_inject_evt_param {
+	uint8_t inject_id;
+	uint64_t req_id;
+	union {
+		struct cam_hw_inject_buffer_error_param buf_err_evt;
+		struct cam_hw_inject_evt_notification_param evt_notify;
+	} u;
+	bool is_valid;
 };
 
 /**
@@ -590,7 +648,7 @@ struct cam_hw_err_param {
  * @hw_reset:                  Function pointer for HW reset
  * @hw_dump:                   Function pointer for HW dump
  * @hw_recovery:               Function pointer for HW recovery callback
- * @hw_inject_err              Function pointer for HW error injection callback
+ * @hw_inject_evt:             Function pointer for HW event injection callback
  *
  */
 struct cam_hw_mgr_intf {
@@ -614,7 +672,7 @@ struct cam_hw_mgr_intf {
 	int (*hw_reset)(void *hw_priv, void *hw_reset_args);
 	int (*hw_dump)(void *hw_priv, void *hw_dump_args);
 	int (*hw_recovery)(void *hw_priv, void *hw_recovery_args);
-	void (*hw_inject_err)(void *hw_priv, void *hw_err_inject_args);
+	void (*hw_inject_evt)(void *hw_priv, void *evt_args);
 };
 
 #endif /* _CAM_HW_MGR_INTF_H_ */

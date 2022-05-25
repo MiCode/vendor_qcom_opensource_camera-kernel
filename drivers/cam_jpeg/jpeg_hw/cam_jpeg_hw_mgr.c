@@ -56,28 +56,23 @@ static int cam_jpeg_insert_cdm_change_base(
 	struct cam_jpeg_hw_ctx_data *ctx_data,
 	struct cam_jpeg_hw_mgr *hw_mgr);
 
-static void cam_jpeg_inject_err(struct cam_jpeg_hw_ctx_data *ctx_data,
-	struct cam_hw_done_event_data *buf_data)
+static void cam_jpeg_mgr_apply_evt_injection(struct cam_hw_done_event_data *buf_done_data,
+	struct cam_jpeg_hw_ctx_data *ctx_data, bool *signal_fence_buffer)
 {
-	struct cam_req_mgr_message v4l2_msg = {0};
-	struct cam_context *cam_ctx         = ctx_data->context_priv;
+	struct cam_hw_inject_evt_param *evt_inject_params = &ctx_data->evt_inject_params;
+	struct cam_common_evt_inject_data inject_evt;
 
-	if (ctx_data->err_inject_params.err_code == CAM_REQ_MGR_JPEG_THUBNAIL_SIZE_ERROR) {
-		v4l2_msg.session_hdl = cam_ctx->session_hdl;
-		v4l2_msg.u.node_msg.request_id = ctx_data->err_inject_params.err_req_id;
-		v4l2_msg.u.node_msg.link_hdl = cam_ctx->link_hdl;
-		v4l2_msg.u.node_msg.device_hdl = cam_ctx->dev_hdl;
-		v4l2_msg.u.node_msg.event_type = CAM_REQ_MGR_RETRY_EVENT;
-		v4l2_msg.u.node_msg.event_cause =
-			CAM_REQ_MGR_JPEG_THUBNAIL_SIZE_ERROR;
-		cam_req_mgr_notify_message(&v4l2_msg,
-			V4L_EVENT_CAM_REQ_MGR_NODE_EVENT,
-			V4L_EVENT_CAM_REQ_MGR_EVENT);
-	} else {
-		buf_data->evt_param = ctx_data->err_inject_params.err_code;
-	}
+	inject_evt.buf_done_data = buf_done_data;
+	inject_evt.evt_params = evt_inject_params;
 
-	memset(&(ctx_data->err_inject_params), 0, sizeof(struct cam_hw_err_param));
+	if (ctx_data->ctxt_event_cb)
+		ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_JPEG_EVT_ID_INDUCE_ERR,
+			&inject_evt);
+
+	if (evt_inject_params->inject_id == CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE)
+		*signal_fence_buffer = false;
+
+	evt_inject_params->is_valid = false;
 }
 
 static int cam_jpeg_generic_blob_handler(void *user_data,
@@ -389,6 +384,8 @@ static int cam_jpeg_mgr_bottom_half_irq(void *priv, void *data)
 	struct cam_req_mgr_message                               v4l2_msg = {0};
 	struct cam_ctx_request                                  *req;
 	struct cam_jpeg_misr_dump_args                           misr_args;
+	struct cam_jpeg_hw_buf_done_evt_data                     jpeg_done_evt;
+
 	if (!data || !priv) {
 		CAM_ERR(CAM_JPEG, "Invalid data");
 		return -EINVAL;
@@ -513,8 +510,10 @@ static int cam_jpeg_mgr_bottom_half_irq(void *priv, void *data)
 	}
 
 	buf_data.request_id = jpeg_req->request_id;
-	ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_CTX_EVT_ID_SUCCESS,
-		&buf_data);
+	jpeg_done_evt.evt_id = CAM_CTX_EVT_ID_SUCCESS;
+	jpeg_done_evt.buf_done_data = &buf_data;
+	ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_JPEG_EVT_ID_BUF_DONE,
+		&jpeg_done_evt);
 
 exit:
 	irq_cb.jpeg_hw_mgr_cb = cam_jpeg_hw_mgr_sched_bottom_half;
@@ -641,7 +640,8 @@ static int cam_jpeg_mgr_release_ctx(
 	}
 
 	ctx_data->in_use = false;
-	memset(&(ctx_data->err_inject_params), 0, sizeof(struct cam_hw_err_param));
+	memset(&ctx_data->evt_inject_params, 0, sizeof(struct cam_hw_inject_evt_param));
+
 	mutex_unlock(&ctx_data->ctx_mutex);
 
 	return 0;
@@ -727,6 +727,9 @@ static int cam_jpeg_mgr_process_hw_update_entries(void *priv, void *data)
 	struct cam_jpeg_set_irq_cb                                 irq_cb;
 	struct cam_jpeg_hw_cfg_req                                *p_cfg_req = NULL;
 	struct cam_hw_done_event_data                              buf_data;
+	struct cam_jpeg_hw_buf_done_evt_data                       jpeg_done_evt;
+	bool                                                       event_inject = false;
+	bool                                                       signal_fence_buffer = true;
 
 	task_data = (struct cam_jpeg_process_frame_work_data_t *)data;
 	if (!hw_mgr || !task_data) {
@@ -806,11 +809,12 @@ static int cam_jpeg_mgr_process_hw_update_entries(void *priv, void *data)
 		goto end;
 	}
 
-	if (ctx_data->err_inject_params.is_valid &&
-		ctx_data->err_inject_params.err_req_id == request_id) {
-		cam_jpeg_inject_err(ctx_data, &buf_data);
+	if (ctx_data->evt_inject_params.is_valid &&
+		ctx_data->evt_inject_params.req_id == request_id) {
+		event_inject = true;
 		goto end_callcb;
 	}
+
 	irq_cb.jpeg_hw_mgr_cb = cam_jpeg_hw_mgr_sched_bottom_half;
 	irq_cb.irq_cb_data.private_data = (void *)ctx_data;
 	irq_cb.irq_cb_data.jpeg_req = jpeg_req;
@@ -853,8 +857,16 @@ end_callcb:
 			config_args->out_map_entries[i].resource_handle;
 		}
 		buf_data.request_id = (uintptr_t)jpeg_req->request_id;
-		ctx_data->ctxt_event_cb(ctx_data->context_priv,
-			CAM_CTX_EVT_ID_ERROR, &buf_data);
+		if (event_inject)
+			cam_jpeg_mgr_apply_evt_injection(&buf_data, ctx_data,
+				&signal_fence_buffer);
+
+		if (signal_fence_buffer) {
+			jpeg_done_evt.evt_id = CAM_CTX_EVT_ID_ERROR;
+			jpeg_done_evt.buf_done_data = &buf_data;
+			ctx_data->ctxt_event_cb(ctx_data->context_priv,
+				CAM_JPEG_EVT_ID_BUF_DONE, &jpeg_done_evt);
+		}
 	}
 end_unusedev:
 	mutex_lock(&hw_mgr->hw_mgr_mutex);
@@ -2193,17 +2205,21 @@ static int cam_jpeg_mgr_create_debugfs_entry(void)
 	return rc;
 }
 
-static void cam_jpeg_mgr_inject_err(void *hw_mgr_priv, void *hw_err_inject_args)
+static void cam_jpeg_mgr_inject_evt(void *hw_mgr_priv, void *evt_args)
 {
-	struct cam_jpeg_hw_ctx_data *ctx_data = hw_mgr_priv;
+	struct cam_jpeg_hw_ctx_data *ctx_data      = hw_mgr_priv;
+	struct cam_hw_inject_evt_param *evt_params = evt_args;
 
-	ctx_data->err_inject_params.err_code = ((struct cam_err_inject_param  *)
-		hw_err_inject_args)->err_code;
-	ctx_data->err_inject_params.err_type   = ((struct cam_err_inject_param *)
-		hw_err_inject_args)->err_type;
-	ctx_data->err_inject_params.err_req_id = ((struct cam_err_inject_param *)
-		hw_err_inject_args)->req_id;
-	ctx_data->err_inject_params.is_valid   = true;
+	if (!ctx_data || !evt_params) {
+		CAM_ERR(CAM_JPEG, "Invalid parameters ctx data %s event params %s",
+			CAM_IS_NULL_TO_STR(ctx_data), CAM_IS_NULL_TO_STR(evt_params));
+		return;
+	}
+
+	memcpy(&ctx_data->evt_inject_params, evt_params,
+		sizeof(struct cam_hw_inject_evt_param));
+
+	ctx_data->evt_inject_params.is_valid = true;
 }
 
 int cam_jpeg_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
@@ -2233,7 +2249,7 @@ int cam_jpeg_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	hw_mgr_intf->hw_stop = cam_jpeg_mgr_hw_stop;
 	hw_mgr_intf->hw_cmd = cam_jpeg_mgr_cmd;
 	hw_mgr_intf->hw_dump = cam_jpeg_mgr_hw_dump;
-	hw_mgr_intf->hw_inject_err = cam_jpeg_mgr_inject_err;
+	hw_mgr_intf->hw_inject_evt = cam_jpeg_mgr_inject_evt;
 
 	mutex_init(&g_jpeg_hw_mgr.hw_mgr_mutex);
 	spin_lock_init(&g_jpeg_hw_mgr.hw_mgr_lock);

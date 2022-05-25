@@ -34,6 +34,7 @@
 enum cam_icp_hw_event_type {
 	CAM_ICP_EVT_ID_BUF_DONE,
 	CAM_ICP_EVT_ID_ERROR,
+	CAM_ICP_EVT_ID_INJECT_EVENT,
 };
 
 enum cam_icp_hw_error_type {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/string.h>
@@ -22,10 +23,13 @@ static  struct cam_common_mini_dump_dev_info g_minidump_dev_info;
 
 #define CAM_PRESIL_POLL_DELAY 20
 
-static struct cam_common_err_inject_info g_err_inject_info;
+static struct cam_common_inject_evt_info g_inject_evt_info;
 
 static uint timeout_multiplier = 1;
 module_param(timeout_multiplier, uint, 0644);
+typedef int (*cam_common_evt_inject_cmd_parse_handler)(
+	struct cam_common_inject_evt_param *inject_params,
+	uint32_t param_counter, char *token);
 
 int cam_common_util_get_string_index(const char **strings,
 	uint32_t num_strings, const char *matching_string, uint32_t *index)
@@ -339,201 +343,483 @@ int cam_common_user_dump_helper(
 	return 0;
 }
 
-int cam_common_register_err_inject_cb(
-	cam_common_err_inject_cb err_inject_cb,
-	enum cam_common_err_inject_hw_id hw_id)
+int cam_common_register_evt_inject_cb(cam_common_evt_inject_cb evt_inject_cb,
+	enum cam_common_evt_inject_hw_id hw_id)
 {
 	int rc = 0;
 
-	if (g_err_inject_info.num_hw_registered >= CAM_COMMON_ERR_INJECT_HW_MAX) {
+	if (g_inject_evt_info.num_hw_registered >= CAM_COMMON_EVT_INJECT_HW_MAX) {
 		CAM_ERR(CAM_UTIL, "No free index available");
 		return -EINVAL;
 	}
 
-	if (!err_inject_cb || hw_id >= CAM_COMMON_ERR_INJECT_HW_MAX) {
-		CAM_ERR(CAM_UTIL, "Invalid params");
+	if (!evt_inject_cb || hw_id >= CAM_COMMON_EVT_INJECT_HW_MAX) {
+		CAM_ERR(CAM_UTIL, "Invalid params evt_inject_cb %s hw_id: %d",
+			CAM_IS_NULL_TO_STR(evt_inject_cb), hw_id);
 		return -EINVAL;
 	}
 
-	g_err_inject_info.err_inject_cb[hw_id] = err_inject_cb;
-	g_err_inject_info.num_hw_registered++;
-	CAM_DBG(CAM_UTIL, "err inject cb registered for HW_id:%d, total registered: %d", hw_id,
-		g_err_inject_info.num_hw_registered);
+	g_inject_evt_info.evt_inject_cb[hw_id] = evt_inject_cb;
+	g_inject_evt_info.num_hw_registered++;
+	CAM_DBG(CAM_UTIL, "Evt inject cb registered for HW_id: %d, total registered: %d", hw_id,
+		g_inject_evt_info.num_hw_registered);
 	return rc;
 }
 
-int cam_common_release_err_params(uint64_t dev_hdl)
+void cam_common_release_evt_params(int32_t dev_hdl)
 {
-	int rc = 0;
 	struct list_head *pos = NULL, *pos_next = NULL;
-	struct cam_err_inject_param *err_param;
+	struct cam_common_inject_evt_param *inject_params;
 
-	if (!g_err_inject_info.is_list_initialised)
-		return -EINVAL;
+	if (!g_inject_evt_info.is_list_initialised)
+		return;
 
-	if (list_empty(&g_err_inject_info.active_err_ctx_list)) {
-		CAM_ERR(CAM_UTIL, "list is empty");
-		return -EINVAL;
+	if (list_empty(&g_inject_evt_info.active_evt_ctx_list)) {
+		CAM_DBG(CAM_UTIL, "Event injection list is initialized but empty");
+		return;
 	}
-	list_for_each_safe(pos, pos_next, &g_err_inject_info.active_err_ctx_list) {
-		err_param = list_entry(pos, struct cam_err_inject_param, list);
-		if (err_param->dev_hdl == dev_hdl) {
-			CAM_INFO(CAM_UTIL, "entry deleted for %llu dev hdl", dev_hdl);
+
+	list_for_each_safe(pos, pos_next, &g_inject_evt_info.active_evt_ctx_list) {
+		inject_params = list_entry(pos, struct cam_common_inject_evt_param, list);
+		if (inject_params->dev_hdl == dev_hdl) {
+			CAM_INFO(CAM_UTIL, "entry deleted for %d dev hdl", dev_hdl);
 			list_del(pos);
-			kfree(err_param);
+			kfree(inject_params);
 		}
 	}
+}
+
+static inline int cam_common_evt_inject_get_hw_id(uint8_t *hw_id, char *token)
+{
+	if (strcmp(token, CAM_COMMON_IFE_NODE) == 0)
+		*hw_id = CAM_COMMON_EVT_INJECT_HW_ISP;
+	else if (strcmp(token, CAM_COMMON_ICP_NODE) == 0)
+		*hw_id = CAM_COMMON_EVT_INJECT_HW_ICP;
+	else if (strcmp(token, CAM_COMMON_JPEG_NODE) == 0)
+		*hw_id = CAM_COMMON_EVT_INJECT_HW_JPEG;
+	else {
+		CAM_ERR(CAM_UTIL, "Invalid camera hardware [ %s ]", token);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static inline int cam_common_evt_inject_get_str_id_type(uint8_t *id_type, char *token)
+{
+	if (!strcmp(token, CAM_COMMON_EVT_INJECT_BUFFER_ERROR))
+		*id_type = CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE;
+	else if (!strcmp(token, CAM_COMMON_EVT_INJECT_NOTIFY_EVENT))
+		*id_type = CAM_COMMON_EVT_INJECT_NOTIFY_EVENT_TYPE;
+	else {
+		CAM_ERR(CAM_UTIL, "Invalid string id: %s", token);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int cam_common_evt_inject_parse_buffer_error_evt_params(
+	struct cam_common_inject_evt_param *inject_params,
+	uint32_t param_counter, char *token)
+{
+	struct cam_hw_inject_buffer_error_param *buf_err_params =
+		&inject_params->evt_params.u.buf_err_evt;
+	int rc = 0;
+
+	switch (param_counter) {
+	case SYNC_ERROR_CAUSE:
+		if (kstrtou32(token, 0, &buf_err_params->sync_error)) {
+			CAM_ERR(CAM_UTIL, "Invalid event type %s", token);
+			rc = -EINVAL;
+		}
+		break;
+	default:
+		CAM_ERR(CAM_UTIL, "Invalid extra parameters: %s", token);
+		rc = -EINVAL;
+	}
+
 	return rc;
 }
 
-static int cam_err_inject_set(const char *kmessage,
+static int cam_common_evt_inject_parse_node_evt_params(
+	struct cam_common_inject_evt_param *inject_params,
+	uint32_t param_counter, char *token)
+{
+	struct cam_hw_inject_node_evt_param *node_params =
+		&inject_params->evt_params.u.evt_notify.u.node_evt_params;
+	int rc = 0;
+
+	switch (param_counter) {
+	case EVENT_TYPE:
+		if (kstrtou32(token, 0, &node_params->event_type)) {
+			CAM_ERR(CAM_UTIL, "Invalid event type %s", token);
+			rc = -EINVAL;
+		}
+		break;
+	case EVENT_CAUSE:
+		if (kstrtou32(token, 0, &node_params->event_cause)) {
+			CAM_ERR(CAM_UTIL, "Invalid event cause %s", token);
+			rc = -EINVAL;
+		}
+		break;
+	default:
+		CAM_ERR(CAM_UTIL, "Invalid extra parameters: %s", token);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_common_evt_inject_parse_pf_params(
+	struct cam_common_inject_evt_param *inject_params,
+	uint32_t param_counter, char *token)
+{
+	struct cam_hw_inject_pf_evt_param *pf_params =
+		&inject_params->evt_params.u.evt_notify.u.pf_evt_params;
+	int rc = 0;
+
+	switch (param_counter) {
+	case PF_PARAM_CTX_FOUND:
+		if (kstrtobool(token, &pf_params->ctx_found)) {
+			CAM_ERR(CAM_UTIL, "Invalid context found value %s", token);
+			rc = -EINVAL;
+		}
+		break;
+	default:
+		CAM_ERR(CAM_UTIL, "Invalid extra parameters %s", token);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_common_evt_inject_parse_err_evt_params(
+	struct cam_common_inject_evt_param *inject_params,
+	uint32_t param_counter, char *token)
+{
+	struct cam_hw_inject_err_evt_param *err_params =
+		&inject_params->evt_params.u.evt_notify.u.err_evt_params;
+	int rc = 0;
+
+	switch (param_counter) {
+	case ERR_PARAM_ERR_TYPE:
+		if (kstrtou32(token, 0, &err_params->err_type)) {
+			CAM_ERR(CAM_UTIL, "Invalid error type %s", token);
+			rc = -EINVAL;
+		}
+		break;
+	case ERR_PARAM_ERR_CODE:
+		if (kstrtou32(token, 0, &err_params->err_code)) {
+			CAM_ERR(CAM_UTIL, "Invalid error code %s", token);
+			rc = -EINVAL;
+		}
+		break;
+	default:
+		CAM_ERR(CAM_UTIL, "Invalid extra parameters: %s", token);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_common_evt_inject_parse_event_notify(
+	struct cam_common_inject_evt_param *inject_params,
+	uint32_t param_counter, char *token)
+{
+	int rc = 0;
+
+	switch (param_counter) {
+	case EVT_NOTIFY_TYPE:
+		if (kstrtou32(token, 0,
+			&inject_params->evt_params.u.evt_notify.evt_notify_type)) {
+			CAM_ERR(CAM_UTIL, "Invalid Event notify type %s", token);
+			rc = -EINVAL;
+		}
+		break;
+	default:
+		CAM_ERR(CAM_UTIL, "Invalid extra parameters: %s", token);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_common_evt_inject_parse_common_params(
+	struct cam_common_inject_evt_param *inject_params,
+	uint32_t param_counter, char *token)
+{
+	int rc = 0;
+	struct cam_hw_inject_evt_param *evt_param = &inject_params->evt_params;
+
+	switch (param_counter) {
+	case STRING_ID:
+		rc = cam_common_evt_inject_get_str_id_type(&evt_param->inject_id, token);
+		break;
+	case HW_NAME:
+		rc = cam_common_evt_inject_get_hw_id(&inject_params->hw_id, token);
+		break;
+	case DEV_HDL:
+		if (kstrtos32(token, 0, &inject_params->dev_hdl)) {
+			CAM_ERR(CAM_UTIL, "Invalid device handle %s", token);
+			rc = -EINVAL;
+		}
+		break;
+	case REQ_ID:
+		if (kstrtou64(token, 0, &evt_param->req_id)) {
+			CAM_ERR(CAM_UTIL, "Invalid request id %s", token);
+			rc = -EINVAL;
+		}
+		break;
+	default:
+		 CAM_ERR(CAM_UTIL, "Invalid extra parameter: %s", token);
+		 rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_common_evt_inject_generic_command_parser(
+	struct cam_common_inject_evt_param *inject_params,
+	char **msg, uint32_t max_params, cam_common_evt_inject_cmd_parse_handler cmd_parse_cb)
+{
+	char *token = NULL;
+	int rc = 0, param_counter = 0;
+
+	token = strsep(msg, ":");
+	while (token != NULL) {
+		rc = cmd_parse_cb(inject_params, param_counter, token);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Parsed Command failed rc: %d", rc);
+			return rc;
+		}
+
+		param_counter++;
+		if (param_counter == max_params)
+			break;
+		token = strsep(msg, ":");
+	}
+
+	if (param_counter < max_params) {
+		CAM_ERR(CAM_UTIL,
+			"Insufficient parameters passed for total parameters: %u",
+			param_counter);
+		return -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_common_evt_inject_set(const char *kmessage,
 	const struct kernel_param *kp)
 {
-	int     rc                                         = 0;
-	char    tmp_buff[CAM_COMMON_ERR_INJECT_BUFFER_LEN] = {'\0'};
-	char    *token_start, *token_end;
-	struct  cam_err_inject_param *err_params           = NULL;
-	uint8_t param_counter                              = 0;
+	struct   cam_common_inject_evt_param *inject_params   = NULL;
+	struct   cam_hw_inject_evt_param *hw_evt_params       = NULL;
+	cam_common_evt_inject_cmd_parse_handler parse_handler = NULL;
+	int      rc                                           = 0;
+	char     tmp_buff[CAM_COMMON_EVT_INJECT_BUFFER_LEN];
+	char    *msg                                          = NULL;
+	uint32_t param_output                                 = 0;
 
-	err_params = kzalloc(sizeof(struct cam_err_inject_param), GFP_KERNEL);
-	if (!err_params) {
+	inject_params = kzalloc(sizeof(struct cam_common_inject_evt_param), GFP_KERNEL);
+	if (!inject_params) {
 		CAM_ERR(CAM_UTIL, "no free memory");
 		return -ENOMEM;
 	}
 
-	memset(tmp_buff, 0, CAM_COMMON_ERR_INJECT_BUFFER_LEN);
-	rc = strscpy(tmp_buff, kmessage, CAM_COMMON_ERR_INJECT_BUFFER_LEN);
+	rc = strscpy(tmp_buff, kmessage, CAM_COMMON_EVT_INJECT_BUFFER_LEN);
 	if (rc == -E2BIG)
 		goto free;
 
-	token_start = tmp_buff;
-	token_end   = tmp_buff;
+	CAM_INFO(CAM_UTIL, "parsing input param for cam event injection: %s", tmp_buff);
 
-	CAM_INFO(CAM_UTIL, "parsing input param for cam_err_inject: %s", tmp_buff);
-	while (token_start != NULL) {
-		strsep(&token_end, ":");
-		switch (param_counter) {
-		case HW_NAME:
-			if (strcmp(token_start, CAM_COMMON_IFE_NODE) == 0)
-				err_params->hw_id = CAM_COMMON_ERR_INJECT_HW_ISP;
-			else if (strcmp(token_start, CAM_COMMON_ICP_NODE) == 0)
-				err_params->hw_id = CAM_COMMON_ERR_INJECT_HW_ICP;
-			else if (strcmp(token_start, CAM_COMMON_JPEG_NODE) == 0)
-				err_params->hw_id = CAM_COMMON_ERR_INJECT_HW_JPEG;
-			else {
-				CAM_ERR(CAM_UTIL, "invalid camera hardware [ %s ]", token_start);
-					goto free;
-			}
+	msg = tmp_buff;
+	hw_evt_params = &inject_params->evt_params;
+
+	rc = cam_common_evt_inject_generic_command_parser(inject_params, &msg,
+		COMMON_PARAM_MAX, cam_common_evt_inject_parse_common_params);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "Fail to parse common params %d", rc);
+		goto free;
+	}
+
+	switch (hw_evt_params->inject_id) {
+	case CAM_COMMON_EVT_INJECT_NOTIFY_EVENT_TYPE:
+		rc = cam_common_evt_inject_generic_command_parser(inject_params, &msg,
+			EVT_NOTIFY_PARAM_MAX, cam_common_evt_inject_parse_event_notify);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Fail to parse event notify type param %d", rc);
+			goto free;
+		}
+
+		switch (hw_evt_params->u.evt_notify.evt_notify_type) {
+		case V4L_EVENT_CAM_REQ_MGR_ERROR:
+			parse_handler = cam_common_evt_inject_parse_err_evt_params;
+			param_output = ERR_PARAM_MAX;
 			break;
-		case REQ_ID:
-			if (kstrtou64(token_start, 0, &(err_params->req_id)))
-				goto free;
+		case V4L_EVENT_CAM_REQ_MGR_NODE_EVENT:
+			parse_handler = cam_common_evt_inject_parse_node_evt_params;
+			param_output = NODE_PARAM_MAX;
 			break;
-		case ERR_TYPE:
-			if (kstrtou32(token_start, 0, &(err_params->err_type)))
-				goto free;
-			break;
-		case ERR_CODE:
-			if (kstrtou32(token_start, 0, &(err_params->err_code)))
-				goto free;
-			break;
-		case DEV_HDL:
-			if (kstrtou64(token_start, 0, &(err_params->dev_hdl)))
-				goto free;
+		case V4L_EVENT_CAM_REQ_MGR_PF_ERROR:
+			parse_handler = cam_common_evt_inject_parse_pf_params;
+			param_output = PF_PARAM_MAX;
 			break;
 		default:
-			CAM_ERR(CAM_UTIL, "Insuffiecient parameter count [%d] ", param_counter);
+			CAM_ERR(CAM_UTIL, "Invalid event notification type: %u",
+				hw_evt_params->u.evt_notify.evt_notify_type);
 			goto free;
 		}
-
-		param_counter++;
-		token_start = token_end;
+		break;
+	case CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE:
+		parse_handler = cam_common_evt_inject_parse_buffer_error_evt_params;
+		param_output = BUFFER_ERROR_PARAM_MAX;
+		break;
+	default:
+		CAM_ERR(CAM_UTIL, "Invalid Injection id: %u", hw_evt_params->inject_id);
 	}
 
-	if (param_counter < CAM_COMMON_ERR_INJECT_PARAM_NUM) {
-		CAM_ERR(CAM_UTIL, "Insuffiecient parameter count [%d]", param_counter);
+	rc = cam_common_evt_inject_generic_command_parser(inject_params, &msg,
+		param_output, parse_handler);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "Command Parsed failed with Inject id: %u rc: %d",
+			hw_evt_params->inject_id, rc);
 		goto free;
 	}
 
-	CAM_INFO(CAM_UTIL, "parsed params: req_id: %llu err_type: %u, err_code: %u dev_hdl: %llu",
-		err_params->req_id, err_params->err_type, err_params->err_code,
-		err_params->dev_hdl);
-
-	if (g_err_inject_info.err_inject_cb[err_params->hw_id]) {
-		rc = g_err_inject_info.err_inject_cb[err_params->hw_id](err_params);
+	if (g_inject_evt_info.evt_inject_cb[inject_params->hw_id]) {
+		rc = g_inject_evt_info.evt_inject_cb[inject_params->hw_id](inject_params);
 		if (rc)
 			goto free;
-		else {
-			if (!g_err_inject_info.is_list_initialised) {
-				INIT_LIST_HEAD(&g_err_inject_info.active_err_ctx_list);
-				g_err_inject_info.is_list_initialised = true;
-			}
-
-			list_add(&err_params->list, &g_err_inject_info.active_err_ctx_list);
-		}
 	} else {
-		CAM_ERR(CAM_UTIL, "Handler for HW_id [%d] not registered", err_params->hw_id);
+		CAM_ERR(CAM_UTIL, "Handler for HW_id [%hhu] not registered", inject_params->hw_id);
 		goto free;
 	}
 
-	if (rc)
-		CAM_ERR(CAM_UTIL, "No Dev_hdl found: [%d]", err_params->dev_hdl);
-
-	return rc;
-free:
-	kfree(err_params);
-	return -EINVAL;
-}
-
-static int cam_err_inject_get(char *buffer,
-	const struct kernel_param *kp)
-{
-	uint8_t hw_name[10];
-	uint16_t buff_max_size = CAM_COMMON_ERR_MODULE_PARAM_MAX_LENGTH;
-	struct cam_err_inject_param *err_param;
-	int ret = 0;
-
-	if (!g_err_inject_info.is_list_initialised)
-		return scnprintf(buffer, buff_max_size, "uninitialised");
-
-	else if (!list_empty(&g_err_inject_info.active_err_ctx_list)) {
-		list_for_each_entry(err_param, &g_err_inject_info.active_err_ctx_list, list) {
-			switch (err_param->hw_id) {
-			case CAM_COMMON_ERR_INJECT_HW_ISP:
-				strscpy(hw_name, CAM_COMMON_IFE_NODE, 10);
-				break;
-			case CAM_COMMON_ERR_INJECT_HW_ICP:
-				strscpy(hw_name, CAM_COMMON_ICP_NODE, 10);
-				break;
-			case CAM_COMMON_ERR_INJECT_HW_JPEG:
-				strscpy(hw_name, CAM_COMMON_JPEG_NODE, 10);
-				break;
-			default:
-				strscpy(hw_name, "undef", 10);
-			}
-			ret += scnprintf(buffer+ret, buff_max_size,
-				"hw_name: %s req_id: %u err_type: %u err_code: %u dev_hdl: %d\n",
-				hw_name, err_param->req_id, err_param->err_type,
-				err_param->err_code, err_param->dev_hdl);
-
-			CAM_DBG(CAM_UTIL, "output buffer: %s", buffer);
-
-			if (ret < buff_max_size) {
-				buff_max_size = buff_max_size - ret;
-			} else {
-				CAM_WARN(CAM_UTIL, "out buff max limit reached");
-				break;
-			}
-		}
-		return ret;
+	if (!g_inject_evt_info.is_list_initialised) {
+		INIT_LIST_HEAD(&g_inject_evt_info.active_evt_ctx_list);
+		g_inject_evt_info.is_list_initialised = true;
 	}
 
-	return scnprintf(buffer, buff_max_size, "uninitialised");
+	list_add(&inject_params->list, &g_inject_evt_info.active_evt_ctx_list);
+
+	return rc;
+
+free:
+	kfree(inject_params);
+	return rc;
 }
 
-static const struct kernel_param_ops cam_error_inject_ops = {
-	.set = cam_err_inject_set,
-	.get = cam_err_inject_get
+static int cam_common_evt_inject_get(char *buffer,
+	const struct kernel_param *kp)
+{
+	uint8_t hw_name[16], string_id[16];
+	uint16_t buff_max_size = CAM_COMMON_EVT_INJECT_MODULE_PARAM_MAX_LENGTH;
+	struct cam_common_inject_evt_param *inject_params = NULL;
+	struct cam_hw_inject_evt_param *evt_params = NULL;
+	uint32_t  ret = 0;
+
+	if (!g_inject_evt_info.is_list_initialised)
+		return scnprintf(buffer, buff_max_size, "uninitialised");
+
+	if (list_empty(&g_inject_evt_info.active_evt_ctx_list))
+		return scnprintf(buffer, buff_max_size, "Active err inject list is empty");
+
+	list_for_each_entry(inject_params, &g_inject_evt_info.active_evt_ctx_list, list) {
+		evt_params = &inject_params->evt_params;
+
+		switch (inject_params->hw_id) {
+		case CAM_COMMON_EVT_INJECT_HW_ISP:
+			strscpy(hw_name, CAM_COMMON_IFE_NODE, sizeof(hw_name));
+			break;
+		case CAM_COMMON_EVT_INJECT_HW_ICP:
+			strscpy(hw_name, CAM_COMMON_ICP_NODE, sizeof(hw_name));
+			break;
+		case CAM_COMMON_EVT_INJECT_HW_JPEG:
+			strscpy(hw_name, CAM_COMMON_JPEG_NODE, sizeof(hw_name));
+			break;
+		default:
+			ret += scnprintf(buffer+ret, buff_max_size, "Undefined HW id\n");
+			goto undefined_param;
+		}
+
+		switch (evt_params->inject_id) {
+		case CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE:
+			strscpy(string_id, CAM_COMMON_EVT_INJECT_BUFFER_ERROR, sizeof(string_id));
+			break;
+		case CAM_COMMON_EVT_INJECT_NOTIFY_EVENT_TYPE:
+			strscpy(string_id, CAM_COMMON_EVT_INJECT_NOTIFY_EVENT, sizeof(string_id));
+			break;
+		default:
+			ret += scnprintf(buffer+ret, buff_max_size, "Undefined string id\n");
+			goto undefined_param;
+		}
+
+		ret += scnprintf(buffer+ret, buff_max_size,
+			"string_id: %s hw_name: %s dev_hdl: %d req_id: %llu ",
+			string_id, hw_name,
+			inject_params->dev_hdl, evt_params->req_id);
+
+		if (buff_max_size > ret) {
+			buff_max_size -= ret;
+		} else {
+			CAM_WARN(CAM_UTIL, "out buff max limit reached");
+			break;
+		}
+
+		if (evt_params->inject_id ==
+			CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE) {
+			ret += scnprintf(buffer+ret, buff_max_size,
+				"sync_error: %u\n", evt_params->u.buf_err_evt.sync_error);
+		} else {
+			switch (evt_params->u.evt_notify.evt_notify_type) {
+			case V4L_EVENT_CAM_REQ_MGR_ERROR: {
+				struct cam_hw_inject_err_evt_param *err_evt_params =
+					&evt_params->u.evt_notify.u.err_evt_params;
+				ret += scnprintf(buffer+ret, buff_max_size,
+					"Error event: error type: %u error code: %u\n",
+					err_evt_params->err_type, err_evt_params->err_code);
+				break;
+			}
+			case V4L_EVENT_CAM_REQ_MGR_NODE_EVENT: {
+				struct cam_hw_inject_node_evt_param *node_evt_params =
+					&evt_params->u.evt_notify.u.node_evt_params;
+				ret += scnprintf(buffer+ret, buff_max_size,
+					"Node event: event type: %u event cause: %u\n",
+					node_evt_params->event_type, node_evt_params->event_cause);
+				break;
+			}
+			case V4L_EVENT_CAM_REQ_MGR_PF_ERROR: {
+				struct cam_hw_inject_pf_evt_param *pf_evt_params =
+					&evt_params->u.evt_notify.u.pf_evt_params;
+				ret += scnprintf(buffer+ret, buff_max_size,
+					"PF event: ctx found %hhu\n",
+					pf_evt_params->ctx_found);
+				break;
+			}
+			default:
+				ret += scnprintf(buffer+ret, buff_max_size,
+					"Undefined notification event\n");
+			}
+		}
+
+undefined_param:
+		CAM_DBG(CAM_UTIL, "output buffer: %s", buffer);
+
+		if (buff_max_size > ret) {
+			buff_max_size -= ret;
+		} else {
+			CAM_WARN(CAM_UTIL, "out buff max limit reached");
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static const struct kernel_param_ops cam_common_evt_inject = {
+	.set = cam_common_evt_inject_set,
+	.get = cam_common_evt_inject_get
 };
 
-module_param_cb(cam_error_inject, &cam_error_inject_ops, NULL, 0644);
+module_param_cb(cam_event_inject, &cam_common_evt_inject, NULL, 0644);

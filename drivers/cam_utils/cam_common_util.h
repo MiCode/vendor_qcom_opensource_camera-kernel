@@ -10,6 +10,8 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 
+#include "cam_hw_mgr_intf.h"
+
 #define CAM_BITS_MASK_SHIFT(x, mask, shift) (((x) & (mask)) >> shift)
 #define CAM_36BIT_INTF_GET_IOVA_BASE(iova) ((iova) >> 8)
 #define CAM_36BIT_INTF_GET_IOVA_OFFSET(iova) ((iova) & 0xff)
@@ -21,12 +23,12 @@
 #define CAM_COMMON_HW_DUMP_TAG_MAX_LEN 64
 #define CAM_MAX_NUM_CCI_PAYLOAD_BYTES     11
 
-#define CAM_COMMON_ERR_MODULE_PARAM_MAX_LENGTH  4096
-#define CAM_COMMON_ERR_INJECT_BUFFER_LEN  200
-#define CAM_COMMON_ERR_INJECT_DEV_MAX     5
-#define CAM_COMMON_ERR_INJECT_PARAM_NUM   5
-#define CAM_COMMON_IFE_NODE "IFE"
-#define CAM_COMMON_ICP_NODE "IPE"
+#define CAM_COMMON_EVT_INJECT_MODULE_PARAM_MAX_LENGTH 4096
+#define CAM_COMMON_EVT_INJECT_BUFFER_LEN              200
+#define CAM_COMMON_EVT_INJECT_BUFFER_ERROR "Buffer_Error"
+#define CAM_COMMON_EVT_INJECT_NOTIFY_EVENT "Notify_Event"
+#define CAM_COMMON_IFE_NODE  "IFE"
+#define CAM_COMMON_ICP_NODE  "IPE"
 #define CAM_COMMON_JPEG_NODE "JPEG"
 
 #define CAM_COMMON_NS_PER_MS              1000000ULL
@@ -110,49 +112,91 @@ struct cam_common_mini_dump_data {
 };
 
 
-typedef int (*cam_common_err_inject_cb) (void *err_param);
-int cam_common_release_err_params(uint64_t dev_hdl);
+typedef int (*cam_common_evt_inject_cb) (void *inject_args);
 
-enum cam_common_err_inject_hw_id {
-	CAM_COMMON_ERR_INJECT_HW_ISP,
-	CAM_COMMON_ERR_INJECT_HW_ICP,
-	CAM_COMMON_ERR_INJECT_HW_JPEG,
-	CAM_COMMON_ERR_INJECT_HW_MAX
+enum cam_common_evt_inject_str_id_type {
+	CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE,
+	CAM_COMMON_EVT_INJECT_NOTIFY_EVENT_TYPE
 };
 
-enum cam_common_err_inject_input_param_pos {
-	HW_NAME = 0,
+enum cam_common_evt_inject_hw_id {
+	CAM_COMMON_EVT_INJECT_HW_ISP,
+	CAM_COMMON_EVT_INJECT_HW_ICP,
+	CAM_COMMON_EVT_INJECT_HW_JPEG,
+	CAM_COMMON_EVT_INJECT_HW_MAX
+};
+
+enum cam_common_evt_inject_common_param_pos {
+	STRING_ID,
+	HW_NAME,
+	DEV_HDL,
 	REQ_ID,
-	ERR_TYPE,
-	ERR_CODE,
-	DEV_HDL
+	COMMON_PARAM_MAX
+};
+
+enum cam_common_evt_inject_notify_event_pos {
+	EVT_NOTIFY_TYPE,
+	EVT_NOTIFY_PARAM_MAX
+};
+
+enum cam_evt_inject_buffer_error_event {
+	SYNC_ERROR_CAUSE,
+	BUFFER_ERROR_PARAM_MAX
+};
+
+enum cam_evt_inject_error_param_pos {
+	ERR_PARAM_ERR_TYPE,
+	ERR_PARAM_ERR_CODE,
+	ERR_PARAM_MAX
+};
+
+enum cam_evt_inject_node_param_pos {
+	EVENT_TYPE,
+	EVENT_CAUSE,
+	NODE_PARAM_MAX,
+};
+
+enum cam_evt_inject_pf_params_pos {
+	PF_PARAM_CTX_FOUND,
+	PF_PARAM_MAX
 };
 
 /**
- * @req_id  : req id for err to be injected
- * @dev_hdl : dev_hdl for the context
- * @err_type: error type for error request
- * @err_code: error code for error request
- * @hw_id   : hw id representing hw nodes of type cam_common_err_inject_hw_id
+ * struct cam_common_evt_inject_data
+ * @buf_done_data: buf done data
+ * @evt_params   : event params for the injected event
  */
-struct cam_err_inject_param {
-	struct list_head  list;
-	uint64_t          req_id;
-	uint64_t          dev_hdl;
-	uint32_t          err_type;
-	uint32_t          err_code;
-	uint8_t           hw_id;
+struct cam_common_evt_inject_data {
+	void                           *buf_done_data;
+	struct cam_hw_inject_evt_param *evt_params;
 };
+
+typedef int (*cam_common_evt_inject_ops) (void *cam_ctx,
+	struct cam_common_evt_inject_data *inject_evt);
+
 /**
- * struct cam_common_err_inject_info
- * @err_inject_cb      : address of callback
- * @active_err_ctx_list: list containing active err inject requests
- * @num_hw_registered  : number of callbacks registered
- * @is_list_initialised: bool to check init for err_inject list
+ * struct cam_common_inject_evt_param
+ * @evt_params : injection event params
+ * @dev_hdl    : device handle to match with ctx's dev_hdl
+ * @hw_id      : hw to be injected with the event
  */
-struct cam_common_err_inject_info {
-	cam_common_err_inject_cb    err_inject_cb[CAM_COMMON_ERR_INJECT_HW_MAX];
-	struct list_head            active_err_ctx_list;
+struct cam_common_inject_evt_param {
+	struct list_head list;
+	struct cam_hw_inject_evt_param evt_params;
+	int32_t dev_hdl;
+	uint8_t hw_id;
+};
+
+/**
+ * struct cam_common_inject_evt_info
+ * @evt_inject_cb      : address of callback
+ * @active_err_ctx_list: list containing active evt inject requests
+ * @num_hw_registered  : number of callbacks registered
+ * @is_list_initialised: bool to check init for evt_inject list
+ */
+struct cam_common_inject_evt_info {
+	cam_common_evt_inject_cb    evt_inject_cb[CAM_COMMON_EVT_INJECT_HW_MAX];
+	struct list_head            active_evt_ctx_list;
 	uint8_t                     num_hw_registered;
 	bool                        is_list_initialised;
 };
@@ -188,6 +232,13 @@ struct cam_common_hw_dump_header {
 	uint64_t  size;
 	uint32_t  word_size;
 };
+
+/**
+ * @brief                 release all event inject params in the g_inject_evt_info
+ *                        for a specific dev_hdl
+ * @dev_hdl:              device handle to which the evt inject params belong to
+ */
+void cam_common_release_evt_params(int32_t dev_hdl);
 
 /**
  * cam_common_util_get_string_index()
@@ -338,17 +389,17 @@ int cam_common_user_dump_helper(
 	...);
 
 /**
- * cam_common_register_err_inject_cb()
+ * cam_common_register_evt_inject_cb()
  *
- * @brief                  common interface to register error inject cb
+ * @brief                  common interface to register evt inject cb
  *
- * @err_inject_cb:         Pointer to err_inject_cb
+ * @evt_inject_cb:         Pointer to evt_inject_cb
  * @hw_id:                 HW id of the HW driver registering
  *
  * @return:                0 if success in register non-zero if failes
  */
-int cam_common_register_err_inject_cb(
-	cam_common_err_inject_cb err_inject_cb,
-	enum cam_common_err_inject_hw_id hw_id);
+int cam_common_register_evt_inject_cb(
+	cam_common_evt_inject_cb evt_inject_cb,
+	enum cam_common_evt_inject_hw_id hw_id);
 
 #endif /* _CAM_COMMON_UTIL_H_ */

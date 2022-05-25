@@ -107,11 +107,11 @@ static int __cam_icp_release_dev_in_acquired(struct cam_context *ctx,
 {
 	int rc;
 
+	cam_common_release_evt_params(ctx->dev_hdl);
+
 	rc = cam_context_release_dev_to_hw(ctx, cmd);
 	if (rc)
 		CAM_ERR(CAM_ICP, "Unable to release device");
-
-	cam_common_release_err_params(ctx->dev_hdl);
 
 	ctx->state = CAM_CTX_AVAILABLE;
 	trace_cam_context_state("ICP", ctx);
@@ -303,13 +303,19 @@ static int cam_icp_ctx_handle_buf_done_in_ready(void *ctx, void *done_evt_data)
 	return cam_context_buf_done_from_hw(ctx, buf_done->buf_done_data, buf_done->evt_id);
 }
 
+static int cam_icp_ctx_handle_error_inducement(void *ctx, void *inject_evt_arg)
+{
+	return cam_context_apply_evt_injection(ctx, inject_evt_arg);
+}
+
 static int __cam_icp_ctx_handle_hw_event(void *ctx,
 	uint32_t evt_id, void *evt_data)
 {
 	int rc;
 
 	if (!ctx || !evt_data) {
-		CAM_ERR(CAM_ICP, "Invalid ctx and event data");
+		CAM_ERR(CAM_ICP, "Invalid ctx  %s and event data %s",
+			CAM_IS_NULL_TO_STR(ctx), CAM_IS_NULL_TO_STR(evt_data));
 		return -EINVAL;
 	}
 
@@ -320,52 +326,120 @@ static int __cam_icp_ctx_handle_hw_event(void *ctx,
 	case CAM_ICP_EVT_ID_ERROR:
 		rc = cam_icp_ctx_handle_fatal_error(ctx, evt_data);
 		break;
+	case CAM_ICP_EVT_ID_INJECT_EVENT:
+		rc = cam_icp_ctx_handle_error_inducement(ctx, evt_data);
+		break;
 	default:
-		CAM_ERR(CAM_ICP, "Invalid event id: %d", evt_id);
+		CAM_ERR(CAM_ICP, "Invalid event id: %u", evt_id);
 		rc = -EINVAL;
 	}
 
 	return rc;
 }
 
-static int cam_icp_context_inject_error(void *context, void *err_param)
+static int cam_icp_context_validate_event_notify_injection(struct cam_context *ctx,
+	struct cam_hw_inject_evt_param *evt_params)
 {
 	int rc = 0;
-	uint32_t err_code;
-	uint32_t err_type;
+	uint32_t evt_type;
 	uint64_t req_id;
-	struct cam_context *ctx = (struct cam_context *)context;
 
-	if (!err_param) {
-		CAM_ERR(CAM_ICP, "err_params is not valid");
-		return -EINVAL;
-	}
+	req_id   = evt_params->req_id;
+	evt_type = evt_params->u.evt_notify.evt_notify_type;
 
-	err_code = ((struct cam_err_inject_param *)err_param)->err_code;
-	err_type = ((struct cam_err_inject_param *)err_param)->err_type;
-	req_id = ((struct cam_err_inject_param *)err_param)->req_id;
+	switch (evt_type) {
+	case V4L_EVENT_CAM_REQ_MGR_ERROR: {
+		struct cam_hw_inject_err_evt_param *err_evt_params =
+			&evt_params->u.evt_notify.u.err_evt_params;
 
-	switch (err_type) {
-	case CAM_SYNC_STATE_SIGNALED_ERROR:
-		switch (err_code) {
-		case CAM_SYNC_ICP_EVENT_FRAME_PROCESS_FAILURE:
-		case CAM_SYNC_ICP_EVENT_CONFIG_ERR:
+		switch (err_evt_params->err_type) {
+		case CAM_REQ_MGR_ERROR_TYPE_RECOVERY:
+		case CAM_REQ_MGR_ERROR_TYPE_FULL_RECOVERY:
 			break;
 		default:
-			CAM_ERR(CAM_ICP, "ICP Error code %d not supported!", err_code);
+			CAM_ERR(CAM_ICP,
+				"Invalid error type: %u for error event injection err code: %u req id: %llu ctx id: %u dev hdl: %d",
+				err_evt_params->err_type, err_evt_params->err_code,
+				req_id, ctx->ctx_id, ctx->dev_hdl);
 			return -EINVAL;
 		}
+
+		CAM_INFO(CAM_ICP,
+			"Inject ERR evt: err code: %u err type: %u req id: %llu ctx id: %u dev hdl: %d",
+			err_evt_params->err_code, err_evt_params->err_type,
+			req_id, ctx->ctx_id, ctx->dev_hdl);
 		break;
+	}
+	case V4L_EVENT_CAM_REQ_MGR_PF_ERROR: {
+		struct cam_hw_inject_pf_evt_param *pf_evt_params =
+			&evt_params->u.evt_notify.u.pf_evt_params;
+		bool non_fatal_en;
+
+		rc = cam_smmu_is_cb_non_fatal_fault_en(ctx->img_iommu_hdl, &non_fatal_en);
+		if (rc) {
+			CAM_ERR(CAM_ICP,
+				"Fail to query whether device's cb has non-fatal enabled rc: %d",
+				rc);
+			return rc;
+		}
+
+		if (!non_fatal_en) {
+			CAM_ERR(CAM_ICP,
+				"Fail to inject page fault event notification. Page fault is fatal for ICP");
+			return -EINVAL;
+		}
+
+		CAM_INFO(CAM_ICP,
+			"Inject PF evt: req_id: %llu ctx id: %u dev hdl: %d ctx found: %hhu",
+			req_id, ctx->ctx_id, ctx->dev_hdl, pf_evt_params->ctx_found);
+		break;
+	}
 	default:
-		CAM_ERR(CAM_ICP, "ICP Error type: %d not supported!", err_code);
+		CAM_ERR(CAM_ICP, "Event notification type not supported: %u", evt_type);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_icp_context_inject_evt(void *context, void *evt_args)
+{
+	struct cam_context *ctx = context;
+	struct cam_hw_inject_evt_param *evt_params = NULL;
+	struct cam_hw_inject_buffer_error_param *buf_err_params = NULL;
+	int rc = 0;
+
+	if (!ctx || !evt_args) {
+		CAM_ERR(CAM_ICP,
+			"invalid params ctx %s event args %s",
+			CAM_IS_NULL_TO_STR(ctx), CAM_IS_NULL_TO_STR(evt_args));
 		return -EINVAL;
 	}
 
-	CAM_INFO(CAM_ICP,
-		"Err inject params: err_code: %u err_type: %u, to dev_hdl: %lld",
-		err_code, err_type, ctx->dev_hdl);
+	evt_params = (struct cam_hw_inject_evt_param *)evt_args;
 
-	rc = cam_context_err_to_hw(ctx, err_param);
+	if (evt_params->inject_id == CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE) {
+		buf_err_params = &evt_params->u.buf_err_evt;
+		if (buf_err_params->sync_error > CAM_SYNC_ICP_EVENT_START ||
+			buf_err_params->sync_error < CAM_SYNC_ICP_EVENT_END) {
+			CAM_INFO(CAM_ICP, "Inject buffer sync error %u ctx id: %u req id %llu",
+				buf_err_params->sync_error, ctx->ctx_id, evt_params->req_id);
+		} else {
+			CAM_ERR(CAM_ICP, "Invalid buffer sync error %u ctx id: %u req id %llu",
+				buf_err_params->sync_error, ctx->ctx_id, evt_params->req_id);
+			return -EINVAL;
+		}
+	} else {
+		rc = cam_icp_context_validate_event_notify_injection(ctx, evt_params);
+		if (rc) {
+			CAM_ERR(CAM_ICP,
+				"Event notification injection failed validation rc: %d", rc);
+			return -EINVAL;
+		}
+	}
+
+	if (ctx->hw_mgr_intf->hw_inject_evt)
+		ctx->hw_mgr_intf->hw_inject_evt(ctx->ctxt_to_hw_map, evt_args);
 
 	return rc;
 }
@@ -400,7 +474,7 @@ static struct cam_ctx_ops
 		.irq_ops = __cam_icp_ctx_handle_hw_event,
 		.pagefault_ops = cam_icp_context_dump_active_request,
 		.mini_dump_ops = cam_icp_context_mini_dump,
-		.err_inject_ops = cam_icp_context_inject_error,
+		.evt_inject_ops = cam_icp_context_inject_evt,
 	},
 	/* Ready */
 	{
@@ -415,7 +489,7 @@ static struct cam_ctx_ops
 		.irq_ops = __cam_icp_ctx_handle_hw_event,
 		.pagefault_ops = cam_icp_context_dump_active_request,
 		.mini_dump_ops = cam_icp_context_mini_dump,
-		.err_inject_ops = cam_icp_context_inject_error,
+		.evt_inject_ops = cam_icp_context_inject_evt,
 	},
 	/* Flushed */
 	{
@@ -428,7 +502,7 @@ static struct cam_ctx_ops
 		.irq_ops = NULL,
 		.pagefault_ops = cam_icp_context_dump_active_request,
 		.mini_dump_ops = cam_icp_context_mini_dump,
-		.err_inject_ops = cam_icp_context_inject_error,
+		.evt_inject_ops = cam_icp_context_inject_evt,
 	},
 };
 

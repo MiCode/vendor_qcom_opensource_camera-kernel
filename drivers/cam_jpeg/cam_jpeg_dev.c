@@ -24,19 +24,20 @@
 
 static struct cam_jpeg_dev g_jpeg_dev;
 
-static int cam_jpeg_dev_err_inject_cb(void *err_param)
+static int cam_jpeg_dev_evt_inject_cb(void *inject_args)
 {
-	int i  = 0;
+	struct cam_common_inject_evt_param *inject_params = inject_args;
+	int i;
 
 	for (i = 0; i < CAM_JPEG_CTX_MAX; i++) {
-		if (g_jpeg_dev.ctx[i].dev_hdl ==
-			((struct cam_err_inject_param *)err_param)->dev_hdl) {
-			CAM_INFO(CAM_ISP, "dev_hdl found:%d", g_jpeg_dev.ctx[i].dev_hdl);
-			cam_context_add_err_inject(&g_jpeg_dev.ctx[i], err_param);
+		if (g_jpeg_dev.ctx[i].dev_hdl == inject_params->dev_hdl) {
+			cam_context_add_evt_inject(&g_jpeg_dev.ctx[i],
+				&inject_params->evt_params);
 			return 0;
 		}
 	}
-	CAM_ERR(CAM_ISP, "no dev hdl found jpeg");
+
+	CAM_ERR(CAM_JPEG, "No dev hdl found %d", inject_params->dev_hdl);
 	return -EINVAL;
 }
 
@@ -191,8 +192,8 @@ static int cam_jpeg_dev_component_bind(struct device *dev,
 		}
 	}
 
-	cam_common_register_err_inject_cb(cam_jpeg_dev_err_inject_cb,
-		CAM_COMMON_ERR_INJECT_HW_JPEG);
+	cam_common_register_evt_inject_cb(cam_jpeg_dev_evt_inject_cb,
+		CAM_COMMON_EVT_INJECT_HW_JPEG);
 
 	rc = cam_node_init(node, &hw_mgr_intf, g_jpeg_dev.ctx, CAM_JPEG_CTX_MAX,
 		CAM_JPEG_DEV_NAME);

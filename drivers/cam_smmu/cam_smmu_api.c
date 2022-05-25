@@ -925,6 +925,27 @@ static int cam_smmu_iommu_fault_handler(struct iommu_domain *domain,
 	return -ENOSYS;
 }
 
+int cam_smmu_is_cb_non_fatal_fault_en(int smmu_hdl, bool *non_fatal_en)
+{
+	int idx;
+
+	if (smmu_hdl == HANDLE_INIT) {
+		CAM_ERR(CAM_SMMU, "Invalid iommu handle %d", smmu_hdl);
+		return -EINVAL;
+	}
+
+	idx = GET_SMMU_TABLE_IDX(smmu_hdl);
+	if (idx < 0 || idx >= iommu_cb_set.cb_num) {
+		CAM_ERR(CAM_SMMU,
+			"Invalid handle or idx. idx: %d, hdl: 0x%x", idx, smmu_hdl);
+		return -EINVAL;
+	}
+
+	*non_fatal_en = iommu_cb_set.cb_info[idx].non_fatal_faults_en;
+
+	return 0;
+}
+
 void cam_smmu_reset_cb_page_fault_cnt(void)
 {
 	int idx;

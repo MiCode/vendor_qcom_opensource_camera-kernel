@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_JPEG_HW_MGR_H
@@ -104,7 +105,7 @@ struct cam_jpeg_hw_cfg_req {
  * @wait_complete: Completion info
  * @cdm_cmd: Cdm cmd submitted for that context.
  * @mini_dump_cb: Mini dump cb
- * @err_inject_params: Error injection params for hw_mgr_ctx
+ * @evt_inject_params: Event injection params for hw_mgr_ctx
  */
 struct cam_jpeg_hw_ctx_data {
 	void *context_priv;
@@ -115,7 +116,7 @@ struct cam_jpeg_hw_ctx_data {
 	struct completion wait_complete;
 	struct cam_cdm_bl_request *cdm_cmd;
 	cam_ctx_mini_dump_cb_func      mini_dump_cb;
-	struct cam_hw_err_param err_inject_params;
+	struct cam_hw_inject_evt_param evt_inject_params;
 };
 
 /**

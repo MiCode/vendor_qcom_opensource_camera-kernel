@@ -2232,31 +2232,24 @@ static const char *cam_icp_error_handle_id_to_type(
 	return name;
 }
 
-static inline void cam_icp_mgr_validate_inject_err(uint64_t current_req_id, uint32_t *event_id,
-		struct cam_hw_done_event_data *buf_data, struct cam_icp_hw_ctx_data *ctx_data)
+static inline void cam_icp_mgr_apply_evt_injection(struct cam_hw_done_event_data *buf_done_data,
+	struct cam_icp_hw_ctx_data *ctx_data, bool *signal_fence_buffer)
 {
-	if (ctx_data->err_inject_params.err_req_id == current_req_id) {
-		switch (ctx_data->err_inject_params.err_code) {
-		case CAM_SYNC_ICP_EVENT_FRAME_PROCESS_FAILURE:
-			*event_id = CAM_CTX_EVT_ID_ERROR;
-			buf_data->evt_param = CAM_SYNC_ICP_EVENT_FRAME_PROCESS_FAILURE;
-			break;
-		case CAM_SYNC_ICP_EVENT_CONFIG_ERR:
-			*event_id = CAM_CTX_EVT_ID_ERROR;
-			buf_data->evt_param = CAM_SYNC_ICP_EVENT_CONFIG_ERR;
-			break;
-		default:
-			CAM_INFO(CAM_ICP, "ICP error code not supported: %d",
-				ctx_data->err_inject_params.err_code);
-			return;
-		}
-	} else
-		return;
+	struct cam_hw_inject_evt_param *evt_params = &ctx_data->evt_inject_params;
+	struct cam_common_evt_inject_data inject_evt;
 
-	CAM_INFO(CAM_ICP, "ICP Err Induced! err_code: %u, req_id: %llu",
-		ctx_data->err_inject_params.err_code, current_req_id);
+	inject_evt.buf_done_data = buf_done_data;
+	inject_evt.evt_params = evt_params;
 
-	memset(&(ctx_data->err_inject_params), 0, sizeof(struct cam_hw_err_param));
+	if (ctx_data->ctxt_event_cb)
+		ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_ICP_EVT_ID_INJECT_EVENT,
+			&inject_evt);
+
+	if (ctx_data->evt_inject_params.inject_id ==
+		CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE)
+		*signal_fence_buffer = false;
+
+	evt_params->is_valid = false;
 }
 
 static void cam_icp_mgr_dump_active_req_info(void)
@@ -2332,6 +2325,7 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 	struct cam_icp_hw_error_evt_data icp_err_evt = {0};
 	uint32_t clk_type, event_id;
 	struct cam_hangdump_mem_regions *mem_regions = NULL;
+	bool signal_fence_buffer = true;
 
 	ioconfig_ack = (struct hfi_msg_dev_async_ack *)msg_ptr;
 	request_id = ioconfig_ack->user_data2;
@@ -2419,19 +2413,18 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 		"[%s]: BufDone Req %llu event_id %d",
 		ctx_data->ctx_id_string, hfi_frame_process->request_id[idx], event_id);
 
-	if (ctx_data->err_inject_params.is_valid)
-		cam_icp_mgr_validate_inject_err(request_id, &event_id, &buf_data, ctx_data);
-
 	buf_data.request_id = hfi_frame_process->request_id[idx];
-	icp_done_evt.evt_id = event_id;
-	icp_done_evt.buf_done_data = &buf_data;
-	if (ctx_data->ctxt_event_cb)
-		ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_ICP_EVT_ID_BUF_DONE,
-			&icp_done_evt);
-	else
-		CAM_ERR(CAM_ICP,
-			"Event callback invalid for ctx: %u [%s] failed to signal req: %llu",
-			ctx_data->ctx_id, ctx_data->ctx_id_string, buf_data.request_id);
+	if ((ctx_data->evt_inject_params.is_valid) &&
+		(ctx_data->evt_inject_params.req_id == request_id))
+		cam_icp_mgr_apply_evt_injection(&buf_data, ctx_data, &signal_fence_buffer);
+
+	if (signal_fence_buffer) {
+		icp_done_evt.evt_id = event_id;
+		icp_done_evt.buf_done_data = &buf_data;
+		if (ctx_data->ctxt_event_cb)
+			ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_ICP_EVT_ID_BUF_DONE,
+				&icp_done_evt);
+	}
 
 	hfi_frame_process->request_id[idx] = 0;
 	if (ctx_data->hfi_frame_process.in_resource[idx] > 0) {
@@ -3992,8 +3985,9 @@ static int cam_icp_mgr_release_ctx(struct cam_icp_hw_mgr *hw_mgr, int ctx_id)
 		hw_mgr->ctx_data[ctx_id].ctx_id_string, perf_stats->total_requests,
 		perf_stats->total_requests ?
 		(perf_stats->total_resp_time / perf_stats->total_requests) : 0);
-	memset(&(hw_mgr->ctx_data[ctx_id].err_inject_params), 0,
-		sizeof(struct cam_hw_err_param));
+
+	memset(&hw_mgr->ctx_data[ctx_id].evt_inject_params, 0,
+		sizeof(struct cam_hw_inject_evt_param));
 	cam_icp_remove_ctx_bw(hw_mgr, &hw_mgr->ctx_data[ctx_id]);
 	if (hw_mgr->ctx_data[ctx_id].state !=
 		CAM_ICP_CTX_STATE_ACQUIRED) {
@@ -6953,17 +6947,20 @@ static int cam_icp_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 	return rc;
 }
 
-static void cam_icp_mgr_inject_err(void *hw_mgr_priv, void *hw_err_inject_args)
+static void cam_icp_mgr_inject_evt(void *hw_mgr_priv, void *evt_args)
 {
-	struct cam_icp_hw_ctx_data *ctx_data = hw_mgr_priv;
+	struct cam_icp_hw_ctx_data *ctx_data       = hw_mgr_priv;
+	struct cam_hw_inject_evt_param *evt_params = evt_args;
 
-	ctx_data->err_inject_params.err_code   = ((struct cam_err_inject_param *)
-		hw_err_inject_args)->err_code;
-	ctx_data->err_inject_params.err_type   = ((struct cam_err_inject_param *)
-		hw_err_inject_args)->err_type;
-	ctx_data->err_inject_params.err_req_id = ((struct cam_err_inject_param *)
-		hw_err_inject_args)->req_id;
-	ctx_data->err_inject_params.is_valid   = true;
+	if (!ctx_data || !evt_params) {
+		CAM_ERR(CAM_ICP, "Invalid params ctx data %s event params %s",
+			CAM_IS_NULL_TO_STR(ctx_data), CAM_IS_NULL_TO_STR(evt_params));
+		return;
+	}
+
+	memcpy(&ctx_data->evt_inject_params, evt_params, sizeof(struct cam_hw_inject_evt_param));
+
+	ctx_data->evt_inject_params.is_valid = true;
 }
 
 int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
@@ -6995,7 +6992,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	hw_mgr_intf->hw_flush = cam_icp_mgr_hw_flush;
 	hw_mgr_intf->hw_cmd = cam_icp_mgr_cmd;
 	hw_mgr_intf->hw_dump = cam_icp_mgr_hw_dump;
-	hw_mgr_intf->hw_inject_err = cam_icp_mgr_inject_err;
+	hw_mgr_intf->hw_inject_evt = cam_icp_mgr_inject_evt;
 
 	icp_hw_mgr.secure_mode = CAM_SECURE_MODE_NON_SECURE;
 	icp_hw_mgr.mini_dump_cb = mini_dump_cb;
