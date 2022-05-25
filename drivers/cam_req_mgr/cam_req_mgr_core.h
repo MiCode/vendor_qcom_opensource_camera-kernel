@@ -393,6 +393,7 @@ struct cam_req_mgr_connected_device {
  * @last_sof_trigger_jiffies : Record the jiffies of last sof trigger jiffies
  * @wq_congestion        : Indicates if WQ congestion is detected or not
  * @try_for_internal_recovery : If the link stalls try for RT internal recovery
+ * @properties_mask      : Indicates if current link enables some special properties
  */
 struct cam_req_mgr_core_link {
 	int32_t                              link_hdl;
@@ -432,6 +433,7 @@ struct cam_req_mgr_core_link {
 	uint64_t                             last_sof_trigger_jiffies;
 	bool                                 wq_congestion;
 	bool                                 try_for_internal_recovery;
+	uint32_t                             properties_mask;
 };
 
 /**
@@ -671,4 +673,12 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control);
  * @dump_req: Dump request
  */
 int cam_req_mgr_dump_request(struct cam_dump_req_cmd *dump_req);
+
+/**
+ * cam_req_mgr_link_properties()
+ * @brief:   Handles link properties
+ * @properties: Link properties
+ */
+int cam_req_mgr_link_properties(struct cam_req_mgr_link_properties *properties);
+
 #endif

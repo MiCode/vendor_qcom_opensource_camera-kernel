@@ -613,6 +613,22 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			rc = -EFAULT;
 		}
 		break;
+	case CAM_REQ_MGR_LINK_PROPERTIES: {
+		struct cam_req_mgr_link_properties cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_req_mgr_link_properties))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = cam_req_mgr_link_properties(&cmd);
+		}
+		break;
 	default:
 		return -ENOIOCTLCMD;
 	}

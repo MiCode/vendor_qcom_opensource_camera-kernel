@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_CONTEXT_H_
@@ -269,6 +270,7 @@ struct cam_isp_context_event_record {
  * @rdi_only_context:          Get context type information.
  *                             true, if context is rdi only context
  * @offline_context:           Indicate whether context is for offline IFE
+ * @vfps_aux_context:          Indicate whether context is for VFPS aux link
  * @hw_acquired:               Indicate whether HW resources are acquired
  * @init_received:             Indicate whether init config packet is received
  * @split_acquire:             Indicate whether a separate acquire is expected
@@ -324,6 +326,7 @@ struct cam_isp_context {
 		CAM_ISP_CTX_EVENT_MAX][CAM_ISP_CTX_EVENT_RECORD_MAX_ENTRIES];
 	bool                                  rdi_only_context;
 	bool                                  offline_context;
+	bool                                  vfps_aux_context;
 	bool                                  hw_acquired;
 	bool                                  init_received;
 	bool                                  split_acquire;
