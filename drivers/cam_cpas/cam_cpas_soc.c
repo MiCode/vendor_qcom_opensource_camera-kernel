@@ -865,6 +865,82 @@ end:
 	return rc;
 }
 
+static int cam_cpas_parse_domain_id_mapping(struct device_node *of_node,
+	struct cam_cpas_private_soc *soc_private)
+{
+	int count, i, rc = 0;
+
+	soc_private->domain_id_info.num_domain_ids = 0;
+	soc_private->domain_id_info.domain_id_supported = false;
+	soc_private->domain_id_info.domain_id_entries = NULL;
+	count = of_property_count_u32_elems(of_node, "domain-id");
+	if (count <= 0) {
+		CAM_DBG(CAM_CPAS, "No domain-id mapping found, count: %d", count);
+		return rc;
+	}
+
+	/* This property will always be specified in pairs  */
+	if (count % 2) {
+		CAM_ERR(CAM_CPAS,
+			"Mismatch in domain-id mapping, found %d number of entries", count);
+		rc = -EINVAL;
+		goto err;
+	}
+
+	soc_private->domain_id_info.num_domain_ids = count / 2;
+	soc_private->domain_id_info.domain_id_entries =
+		kcalloc(soc_private->domain_id_info.num_domain_ids,
+			sizeof(struct cam_cpas_domain_id_mapping), GFP_KERNEL);
+	if (!soc_private->domain_id_info.domain_id_entries) {
+		CAM_ERR(CAM_CPAS,
+			"Error allocating memory for %u domain-id mapping(s)",
+			soc_private->domain_id_info.num_domain_ids);
+		rc = -ENOMEM;
+		goto err;
+	}
+
+	for (i = 0; i < soc_private->domain_id_info.num_domain_ids; i++) {
+		struct cam_cpas_domain_id_mapping *domain_id_entry =
+			&soc_private->domain_id_info.domain_id_entries[i];
+
+		rc = of_property_read_u32_index(of_node, "domain-id",
+		(i * 2), &domain_id_entry->domain_type);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Error reading domain-id type entry at pos %d", i);
+			rc = -EINVAL;
+			goto err;
+		}
+
+		if (domain_id_entry->domain_type > CAM_CPAS_NON_SECURE_DOMAIN) {
+			CAM_ERR(CAM_CPAS, "Unexpected domain id type: %u",
+				domain_id_entry->domain_type);
+			rc =  -EINVAL;
+			goto err;
+		}
+
+		rc = of_property_read_u32_index(of_node, "domain-id",
+		((i * 2) + 1), &domain_id_entry->mapping_id);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Error reading domain-id mapping id at pos %d", i);
+			rc = -EINVAL;
+			goto err;
+		}
+
+		CAM_DBG(CAM_CPAS, "Domain-id type: %u, mapping: %u at pos: %d",
+			domain_id_entry->domain_type, domain_id_entry->mapping_id, i);
+	}
+
+	soc_private->domain_id_info.domain_id_supported = true;
+
+	return rc;
+
+err:
+	soc_private->domain_id_info.num_domain_ids = 0;
+	kfree(soc_private->domain_id_info.domain_id_entries);
+	soc_private->domain_id_info.domain_id_entries = NULL;
+	return rc;
+}
+
 int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	struct platform_device *pdev, struct cam_cpas_private_soc *soc_private)
 {
@@ -891,6 +967,11 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	}
 
 	cam_cpas_get_hw_features(pdev, soc_private);
+
+	/* get domain id mapping info */
+	rc = cam_cpas_parse_domain_id_mapping(of_node, soc_private);
+	if (rc)
+		return rc;
 
 	soc_private->camnoc_axi_min_ib_bw = 0;
 	rc = of_property_read_u64(of_node,
@@ -1352,6 +1433,8 @@ int cam_cpas_soc_deinit_resources(struct cam_hw_soc_info *soc_info)
 		if (rc)
 			CAM_ERR(CAM_CPAS, "Error Put optional clk failed rc=%d", rc);
 	}
+
+	kfree(soc_private->domain_id_info.domain_id_entries);
 
 	rc = cam_soc_util_release_platform_resource(soc_info);
 	if (rc)

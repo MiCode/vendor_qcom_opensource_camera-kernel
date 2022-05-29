@@ -121,6 +121,31 @@ struct cam_cpas_smart_qos_info {
 	struct cam_cpas_tree_node *rt_wr_niu_node[CAM_CPAS_MAX_RT_WR_NIU_NODES];
 };
 
+/**
+ * struct cam_cpas_domain_id_mapping : Domain id mapping
+ *
+ * @domain_type: Domain type, currently defined as two,
+ *               secure/non-secure. This will be expanded
+ *               later to more types, and correspnding ID
+ * @mapping_id: ID of domain type
+ */
+struct cam_cpas_domain_id_mapping {
+	uint32_t domain_type;
+	uint32_t mapping_id;
+};
+
+/**
+ * struct cam_cpas_domain_id_info : Stores all information related
+ *                                  to domain-id support
+ * @domain_id_entries: Stores mapping between domain types and their IDs
+ * @num_domain_ids: Num of domain id types found from dtsi
+ * @domain_id_supported: Whether domain id is supported
+ */
+struct cam_cpas_domain_id_info {
+	struct cam_cpas_domain_id_mapping *domain_id_entries;
+	uint32_t num_domain_ids;
+	bool domain_id_supported;
+};
 
 /**
  * struct cam_cpas_private_soc : CPAS private DT info
@@ -151,6 +176,7 @@ struct cam_cpas_smart_qos_info {
  * @enable_cam_ddr_drv: Whether to enable Camera DDR DRV on current chipset
  * @smart_qos_info: Pointer to smart qos info
  * @icp_clk_index: Index of optional icp clk
+ * @domain_id_info: Stores all information related to domain id support
  */
 struct cam_cpas_private_soc {
 	const char *arch_compat;
@@ -177,6 +203,7 @@ struct cam_cpas_private_soc {
 	bool enable_cam_ddr_drv;
 	struct cam_cpas_smart_qos_info *smart_qos_info;
 	int32_t icp_clk_index;
+	struct cam_cpas_domain_id_info domain_id_info;
 };
 
 void cam_cpas_util_debug_parse_data(struct cam_cpas_private_soc *soc_private);

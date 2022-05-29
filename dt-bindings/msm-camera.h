@@ -122,4 +122,8 @@
 #define CAM_CPAS_PORT_DRV_2       3
 #define CAM_CPAS_PORT_DRV_DYN     32
 
+/* Domain ID types */
+#define CAM_CPAS_SECURE_DOMAIN      0
+#define CAM_CPAS_NON_SECURE_DOMAIN  1
+
 #endif
