@@ -142,6 +142,70 @@ static void cam_sensor_release_per_frame_resource(
 	}
 }
 
+static int cam_sensor_handle_res_info(struct cam_sensor_res_info *res_info,
+	struct cam_sensor_ctrl_t *s_ctrl)
+{
+	int rc = 0;
+
+	if (!s_ctrl || !res_info) {
+		CAM_ERR(CAM_SENSOR, "Invalid params: res_info: %s, s_ctrl: %s",
+			CAM_IS_NULL_TO_STR(res_info),
+			CAM_IS_NULL_TO_STR(s_ctrl));
+		return -EINVAL;
+	}
+
+	s_ctrl->sensor_res.res_index = res_info->res_index;
+	strscpy(s_ctrl->sensor_res.caps, res_info->caps,
+		sizeof(s_ctrl->sensor_res.caps));
+	s_ctrl->sensor_res.width = res_info->width;
+	s_ctrl->sensor_res.height = res_info->height;
+	s_ctrl->sensor_res.fps = res_info->fps;
+
+	/* If request id is 0, it will be during an initial config/acquire */
+	CAM_INFO(CAM_SENSOR,
+		"Res index switch for request id: %lu, index: %u, width: 0x%x, height: 0x%x, capability: %s, fps: %u",
+		s_ctrl->sensor_res.request_id, s_ctrl->sensor_res.res_index,
+		s_ctrl->sensor_res.width, s_ctrl->sensor_res.height,
+		s_ctrl->sensor_res.caps, s_ctrl->sensor_res.fps);
+
+	return rc;
+}
+
+static int32_t cam_sensor_generic_blob_handler(void *user_data,
+	uint32_t blob_type, uint32_t blob_size, uint8_t *blob_data)
+{
+	int rc = 0;
+	struct cam_sensor_ctrl_t *s_ctrl =
+		(struct cam_sensor_ctrl_t *) user_data;
+
+	if (!blob_data || !blob_size) {
+		CAM_ERR(CAM_SENSOR, "Invalid blob info %pK %u", blob_data,
+			blob_size);
+		return -EINVAL;
+	}
+
+	switch (blob_type) {
+	case CAM_SENSOR_GENERIC_BLOB_RES_INFO: {
+		struct cam_sensor_res_info *res_info =
+			(struct cam_sensor_res_info *) blob_data;
+
+		if (blob_size < sizeof(struct cam_sensor_res_info)) {
+			CAM_ERR(CAM_SENSOR, "Invalid blob size expected: 0x%x actual: 0x%x",
+				sizeof(struct cam_sensor_res_info), blob_size);
+			return -EINVAL;
+		}
+
+		rc = cam_sensor_handle_res_info(res_info, s_ctrl);
+		break;
+	}
+	default:
+		CAM_WARN(CAM_SENSOR, "Invalid blob type %d", blob_type);
+		break;
+	}
+
+	return rc;
+}
+
 static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	void *arg)
 {
@@ -155,6 +219,7 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	size_t len_of_buff = 0;
 	size_t remain_len = 0;
 	uint32_t *offset = NULL;
+	uint32_t cmd_buf_type;
 	struct cam_config_dev_cmd config;
 	struct i2c_data_settings *i2c_data = NULL;
 
@@ -350,12 +415,33 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	offset = (uint32_t *)&csl_packet->payload;
 	offset += csl_packet->cmd_buf_offset / 4;
 	cmd_desc = (struct cam_cmd_buf_desc *)(offset);
+	cmd_buf_type = cmd_desc->meta_data;
 
-	rc = cam_sensor_i2c_command_parser(&s_ctrl->io_master_info,
-			i2c_reg_settings, cmd_desc, 1, io_cfg);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "Fail parsing I2C Pkt: %d", rc);
-		goto end;
+	switch (cmd_buf_type) {
+	case CAM_SENSOR_PACKET_I2C_COMMANDS:
+		rc = cam_sensor_i2c_command_parser(&s_ctrl->io_master_info,
+				i2c_reg_settings, cmd_desc, 1, io_cfg);
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR, "Fail parsing I2C Pkt: %d", rc);
+			goto end;
+		}
+		break;
+	case CAM_SENSOR_PACKET_GENERIC_BLOB:
+		if ((csl_packet->header.op_code & 0xFFFFFF) !=
+			CAM_SENSOR_PACKET_OPCODE_SENSOR_CONFIG) {
+			rc = -EINVAL;
+			CAM_ERR(CAM_SENSOR, "Wrong packet opcode sent with blob: %u",
+				csl_packet->header.op_code & 0xFFFFFF);
+			goto end;
+		}
+		s_ctrl->sensor_res.request_id = csl_packet->header.request_id;
+
+		rc = cam_packet_util_process_generic_cmd_buffer(cmd_desc,
+			cam_sensor_generic_blob_handler, s_ctrl);
+		if (rc)
+			s_ctrl->sensor_res.request_id = 0;
+
+		break;
 	}
 
 	if ((csl_packet->header.op_code & 0xFFFFFF) ==
@@ -843,6 +929,7 @@ int cam_sensor_stream_off(struct cam_sensor_ctrl_t *s_ctrl)
 	cam_sensor_release_per_frame_resource(s_ctrl);
 	s_ctrl->last_flush_req = 0;
 	s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
+	memset(&s_ctrl->sensor_res, 0, sizeof(s_ctrl->sensor_res));
 
 	CAM_GET_TIMESTAMP(ts);
 	CAM_CONVERT_TIMESTAMP_FORMAT(ts, hrs, min, sec, ms);

@@ -56,11 +56,35 @@ struct sensor_intf_params {
 };
 
 /**
+ * struct cam_sensor_dev_res_info
+ *
+ * @res_index        : The resolution index that gets updated
+ *                     during a mode switch
+ * @fps              : Frame rate
+ * @width            : Pixel width to output to csiphy
+ * @height           : Pixel height to output to csiphy
+ * @num_exposures    : For sHDR, etc purposes, 1, or more
+ * @caps             : Specifies capability sensor is configured
+ *                     for, (eg, XCFA, HFR), num_exposures and
+ *                     PDAF type
+ */
+struct cam_sensor_dev_res_info {
+	uint16_t   res_index;
+	uint32_t   fps;
+	uint32_t   width;
+	uint32_t   height;
+	int64_t    request_id;
+	char       caps[64];
+};
+
+/**
  * struct cam_sensor_ctrl_t: Camera control structure
  * @device_name: Sensor device name
  * @pdev: Platform device
  * @cam_sensor_mutex: Sensor mutex
  * @sensordata: Sensor board Information
+ * @sensor_res: Sensor resolution index and other info
+ *              accompanying a mode index switch
  * @cci_i2c_master: I2C structure
  * @io_master_info: Information about the communication master
  * @sensor_state: Sensor states
@@ -92,6 +116,7 @@ struct cam_sensor_ctrl_t {
 	struct cam_hw_soc_info         soc_info;
 	struct mutex                   cam_sensor_mutex;
 	struct cam_sensor_board_info  *sensordata;
+	struct cam_sensor_dev_res_info sensor_res;
 	enum cci_i2c_master_t          cci_i2c_master;
 	enum cci_device_num            cci_num;
 	struct camera_io_master        io_master_info;
