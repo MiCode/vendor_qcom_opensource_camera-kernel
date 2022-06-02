@@ -6168,6 +6168,15 @@ static int cam_isp_blob_bw_update(
 	return rc;
 }
 
+static void cam_ife_mgr_send_frame_event(uint64_t request_id, uint32_t ctx_index)
+{
+	if (cam_presil_mode_enabled()) {
+		CAM_DBG(CAM_PRESIL, "PRESIL FRAME req_id=%llu ctx_index %d",
+			request_id, ctx_index);
+		cam_presil_send_event(CAM_PRESIL_EVENT_IFE_FRAME_RUN, request_id);
+	}
+}
+
 /* entry function: config_hw */
 static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 					void *config_hw_args)
@@ -6423,6 +6432,8 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 				hw_update_data->mup_en = false;
 			}
 		}
+
+		cam_ife_mgr_send_frame_event(cfg->request_id, ctx->ctx_index);
 	} else {
 		CAM_ERR(CAM_ISP, "No commands to config");
 	}
