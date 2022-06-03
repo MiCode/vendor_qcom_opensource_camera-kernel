@@ -4530,7 +4530,9 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	struct cam_hw_soc_info                *soc_info;
 	struct cam_hw_info                    *hw_info;
 	uint32_t                               rup_aup_mask = 0;
+	uint32_t                               enabled_res_mask = 0;
 	int                                    rc = 0, i;
+	bool                                   delay_ppp_enable = false;
 
 	if (!hw_priv || !args) {
 		CAM_ERR(CAM_ISP, "CSID Invalid params");
@@ -4630,10 +4632,25 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 
 	for (i = 0; i < start_args->num_res; i++) {
 		res = start_args->node_res[i];
-		CAM_DBG(CAM_ISP, "CSID:%d res_type :%d res_id:%d",
-			csid_hw->hw_intf->hw_idx, res->res_type,
-			res->res_id);
+
+		if (csid_hw->flags.rdi_lcr_en && (res->res_id == CAM_IFE_PIX_PATH_RES_PPP) &&
+			(!(enabled_res_mask & BIT(CAM_IFE_PIX_PATH_RES_RDI_0)))) {
+			delay_ppp_enable = true;
+			continue;
+		}
+
 		cam_ife_csid_ver2_enable_path(csid_hw, res);
+		enabled_res_mask |= BIT(res->res_id);
+		CAM_DBG(CAM_ISP, "CSID:%d res_type :%d res_id:%d",
+			csid_hw->hw_intf->hw_idx, res->res_type, res->res_id);
+	}
+
+	if (delay_ppp_enable && (!(enabled_res_mask & BIT(CAM_IFE_PIX_PATH_RES_PPP)))) {
+		res = &csid_hw->path_res[CAM_IFE_PIX_PATH_RES_PPP];
+		cam_ife_csid_ver2_enable_path(csid_hw, res);
+		enabled_res_mask |= BIT(res->res_id);
+		CAM_DBG(CAM_ISP, "CSID[%u] Enabling PPP late for LCR-PD cases",
+			csid_hw->hw_intf->hw_idx);
 	}
 
 	if (csid_hw->debug_info.test_bus_val) {
