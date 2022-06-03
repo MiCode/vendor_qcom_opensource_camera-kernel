@@ -4791,7 +4791,6 @@ void cam_ife_cam_cdm_callback(uint32_t handle, void *userdata,
 	struct cam_isp_prepare_hw_update_data   *hw_update_data = NULL;
 	struct cam_ife_hw_mgr_ctx               *ctx = NULL;
 	struct cam_hw_dump_pf_args              *pf_args = NULL;
-	int                                      reg_dump_done;
 	uint64_t                                 req_id;
 
 	if (!userdata) {
@@ -4805,11 +4804,9 @@ void cam_ife_cam_cdm_callback(uint32_t handle, void *userdata,
 	if (status == CAM_CDM_CB_STATUS_BL_SUCCESS) {
 		req_id = *(uint64_t *)cookie;
 		complete_all(&ctx->config_done_complete);
-		reg_dump_done = atomic_read(&ctx->cdm_done);
 		atomic_set(&ctx->cdm_done, 1);
 		ctx->last_cdm_done_req = req_id;
-		if ((g_ife_hw_mgr.debug_cfg.per_req_reg_dump) &&
-			(!reg_dump_done)) {
+		if (g_ife_hw_mgr.debug_cfg.per_req_reg_dump) {
 			if (ctx->cdm_userdata.request_id == req_id) {
 				cam_ife_mgr_handle_reg_dump(ctx,
 					hw_update_data->reg_dump_buf_desc,
@@ -11415,6 +11412,35 @@ end:
 	return rc;
 }
 
+static void cam_ife_mgr_check_for_per_request_reg_dump(
+	struct cam_hw_prepare_update_args       *prepare,
+	struct cam_isp_prepare_hw_update_data   *prepare_hw_data)
+{
+	int i;
+
+	if ((!prepare->num_reg_dump_buf) || (prepare->num_reg_dump_buf >
+		CAM_REG_DUMP_MAX_BUF_ENTRIES)) {
+		CAM_DBG(CAM_ISP, "Invalid num of reg dump desc: %u for req: %llu",
+			prepare->num_reg_dump_buf, prepare->packet->header.request_id);
+		return;
+	}
+
+	for (i = 0; i < prepare->num_reg_dump_buf; i++) {
+		if (prepare->reg_dump_buf_desc[i].meta_data !=
+			CAM_ISP_PACKET_META_REG_DUMP_PER_REQUEST)
+			continue;
+
+		memcpy(&prepare_hw_data->reg_dump_buf_desc[
+			prepare_hw_data->num_reg_dump_buf],
+			&prepare->reg_dump_buf_desc[i],
+			sizeof(struct cam_cmd_buf_desc));
+		prepare_hw_data->num_reg_dump_buf++;
+		CAM_DBG(CAM_ISP, "Updated per request reg dump for req: %llu",
+			prepare->packet->header.request_id);
+		return;
+	}
+}
+
 static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 	void *prepare_hw_update_args)
 {
@@ -11627,6 +11653,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 			CAM_REG_DUMP_MAX_BUF_ENTRIES))
 			goto end;
 
+		/* Copy reg dump buf desc for error/flush cases */
 		if (!ctx->num_reg_dump_buf) {
 			ctx->num_reg_dump_buf = prepare->num_reg_dump_buf;
 
@@ -11634,26 +11661,13 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 				prepare->reg_dump_buf_desc,
 				sizeof(struct cam_cmd_buf_desc) *
 				prepare->num_reg_dump_buf);
-		} else {
-			prepare_hw_data->num_reg_dump_buf =
-				prepare->num_reg_dump_buf;
-			memcpy(prepare_hw_data->reg_dump_buf_desc,
-				prepare->reg_dump_buf_desc,
-				sizeof(struct cam_cmd_buf_desc) *
-				prepare_hw_data->num_reg_dump_buf);
 		}
 
+		/* Per req reg dump */
+		cam_ife_mgr_check_for_per_request_reg_dump(prepare, prepare_hw_data);
 		goto end;
 	} else {
-		prepare_hw_data->num_reg_dump_buf = prepare->num_reg_dump_buf;
-		if ((prepare_hw_data->num_reg_dump_buf) &&
-			(prepare_hw_data->num_reg_dump_buf <
-			CAM_REG_DUMP_MAX_BUF_ENTRIES)) {
-			memcpy(prepare_hw_data->reg_dump_buf_desc,
-				prepare->reg_dump_buf_desc,
-				sizeof(struct cam_cmd_buf_desc) *
-				prepare_hw_data->num_reg_dump_buf);
-		}
+		cam_ife_mgr_check_for_per_request_reg_dump(prepare, prepare_hw_data);
 	}
 
 	/* add reg update commands */
