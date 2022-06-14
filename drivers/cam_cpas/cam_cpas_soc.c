@@ -19,7 +19,7 @@
 #include "cam_cpas_soc.h"
 #include "cam_compat.h"
 
-static uint cpas_dump = 1;
+static uint cpas_dump;
 module_param(cpas_dump, uint, 0644);
 
 #define CAM_ICP_CLK_NAME "cam_icp_clk"
