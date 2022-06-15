@@ -1120,7 +1120,8 @@ static int cam_sfe_bus_start_bus_rd(
 	bus_priv = rsrc_data->bus_priv;
 	common_data = rsrc_data->common_data;
 
-	CAM_DBG(CAM_SFE, "SFE:%d start RD type:0x%x", sfe_bus_rd->res_id);
+	CAM_DBG(CAM_SFE, "SFE:%d start RD type:0x%x",
+		common_data->hw_intf->hw_idx, sfe_bus_rd->res_id);
 
 	if (sfe_bus_rd->res_state != CAM_ISP_RESOURCE_STATE_RESERVED) {
 		CAM_ERR(CAM_SFE, "Invalid resource state:%d",
@@ -1135,10 +1136,15 @@ static int cam_sfe_bus_start_bus_rd(
 			return rc;
 	}
 
-	if (!rsrc_data->is_offline)
-		cam_io_w_mb((rsrc_data->fs_sync_enable << 5),
-			common_data->mem_base +
+	if (!rsrc_data->is_offline) {
+		uint32_t if_cmd_val = (rsrc_data->fs_sync_enable <<
+			bus_priv->bus_rd_hw_info->fs_sync_shift);
+
+		cam_io_w_mb(if_cmd_val, common_data->mem_base +
 			common_data->common_reg->input_if_cmd);
+		CAM_DBG(CAM_SFE, "SFE:%d fs_sync for RD:0x%x configured with val: 0x%x",
+			common_data->hw_intf->hw_idx, sfe_bus_rd->res_id, if_cmd_val);
+	}
 
 	if (rsrc_data->secure_mode == CAM_SECURE_MODE_SECURE)
 		cam_io_w_mb(1, common_data->mem_base +

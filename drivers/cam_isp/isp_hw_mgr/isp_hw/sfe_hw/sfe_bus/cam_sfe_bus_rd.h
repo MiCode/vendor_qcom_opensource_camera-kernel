@@ -121,6 +121,7 @@ struct cam_sfe_bus_rd_info {
  * @top_irq_shift:          Top irq shift val
  * @latency_buf_allocation: latency buf allocation
  * @irq_err_mask:           IRQ error mask
+ * @fs_sync_shift:          Shift to enable FS sync
  * @constraint_error_info:  constraint violation errors info
  */
 struct cam_sfe_bus_rd_hw_info {
@@ -134,6 +135,7 @@ struct cam_sfe_bus_rd_hw_info {
 	uint32_t top_irq_shift;
 	uint32_t latency_buf_allocation;
 	uint32_t irq_err_mask;
+	uint32_t fs_sync_shift;
 	struct cam_sfe_bus_rd_constraint_error_info *constraint_error_info;
 };
 
