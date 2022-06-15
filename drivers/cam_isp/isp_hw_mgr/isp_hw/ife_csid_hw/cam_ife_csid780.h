@@ -256,11 +256,10 @@ static const struct cam_ife_csid_top_irq_desc cam_ife_csid_780_top_irq_desc[] = 
 		.bitmask  = BIT(1),
 		.err_type = CAM_ISP_HW_ERROR_CSID_SENSOR_SWITCH_ERROR,
 		.err_name = "FATAL_SENSOR_SWITCHING_IRQ",
-		.desc = "Fatal Error duirng dynamically switching between 2 sensors",
+		.desc = "Fatal Error during dynamically switching between 2 sensors",
 	},
 	{
 		.bitmask  = BIT(18),
-		.err_type = CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW,
 		.err_name = "ERROR_NO_VOTE_DN",
 		.desc = "vote_up is asserted before IDLE is encountered in a frame",
 	},
@@ -269,6 +268,7 @@ static const struct cam_ife_csid_top_irq_desc cam_ife_csid_780_top_irq_desc[] = 
 		.err_type = CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW,
 		.err_name = "ERROR_VOTE_UP_LATE",
 		.desc = "vote_up is asserted at the same time as an SOF",
+		.err_handler = cam_ife_csid_hw_ver2_drv_err_handler,
 	},
 	{
 		.bitmask  = BIT(20),
@@ -1241,6 +1241,11 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.buf_done_irq_set_addr                   = 0x98,
 	.test_bus_ctrl                           = 0x1E8,
 	.test_bus_debug                          = 0x1EC,
+	.drv_cfg0_addr                           = 0x13c,
+	.drv_cfg1_addr                           = 0x140,
+	.drv_cfg2_addr                           = 0x144,
+	.debug_drv_0_addr                        = 0x148,
+	.debug_drv_1_addr                        = 0x14C,
 
 	/*configurations */
 	.major_version                           = 6,
@@ -1273,6 +1278,8 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.shdr_slave_rdi1_shift                   = 21,
 	.shdr_master_rdi0_shift                  = 5,
 	.shdr_master_slave_en_shift              = 0,
+	.drv_en_shift                            = 0,
+	.drv_rup_en_shift                        = 0,
 	.early_eof_supported                     = 1,
 	.vfr_supported                           = 1,
 	.multi_vcdt_supported                    = 1,
@@ -1287,7 +1294,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.ipp_irq_mask_all                        = 0x7FFF,
 	.rdi_irq_mask_all                        = 0x7FFF,
 	.ppp_irq_mask_all                        = 0xFFFF,
-	.top_err_irq_mask                        = 0x1C0002,
+	.top_err_irq_mask                        = 0x180002,
 	.rst_loc_path_only_val                   = 0x0,
 	.rst_loc_complete_csid_val               = 0x1,
 	.rst_mode_frame_boundary_val             = 0x0,
@@ -1312,6 +1319,28 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.timestamp_enabled_in_cfg0               = true,
 	.camif_irq_support                       = true,
 	.sfe_ipp_input_rdi_res                   = BIT(CAM_IFE_PIX_PATH_RES_RDI_0),
+	.drv_rup_en_val_map = {
+		2, //RDI0
+		3, //RDI1
+		4, //RDI2
+		5, //RDI3
+		6, //RDI4
+		0, //IPP
+		1, //PPP
+		0, //UDI0
+		0, //UDI1
+		0, //UDI2
+	},
+	.drv_path_idle_en_val_map = {
+		BIT(4), //CAM_ISP_PXL_PATH
+		BIT(5), //CAM_ISP_PPP_PATH
+		0,      // LCR not applicable
+		BIT(6), //CAM_ISP_RDI0_PATH
+		BIT(7), //CAM_ISP_RDI1_PATH
+		BIT(8), //CAM_ISP_RDI2_PATH
+		BIT(9), //CAM_ISP_RDI3_PATH
+		BIT(10), //CAM_ISP_RDI4_PATH
+	},
 };
 
 static struct cam_ife_csid_ver2_top_reg_info

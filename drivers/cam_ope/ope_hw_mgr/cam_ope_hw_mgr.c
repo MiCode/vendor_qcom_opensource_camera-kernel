@@ -778,7 +778,7 @@ static int32_t cam_ope_process_request_timer(void *priv, void *data)
 
 	memset(&ctx_data->clk_info.axi_path[0], 0,
 		CAM_OPE_MAX_PER_PATH_VOTES *
-		sizeof(struct cam_axi_per_path_bw_vote));
+		sizeof(struct cam_cpas_axi_per_path_bw_vote));
 	ctx_data->clk_info.curr_fc = 0;
 	ctx_data->clk_info.base_clk = 0;
 
@@ -786,7 +786,7 @@ static int32_t cam_ope_process_request_timer(void *priv, void *data)
 	memcpy(&clk_update.axi_vote.axi_path[0],
 		&clk_info->axi_path[0],
 		clk_update.axi_vote.num_paths *
-		sizeof(struct cam_axi_per_path_bw_vote));
+		sizeof(struct cam_cpas_axi_per_path_bw_vote));
 
 	if (device_share_ratio > 1) {
 		for (i = 0; i < clk_update.axi_vote.num_paths; i++) {
@@ -1463,7 +1463,7 @@ static bool cam_ope_update_bw_v2(struct cam_ope_hw_mgr *hw_mgr,
 
 	memcpy(&ctx_data->clk_info.axi_path[0],
 		&clk_info->axi_path[0],
-		clk_info->num_paths * sizeof(struct cam_axi_per_path_bw_vote));
+		clk_info->num_paths * sizeof(struct cam_cpas_axi_per_path_bw_vote));
 
 	/*
 	 * Add new vote of this context in hw mgr.
@@ -1568,7 +1568,7 @@ static int cam_ope_update_cpas_vote(struct cam_ope_hw_mgr *hw_mgr,
 	memcpy(&bw_update.axi_vote.axi_path[0],
 		&clk_info->axi_path[0],
 		bw_update.axi_vote.num_paths *
-		sizeof(struct cam_axi_per_path_bw_vote));
+		sizeof(struct cam_cpas_axi_per_path_bw_vote));
 
 	bw_update.axi_vote_valid = true;
 	for (i = 0; i < ope_hw_mgr->num_ope; i++) {
@@ -3068,7 +3068,7 @@ static int cam_ope_packet_generic_blob_handler(void *user_data,
 	struct cam_ope_ctx *ctx_data;
 	uint32_t index;
 	size_t clk_update_size;
-	int rc = 0;
+	int rc = 0, i;
 
 	if (!blob_data || (blob_size == 0)) {
 		CAM_ERR(CAM_OPE, "Invalid blob info %pK %d", blob_data,
@@ -3122,8 +3122,22 @@ static int cam_ope_packet_generic_blob_handler(void *user_data,
 
 		clk_info = &ctx_data->req_list[index]->clk_info;
 		clk_info_v2 = &ctx_data->req_list[index]->clk_info_v2;
+		clk_info_v2->budget_ns = soc_req_v2->budget_ns;
+		clk_info_v2->frame_cycles = soc_req_v2->frame_cycles;
+		clk_info_v2->rt_flag = soc_req_v2->rt_flag;
+		clk_info_v2->num_paths = soc_req_v2->num_paths;
 
-		memcpy(clk_info_v2, soc_req_v2, clk_update_size);
+		for (i = 0; i < soc_req_v2->num_paths; i++) {
+			clk_info_v2->axi_path[i].usage_data = soc_req_v2->axi_path[i].usage_data;
+			clk_info_v2->axi_path[i].transac_type =
+				soc_req_v2->axi_path[i].transac_type;
+			clk_info_v2->axi_path[i].path_data_type =
+				soc_req_v2->axi_path[i].path_data_type;
+			clk_info_v2->axi_path[i].vote_level = 0;
+			clk_info_v2->axi_path[i].camnoc_bw = soc_req_v2->axi_path[i].camnoc_bw;
+			clk_info_v2->axi_path[i].mnoc_ab_bw = soc_req_v2->axi_path[i].mnoc_ab_bw;
+			clk_info_v2->axi_path[i].mnoc_ib_bw = soc_req_v2->axi_path[i].mnoc_ib_bw;
+		}
 
 		/* Use v1 structure for clk fields */
 		clk_info->budget_ns = clk_info_v2->budget_ns;

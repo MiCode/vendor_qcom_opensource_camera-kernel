@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -80,10 +81,6 @@ int cam_bps_init_hw(void *device_priv,
 	cpas_vote.axi_vote.axi_path[0].mnoc_ab_bw =
 		CAM_CPAS_DEFAULT_AXI_BW;
 	cpas_vote.axi_vote.axi_path[0].mnoc_ib_bw =
-		CAM_CPAS_DEFAULT_AXI_BW;
-	cpas_vote.axi_vote.axi_path[0].ddr_ab_bw =
-		CAM_CPAS_DEFAULT_AXI_BW;
-	cpas_vote.axi_vote.axi_path[0].ddr_ib_bw =
 		CAM_CPAS_DEFAULT_AXI_BW;
 
 	rc = cam_cpas_start(core_info->cpas_handle,

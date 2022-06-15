@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -571,7 +572,7 @@ static int cam_vfe_camif_lite_handle_irq_bottom_half(
 
 		ret = CAM_VFE_IRQ_STATUS_OVERFLOW;
 
-		cam_cpas_log_votes();
+		cam_cpas_log_votes(false);
 
 	}
 

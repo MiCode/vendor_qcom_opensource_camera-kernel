@@ -160,8 +160,6 @@ static int cam_icp_v2_cpas_start(struct cam_icp_v2_core_info *core_info)
 	vote.axi_vote.axi_path[0].camnoc_bw = CAM_ICP_BW_BYTES_VOTE;
 	vote.axi_vote.axi_path[0].mnoc_ab_bw = CAM_ICP_BW_BYTES_VOTE;
 	vote.axi_vote.axi_path[0].mnoc_ib_bw = CAM_ICP_BW_BYTES_VOTE;
-	vote.axi_vote.axi_path[0].ddr_ab_bw = CAM_ICP_BW_BYTES_VOTE;
-	vote.axi_vote.axi_path[0].ddr_ib_bw = CAM_ICP_BW_BYTES_VOTE;
 
 	return __icp_v2_cpas_start(core_info, &vote);
 }

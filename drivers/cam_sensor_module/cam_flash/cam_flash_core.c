@@ -169,7 +169,7 @@ int cam_flash_i2c_power_ops(struct cam_flash_ctrl *fctrl,
 			}
 		}
 
-		rc = cam_sensor_core_power_up(power_info, soc_info);
+		rc = cam_sensor_core_power_up(power_info, soc_info, NULL);
 		if (rc) {
 			CAM_ERR(CAM_FLASH, "power up the core is failed:%d",
 				rc);

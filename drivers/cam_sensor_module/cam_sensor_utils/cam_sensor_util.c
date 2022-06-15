@@ -1977,12 +1977,13 @@ static int cam_config_mclk_reg(struct cam_sensor_power_ctrl_t *ctrl,
 }
 
 int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
-		struct cam_hw_soc_info *soc_info)
+		struct cam_hw_soc_info *soc_info, struct completion *i3c_probe_status)
 {
 	int rc = 0, index = 0, no_gpio = 0, ret = 0, num_vreg, j = 0, i = 0;
 	int32_t vreg_idx = -1;
 	struct cam_sensor_power_setting *power_setting = NULL;
 	struct msm_camera_gpio_num_info *gpio_num_info = NULL;
+	long                                    time_left;
 
 	CAM_DBG(CAM_SENSOR, "Enter");
 	if (!ctrl) {
@@ -2193,6 +2194,17 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 		else if (power_setting->delay)
 			usleep_range(power_setting->delay * 1000,
 				(power_setting->delay * 1000) + 1000);
+	}
+
+	if (i3c_probe_status) {
+		time_left = cam_common_wait_for_completion_timeout(
+			i3c_probe_status,
+			msecs_to_jiffies(CAM_I3C_DEV_PROBE_TIMEOUT_MS));
+		if (!time_left) {
+			CAM_ERR(CAM_SENSOR, "Wait for I3C probe timedout");
+			rc = -ETIMEDOUT;
+			goto power_up_failed;
+		}
 	}
 
 	return 0;

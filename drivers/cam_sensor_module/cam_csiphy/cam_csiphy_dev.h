@@ -56,9 +56,10 @@
 
 #define CSIPHY_MAX_INSTANCES_PER_PHY     3
 
-#define CAM_CSIPHY_MAX_DPHY_LANES    4
-#define CAM_CSIPHY_MAX_CPHY_LANES    3
+#define CAM_CSIPHY_MAX_DPHY_LANES            4
+#define CAM_CSIPHY_MAX_CPHY_LANES            3
 #define CAM_CSIPHY_MAX_CPHY_DPHY_COMBO_LN    3
+#define CAM_CSIPHY_MAX_DATARATE_VARIANTS     3
 
 #define DPHY_LANE_0    BIT(0)
 #define CPHY_LANE_0    BIT(1)
@@ -187,14 +188,14 @@ struct csiphy_device;
 
 /*
  * struct data_rate_reg_info_t
- * @bandwidth               : max bandwidth supported by this reg settings
- * @data_rate_reg_array_size: number of reg value pairs in the array
- * @csiphy_data_rate_regs   : array of data rate specific reg value pairs
+ * @bandwidth                 : max bandwidth supported by this reg settings
+ * @data_rate_reg_array_size  : data rate settings size
+ * @data_rate_reg_array       : array of data rate specific reg value pairs
  */
 struct data_rate_reg_info_t {
 	uint64_t bandwidth;
 	ssize_t  data_rate_reg_array_size;
-	struct csiphy_reg_t *data_rate_reg_array;
+	struct csiphy_reg_t *data_rate_reg_array[CAM_CSIPHY_MAX_DATARATE_VARIANTS];
 };
 
 /**

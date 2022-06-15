@@ -148,9 +148,9 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 	struct cam_sensor_power_ctrl_t *power_info)
 {
-	int32_t                 rc = 0;
-	struct cam_hw_soc_info *soc_info =
-		&e_ctrl->soc_info;
+	int32_t                                 rc = 0;
+	struct cam_hw_soc_info                 *soc_info = &e_ctrl->soc_info;
+	struct completion                      *i3c_probe_completion = NULL;
 
 	/* Parse and fill vreg params for power up settings */
 	rc = msm_camera_fill_vreg_params(
@@ -176,7 +176,10 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 
 	power_info->dev = soc_info->dev;
 
-	rc = cam_sensor_core_power_up(power_info, soc_info);
+	if (e_ctrl->io_master_info.master_type == I3C_MASTER)
+		i3c_probe_completion = cam_eeprom_get_i3c_completion(e_ctrl->soc_info.index);
+
+	rc = cam_sensor_core_power_up(power_info, soc_info, i3c_probe_completion);
 	if (rc) {
 		CAM_ERR(CAM_EEPROM, "failed in eeprom power up rc %d", rc);
 		return rc;
@@ -189,6 +192,7 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 			goto cci_failure;
 		}
 	}
+
 	return rc;
 cci_failure:
 	if (cam_sensor_util_power_down(power_info, soc_info))

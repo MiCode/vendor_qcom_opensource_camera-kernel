@@ -572,7 +572,7 @@ static struct i3c_device_id sensor_i3c_id[MAX_I3C_DEVICE_ID_ENTRIES + 1];
 static struct i3c_driver cam_sensor_i3c_driver = {
 	.id_table = sensor_i3c_id,
 	.probe = cam_sensor_i3c_driver_probe,
-	.remove = cam_sensor_i3c_driver_remove,
+	.remove = cam_i3c_driver_remove,
 	.driver = {
 		.owner = THIS_MODULE,
 		.name = SENSOR_DRIVER_I3C,

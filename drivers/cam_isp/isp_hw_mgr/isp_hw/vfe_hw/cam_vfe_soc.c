@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -186,6 +187,7 @@ int cam_vfe_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	cpas_register_param.dev = soc_info->dev;
 	cpas_register_param.cam_cpas_client_cb = cam_vfe_cpas_cb;
 	cpas_register_param.userdata = soc_info;
+
 	rc = cam_cpas_register_client(&cpas_register_param);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "CPAS registration failed rc=%d", rc);
@@ -252,18 +254,16 @@ int cam_vfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 		rc = -EINVAL;
 		goto end;
 	}
-	soc_private = soc_info->soc_private;
 
+	soc_private = soc_info->soc_private;
 	ahb_vote.type       = CAM_VOTE_ABSOLUTE;
 	ahb_vote.vote.level = CAM_LOWSVS_VOTE;
 	axi_vote.num_paths = 1;
-	if (strnstr(soc_info->compatible, "lite",
-		strlen(soc_info->compatible))) {
-		axi_vote.axi_path[0].path_data_type =
-			CAM_AXI_PATH_DATA_IFE_RDI1;
+	if (soc_private->is_ife_lite) {
+		axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_IFE_RDI1;
 	} else {
-		axi_vote.axi_path[0].path_data_type =
-			CAM_AXI_PATH_DATA_IFE_VID;
+		axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_IFE_VID;
+		axi_vote.axi_path[0].vote_level = CAM_CPAS_VOTE_LEVEL_LOW;
 	}
 
 	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_WRITE;

@@ -34,7 +34,9 @@
 #define MSM_EEPROM_MAX_MEM_MAP_CNT             100
 #define MSM_EEPROM_MEM_MAP_PROPERTIES_CNT      8
 
-#define EEPROM_DRIVER_I2C "cam-i2c-eeprom"
+#define EEPROM_DRIVER_I2C                      "cam-i2c-eeprom"
+#define EEPROM_DRIVER_I3C                      "i3c_camera_eeprom"
+
 
 enum cam_eeprom_state {
 	CAM_EEPROM_INIT,

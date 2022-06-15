@@ -499,6 +499,27 @@ struct cam_ahb_vote {
 };
 
 /**
+ * struct cam_cpas_axi_per_path_bw_vote - Internal per path bandwidth vote information
+ *
+ * @usage_data:              client usage data (left/right/rdi)
+ * @transac_type:            Transaction type on the path (read/write)
+ * @path_data_type:          Path for which vote is given (video, display, rdi)
+ * @vote_level:              Vote level for this path
+ * @camnoc_bw:               CAMNOC bw for this path
+ * @mnoc_ab_bw:              MNOC AB bw for this path
+ * @mnoc_ib_bw:              MNOC IB bw for this path
+ */
+struct cam_cpas_axi_per_path_bw_vote {
+	uint32_t                      usage_data;
+	uint32_t                      transac_type;
+	uint32_t                      path_data_type;
+	uint32_t                      vote_level;
+	uint64_t                      camnoc_bw;
+	uint64_t                      mnoc_ab_bw;
+	uint64_t                      mnoc_ib_bw;
+};
+
+/**
  * struct cam_axi_vote : AXI vote
  *
  * @num_paths: Number of paths on which BW vote is sent to CPAS
@@ -507,7 +528,7 @@ struct cam_ahb_vote {
  */
 struct cam_axi_vote {
 	uint32_t num_paths;
-	struct cam_axi_per_path_bw_vote axi_path[CAM_CPAS_MAX_PATHS_PER_CLIENT];
+	struct cam_cpas_axi_per_path_bw_vote axi_path[CAM_CPAS_MAX_PATHS_PER_CLIENT];
 };
 
 /**
@@ -730,15 +751,30 @@ const char *cam_cpas_axi_util_trans_type_to_string(
 	uint32_t path_data_type);
 
 /**
+ * cam_cpas_axi_util_drv_vote_lvl_to_string()
+ *
+ * @brief: API to get string for given DRV vote level
+ *
+ * @vote_lvl  : DRV vote level
+ *
+ * @return string.
+ *
+ */
+const char *cam_cpas_axi_util_drv_vote_lvl_to_string(
+	uint32_t vote_lvl);
+
+/**
  * cam_cpas_log_votes()
  *
  * @brief: API to print the all bw votes of axi client. It also print the
  *     applied camnoc axi clock vote value and ahb vote value
  *
+ * @ddr_only: Print only DDR info
+ *
  * @return 0 on success.
  *
  */
-void cam_cpas_log_votes(void);
+void cam_cpas_log_votes(bool ddr_only);
 
 /**
  * cam_cpas_select_qos_settings()
@@ -816,5 +852,41 @@ int cam_cpas_deactivate_llcc(enum cam_sys_cache_config_types type);
  *
  */
 int cam_cpas_dump_camnoc_buff_fill_info(uint32_t client_handle);
+
+/**
+ * cam_cpas_csid_input_core_info_update()
+ *
+ * @brief: API to communicate csid input core info to cpas
+ *
+ * @csid_idx: csid hw index connected to particular sfe
+ * @sfe_idx:  sfe idx to be connected to particular DRV path
+ * @set_port: Indicates whether to set or reset DRV port info in dynamic client
+ *
+ * @return 0 on success
+ *
+ */
+int cam_cpas_csid_input_core_info_update(int csid_idx, int sfe_idx, bool set_port);
+
+/**
+ * cam_cpas_csid_process_resume()
+ *
+ * @brief: API to process csid resume in cpas
+ * @csid_idx: CSID idx to notify resume for
+ *
+ * @return 0 on success
+ *
+ */
+int cam_cpas_csid_process_resume(uint32_t csid_idx);
+
+/**
+ * cam_cpas_query_drv_enable()
+ *
+ * @brief: API to indicate DRV enabled on hw or not
+ * @is_drv_enabled: Indication to be set by the API
+ *
+ * @return 0 on success
+ *
+ */
+int cam_cpas_query_drv_enable(bool *is_drv_enabled);
 
 #endif /* _CAM_CPAS_API_H_ */

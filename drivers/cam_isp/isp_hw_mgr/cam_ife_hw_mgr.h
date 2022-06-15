@@ -14,6 +14,7 @@
 #include "cam_ife_csid_hw_intf.h"
 #include "cam_tasklet_util.h"
 #include "cam_cdm_intf_api.h"
+#include "cam_cpas_api.h"
 
 /*
  * enum cam_ife_ctx_master_type - HW master type
@@ -57,6 +58,7 @@ enum cam_ife_ctx_master_type {
  * @disable_ubwc_comp:         Disable UBWC compression
  * @disable_ife_mmu_prefetch:  Disable MMU prefetch for IFE bus WR
  * @rx_capture_debug_set:      If rx capture debug is set by user
+ * @disable_isp_drv:           Disable ISP DRV config
  *
  */
 struct cam_ife_hw_mgr_debug {
@@ -77,6 +79,7 @@ struct cam_ife_hw_mgr_debug {
 	bool           disable_ubwc_comp;
 	bool           disable_ife_mmu_prefetch;
 	bool           rx_capture_debug_set;
+	bool           disable_isp_drv;
 };
 
 /**
@@ -419,6 +422,7 @@ struct cam_isp_sfe_cache_info {
  * @csid_rup_en            Reg update at CSID side
  * @csid_global_reset_en   CSID global reset enable
  * @csid_camif_irq_support CSID camif IRQ support
+ * @cam_ddr_drv_support    DDR DRV support
  * @isp_caps               Capability of underlying SFE/IFE HW
  * @path_port_map          Mapping of outport to IFE mux
  * @num_caches_found       Number of caches supported
@@ -448,6 +452,7 @@ struct cam_ife_hw_mgr {
 	bool                             csid_rup_en;
 	bool                             csid_global_reset_en;
 	bool                             csid_camif_irq_support;
+	bool                             cam_ddr_drv_support;
 	struct cam_isp_ife_sfe_hw_caps   isp_caps;
 	struct cam_isp_hw_path_port_map  path_port_map;
 

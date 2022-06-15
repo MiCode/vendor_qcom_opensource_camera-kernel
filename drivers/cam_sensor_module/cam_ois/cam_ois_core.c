@@ -7,7 +7,7 @@
 #include <linux/module.h>
 #include <linux/firmware.h>
 
-#include <cam_sensor_cmn_header.h>
+#include "cam_sensor_cmn_header.h"
 #include "cam_ois_core.h"
 #include "cam_ois_soc.h"
 #include "cam_sensor_util.h"
@@ -105,14 +105,13 @@ static int cam_ois_get_dev_handle(struct cam_ois_ctrl_t *o_ctrl,
 
 static int cam_ois_power_up(struct cam_ois_ctrl_t *o_ctrl)
 {
-	int                             rc = 0;
-	struct cam_hw_soc_info          *soc_info =
-		&o_ctrl->soc_info;
-	struct cam_ois_soc_private *soc_private;
-	struct cam_sensor_power_ctrl_t  *power_info;
+	int                                     rc = 0;
+	struct cam_hw_soc_info                 *soc_info = &o_ctrl->soc_info;
+	struct cam_ois_soc_private             *soc_private;
+	struct cam_sensor_power_ctrl_t         *power_info;
+	struct completion                      *i3c_probe_completion = NULL;
 
-	soc_private =
-		(struct cam_ois_soc_private *)o_ctrl->soc_info.soc_private;
+	soc_private = (struct cam_ois_soc_private *)o_ctrl->soc_info.soc_private;
 	power_info = &soc_private->power_info;
 
 	if ((power_info->power_setting == NULL) &&
@@ -151,7 +150,10 @@ static int cam_ois_power_up(struct cam_ois_ctrl_t *o_ctrl)
 
 	power_info->dev = soc_info->dev;
 
-	rc = cam_sensor_core_power_up(power_info, soc_info);
+	if (o_ctrl->io_master_info.master_type == I3C_MASTER)
+		i3c_probe_completion = cam_ois_get_i3c_completion(o_ctrl->soc_info.index);
+
+	rc = cam_sensor_core_power_up(power_info, soc_info, i3c_probe_completion);
 	if (rc) {
 		CAM_ERR(CAM_OIS, "failed in ois power up rc %d", rc);
 		return rc;

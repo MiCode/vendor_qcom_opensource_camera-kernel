@@ -144,6 +144,100 @@ const char *cam_cpas_axi_util_trans_type_to_string(
 }
 EXPORT_SYMBOL(cam_cpas_axi_util_trans_type_to_string);
 
+const char *cam_cpas_axi_util_drv_vote_lvl_to_string(
+	uint32_t vote_lvl)
+{
+	switch (vote_lvl) {
+	case CAM_CPAS_VOTE_LEVEL_LOW:
+		return "VOTE_LVL_LOW";
+	case CAM_CPAS_VOTE_LEVEL_HIGH:
+		return "VOTE_LVL_HIGH";
+	default:
+		return "VOTE_LVL_INVALID";
+	}
+}
+EXPORT_SYMBOL(cam_cpas_axi_util_drv_vote_lvl_to_string);
+
+int cam_cpas_query_drv_enable(bool *is_drv_enabled)
+{
+	struct cam_hw_info *cpas_hw = NULL;
+	struct cam_cpas_private_soc *soc_private = NULL;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+
+	if (!is_drv_enabled) {
+		CAM_ERR(CAM_CPAS, "invalid input %pK", is_drv_enabled);
+		return -EINVAL;
+	}
+
+	cpas_hw = (struct cam_hw_info  *) g_cpas_intf->hw_intf->hw_priv;
+	soc_private = (struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
+
+	*is_drv_enabled = soc_private->enable_cam_ddr_drv;
+
+	return 0;
+}
+EXPORT_SYMBOL(cam_cpas_query_drv_enable);
+
+int cam_cpas_csid_process_resume(uint32_t csid_idx)
+{
+	int rc;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+
+	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
+		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
+			g_cpas_intf->hw_intf->hw_priv,
+			CAM_CPAS_HW_CMD_CSID_PROCESS_RESUME, &csid_idx,
+			sizeof(uint32_t));
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Failed in process_cmd, rc=%d", rc);
+	} else {
+		CAM_ERR(CAM_CPAS, "Invalid process_cmd ops");
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(cam_cpas_csid_process_resume);
+
+
+int cam_cpas_csid_input_core_info_update(int csid_idx, int sfe_idx, bool set_port)
+{
+	int rc;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+
+	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
+		struct cam_cpas_hw_cmd_csid_input_core_info_update core_info_update;
+
+		core_info_update.csid_idx = csid_idx;
+		core_info_update.sfe_idx = sfe_idx;
+		core_info_update.set_port = set_port;
+		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
+			g_cpas_intf->hw_intf->hw_priv,
+			CAM_CPAS_HW_CMD_CSID_INPUT_CORE_INFO_UPDATE, &core_info_update,
+			sizeof(core_info_update));
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Failed in process_cmd, rc=%d", rc);
+	} else {
+		CAM_ERR(CAM_CPAS, "Invalid process_cmd ops");
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(cam_cpas_csid_input_core_info_update);
+
 int cam_cpas_dump_camnoc_buff_fill_info(uint32_t client_handle)
 {
 	int rc;
@@ -485,9 +579,8 @@ int cam_cpas_start(uint32_t client_handle,
 }
 EXPORT_SYMBOL(cam_cpas_start);
 
-void cam_cpas_log_votes(void)
+void cam_cpas_log_votes(bool ddr_only)
 {
-	uint32_t dummy_args;
 	int rc;
 
 	if (!CAM_CPAS_INTF_INITIALIZED()) {
@@ -498,8 +591,8 @@ void cam_cpas_log_votes(void)
 	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
 		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
 			g_cpas_intf->hw_intf->hw_priv,
-			CAM_CPAS_HW_CMD_LOG_VOTE, &dummy_args,
-			sizeof(dummy_args));
+			CAM_CPAS_HW_CMD_LOG_VOTE, &ddr_only,
+			sizeof(ddr_only));
 		if (rc)
 			CAM_ERR(CAM_CPAS, "Failed in process_cmd, rc=%d", rc);
 	} else {

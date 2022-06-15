@@ -16,33 +16,20 @@
 #define CAM_CPAS_MAX_FUSE_FEATURE 10
 
 /**
- * struct cam_cpas_vdd_ahb_mapping : Voltage to ahb level mapping
- *
- * @vdd_corner : Voltage corner value
- * @ahb_level : AHB vote level corresponds to this vdd_corner
- *
- */
-struct cam_cpas_vdd_ahb_mapping {
-	unsigned int vdd_corner;
-	enum cam_vote_level ahb_level;
-};
-
-/**
  * struct cpas_tree_node: Generic cpas tree node for BW voting
  *
  * @cell_idx: Index to identify node from device tree and its parent
  * @level_idx: Index to identify at what level the node is present
- * @axi_port_idx: Index to identify which axi port to vote the consolidated bw
+ * @axi_port_idx_arr: Index to identify which axi port to vote the consolidated bw.
+ *                    It can point to multiple indexes in case of camera DRV
+ * @drv_voting_idx: Specifies the index to which the child node would finally vote.
  * @camnoc_axi_port_idx: Index to find which axi port to vote consolidated bw
  * @path_data_type: Traffic type info from device tree (ife-vid, ife-disp etc)
  * @path_trans_type: Transaction type info from device tree (rd, wr)
  * @merge_type: Traffic merge type (calculation info) from device tree
  * @bus_width_factor: Factor for accounting bus width in CAMNOC bw calculation
  * @camnoc_bw: CAMNOC bw value at current node
- * @mnoc_ab_bw: MNOC AB bw value at current node
- * @mnoc_ib_bw: MNOC IB bw value at current node
- * @ddr_ab_bw: DDR AB bw value at current node
- * @ddr_ib_bw: DDR IB bw value at current node
+ * @bw_info: AXI BW info for all drv ports
  * @camnoc_max_needed: If node is needed for CAMNOC BW calculation then true
  * @constituent_paths: Constituent paths presence info from device tree
  *     Ex: For CAM_CPAS_PATH_DATA_IFE_UBWC_STATS, index corresponding to
@@ -61,7 +48,8 @@ struct cam_cpas_vdd_ahb_mapping {
 struct cam_cpas_tree_node {
 	uint32_t cell_idx;
 	int level_idx;
-	int axi_port_idx;
+	int *axi_port_idx_arr;
+	int drv_voting_idx;
 	int camnoc_axi_port_idx;
 	const char *node_name;
 	uint32_t path_data_type;
@@ -69,10 +57,7 @@ struct cam_cpas_tree_node {
 	uint32_t merge_type;
 	uint32_t bus_width_factor;
 	uint64_t camnoc_bw;
-	uint64_t mnoc_ab_bw;
-	uint64_t mnoc_ib_bw;
-	uint64_t ddr_ab_bw;
-	uint64_t ddr_ib_bw;
+	struct cam_cpas_axi_bw_info *bw_info;
 	bool camnoc_max_needed;
 	bool constituent_paths[CAM_CPAS_PATH_DATA_MAX];
 	struct device_node *tree_dev_node;
@@ -163,6 +148,7 @@ struct cam_cpas_smart_qos_info {
  * @num_caches: Number of last level caches
  * @llcc_info: Cache info
  * @enable_smart_qos: Whether to enable Smart QoS mechanism on current chipset
+ * @enable_cam_ddr_drv: Whether to enable Camera DDR DRV on current chipset
  * @smart_qos_info: Pointer to smart qos info
  * @icp_clk_index: Index of optional icp clk
  */
@@ -188,6 +174,7 @@ struct cam_cpas_private_soc {
 	uint32_t num_caches;
 	struct cam_sys_cache_info *llcc_info;
 	bool enable_smart_qos;
+	bool enable_cam_ddr_drv;
 	struct cam_cpas_smart_qos_info *smart_qos_info;
 	int32_t icp_clk_index;
 };

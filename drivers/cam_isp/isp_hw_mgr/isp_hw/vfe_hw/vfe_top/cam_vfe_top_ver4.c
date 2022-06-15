@@ -560,7 +560,7 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 	cam_vfe_top_ver4_dump_timestamps(top_priv, res_id);
 	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
 	if (bus_overflow_status)
-		cam_cpas_log_votes();
+		cam_cpas_log_votes(false);
 
 	if (violation_status)
 		CAM_INFO(CAM_ISP, "VFE[%d] Bus violation status: 0x%x",

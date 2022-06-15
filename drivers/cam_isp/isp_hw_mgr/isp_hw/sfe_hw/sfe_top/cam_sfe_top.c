@@ -114,6 +114,7 @@ static int cam_sfe_top_set_axi_bw_vote(
 	int rc = 0;
 	struct cam_hw_soc_info        *soc_info = NULL;
 	struct cam_sfe_soc_private    *soc_private = NULL;
+	int i, j;
 
 	soc_info = top_priv->common_data.soc_info;
 	soc_private = (struct cam_sfe_soc_private *)soc_info->soc_private;
@@ -131,6 +132,38 @@ static int cam_sfe_top_set_axi_bw_vote(
 		top_priv->total_bw_applied = total_bw_new_vote;
 	} else {
 		CAM_ERR(CAM_PERF, "BW request failed, rc=%d", rc);
+		for (i = 0; i < final_bw_vote->num_paths; i++) {
+			CAM_INFO(CAM_PERF,
+				"sfe[%d] : Applied BW Vote : [%s][%s][%s] [%llu %llu %llu]",
+				top_priv->common_data.hw_intf->hw_idx,
+				cam_cpas_axi_util_path_type_to_string(
+				final_bw_vote->axi_path[i].path_data_type),
+				cam_cpas_axi_util_trans_type_to_string(
+				final_bw_vote->axi_path[i].transac_type),
+				cam_cpas_axi_util_drv_vote_lvl_to_string(
+				final_bw_vote->axi_path[i].vote_level),
+				final_bw_vote->axi_path[i].camnoc_bw,
+				final_bw_vote->axi_path[i].mnoc_ab_bw,
+				final_bw_vote->axi_path[i].mnoc_ib_bw);
+		}
+
+		for (i = 0; i < CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ; i++) {
+			for (j = 0; j < top_priv->last_bw_vote[i].num_paths; j++) {
+				CAM_INFO(CAM_PERF,
+					"sfe[%d] : History[%d] BW Vote : [%s][%s] [%s] [%llu %llu %llu]",
+					top_priv->common_data.hw_intf->hw_idx, i,
+					cam_cpas_axi_util_path_type_to_string(
+					top_priv->last_bw_vote[i].axi_path[j].path_data_type),
+					cam_cpas_axi_util_trans_type_to_string(
+					top_priv->last_bw_vote[i].axi_path[j].transac_type),
+					cam_cpas_axi_util_drv_vote_lvl_to_string(
+					top_priv->last_bw_vote[i].axi_path[j].vote_level),
+					top_priv->last_bw_vote[i].axi_path[j].camnoc_bw,
+					top_priv->last_bw_vote[i].axi_path[j].mnoc_ab_bw,
+					top_priv->last_bw_vote[i].axi_path[j].mnoc_ib_bw);
+			}
+		}
+
 	}
 
 	return rc;
@@ -390,7 +423,7 @@ int cam_sfe_top_calc_axi_bw_vote(struct cam_sfe_top_priv *top_priv,
 				&top_priv->req_axi_vote[i].axi_path[0],
 				top_priv->req_axi_vote[i].num_paths *
 				sizeof(
-				struct cam_axi_per_path_bw_vote));
+				struct cam_cpas_axi_per_path_bw_vote));
 			num_paths += top_priv->req_axi_vote[i].num_paths;
 		}
 	}
@@ -399,13 +432,15 @@ int cam_sfe_top_calc_axi_bw_vote(struct cam_sfe_top_priv *top_priv,
 
 	for (i = 0; i < top_priv->agg_incoming_vote.num_paths; i++) {
 		CAM_DBG(CAM_PERF,
-			"sfe[%d] : New BW Vote : counter[%d] [%s][%s] [%llu %llu %llu]",
+			"sfe[%d] : New BW Vote : counter[%d] [%s][%s][%s] [%llu %llu %llu]",
 			top_priv->common_data.hw_intf->hw_idx,
 			top_priv->last_bw_counter,
 			cam_cpas_axi_util_path_type_to_string(
 			top_priv->agg_incoming_vote.axi_path[i].path_data_type),
 			cam_cpas_axi_util_trans_type_to_string(
 			top_priv->agg_incoming_vote.axi_path[i].transac_type),
+			cam_cpas_axi_util_drv_vote_lvl_to_string(
+			top_priv->agg_incoming_vote.axi_path[i].vote_level),
 			top_priv->agg_incoming_vote.axi_path[i].camnoc_bw,
 			top_priv->agg_incoming_vote.axi_path[i].mnoc_ab_bw,
 			top_priv->agg_incoming_vote.axi_path[i].mnoc_ib_bw);
@@ -463,12 +498,14 @@ int cam_sfe_top_calc_axi_bw_vote(struct cam_sfe_top_priv *top_priv,
 
 	for (i = 0; i < final_bw_vote->num_paths; i++) {
 		CAM_DBG(CAM_PERF,
-			"sfe[%d] : Apply BW Vote : [%s][%s] [%llu %llu %llu]",
+			"sfe[%d] : Apply BW Vote : [%s][%s][%s] [%llu %llu %llu]",
 			top_priv->common_data.hw_intf->hw_idx,
 			cam_cpas_axi_util_path_type_to_string(
 			final_bw_vote->axi_path[i].path_data_type),
 			cam_cpas_axi_util_trans_type_to_string(
 			final_bw_vote->axi_path[i].transac_type),
+			cam_cpas_axi_util_drv_vote_lvl_to_string(
+			final_bw_vote->axi_path[i].vote_level),
 			final_bw_vote->axi_path[i].camnoc_bw,
 			final_bw_vote->axi_path[i].mnoc_ab_bw,
 			final_bw_vote->axi_path[i].mnoc_ib_bw);
@@ -846,7 +883,7 @@ static int cam_sfe_top_handle_overflow(
 	cam_sfe_top_print_debug_reg_info(top_priv);
 
 	if (bus_overflow_status) {
-		cam_cpas_log_votes();
+		cam_cpas_log_votes(false);
 		overflow_info->is_bus_overflow = true;
 	}
 
@@ -912,6 +949,8 @@ static int cam_sfe_top_apply_clk_bw_update(struct cam_sfe_top_priv *top_priv,
 	if ((!to_be_applied_axi_vote) && (top_priv->bw_state != CAM_CLK_BW_STATE_UNCHANGED)) {
 		CAM_ERR(CAM_PERF, "SFE:%d Invalid BW vote for state:%s", hw_intf->hw_idx,
 			cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+		rc = -EINVAL;
+		goto end;
 	}
 
 	CAM_DBG(CAM_PERF, "SFE:%d APPLY CLK/BW req_id:%ld clk_state:%s bw_state:%s ",
