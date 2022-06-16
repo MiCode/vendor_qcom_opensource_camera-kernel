@@ -3466,13 +3466,12 @@ static int cam_icp_mgr_send_pc_prep(struct cam_icp_hw_mgr *hw_mgr)
 		return rc;
 
 	CAM_DBG(CAM_ICP, "Wait for PC_PREP_DONE Message\n");
-	rem_jiffies = cam_common_wait_for_completion_timeout(
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
 			&icp_hw_mgr.icp_complete,
-			msecs_to_jiffies((timeout)));
-	if (!rem_jiffies) {
+			msecs_to_jiffies((timeout)), CAM_ICP,
+			"FW response timeout for PC PREP handle command");
+	if (!rem_jiffies)
 		rc = -ETIMEDOUT;
-		CAM_ERR(CAM_ICP, "PC_PREP response timed out %d\n", rc);
-	}
 	CAM_DBG(CAM_ICP, "Done Waiting for PC_PREP Message\n");
 
 	return rc;
@@ -3773,36 +3772,6 @@ static int cam_icp_mgr_hfi_resume(struct cam_icp_hw_mgr *hw_mgr)
 	return cam_hfi_resume(&hfi_mem);
 }
 
-static int cam_icp_retry_wait_for_abort(
-	struct cam_icp_hw_ctx_data *ctx_data)
-{
-	int retry_cnt = 1;
-	unsigned long rem_jiffies;
-	int timeout = 1000;
-
-	CAM_WARN(CAM_ICP, "FW timeout in abort ctx: %u retry_left: %d",
-		ctx_data->ctx_id, retry_cnt);
-	while (retry_cnt > 0) {
-		rem_jiffies = cam_common_wait_for_completion_timeout(
-			&ctx_data->wait_complete,
-			msecs_to_jiffies((timeout)));
-		if (!rem_jiffies) {
-			retry_cnt--;
-			if (retry_cnt > 0) {
-				CAM_WARN(CAM_ICP,
-					"FW timeout in abort ctx: %u retry_left: %u",
-					ctx_data->ctx_id, retry_cnt);
-				continue;
-			}
-		}
-
-		if (retry_cnt > 0)
-			return 0;
-	}
-
-	return -ETIMEDOUT;
-}
-
 static int cam_icp_mgr_abort_handle_wq(
 	void *priv, void *data)
 {
@@ -3861,7 +3830,7 @@ static int cam_icp_mgr_abort_handle(
 	int rc = 0;
 	unsigned long rem_jiffies = 0;
 	size_t packet_size;
-	int timeout = 1000;
+	int timeout = 2000;
 	struct hfi_cmd_ipebps_async *abort_cmd;
 
 	packet_size =
@@ -3895,18 +3864,15 @@ static int cam_icp_mgr_abort_handle(
 	}
 	CAM_DBG(CAM_ICP, "fw_handle = %x ctx_data = %pK",
 		ctx_data->fw_handle, ctx_data);
-	rem_jiffies = cam_common_wait_for_completion_timeout(
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
 			&ctx_data->wait_complete,
-			msecs_to_jiffies((timeout)));
+			msecs_to_jiffies(timeout), CAM_ICP,
+			"FW response timeout for Abort handle command on %s",
+			ctx_data->ctx_id_string);
 	if (!rem_jiffies) {
-		rc = cam_icp_retry_wait_for_abort(ctx_data);
-		if (rc) {
-			CAM_ERR(CAM_ICP,
-				"FW timeout/err in abort handle command ctx: %u",
-				ctx_data->ctx_id);
-			cam_icp_dump_debug_info(false);
-			ctx_data->abort_timed_out = true;
-		}
+		rc = -ETIMEDOUT;
+		cam_icp_dump_debug_info(false);
+		ctx_data->abort_timed_out = true;
 	}
 
 	kfree(abort_cmd);
@@ -3954,13 +3920,13 @@ static int cam_icp_mgr_destroy_handle(
 	}
 	CAM_DBG(CAM_ICP, "fw_handle = %x ctx_data = %pK",
 		ctx_data->fw_handle, ctx_data);
-	rem_jiffies = cam_common_wait_for_completion_timeout(
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
 			&ctx_data->wait_complete,
-			msecs_to_jiffies((timeout)));
+			msecs_to_jiffies(timeout), CAM_ICP,
+			"FW response timeout for Destroy handle command on %s",
+			ctx_data->ctx_id_string);
 	if (!rem_jiffies) {
 		rc = -ETIMEDOUT;
-		CAM_ERR(CAM_ICP, "FW response timeout: %d for %u",
-			rc, ctx_data->ctx_id);
 		cam_icp_dump_debug_info(ctx_data->abort_timed_out);
 	}
 	kfree(destroy_cmd);
@@ -4364,12 +4330,12 @@ static int cam_icp_mgr_send_fw_init(struct cam_icp_hw_mgr *hw_mgr)
 		return rc;
 	}
 
-	rem_jiffies = cam_common_wait_for_completion_timeout(
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
 			&icp_hw_mgr.icp_complete,
-			msecs_to_jiffies((timeout)));
+			msecs_to_jiffies(timeout), CAM_ICP,
+			"FW response timeout for FW init handle command");
 	if (!rem_jiffies) {
 		rc = -ETIMEDOUT;
-		CAM_ERR(CAM_ICP, "FW response timed out %d", rc);
 		cam_icp_dump_debug_info(false);
 	}
 	CAM_DBG(CAM_ICP, "Done Waiting for INIT DONE Message");
@@ -4673,18 +4639,14 @@ static int cam_icp_mgr_send_config_io(struct cam_icp_hw_ctx_data *ctx_data,
 		return rc;
 	}
 
-	rem_jiffies = cam_common_wait_for_completion_timeout(
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
 			&ctx_data->wait_complete,
-			msecs_to_jiffies((timeout)));
+			msecs_to_jiffies(timeout), CAM_ICP,
+			"FW response timeout for send IO cfg handle command on %s",
+			ctx_data->ctx_id_string);
 	if (!rem_jiffies) {
 		/* send specific error for io config failure */
 		rc = -EREMOTEIO;
-		CAM_ERR(CAM_ICP,
-			"FW response timed out %d ctx id:%d dev hdl:0x%x session hdl:0x%x dev_type:%d",
-			rc,
-			ctx_data->ctx_id, ctx_data->acquire_dev_cmd.dev_handle,
-			ctx_data->acquire_dev_cmd.session_handle,
-			ctx_data->icp_dev_acquire_info->dev_type);
 		cam_icp_dump_debug_info(false);
 	}
 
@@ -5143,12 +5105,13 @@ static int cam_icp_process_stream_settings(
 	CAM_DBG(CAM_ICP, "Sent FW %s cmd",
 		map_unmap ? "Map" : "Unmap");
 
-	rem_jiffies = cam_common_wait_for_completion_timeout(
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
 			&ctx_data->wait_complete,
-			msecs_to_jiffies((timeout)));
+			msecs_to_jiffies(timeout), CAM_ICP,
+			"FW response timeout for process stream setting handle command on %s",
+			ctx_data->ctx_id_string);
 	if (!rem_jiffies) {
 		rc = -ETIMEDOUT;
-		CAM_ERR(CAM_ICP, "FW response timed out %d", rc);
 		cam_icp_dump_debug_info(false);
 	}
 
@@ -5840,7 +5803,7 @@ static void cam_icp_mgr_flush_info_dump(
 static int cam_icp_mgr_enqueue_abort(
 	struct cam_icp_hw_ctx_data *ctx_data)
 {
-	int timeout = 1000, rc;
+	int timeout = 2000, rc;
 	unsigned long rem_jiffies = 0;
 	struct hfi_cmd_work_data *task_data;
 	struct crm_workq_task *task;
@@ -5859,19 +5822,16 @@ static int cam_icp_mgr_enqueue_abort(
 	cam_req_mgr_workq_enqueue_task(task, &icp_hw_mgr,
 		CRM_TASK_PRIORITY_0);
 
-	rem_jiffies = cam_common_wait_for_completion_timeout(
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
 			&ctx_data->wait_complete,
-			msecs_to_jiffies((timeout)));
+			msecs_to_jiffies(timeout), CAM_ICP,
+			"FW response timeout for Abort handle command on %s",
+			ctx_data->ctx_id_string);
 	if (!rem_jiffies) {
-		rc = cam_icp_retry_wait_for_abort(ctx_data);
-		if (rc) {
-			CAM_ERR(CAM_ICP,
-				"FW timeout/err in abort handle command ctx: %u",
-				ctx_data->ctx_id);
-			cam_icp_dump_debug_info(false);
-			ctx_data->abort_timed_out = true;
-			return rc;
-		}
+		rc = -ETIMEDOUT;
+		cam_icp_dump_debug_info(false);
+		ctx_data->abort_timed_out = true;
+		return rc;
 	}
 
 	CAM_DBG(CAM_ICP, "Abort after flush is success");
@@ -6188,12 +6148,13 @@ static int cam_icp_mgr_create_handle(uint32_t dev_type,
 	if (rc)
 		return rc;
 
-	rem_jiffies = cam_common_wait_for_completion_timeout(
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
 			&ctx_data->wait_complete,
-			msecs_to_jiffies((timeout)));
+			msecs_to_jiffies(timeout), CAM_ICP,
+			"FW response timeout for create handle command on %s",
+			ctx_data->ctx_id_string);
 	if (!rem_jiffies) {
 		rc = -ETIMEDOUT;
-		CAM_ERR(CAM_ICP, "FW response timed out %d", rc);
 		cam_icp_dump_debug_info(false);
 	}
 
@@ -6235,12 +6196,13 @@ static int cam_icp_mgr_send_ping(struct cam_icp_hw_ctx_data *ctx_data)
 	if (rc)
 		return rc;
 
-	rem_jiffies = cam_common_wait_for_completion_timeout(
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
 			&ctx_data->wait_complete,
-			msecs_to_jiffies((timeout)));
+			msecs_to_jiffies(timeout), CAM_ICP,
+			"FW response timeout for Ping handle command on %s",
+			ctx_data->ctx_id_string);
 	if (!rem_jiffies) {
 		rc = -ETIMEDOUT;
-		CAM_ERR(CAM_ICP, "FW response timed out %d", rc);
 		cam_icp_dump_debug_info(false);
 	}
 
@@ -6377,6 +6339,13 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	icp_dev_acquire_info = ctx_data->icp_dev_acquire_info;
 	ctx_data->unified_dev_type = cam_icp_unify_dev_type(icp_dev_acquire_info->dev_type);
 
+	scnprintf(ctx_data->ctx_id_string, sizeof(ctx_data->ctx_id_string),
+		"%s_ctx[%d]_hwmgrctx[%d]_Submit",
+		cam_icp_dev_type_to_name(
+		ctx_data->icp_dev_acquire_info->dev_type),
+		args->ctx_id,
+		ctx_data->ctx_id);
+
 	CAM_DBG(CAM_ICP, "acquire io buf handle %d",
 		icp_dev_acquire_info->io_config_cmd_handle);
 	/* FW/CDM buffers are expected to be mapped in 32-bit address range */
@@ -6481,13 +6450,6 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ctx_data->context_priv = args->context_data;
 	args->ctxt_to_hw_map = ctx_data;
 	args->hw_mgr_ctx_id = ctx_data->ctx_id;
-
-	snprintf(ctx_data->ctx_id_string, sizeof(ctx_data->ctx_id_string),
-		"%s_ctx[%d]_hwmgrctx[%d]_Submit",
-		cam_icp_dev_type_to_name(
-		ctx_data->icp_dev_acquire_info->dev_type),
-		args->ctx_id,
-		ctx_data->ctx_id);
 
 	bitmap_size = BITS_TO_LONGS(CAM_FRAME_CMD_MAX) * sizeof(long);
 	ctx_data->hfi_frame_process.bitmap =
