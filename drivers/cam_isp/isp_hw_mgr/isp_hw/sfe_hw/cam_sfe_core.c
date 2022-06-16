@@ -534,9 +534,8 @@ int cam_sfe_core_init(
 	return rc;
 
 deinit_bus_wr:
-	cam_sfe_bus_deinit(BUS_TYPE_SFE_WR,
-		sfe_hw_info->bus_wr_version,
-		&core_info->sfe_bus_wr);
+	cam_sfe_bus_deinit(sfe_hw_info->bus_wr_version,
+		BUS_TYPE_SFE_WR, &core_info->sfe_bus_wr);
 deinit_top:
 	cam_sfe_top_deinit(sfe_hw_info->top_version,
 		&core_info->sfe_top);
@@ -557,16 +556,14 @@ int cam_sfe_core_deinit(
 
 	spin_lock_irqsave(&core_info->spin_lock, flags);
 
-	rc = cam_sfe_bus_deinit(BUS_TYPE_SFE_RD,
-		sfe_hw_info->bus_rd_version,
-		&core_info->sfe_bus_rd);
+	rc = cam_sfe_bus_deinit(sfe_hw_info->bus_rd_version,
+		BUS_TYPE_SFE_RD, &core_info->sfe_bus_rd);
 	if (rc)
 		CAM_ERR(CAM_SFE,
 			"SFE bus rd deinit failed rc: %d", rc);
 
-	rc = cam_sfe_bus_deinit(BUS_TYPE_SFE_WR,
-			sfe_hw_info->bus_wr_version,
-			&core_info->sfe_bus_wr);
+	rc = cam_sfe_bus_deinit(sfe_hw_info->bus_wr_version,
+			BUS_TYPE_SFE_WR, &core_info->sfe_bus_wr);
 	if (rc)
 		CAM_ERR(CAM_SFE,
 			"SFE bus wr deinit failed rc: %d", rc);
