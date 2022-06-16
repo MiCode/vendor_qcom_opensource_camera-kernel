@@ -249,20 +249,12 @@ static int cam_csiphy_component_bind(struct device *dev,
 	int32_t               rc = 0;
 	struct platform_device *pdev = to_platform_device(dev);
 	char wq_name[32];
-
 	int i;
 
 	new_csiphy_dev = devm_kzalloc(&pdev->dev,
 		sizeof(struct csiphy_device), GFP_KERNEL);
 	if (!new_csiphy_dev)
 		return -ENOMEM;
-
-	new_csiphy_dev->ctrl_reg = kzalloc(sizeof(struct csiphy_ctrl_t),
-		GFP_KERNEL);
-	if (!new_csiphy_dev->ctrl_reg) {
-		devm_kfree(&pdev->dev, new_csiphy_dev);
-		return -ENOMEM;
-	}
 
 	mutex_init(&new_csiphy_dev->mutex);
 	new_csiphy_dev->v4l2_dev_str.pdev = pdev;
@@ -377,7 +369,6 @@ csiphy_unregister_subdev:
 	cam_unregister_subdev(&(new_csiphy_dev->v4l2_dev_str));
 csiphy_no_resource:
 	mutex_destroy(&new_csiphy_dev->mutex);
-	kfree(new_csiphy_dev->ctrl_reg);
 	devm_kfree(&pdev->dev, new_csiphy_dev);
 	return rc;
 }
@@ -398,8 +389,6 @@ static void cam_csiphy_component_unbind(struct device *dev,
 	cam_csiphy_shutdown(csiphy_dev);
 	mutex_unlock(&csiphy_dev->mutex);
 	cam_unregister_subdev(&(csiphy_dev->v4l2_dev_str));
-	kfree(csiphy_dev->ctrl_reg);
-	csiphy_dev->ctrl_reg = NULL;
 	platform_set_drvdata(pdev, NULL);
 	v4l2_set_subdevdata(&(csiphy_dev->v4l2_dev_str.sd), NULL);
 	devm_kfree(&pdev->dev, csiphy_dev);
