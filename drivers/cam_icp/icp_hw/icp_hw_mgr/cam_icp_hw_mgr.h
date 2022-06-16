@@ -189,6 +189,18 @@ struct cam_hangdump_mem_regions {
 };
 
 /**
+ * struct cam_icp_ctx_perf_stats -
+ *        ICP general Perf stats per ctx
+ *
+ * @total_resp_time: accumulative FW response time
+ * @total_requests : accumulative submitted requests
+ */
+struct cam_icp_ctx_perf_stats {
+	uint64_t total_resp_time;
+	uint64_t total_requests;
+};
+
+/**
  * struct hfi_frame_process_info
  * @hfi_frame_cmd: Frame process command info
  * @bitmap: Bitmap for hfi_frame_cmd
@@ -271,6 +283,7 @@ struct cam_ctx_clk_info {
  * @icp_dev_io_info: io config resource
  * @last_flush_req: last flush req for this ctx
  * @err_inject_params: Error injection data for hw_mgr_ctx
+ * @perf_stats: performance statistics info
  * @unified_dev_type: Unified dev type which does not hold any priority info.
  *                    It's either IPE/BPS
  * @abort_timed_out: Indicates if abort timed out
@@ -298,6 +311,7 @@ struct cam_icp_hw_ctx_data {
 	uint64_t last_flush_req;
 	char ctx_id_string[128];
 	struct cam_hw_err_param err_inject_params;
+	struct cam_icp_ctx_perf_stats perf_stats;
 	uint32_t unified_dev_type;
 	bool abort_timed_out;
 };

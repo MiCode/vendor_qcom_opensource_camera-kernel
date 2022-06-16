@@ -2297,6 +2297,26 @@ static void cam_icp_mgr_dump_active_req_info(void)
 		total_active_streams, total_active_requests);
 }
 
+static void cam_icp_mgr_compute_fw_avg_response_time(struct cam_icp_hw_ctx_data *ctx_data,
+	uint32_t request_idx)
+{
+	struct cam_icp_ctx_perf_stats *perf_stats;
+	uint64_t delta;
+
+	delta = ktime_ms_delta(ktime_get(),
+		ctx_data->hfi_frame_process.submit_timestamp[request_idx]);
+
+	perf_stats = &ctx_data->perf_stats;
+	perf_stats->total_resp_time += delta;
+	perf_stats->total_requests++;
+
+	CAM_DBG(CAM_PERF,
+		"Avg response time on ctx: %s, current_req: %llu total_processed_requests: %llu avg_time: %llums",
+		ctx_data->ctx_id_string,
+		ctx_data->hfi_frame_process.request_id[request_idx], perf_stats->total_requests,
+		(perf_stats->total_resp_time / perf_stats->total_requests));
+}
+
 static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 {
 	int i;
@@ -2350,6 +2370,8 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 		return -EINVAL;
 	}
 	idx = i;
+
+	cam_icp_mgr_compute_fw_avg_response_time(ctx_data, idx);
 
 	if (flag == ICP_FRAME_PROCESS_FAILURE) {
 		if (ioconfig_ack->err_type == CAMERAICP_EABORTED) {
@@ -3935,6 +3957,7 @@ static int cam_icp_mgr_destroy_handle(
 
 static int cam_icp_mgr_release_ctx(struct cam_icp_hw_mgr *hw_mgr, int ctx_id)
 {
+	struct cam_icp_ctx_perf_stats *perf_stats;
 	int i = 0;
 
 	if (ctx_id >= CAM_ICP_CTX_MAX) {
@@ -3943,6 +3966,12 @@ static int cam_icp_mgr_release_ctx(struct cam_icp_hw_mgr *hw_mgr, int ctx_id)
 	}
 
 	mutex_lock(&hw_mgr->ctx_data[ctx_id].ctx_mutex);
+	perf_stats = &hw_mgr->ctx_data[ctx_id].perf_stats;
+	CAM_DBG(CAM_PERF,
+		"Avg response time on ctx: %s, total_processed_requests: %llu avg_time: %llums",
+		hw_mgr->ctx_data[ctx_id].ctx_id_string, perf_stats->total_requests,
+		perf_stats->total_requests ?
+		(perf_stats->total_resp_time / perf_stats->total_requests) : 0);
 	memset(&(hw_mgr->ctx_data[ctx_id].err_inject_params), 0,
 		sizeof(struct cam_hw_err_param));
 	cam_icp_remove_ctx_bw(hw_mgr, &hw_mgr->ctx_data[ctx_id]);
@@ -6462,6 +6491,9 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 			ctx_data->icp_dev_acquire_info->dev_type);
 		goto ioconfig_failed;
 	}
+
+	ctx_data->perf_stats.total_resp_time = 0;
+	ctx_data->perf_stats.total_requests = 0;
 
 	ctx_data->hfi_frame_process.bits = bitmap_size * BITS_PER_BYTE;
 	hw_mgr->ctx_data[ctx_id].ctxt_event_cb = args->event_cb;
