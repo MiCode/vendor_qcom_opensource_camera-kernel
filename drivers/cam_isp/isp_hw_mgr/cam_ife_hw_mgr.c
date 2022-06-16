@@ -902,10 +902,11 @@ static int cam_ife_mgr_csid_start_hw(
 	struct cam_hw_intf             *hw_intf;
 	uint32_t  cnt;
 	int j;
-	bool ipp_available = false;
+	bool ipp_available = false, is_secure;
 
 	for (j = ctx->num_base - 1 ; j >= 0; j--) {
 		cnt = 0;
+		is_secure = false;
 
 		if (ctx->base[j].hw_type != CAM_ISP_HW_TYPE_CSID)
 			continue;
@@ -924,9 +925,13 @@ static int cam_ife_mgr_csid_start_hw(
 			if (hw_mgr_res->res_id == CAM_IFE_PIX_PATH_RES_IPP)
 				ipp_available = true;
 
-			CAM_DBG(CAM_ISP, "csid[%u] res:%s res_id %d cnt %u",
+			if (hw_mgr_res->is_secure)
+				is_secure = true;
+
+			CAM_DBG(CAM_ISP, "csid[%u] res:%s res_id %d cnt %u, is_secure: %s",
 				isp_res->hw_intf->hw_idx,
-				isp_res->res_name, isp_res->res_id, cnt);
+				isp_res->res_name, isp_res->res_id, cnt,
+				CAM_BOOL_TO_YESNO(is_secure));
 			res[cnt] = isp_res;
 			cnt++;
 		}
@@ -938,6 +943,16 @@ static int cam_ife_mgr_csid_start_hw(
 			hw_intf =  res[0]->hw_intf;
 			start_args.num_res = cnt;
 			start_args.node_res = res;
+
+			if (ctx->cdm_hw_idx < 0) {
+				CAM_ERR(CAM_ISP,
+					"CSID[%u], physical CDM hw_idx is invalid: %d on ctx: %u",
+					hw_intf->hw_idx, ctx->cdm_hw_idx, ctx->ctx_index);
+				return -EINVAL;
+			}
+
+			start_args.cdm_hw_idx = ctx->cdm_hw_idx;
+			start_args.is_secure = is_secure;
 			start_args.is_internal_start = is_internal_start;
 			hw_intf->hw_ops.start(hw_intf->hw_priv, &start_args,
 			    sizeof(start_args));
@@ -3459,9 +3474,10 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 				continue;
 			}
 			CAM_DBG(CAM_ISP,
-				"acquired from old csid(%s)=%d successfully",
+				"acquired from old csid(%s)=%d successfully, is_secure: %s",
 				(i == 0) ? "left" : "right",
-				hw_intf->hw_idx);
+				hw_intf->hw_idx,
+				CAM_BOOL_TO_YESNO(csid_res_iterator->is_secure));
 			goto acquire_successful;
 		}
 	}
@@ -3620,9 +3636,10 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 		ife_ctx->flags.need_csid_top_cfg = csid_acquire.need_top_cfg;
 
 		CAM_DBG(CAM_ISP,
-			"acquired csid(%s)=%d pxl path rsrc %s successfully",
+			"acquired csid(%s)=%d pxl path rsrc %s successfully, is_secure: %s",
 			(i == 0) ? "left" : "right", hw_intf->hw_idx,
-			(is_ipp) ? "IPP" : "PPP");
+			(is_ipp) ? "IPP" : "PPP",
+			CAM_BOOL_TO_YESNO(csid_res->is_secure));
 	}
 
 	if (!is_ipp)
@@ -3798,6 +3815,12 @@ static int cam_ife_hw_mgr_acquire_csid_rdi_util(
 
 		goto put_res;
 	}
+
+	CAM_DBG(CAM_ISP,
+		"acquired csid[%u] rdi path rsrc %u successfully, is_secure: %s",
+		csid_acquire.node_res->hw_intf->hw_idx,
+		csid_acquire.node_res->res_id,
+		CAM_BOOL_TO_YESNO(csid_res->is_secure));
 
 	ife_ctx->flags.need_csid_top_cfg = csid_acquire.need_top_cfg;
 	csid_res->res_type = CAM_ISP_RESOURCE_PIX_PATH;
@@ -5337,6 +5360,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		cdm_acquire.id, cdm_acquire.handle, ife_ctx->flags.is_dual);
 	ife_ctx->cdm_handle = cdm_acquire.handle;
 	ife_ctx->cdm_id = cdm_acquire.id;
+	ife_ctx->cdm_hw_idx = cdm_acquire.hw_idx;
 	if (cdm_acquire.id == CAM_CDM_IFE)
 		ife_ctx->flags.internal_cdm = true;
 	atomic_set(&ife_ctx->cdm_done, 1);
@@ -6914,7 +6938,11 @@ static int cam_ife_mgr_restart_hw(void *start_hw_args)
 
 	CAM_DBG(CAM_ISP, "START CSID HW ... in ctx id:%d", ctx->ctx_index);
 	/* Start the IFE CSID HW devices */
-	cam_ife_mgr_csid_start_hw(ctx, CAM_IFE_PIX_PATH_RES_MAX, false);
+	rc = cam_ife_mgr_csid_start_hw(ctx, CAM_IFE_PIX_PATH_RES_MAX, false);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Error in starting CSID HW in ctx id:%d", ctx->ctx_index);
+		goto err;
+	}
 
 	/* Start IFE root node: do nothing */
 	CAM_DBG(CAM_ISP, "Exit...(success)");
@@ -7302,8 +7330,10 @@ start_only:
 	CAM_DBG(CAM_ISP, "START CSID HW ... in ctx id:%d",
 		ctx->ctx_index);
 	/* Start the IFE CSID HW devices */
-	cam_ife_mgr_csid_start_hw(ctx, primary_rdi_csid_res,
+	rc = cam_ife_mgr_csid_start_hw(ctx, primary_rdi_csid_res,
 		start_isp->is_internal_start);
+	if (rc)
+		goto err;
 
 	/* Start IFE root node: do nothing */
 	CAM_DBG(CAM_ISP, "Start success for ctx id:%d", ctx->ctx_index);
@@ -7436,6 +7466,7 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	/* clean context */
 	list_del_init(&ctx->list);
 	ctx->cdm_handle = 0;
+	ctx->cdm_hw_idx = -1;
 	ctx->cdm_ops = NULL;
 	ctx->num_reg_dump_buf = 0;
 	ctx->ctx_type = CAM_IFE_CTX_TYPE_NONE;

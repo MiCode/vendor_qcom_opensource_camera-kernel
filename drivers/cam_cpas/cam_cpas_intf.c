@@ -785,6 +785,24 @@ int cam_cpas_deactivate_llcc(
 }
 EXPORT_SYMBOL(cam_cpas_deactivate_llcc);
 
+bool cam_cpas_query_domain_id_security_support(void)
+{
+	struct cam_hw_info *cpas_hw = NULL;
+	struct cam_cpas_private_soc *soc_private = NULL;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return false;
+	}
+
+	cpas_hw = (struct cam_hw_info *) g_cpas_intf->hw_intf->hw_priv;
+	soc_private =
+		(struct cam_cpas_private_soc *)cpas_hw->soc_info.soc_private;
+
+	return soc_private->domain_id_info.domain_id_supported;
+}
+EXPORT_SYMBOL(cam_cpas_query_domain_id_security_support);
+
 int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 	struct cam_control *cmd)
 {

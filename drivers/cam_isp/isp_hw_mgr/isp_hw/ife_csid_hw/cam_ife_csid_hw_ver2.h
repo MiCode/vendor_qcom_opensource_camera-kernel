@@ -529,6 +529,33 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t decode_format_payload_only;
 };
 
+/**
+ * struct cam_ife_csid_secure_info: Contains all relevant info to be
+ *                                  programmed for targets supporting
+ *                                  this feature
+ * @phy_sel:          Intermediate value for this mask. CSID passes
+ *                    phy_sel.This variable's position at the top is to
+ *                    be left unchanged, to have it be used correctly
+ *                    in the cam_subdev_notify_message callback for
+ *                    csiphy
+ * @lane_cfg:         This value is similar to lane_assign in the PHY
+ *                    driver, and is used to identify the particular
+ *                    PHY instance with which this IFE session is
+ *                    connected to.
+ * @vc_mask:          Virtual channel masks (Unused for mobile usecase)
+ * @csid_hw_idx_mask: Bit position denoting CSID(s) in use for secure
+ *                    session
+ * @cdm_hw_idx_mask:  Bit position denoting CDM in use for secure
+ *                    session
+ */
+struct cam_ife_csid_secure_info {
+	uint32_t phy_sel;
+	uint32_t lane_cfg;
+	uint64_t vc_mask;
+	uint32_t csid_hw_idx_mask;
+	uint32_t cdm_hw_idx_mask;
+};
+
 struct cam_ife_csid_ver2_reg_info {
 	struct cam_irq_controller_reg_info               *top_irq_reg_info;
 	struct cam_irq_controller_reg_info               *rx_irq_reg_info;

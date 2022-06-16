@@ -338,6 +338,7 @@ struct cam_ife_csid_debug_info {
  * @sfe_en:                 flag to indicate if SFE is enabled
  * @pf_err_detected:        flag to indicate if camnoc has encountered
  *                          error - page fault
+ * @domain_id_security      Flag to determine if target has domain-id based security
  */
 struct cam_ife_csid_hw_flags {
 	bool                  device_enabled;
@@ -353,6 +354,7 @@ struct cam_ife_csid_hw_flags {
 	bool                  rdi_lcr_en;
 	bool                  sfe_en;
 	bool                  pf_err_detected;
+	bool                  domain_id_security;
 };
 
 /*

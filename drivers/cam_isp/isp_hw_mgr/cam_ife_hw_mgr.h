@@ -256,6 +256,7 @@ struct cam_ife_cdm_user_data {
  *                          instance associated with this context.
  * @num_base                number of valid base data in the base array
  * @cdm_handle              cdm hw acquire handle
+ * @cdm_hw_idx:             Physical CDM in use
  * @cdm_ops                 cdm util operation pointer for building
  *                          cdm commands
  * @cdm_cmd                 cdm base and length request pointer
@@ -315,6 +316,7 @@ struct cam_ife_hw_mgr_ctx {
 								CAM_SFE_HW_NUM_MAX];
 	uint32_t                                   num_base;
 	uint32_t                                   cdm_handle;
+	int32_t                                    cdm_hw_idx;
 	struct cam_cdm_utils_ops                  *cdm_ops;
 	struct cam_cdm_bl_request                 *cdm_cmd;
 	enum cam_cdm_id                            cdm_id;

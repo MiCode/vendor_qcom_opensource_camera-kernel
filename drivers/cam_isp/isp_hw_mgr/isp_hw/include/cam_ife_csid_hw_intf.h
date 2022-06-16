@@ -286,9 +286,22 @@ struct cam_csid_hw_stop_args {
 	uint32_t                                  num_res;
 };
 
+/**
+ * struct cam_csid_hw_start_args - Relevant info to pass from ife_hw_mgr layer
+ *                                 to start various resource nodes.
+ *
+ * @node_res:           Resource pointer array (cid or CSID)
+ * @num_res:            Number of resources in node_res
+ * @cdm_hw_idx:         Physical CDM in use together with these resources
+ * @is_secure:          If these resources are run in secure session
+ * @is_internal_start:  Start triggered internally for reset & recovery
+ *
+ */
 struct cam_csid_hw_start_args {
 	struct cam_isp_resource_node            **node_res;
 	uint32_t                                  num_res;
+	uint32_t                                  cdm_hw_idx;
+	bool                                      is_secure;
 	bool                                      is_internal_start;
 };
 

@@ -28,6 +28,107 @@ static inline void cam_csiphy_trigger_reg_dump(struct csiphy_device *csiphy_dev)
 	}
 }
 
+int cam_csiphy_format_secure_phy_lane_info(
+	struct csiphy_device *csiphy_dev, int offset)
+{
+	struct cam_csiphy_tz_secure_info *tz_secure_info;
+	struct cam_csiphy_param *param;
+
+	if (!csiphy_dev) {
+		CAM_ERR(CAM_CSIPHY, "Invalid param, csiphy_dev: %s",
+			CAM_IS_NULL_TO_STR(csiphy_dev));
+		return -EINVAL;
+	}
+
+	if (offset >= CSIPHY_MAX_INSTANCES_PER_PHY) {
+		CAM_ERR(CAM_CSIPHY, "Invalid CSIPHY param offset: %d",
+			offset);
+		return -EINVAL;
+	}
+
+	param = &csiphy_dev->csiphy_info[offset];
+	tz_secure_info = &param->secure_info;
+
+	if (param->csiphy_3phase) {
+		if (param->lane_enable & CPHY_LANE_0)
+			tz_secure_info->phy_lane_sel_mask |= LANE_0_SEL;
+		if (param->lane_enable & CPHY_LANE_1)
+			tz_secure_info->phy_lane_sel_mask |= LANE_1_SEL;
+		if (param->lane_enable & CPHY_LANE_2)
+			tz_secure_info->phy_lane_sel_mask |= LANE_2_SEL;
+		tz_secure_info->phy_lane_sel_mask <<= CPHY_LANE_SELECTION_SHIFT;
+	} else {
+		if (param->lane_enable & DPHY_LANE_0)
+			tz_secure_info->phy_lane_sel_mask |= LANE_0_SEL;
+		if (param->lane_enable & DPHY_LANE_1)
+			tz_secure_info->phy_lane_sel_mask |= LANE_1_SEL;
+		if (param->lane_enable & DPHY_LANE_2)
+			tz_secure_info->phy_lane_sel_mask |= LANE_2_SEL;
+		if (param->lane_enable & DPHY_LANE_3)
+			tz_secure_info->phy_lane_sel_mask |= LANE_3_SEL;
+		tz_secure_info->phy_lane_sel_mask <<= DPHY_LANE_SELECTION_SHIFT;
+	}
+	if (csiphy_dev->soc_info.index > MAX_SUPPORTED_PHY_IDX) {
+		CAM_ERR(CAM_CSIPHY, "Invalid PHY index: %u",
+			csiphy_dev->soc_info.index);
+			return -EINVAL;
+	}
+	tz_secure_info->phy_lane_sel_mask |= BIT(csiphy_dev->soc_info.index);
+
+	CAM_DBG(CAM_CSIPHY, "Formatted PHY[%u] phy_lane_sel_mask: 0x%llx",
+		csiphy_dev->soc_info.index,
+		tz_secure_info->phy_lane_sel_mask);
+
+	return 0;
+
+}
+
+static void cam_csiphy_populate_secure_info(
+	struct csiphy_device *csiphy_dev, void *data)
+{
+	int i;
+	struct cam_csiphy_secure_info *secure_info =
+		(struct cam_csiphy_secure_info *)data;
+	struct cam_csiphy_param *param;
+	struct cam_csiphy_tz_secure_info *tz_secure_info;
+
+	for (i = 0; i < CSIPHY_MAX_INSTANCES_PER_PHY; i++) {
+		param = &csiphy_dev->csiphy_info[i];
+
+		if (param->secure_mode &&
+			param->lane_assign == secure_info->lane_assign) {
+			tz_secure_info = &param->secure_info;
+
+			tz_secure_info->cdm_hw_idx_mask = secure_info->cdm_hw_idx_mask;
+			tz_secure_info->csid_hw_idx_mask = secure_info->csid_hw_idx_mask;
+			tz_secure_info->vc_mask = secure_info->vc_mask;
+			tz_secure_info->phy_lane_sel_mask = 0;
+
+			if (!cam_csiphy_format_secure_phy_lane_info(csiphy_dev, i)) {
+				param->secure_info_updated =  true;
+
+				CAM_DBG(CAM_CSIPHY,
+					"PHY[%d] secure info, phy_lane_mask: 0x%llx, ife: 0x%x, cdm: 0x%x, vc_mask: 0x%llx",
+					csiphy_dev->soc_info.index,
+					tz_secure_info->phy_lane_sel_mask,
+					tz_secure_info->csid_hw_idx_mask,
+					tz_secure_info->cdm_hw_idx_mask,
+					tz_secure_info->vc_mask);
+			} else
+				CAM_ERR(CAM_CSIPHY,
+					"Error in formatting PHY[%u] phy_lane_sel_mask: 0x%llx",
+					csiphy_dev->soc_info.index,
+					tz_secure_info->phy_lane_sel_mask);
+
+			break;
+		}
+	}
+
+	if (i == CSIPHY_MAX_INSTANCES_PER_PHY)
+		CAM_ERR(CAM_CSIPHY, "No matching secure PHY for a session");
+
+}
+
 static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 	enum cam_subdev_message_type_t message_type, void *data)
 {
@@ -62,6 +163,11 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 				"CSIPHY[%u] updating aux settings for data rate idx: %u",
 				csiphy_dev->soc_info.index, csiphy_dev->curr_data_rate_idx);
 		}
+		break;
+	}
+	case CAM_SUBDEV_MESSAGE_DOMAIN_ID_SECURE_PARAMS: {
+		cam_csiphy_populate_secure_info(csiphy_dev, data);
+
 		break;
 	}
 	default:
@@ -280,6 +386,9 @@ static int cam_csiphy_component_bind(struct device *dev,
 			new_csiphy_dev->soc_info.index);
 		goto csiphy_no_resource;
 	}
+
+	if (cam_cpas_query_domain_id_security_support())
+		new_csiphy_dev->domain_id_security = true;
 
 	new_csiphy_dev->v4l2_dev_str.internal_ops =
 		&csiphy_subdev_intern_ops;

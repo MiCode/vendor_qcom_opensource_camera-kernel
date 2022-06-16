@@ -889,4 +889,13 @@ int cam_cpas_csid_process_resume(uint32_t csid_idx);
  */
 int cam_cpas_query_drv_enable(bool *is_drv_enabled);
 
+/**
+ * cam_cpas_query_domain_id_security_support()
+ * @brief: API to determine if target supports domain id feature
+ *         This information is determined by cpas during probe
+ *
+ * @return true if there's support, false otherwise
+ */
+bool cam_cpas_query_domain_id_security_support(void);
+
 #endif /* _CAM_CPAS_API_H_ */

@@ -1212,6 +1212,32 @@ static int __cam_csiphy_prgm_bist_reg(struct csiphy_device *csiphy_dev, bool is_
 	return 0;
 }
 
+static int cam_csiphy_program_secure_mode(struct csiphy_device *csiphy_dev,
+	bool protect, int32_t offset)
+{
+	int rc = 0;
+
+	if (!csiphy_dev->domain_id_security)
+		rc = cam_csiphy_notify_secure_mode(csiphy_dev, protect, offset);
+
+	 /* Else a new scm call here */
+	else {
+		if (protect && !csiphy_dev->csiphy_info[offset].secure_info_updated) {
+			CAM_ERR(CAM_CSIPHY, "Secure info not updated prior to stream on");
+			return -EINVAL;
+		}
+
+		csiphy_dev->csiphy_info[offset].secure_info.protect = protect;
+		CAM_DBG(CAM_CSIPHY, "To call new scm, protect: %d, offset: %d",
+			protect, offset);
+
+		if (!protect)
+			csiphy_dev->csiphy_info[offset].secure_info.protect = false;
+	}
+
+	return rc;
+}
+
 int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 	int32_t dev_handle, uint8_t datarate_variant_idx)
 {
@@ -1391,7 +1417,7 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 
 		for (i = 0; i < csiphy_dev->acquire_count; i++) {
 			if (csiphy_dev->csiphy_info[i].secure_mode)
-				cam_csiphy_notify_secure_mode(
+				cam_csiphy_program_secure_mode(
 					csiphy_dev,
 					CAM_SECURE_MODE_NON_SECURE, i);
 
@@ -2141,7 +2167,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 		if (--csiphy_dev->start_dev_count) {
 			if (csiphy_dev->csiphy_info[offset].secure_mode)
-				cam_csiphy_notify_secure_mode(
+				cam_csiphy_program_secure_mode(
 					csiphy_dev,
 					CAM_SECURE_MODE_NON_SECURE, offset);
 
@@ -2165,7 +2191,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		}
 
 		if (csiphy_dev->csiphy_info[offset].secure_mode)
-			cam_csiphy_notify_secure_mode(
+			cam_csiphy_program_secure_mode(
 				csiphy_dev,
 				CAM_SECURE_MODE_NON_SECURE, offset);
 
@@ -2237,7 +2263,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		}
 
 		if (csiphy_dev->csiphy_info[offset].secure_mode)
-			cam_csiphy_notify_secure_mode(
+			cam_csiphy_program_secure_mode(
 				csiphy_dev,
 				CAM_SECURE_MODE_NON_SECURE, offset);
 
@@ -2362,7 +2388,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 					goto release_mutex;
 				}
 
-				rc = cam_csiphy_notify_secure_mode(csiphy_dev,
+				rc = cam_csiphy_program_secure_mode(csiphy_dev,
 					CAM_SECURE_MODE_SECURE, offset);
 				if (rc < 0) {
 					csiphy_dev->csiphy_info[offset]
@@ -2428,7 +2454,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 				goto cpas_stop;
 			}
 
-			rc = cam_csiphy_notify_secure_mode(
+			rc = cam_csiphy_program_secure_mode(
 				csiphy_dev,
 				CAM_SECURE_MODE_SECURE, offset);
 			if (rc < 0) {

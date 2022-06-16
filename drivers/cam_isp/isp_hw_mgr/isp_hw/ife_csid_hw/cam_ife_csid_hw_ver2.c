@@ -4066,7 +4066,7 @@ static int cam_ife_csid_ver2_enable_csi2(struct cam_ife_csid_ver2_hw *csid_hw)
 	const struct cam_ife_csid_csi2_rx_reg_info  *csi2_reg;
 	uint32_t val = 0;
 	void __iomem *mem_base;
-	struct cam_ife_csid_rx_cfg        *rx_cfg;
+	struct cam_ife_csid_rx_cfg          *rx_cfg;
 	int vc_full_width;
 
 	if (csid_hw->flags.rx_enabled)
@@ -4616,6 +4616,32 @@ static void cam_ife_csid_ver2_testbus_config(
 	CAM_DBG(CAM_ISP, "CSID [%u] test_bus_ctrl: 0x%x", csid_hw->hw_intf->hw_idx, val);
 }
 
+static void cam_ife_csid_ver2_send_secure_info(
+	struct cam_csid_hw_start_args *start_args,
+	struct cam_ife_csid_ver2_hw    *csid_hw)
+{
+	struct cam_ife_csid_secure_info        secure_info;
+
+	secure_info.phy_sel = csid_hw->rx_cfg.phy_sel - 1;
+	secure_info.lane_cfg = csid_hw->rx_cfg.lane_cfg;
+	secure_info.cdm_hw_idx_mask = BIT(start_args->cdm_hw_idx);
+	secure_info.vc_mask = 0;
+	secure_info.csid_hw_idx_mask = BIT(csid_hw->hw_intf->hw_idx);
+
+	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_MASTER)
+		secure_info.csid_hw_idx_mask |= BIT(csid_hw->dual_core_idx);
+
+	CAM_DBG(CAM_ISP,
+		"PHY secure info for CSID[%u], phy_sel: 0x%x, lane_cfg: 0x%x, ife: 0x%x, cdm: 0x%x, vc_mask: 0x%llx",
+		csid_hw->hw_intf->hw_idx, secure_info.phy_sel,
+		secure_info.lane_cfg, secure_info.csid_hw_idx_mask,
+		secure_info.cdm_hw_idx_mask, secure_info.vc_mask);
+
+	/* Issue one call to PHY for dual IFE cases */
+	cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+		CAM_SUBDEV_MESSAGE_DOMAIN_ID_SECURE_PARAMS, (void *)&secure_info);
+}
+
 int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 			uint32_t arg_size)
 {
@@ -4707,6 +4733,15 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 			break;
 		}
 	}
+
+	/*
+	 * For targets with domain-id support, hand over relevant parameters
+	 * to phy driver
+	 */
+	if ((csid_hw->sync_mode != CAM_ISP_HW_SYNC_SLAVE) &&
+		start_args->is_secure &&
+		csid_hw->flags.domain_id_security)
+		cam_ife_csid_ver2_send_secure_info(start_args, csid_hw);
 
 	/*
 	 * Configure RUP/AUP/MUP @ streamon for all enabled paths
@@ -4804,7 +4839,6 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 		csid_stop->num_res);
 
 	csid_hw->flags.device_enabled = false;
-	csid_hw->flags.rdi_lcr_en = false;
 
 	reset.reset_type = (csid_hw->flags.fatal_err_detected) ? CAM_IFE_CSID_RESET_GLOBAL :
 		CAM_IFE_CSID_RESET_PATH;
@@ -6190,6 +6224,9 @@ int cam_ife_csid_hw_ver2_init(struct cam_hw_intf *hw_intf,
 	if (cam_cpas_is_feature_supported(CAM_CPAS_QCFA_BINNING_ENABLE,
 		CAM_CPAS_HW_IDX_ANY, NULL))
 		csid_hw->flags.binning_enabled = true;
+
+	if (cam_cpas_query_domain_id_security_support())
+		csid_hw->flags.domain_id_security = true;
 
 	csid_hw->hw_intf->hw_ops.get_hw_caps   = cam_ife_csid_ver2_get_hw_caps;
 	csid_hw->hw_intf->hw_ops.init          = cam_ife_csid_ver2_init_hw;
