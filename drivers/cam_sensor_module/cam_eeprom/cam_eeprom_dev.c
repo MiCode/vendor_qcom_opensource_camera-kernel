@@ -499,9 +499,14 @@ static int cam_eeprom_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
 {
 	int32_t                         rc = 0;
+	bool                            i3c_i2c_target;
 	struct cam_eeprom_ctrl_t       *e_ctrl = NULL;
 	struct cam_eeprom_soc_private  *soc_private = NULL;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return 0;
 
 	e_ctrl = kzalloc(sizeof(struct cam_eeprom_ctrl_t), GFP_KERNEL);
 	if (!e_ctrl)
@@ -576,9 +581,14 @@ static void cam_eeprom_component_unbind(struct device *dev,
 	struct device *master_dev, void *data)
 {
 	int                        i;
+	bool                       i3c_i2c_target;
 	struct cam_eeprom_ctrl_t  *e_ctrl;
 	struct cam_hw_soc_info    *soc_info;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return;
 
 	e_ctrl = platform_get_drvdata(pdev);
 	if (!e_ctrl) {

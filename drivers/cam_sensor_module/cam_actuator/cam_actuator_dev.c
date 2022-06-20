@@ -346,9 +346,14 @@ static int cam_actuator_platform_component_bind(struct device *dev,
 {
 	int32_t                          rc = 0;
 	int32_t                          i = 0;
+	bool                             i3c_i2c_target;
 	struct cam_actuator_ctrl_t       *a_ctrl = NULL;
 	struct cam_actuator_soc_private  *soc_private = NULL;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return 0;
 
 	/* Create actuator control structure */
 	a_ctrl = devm_kzalloc(&pdev->dev,
@@ -444,7 +449,12 @@ static void cam_actuator_platform_component_unbind(struct device *dev,
 	struct cam_actuator_ctrl_t      *a_ctrl;
 	struct cam_actuator_soc_private *soc_private;
 	struct cam_sensor_power_ctrl_t  *power_info;
+	bool                             i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return;
 
 	a_ctrl = platform_get_drvdata(pdev);
 	if (!a_ctrl) {

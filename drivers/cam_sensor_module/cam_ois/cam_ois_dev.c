@@ -331,7 +331,12 @@ static int cam_ois_component_bind(struct device *dev,
 	int32_t                         rc = 0;
 	struct cam_ois_ctrl_t          *o_ctrl = NULL;
 	struct cam_ois_soc_private     *soc_private = NULL;
+	bool                            i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return 0;
 
 	o_ctrl = kzalloc(sizeof(struct cam_ois_ctrl_t), GFP_KERNEL);
 	if (!o_ctrl)
@@ -409,7 +414,12 @@ static void cam_ois_component_unbind(struct device *dev,
 	struct cam_ois_soc_private     *soc_private;
 	struct cam_sensor_power_ctrl_t *power_info;
 	struct cam_hw_soc_info         *soc_info;
+	bool                            i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return;
 
 	o_ctrl = platform_get_drvdata(pdev);
 	if (!o_ctrl) {

@@ -377,7 +377,12 @@ static int cam_sensor_component_bind(struct device *dev,
 	int32_t rc = 0, i = 0;
 	struct cam_sensor_ctrl_t *s_ctrl = NULL;
 	struct cam_hw_soc_info *soc_info = NULL;
+	bool i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return 0;
 
 	/* Create sensor control structure */
 	s_ctrl = devm_kzalloc(&pdev->dev,
@@ -479,7 +484,12 @@ static void cam_sensor_component_unbind(struct device *dev,
 	int                        i;
 	struct cam_sensor_ctrl_t  *s_ctrl;
 	struct cam_hw_soc_info    *soc_info;
+	bool                       i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return;
 
 	s_ctrl = platform_get_drvdata(pdev);
 	if (!s_ctrl) {
