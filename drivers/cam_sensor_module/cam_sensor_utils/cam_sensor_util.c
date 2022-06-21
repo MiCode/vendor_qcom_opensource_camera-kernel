@@ -16,6 +16,96 @@
 #define VALIDATE_VOLTAGE(min, max, config_val) ((config_val) && \
 	(config_val >= min) && (config_val <= max))
 
+int cam_sensor_count_elems_i3c_device_id(struct device_node *dev,
+	int *num_entries, char *sensor_id_table_str)
+{
+	if (!num_entries) {
+		CAM_ERR(CAM_SENSOR, "Num_entries ptr is null");
+		return -EINVAL;
+	}
+
+	if (!dev) {
+		CAM_ERR(CAM_SENSOR, "dev ptr is null");
+		return -EINVAL;
+	}
+
+	if (!sensor_id_table_str) {
+		CAM_ERR(CAM_SENSOR, "sebsor_id_table_str ptr is null");
+		return -EINVAL;
+	}
+
+	*num_entries = of_property_count_u32_elems(dev, sensor_id_table_str);
+	if (*num_entries <= 0) {
+		CAM_DBG(CAM_SENSOR, "Failed while reading the property. num_entries:%d",
+			*num_entries);
+		return -ENOENT;
+	}
+
+	if (*num_entries >= MAX_I3C_DEVICE_ID_ENTRIES) {
+		CAM_ERR(CAM_SENSOR, "Num_entries are more than MAX_I3C_DEVICE_ID_ENTRIES");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+int cam_sensor_fill_i3c_device_id(struct device_node *dev, int num_entries,
+	char *sensor_id_table_str, struct i3c_device_id *sensor_i3c_device_id)
+{
+	int                                      i = 0;
+	uint8_t                                  ent_num = 0;
+	uint32_t                                 mid;
+	uint32_t                                 pid;
+	int                                      rc;
+
+	if (!dev) {
+		CAM_ERR(CAM_SENSOR, "dev ptr is null");
+		return -EINVAL;
+	}
+
+	if (!sensor_id_table_str) {
+		CAM_ERR(CAM_SENSOR, "sensor_id_table_str ptr is null");
+		return -EINVAL;
+	}
+
+	if (!sensor_i3c_device_id) {
+		CAM_ERR(CAM_SENSOR, "sensor_i3c_device_id ptr is null");
+		return -EINVAL;
+	}
+
+	while (i < num_entries) {
+		if (ent_num >= MAX_I3C_DEVICE_ID_ENTRIES) {
+			CAM_WARN(CAM_SENSOR, "Num_entries are more than MAX_I3C_DEVICE_ID_ENTRIES");
+			return -ENOMEM;
+		}
+
+		rc = of_property_read_u32_index(dev, sensor_id_table_str, i, &mid);
+		if (rc) {
+			CAM_ERR(CAM_SENSOR, "Failed in reading the MID. rc: %d", rc);
+			return rc;
+		}
+		i++;
+
+		rc = of_property_read_u32_index(dev, sensor_id_table_str, i, &pid);
+		if (rc) {
+			CAM_ERR(CAM_SENSOR, "Failed in reading the PID. rc: %d", rc);
+			return rc;
+		}
+		i++;
+
+		CAM_DBG(CAM_SENSOR, "PID: 0x%x, MID: 0x%x", pid, mid);
+
+		sensor_i3c_device_id[ent_num].manuf_id = mid;
+		sensor_i3c_device_id[ent_num].match_flags = I3C_MATCH_MANUF_AND_PART;
+		sensor_i3c_device_id[ent_num].part_id  = pid;
+		sensor_i3c_device_id[ent_num].data     = 0;
+
+		ent_num++;
+	}
+
+	return 0;
+}
+
 static struct i2c_settings_list*
 	cam_sensor_get_i2c_ptr(struct i2c_settings_array *i2c_reg_settings,
 		uint32_t size)

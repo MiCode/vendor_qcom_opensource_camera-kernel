@@ -26,7 +26,7 @@
 #define CAM_I3C_DEV_PROBE_TIMEOUT_MS           10
 #define CAM_I3C_DEV_PROBE_TIMEOUT_US          (CAM_I3C_DEV_PROBE_TIMEOUT_MS * 1000)
 #define I3C_SENSOR_DEV_ID_DT_PATH              "/soc/qcom,cam-i3c-id-table"
-#define MAX_I3C_DEVICE_ID_ENTRIES              MAX_CAMERAS
+#define MAX_I3C_DEVICE_ID_ENTRIES              (MAX_CAMERAS * 2)
 
 #define CAM_SENSOR_NAME    "cam-sensor"
 #define CAM_ACTUATOR_NAME  "cam-actuator"

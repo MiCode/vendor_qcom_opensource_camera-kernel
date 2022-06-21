@@ -34,6 +34,12 @@
 #define QTIMER_MUL_FACTOR   10000
 #define QTIMER_DIV_FACTOR   192
 
+int cam_sensor_count_elems_i3c_device_id(struct device_node *dev,
+	int *num_entries, char *sensor_id_table_str);
+
+int cam_sensor_fill_i3c_device_id(struct device_node *dev, int num_entries,
+	char *sensor_id_table_str, struct i3c_device_id *sensor_i3c_device_id);
+
 int cam_get_dt_power_setting_data(struct device_node *of_node,
 	struct cam_hw_soc_info *soc_info,
 	struct cam_sensor_power_ctrl_t *power_info);
