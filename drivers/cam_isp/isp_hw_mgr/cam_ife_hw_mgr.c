@@ -10769,6 +10769,8 @@ static int cam_sfe_packet_generic_blob_handler(void *user_data,
 	case CAM_ISP_GENERIC_BLOB_TYPE_INIT_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_FPS_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_RDI_LCR_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V3:
+	case CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG:
 		break;
 	default:
 		CAM_WARN(CAM_ISP, "Invalid blob type: %u", blob_type);
