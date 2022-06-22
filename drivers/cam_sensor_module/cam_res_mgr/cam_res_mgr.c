@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -713,8 +714,6 @@ static int cam_res_mgr_shared_pinctrl_init(
 	}
 
 	for (i = 0; i < dt->num_shared_pctrl_gpio; i++) {
-		memset(pctrl_active, '\0', sizeof(pctrl_active));
-		memset(pctrl_suspend, '\0', sizeof(pctrl_suspend));
 		snprintf(pctrl_active, sizeof(pctrl_active),
 			"%s%s",
 			cam_res->dt.pctrl_name[i],

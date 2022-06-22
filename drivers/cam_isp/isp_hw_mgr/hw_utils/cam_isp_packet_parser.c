@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <media/cam_defs.h>
@@ -1758,7 +1759,7 @@ int cam_isp_add_csid_reg_update(
 		(kmd_buf_info->used_bytes +
 		reg_update_size);
 
-	memset(&rup_args->cmd, 0, sizeof(struct cam_isp_hw_cmd_buf_update));
+	rup_args->cmd.used_bytes = 0;
 	rup_args->cmd.cmd_buf_addr = kmd_buf_info->cpu_addr +
 		kmd_buf_info->used_bytes/4 +
 		reg_update_size/4;
@@ -1919,7 +1920,6 @@ int cam_isp_get_cmd_buf_count(
 			((uint8_t *)&prepare->packet->payload +
 			prepare->packet->cmd_buf_offset);
 
-	memset(cmd_buf_count, 0, sizeof(struct cam_isp_cmd_buf_count));
 	for (i = 0; i < prepare->packet->num_cmd_buf; i++) {
 		if (!cmd_desc[i].length)
 			continue;

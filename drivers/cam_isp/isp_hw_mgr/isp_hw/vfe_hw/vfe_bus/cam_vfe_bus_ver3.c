@@ -1054,9 +1054,7 @@ static int cam_vfe_bus_ver3_acquire_wm(
 {
 	int32_t wm_idx = 0, rc;
 	struct cam_vfe_bus_ver3_wm_resource_data  *rsrc_data = NULL;
-	char wm_mode[50];
-
-	memset(wm_mode, '\0', sizeof(wm_mode));
+	char wm_mode[50] = {'\0'};
 
 	if (wm_res->res_state != CAM_ISP_RESOURCE_STATE_AVAILABLE) {
 		CAM_ERR(CAM_ISP, "WM:%d not available state:%d",

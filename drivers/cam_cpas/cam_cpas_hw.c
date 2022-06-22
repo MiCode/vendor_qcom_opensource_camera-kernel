@@ -2702,7 +2702,7 @@ static void cam_cpas_dump_monitor_array(
 	for (i = 0; i < num_entries; i++) {
 		entry = &cpas_core->monitor_entries[index];
 		CAM_CONVERT_TIMESTAMP_FORMAT(entry->timestamp, hrs, min, sec, ms);
-		memset(log_buf, 0, sizeof(log_buf));
+		log_buf[0] = '\0';
 		len = 0;
 
 		CAM_INFO(CAM_CPAS,

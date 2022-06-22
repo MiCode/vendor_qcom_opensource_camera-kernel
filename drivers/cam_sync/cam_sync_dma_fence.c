@@ -651,8 +651,6 @@ int cam_dma_fence_driver_init(void)
 	for (i = 0; i < CAM_DMA_FENCE_MAX_FENCES; i++)
 		spin_lock_init(&g_cam_dma_fence_dev->row_spinlocks[i]);
 
-	memset(&g_cam_dma_fence_dev->rows, 0, sizeof(g_cam_dma_fence_dev->rows));
-	memset(&g_cam_dma_fence_dev->bitmap, 0, sizeof(g_cam_dma_fence_dev->bitmap));
 	bitmap_zero(g_cam_dma_fence_dev->bitmap, CAM_DMA_FENCE_MAX_FENCES);
 	g_cam_dma_fence_dev->dma_fence_context = dma_fence_context_alloc(1);
 

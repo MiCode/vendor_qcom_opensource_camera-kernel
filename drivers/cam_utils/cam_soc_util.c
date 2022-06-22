@@ -607,9 +607,7 @@ static const char *cam_soc_util_get_supported_clk_levels(
 {
 	int i = 0;
 
-	memset(supported_clk_info, 0, sizeof(supported_clk_info));
-	strlcat(supported_clk_info, "Supported levels: ",
-		sizeof(supported_clk_info));
+	scnprintf(supported_clk_info, sizeof(supported_clk_info), "Supported levels: ");
 
 	for (i = 0; i < CAM_MAX_VOTE; i++) {
 		if (soc_info->clk_level_valid[i] == true) {
@@ -2310,8 +2308,6 @@ static int cam_soc_util_request_pinctrl(
 	}
 
 	for (i = 0; i < num_of_map_idx; i++) {
-		memset(pctrl_active, '\0', sizeof(pctrl_active));
-		memset(pctrl_suspend, '\0', sizeof(pctrl_suspend));
 		of_property_read_u32_index(of_node,
 			"pctrl-idx-mapping", i, &idx);
 

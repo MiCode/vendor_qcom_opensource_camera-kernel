@@ -2406,7 +2406,7 @@ static int __cam_isp_ctx_apply_pending_req(
 	struct cam_isp_context *ctx_isp = priv;
 	struct cam_ctx_request *req;
 	struct cam_isp_ctx_req *req_isp;
-	struct cam_hw_config_args cfg;
+	struct cam_hw_config_args cfg = {0};
 
 	if (!ctx_isp) {
 		CAM_ERR(CAM_ISP, "Invalid ctx_isp:%pK", ctx);
@@ -2447,14 +2447,11 @@ static int __cam_isp_ctx_apply_pending_req(
 		req->request_id, ctx_isp->substate_activated, ctx->ctx_id);
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
 
-	memset(&cfg, 0, sizeof(cfg));
-
 	cfg.ctxt_to_hw_map = ctx_isp->hw_ctx;
 	cfg.request_id = req->request_id;
 	cfg.hw_update_entries = req_isp->cfg;
 	cfg.num_hw_update_entries = req_isp->num_cfg;
-	cfg.priv  = &req_isp->hw_update_data;
-	cfg.init_packet = 0;
+	cfg.priv = &req_isp->hw_update_data;
 
 	/*
 	 * Offline mode may receive the SOF and REG_UPD earlier than

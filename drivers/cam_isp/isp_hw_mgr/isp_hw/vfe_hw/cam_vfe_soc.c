@@ -180,7 +180,6 @@ int cam_vfe_init_soc_resources(struct cam_hw_soc_info *soc_info,
 		goto free_soc_private;
 	}
 
-	memset(&cpas_register_param, 0, sizeof(cpas_register_param));
 	strlcpy(cpas_register_param.identifier, "ife",
 		CAM_HW_IDENTIFIER_LENGTH);
 	cpas_register_param.cell_index = soc_info->index;

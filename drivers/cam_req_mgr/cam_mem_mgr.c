@@ -1555,7 +1555,7 @@ static int cam_mem_util_unmap(int32_t idx,
 	tbl.bufq[idx].flags = 0;
 	tbl.bufq[idx].buf_handle = -1;
 	memset(tbl.bufq[idx].hdls, 0,
-		sizeof(int32_t) * CAM_MEM_MMU_MAX_HANDLE);
+		sizeof(int32_t) * tbl.bufq[idx].num_hdl);
 
 	CAM_DBG(CAM_MEM,
 		"Ion buf at idx = %d freeing fd = %d, imported %d, dma_buf %pK, i_ino %lu",

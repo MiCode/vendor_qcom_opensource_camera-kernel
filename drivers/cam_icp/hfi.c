@@ -576,8 +576,6 @@ void hfi_send_system_cmd(uint32_t type, uint64_t data, uint32_t size)
 	case HFI_CMD_SYS_INIT: {
 		struct hfi_cmd_sys_init init;
 
-		memset(&init, 0, sizeof(init));
-
 		init.size = sizeof(struct hfi_cmd_sys_init);
 		init.pkt_type = type;
 		hfi_write_cmd(&init);

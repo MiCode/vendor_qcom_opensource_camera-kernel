@@ -447,7 +447,6 @@ int32_t cam_context_config_dev_to_hw(
 	packet = (struct cam_packet *) ((uint8_t *)packet_addr +
 		(uint32_t)cmd->offset);
 
-	memset(&cfg, 0, sizeof(cfg));
 	cfg.packet = packet;
 	cfg.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
 	cfg.priv = NULL;
@@ -531,7 +530,6 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 		ctx->last_flush_req = 0;
 
 	/* preprocess the configuration */
-	memset(&cfg, 0, sizeof(cfg));
 	cfg.packet = packet;
 	cfg.remain_len = remain_len;
 	cfg.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
@@ -544,6 +542,8 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 	cfg.in_map_entries = req->in_map_entries;
 	cfg.pf_data = &(req->pf_data);
 	cfg.priv = req->req_priv;
+	cfg.num_in_map_entries = 0;
+	cfg.num_out_map_entries = 0;
 
 	rc = ctx->hw_mgr_intf->hw_prepare_update(
 		ctx->hw_mgr_intf->hw_mgr_priv, &cfg);
@@ -751,7 +751,7 @@ end:
 
 int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 {
-	struct cam_hw_flush_args flush_args;
+	struct cam_hw_flush_args flush_args = {0};
 	struct list_head temp_list;
 	struct list_head *list;
 	struct cam_ctx_request *req;
@@ -760,7 +760,6 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 	bool free_req;
 
 	CAM_DBG(CAM_CTXT, "[%s] E: NRT flush ctx", ctx->dev_name);
-	memset(&flush_args, 0, sizeof(flush_args));
 
 	/*
 	 * flush pending requests, take the sync lock to synchronize with the
@@ -778,7 +777,6 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 			"[%s][%d] : Moving all pending requests from pending_list to temp_list",
 			ctx->dev_name, ctx->ctx_id);
 
-	flush_args.num_req_pending = 0;
 	flush_args.last_flush_req = ctx->last_flush_req;
 	list_for_each(list, &temp_list) {
 		num_entries++;
@@ -863,7 +861,6 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 	spin_unlock(&ctx->lock);
 
 	if (ctx->hw_mgr_intf->hw_flush) {
-		flush_args.num_req_active = 0;
 		num_entries = 0;
 		list_for_each(list, &temp_list) {
 			num_entries++;
@@ -947,7 +944,7 @@ int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 	struct cam_flush_dev_cmd *cmd)
 {
 	struct cam_ctx_request *req = NULL;
-	struct cam_hw_flush_args flush_args;
+	struct cam_hw_flush_args flush_args = {0};
 	uint32_t i = 0;
 	int32_t sync_id = 0;
 	int rc = 0;
@@ -955,9 +952,6 @@ int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 
 	CAM_DBG(CAM_CTXT, "[%s] E: NRT flush req", ctx->dev_name);
 
-	memset(&flush_args, 0, sizeof(flush_args));
-	flush_args.num_req_pending = 0;
-	flush_args.num_req_active = 0;
 	flush_args.flush_req_pending = kzalloc(sizeof(void *), GFP_KERNEL);
 	if (!flush_args.flush_req_pending) {
 		CAM_ERR(CAM_CTXT, "[%s][%d] : Flush array memory alloc fail",
@@ -1584,7 +1578,7 @@ int32_t cam_context_dump_dev_to_hw(struct cam_context *ctx,
 			ctx->dev_name, ctx->ctx_id);
 		return -EFAULT;
 	}
-	memset(&dump_args, 0, sizeof(dump_args));
+
 	if (ctx->hw_mgr_intf->hw_dump) {
 		dump_args.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
 		dump_args.buf_handle = cmd->buf_handle;

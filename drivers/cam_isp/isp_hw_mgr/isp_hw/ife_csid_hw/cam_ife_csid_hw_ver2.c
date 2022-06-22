@@ -1134,7 +1134,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 	data_idx = csid_hw->rx_cfg.phy_sel -1;
 
 	log_buf = csid_hw->log_buf;
-	memset(log_buf, 0, sizeof(csid_hw->log_buf));
+	log_buf[0] = '\0';
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
 			csid_hw->core_info->csid_reg;
@@ -1532,7 +1532,6 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 		    csid_hw->core_info->csid_reg;
 
 	log_buf = csid_hw->log_buf;
-	memset(log_buf, 0, sizeof(csid_hw->log_buf));
 
 	irq_reg_tag = cam_ife_csid_get_irq_reg_tag_ptr();
 

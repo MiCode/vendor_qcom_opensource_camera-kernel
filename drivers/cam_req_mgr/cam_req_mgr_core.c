@@ -4374,7 +4374,7 @@ int cam_req_mgr_link(struct cam_req_mgr_ver_info *link_info)
 	int                                     rc = 0;
 	int                                     wq_flag = 0;
 	char                                    buf[128];
-	struct cam_create_dev_hdl               root_dev;
+	struct cam_create_dev_hdl               root_dev = {0};
 	struct cam_req_mgr_core_session        *cam_session;
 	struct cam_req_mgr_core_link           *link;
 
@@ -4410,10 +4410,10 @@ int cam_req_mgr_link(struct cam_req_mgr_ver_info *link_info)
 	}
 	CAM_DBG(CAM_CRM, "link reserved %pK %x", link, link->link_hdl);
 
-	memset(&root_dev, 0, sizeof(struct cam_create_dev_hdl));
 	root_dev.session_hdl = link_info->u.link_info_v1.session_hdl;
 	root_dev.priv = (void *)link;
 	root_dev.dev_id = CAM_CRM;
+
 	mutex_lock(&link->lock);
 	/* Create unique dev handle for link */
 	link->link_hdl = cam_create_device_hdl(&root_dev);
@@ -4485,7 +4485,7 @@ int cam_req_mgr_link_v2(struct cam_req_mgr_ver_info *link_info)
 	int                                     rc = 0;
 	int                                     wq_flag = 0;
 	char                                    buf[128];
-	struct cam_create_dev_hdl               root_dev;
+	struct cam_create_dev_hdl               root_dev = {0};
 	struct cam_req_mgr_core_session        *cam_session;
 	struct cam_req_mgr_core_link           *link;
 
@@ -4522,7 +4522,6 @@ int cam_req_mgr_link_v2(struct cam_req_mgr_ver_info *link_info)
 	}
 	CAM_DBG(CAM_CRM, "link reserved %pK %x", link, link->link_hdl);
 
-	memset(&root_dev, 0, sizeof(struct cam_create_dev_hdl));
 	root_dev.session_hdl = link_info->u.link_info_v2.session_hdl;
 	root_dev.priv = (void *)link;
 	root_dev.dev_id = CAM_CRM;

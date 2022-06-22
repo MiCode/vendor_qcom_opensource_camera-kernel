@@ -245,7 +245,6 @@ static void cam_sfe_top_check_module_status(
 				i, log_buf);
 		len = 0;
 		found = false;
-		memset(log_buf, 0, sizeof(uint8_t)*1024);
 	}
 }
 
@@ -1944,14 +1943,7 @@ int cam_sfe_top_init(
 		goto free_top_priv;
 	}
 
-	top_priv->applied_clk_rate = 0;
-	top_priv->reserve_cnt = 0;
-	top_priv->start_stop_cnt = 0;
-	top_priv->priv_per_stream = NULL;
-	top_priv->event_cb = NULL;
 	top_priv->num_in_ports = sfe_top_hw_info->num_inputs;
-	memset(&top_priv->core_cfg, 0x0,
-		sizeof(struct cam_sfe_core_cfg));
 
 	CAM_DBG(CAM_SFE,
 		"Initializing SFE [%u] top with hw_version: 0x%x",

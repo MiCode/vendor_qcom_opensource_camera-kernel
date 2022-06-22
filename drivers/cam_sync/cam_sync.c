@@ -1946,8 +1946,6 @@ static int cam_sync_component_bind(struct device *dev,
 
 	cam_sync_init_entity(sync_dev);
 	video_set_drvdata(sync_dev->vdev, sync_dev);
-	memset(&sync_dev->sync_table, 0, sizeof(sync_dev->sync_table));
-	memset(&sync_dev->bitmap, 0, sizeof(sync_dev->bitmap));
 	bitmap_zero(sync_dev->bitmap, CAM_SYNC_MAX_OBJS);
 
 	/*

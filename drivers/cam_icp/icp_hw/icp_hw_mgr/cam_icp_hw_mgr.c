@@ -2278,7 +2278,6 @@ static void cam_icp_mgr_dump_active_req_info(void)
 			continue;
 		}
 
-		memset(log_info, 0, buf_size);
 		len = 0;
 		for (j = 0; j < CAM_FRAME_CMD_MAX; j++) {
 			if (!ctx_data->hfi_frame_process.request_id[j])
@@ -3102,9 +3101,6 @@ static int cam_icp_alloc_secheap_mem(struct cam_mem_mgr_memory_desc *secheap)
 	struct cam_mem_mgr_memory_desc out;
 	struct cam_smmu_region_info secheap_info;
 
-	memset(&alloc, 0, sizeof(alloc));
-	memset(&out, 0, sizeof(out));
-
 	rc = cam_smmu_get_region_info(icp_hw_mgr.iommu_hdl,
 		CAM_SMMU_REGION_SECHEAP,
 		&secheap_info);
@@ -3138,8 +3134,6 @@ static int cam_icp_alloc_sfr_mem(struct cam_mem_mgr_memory_desc *sfr)
 	struct cam_mem_mgr_request_desc alloc;
 	struct cam_mem_mgr_memory_desc out;
 
-	memset(&alloc, 0, sizeof(alloc));
-	memset(&out, 0, sizeof(out));
 	alloc.size = SZ_8K;
 	alloc.align = 0;
 	alloc.flags = CAM_MEM_FLAG_HW_READ_WRITE |
@@ -3163,8 +3157,6 @@ static int cam_icp_alloc_shared_mem(struct cam_mem_mgr_memory_desc *qtbl)
 	struct cam_mem_mgr_request_desc alloc;
 	struct cam_mem_mgr_memory_desc out;
 
-	memset(&alloc, 0, sizeof(alloc));
-	memset(&out, 0, sizeof(out));
 	alloc.size = SZ_1M;
 	alloc.align = 0;
 	alloc.flags = CAM_MEM_FLAG_HW_READ_WRITE |
@@ -3292,9 +3284,6 @@ static int cam_icp_allocate_hfi_mem(void)
 		struct cam_mem_mgr_memory_desc out;
 		uint32_t offset;
 		uint64_t size;
-
-		memset(&alloc, 0, sizeof(alloc));
-		memset(&out, 0, sizeof(out));
 
 		alloc.size = fwuncached_region_info.iova_len;
 		alloc.align = 0;

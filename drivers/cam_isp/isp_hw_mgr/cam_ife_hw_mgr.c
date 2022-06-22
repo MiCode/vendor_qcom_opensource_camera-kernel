@@ -9860,8 +9860,6 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 
 		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *) prepare->priv;
 
-		memset(&prepare_hw_data->bw_clk_config.bw_config_v2, 0,
-			sizeof(prepare_hw_data->bw_clk_config.bw_config_v2));
 		prepare_hw_data->bw_clk_config.bw_config_v2.usage_type = bw_config->usage_type;
 		prepare_hw_data->bw_clk_config.bw_config_v2.num_paths = bw_config->num_paths;
 
@@ -9930,8 +9928,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 		}
 
 		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *) prepare->priv;
-		memset(&prepare_hw_data->bw_clk_config.bw_config_v2, 0,
-			sizeof(prepare_hw_data->bw_clk_config.bw_config_v2));
+
 		prepare_hw_data->bw_clk_config.bw_config_v2.usage_type = bw_config->usage_type;
 		prepare_hw_data->bw_clk_config.bw_config_v2.num_paths = bw_config->num_paths;
 
@@ -10837,7 +10834,6 @@ static int cam_isp_sfe_send_scratch_buf_upd(
 	struct cam_isp_hw_get_wm_update    wm_update;
 	dma_addr_t                         io_addr[CAM_PACKET_MAX_PLANES];
 
-	memset(io_addr, 0, sizeof(io_addr));
 	update_buf.res = hw_res;
 	update_buf.cmd_type = cmd_type;
 	update_buf.cmd.cmd_buf_addr = cpu_addr;
@@ -14755,8 +14751,6 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 
 	atomic_set(&g_ife_hw_mgr.active_ctx_cnt, 0);
 	for (i = 0; i < CAM_IFE_CTX_MAX; i++) {
-		memset(&g_ife_hw_mgr.ctx_pool[i], 0,
-			sizeof(g_ife_hw_mgr.ctx_pool[i]));
 		INIT_LIST_HEAD(&g_ife_hw_mgr.ctx_pool[i].list);
 
 		INIT_LIST_HEAD(&g_ife_hw_mgr.ctx_pool[i].res_list_ife_in.list);
