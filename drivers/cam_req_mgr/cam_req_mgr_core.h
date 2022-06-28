@@ -641,9 +641,23 @@ int cam_req_mgr_unlink(struct cam_req_mgr_unlink_info *unlink_info);
 /**
  * cam_req_mgr_schedule_request()
  * @brief: Request is scheduled
+ * @sched_req: request id, session and link id info, bubble recovery info
+ */
+int cam_req_mgr_schedule_request(struct cam_req_mgr_sched_request *sched_req);
+
+/**
+ * cam_req_mgr_schedule_request_v2()
+ * @brief: Request is scheduled
  * @sched_req: request id, session, link id info, bubble recovery info and sync info
  */
-int cam_req_mgr_schedule_request(struct cam_req_mgr_sched_request_v2 *sched_req);
+int cam_req_mgr_schedule_request_v2(struct cam_req_mgr_sched_request_v2 *sched_req);
+
+/**
+ * cam_req_mgr_sync_config()
+ * @brief: sync for links in a session
+ * @sync_info: session, links info and master link info
+ */
+int cam_req_mgr_sync_config(struct cam_req_mgr_sync_mode *sync_info);
 
 /**
  * cam_req_mgr_flush_requests()
