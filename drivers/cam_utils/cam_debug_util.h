@@ -14,6 +14,7 @@
 extern unsigned long long debug_mdl;
 extern unsigned int debug_type;
 extern unsigned int debug_priority;
+extern unsigned int debug_drv;
 
 #define CAM_IS_NULL_TO_STR(ptr) ((ptr) ? "Non-NULL" : "NULL")
 

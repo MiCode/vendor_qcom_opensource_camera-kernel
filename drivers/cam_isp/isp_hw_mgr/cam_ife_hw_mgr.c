@@ -143,6 +143,14 @@ static int cam_isp_blob_drv_config(struct cam_ife_hw_mgr_ctx         *ctx,
 	ife_hw_mgr = ctx->hw_mgr;
 	drv_config = &prepare_hw_data->isp_drv_config;
 
+	if (debug_drv)
+		CAM_INFO(CAM_PERF,
+			"DRV config blob opcode:%u req_id:%llu disable_drv_override:%s ctx_idx:%u drv_en:%s path_idle_en:0x%x timeout_val:%u",
+			prepare_hw_data->packet_opcode_type, request_id,
+			CAM_BOOL_TO_YESNO(g_ife_hw_mgr.debug_cfg.disable_isp_drv),
+			ctx->ctx_index, CAM_BOOL_TO_YESNO(drv_config->drv_en),
+			drv_config->path_idle_en, drv_config->timeout_val);
+
 	CAM_DBG(CAM_PERF,
 		"DRV config blob opcode:%u req_id:%llu disable_drv_override:%s ctx_idx:%u drv_en:%u path_idle_en:0x%x timeout_val:%u",
 		prepare_hw_data->packet_opcode_type, request_id,

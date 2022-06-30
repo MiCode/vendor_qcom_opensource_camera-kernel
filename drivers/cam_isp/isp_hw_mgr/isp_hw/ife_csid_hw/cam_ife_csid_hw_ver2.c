@@ -5634,6 +5634,13 @@ static int cam_ife_csid_ver2_drv_config(
 
 	cam_io_w_mb(drv_config->timeout_val, mem_base + csid_reg->cmn_reg->drv_cfg2_addr);
 
+	if (debug_drv)
+		CAM_INFO(CAM_ISP,
+			"CSID[%u] sfe_en:%s DRV config init_req:%s cfg0_val:0x%x cfg1_val:0x%x cfg2_val:0x%x",
+			csid_hw->hw_intf->hw_idx, CAM_BOOL_TO_YESNO(csid_hw->flags.sfe_en),
+			CAM_BOOL_TO_YESNO(drv_config->is_init_config), cfg0_val, cfg1_val,
+			drv_config->timeout_val);
+
 	CAM_DBG(CAM_ISP,
 		"CSID[%u] sfe_en:%s DRV config init_req:%s cfg0_val:0x%x cfg1_val:0x%x cfg2_val:0x%x",
 		csid_hw->hw_intf->hw_idx, CAM_BOOL_TO_YESNO(csid_hw->flags.sfe_en),

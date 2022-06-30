@@ -199,6 +199,12 @@ static int cam_cpas_util_vote_drv_bus_client_bw(struct cam_cpas_bus_client *bus_
 		(curr_vote->drv_vote.high.ib < CAM_CPAS_AXI_MIN_MNOC_IB_BW))
 		curr_vote->drv_vote.high.ib = CAM_CPAS_AXI_MIN_MNOC_IB_BW;
 
+	if (debug_drv)
+		CAM_INFO(CAM_CPAS, "Bus_client: %s, DRV vote high=[%llu %llu] low=[%llu %llu]",
+			bus_client->common_data.name, curr_vote->drv_vote.high.ab,
+			curr_vote->drv_vote.high.ib, curr_vote->drv_vote.low.ab,
+			curr_vote->drv_vote.low.ib);
+
 	CAM_DBG(CAM_CPAS, "Bus_client: %s, DRV vote high=[%llu %llu] low=[%llu %llu]",
 		bus_client->common_data.name, curr_vote->drv_vote.high.ab,
 		curr_vote->drv_vote.high.ib, curr_vote->drv_vote.low.ab,
@@ -1419,6 +1425,11 @@ vote_start_clients:
 					goto unlock_tree;
 				}
 
+				if (debug_drv)
+					CAM_INFO(CAM_CPAS, "Started rsc dev %s mnoc port:%s",
+						dev_name(mnoc_axi_port->cam_rsc_dev),
+						mnoc_axi_port->axi_port_name);
+
 				CAM_DBG(CAM_CPAS, "Started rsc dev %s mnoc port:%s",
 					dev_name(mnoc_axi_port->cam_rsc_dev),
 					mnoc_axi_port->axi_port_name);
@@ -1436,6 +1447,11 @@ vote_start_clients:
 					goto unlock_tree;
 				}
 
+				if (debug_drv)
+					CAM_INFO(CAM_CPAS, "Stopped rsc dev %s mnoc port:%s",
+						dev_name(mnoc_axi_port->cam_rsc_dev),
+						mnoc_axi_port->axi_port_name);
+
 				CAM_DBG(CAM_CPAS, "Stopped rsc dev %s mnoc port:%s",
 					dev_name(mnoc_axi_port->cam_rsc_dev),
 					mnoc_axi_port->axi_port_name);
@@ -1450,6 +1466,12 @@ vote_start_clients:
 							mnoc_axi_port->axi_port_name, rc);
 						goto unlock_tree;
 					}
+
+					if (debug_drv)
+						CAM_INFO(CAM_CPAS,
+							"Channel switch for rsc dev %s mnoc port:%s",
+							dev_name(mnoc_axi_port->cam_rsc_dev),
+							mnoc_axi_port->axi_port_name);
 
 					CAM_DBG(CAM_CPAS,
 						"Channel switch for rsc dev %s mnoc port:%s",
@@ -1953,6 +1975,10 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 	if (cpas_core->streamon_clients == 0) {
 		if (cpas_core->force_hlos_drv)
 			soc_private->enable_cam_ddr_drv = false;
+
+		if (debug_drv)
+			CAM_INFO(CAM_CPAS, "DDR DRV enable:%s",
+				CAM_BOOL_TO_YESNO(soc_private->enable_cam_ddr_drv));
 
 		rc = cam_cpas_util_apply_default_axi_vote(cpas_hw, true);
 		if (rc)

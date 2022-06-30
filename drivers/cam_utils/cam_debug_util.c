@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -20,6 +21,9 @@ module_param(debug_type, uint, 0644);
 
 uint debug_priority;
 module_param(debug_priority, uint, 0644);
+
+uint debug_drv;
+module_param(debug_drv, uint, 0644);
 
 struct camera_debug_settings cam_debug;
 
