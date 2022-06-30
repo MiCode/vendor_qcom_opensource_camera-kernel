@@ -1277,7 +1277,7 @@ int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd_v2 *cmd)
 	}
 
 	if (cam_dma_buf_set_name(dmabuf, cmd->buf_name))
-		CAM_ERR(CAM_MEM, "set dma buffer name(%s) failed", cmd->buf_name);
+		CAM_DBG(CAM_MEM, "Dma buffer (%s) busy", cmd->buf_name);
 
 	if ((cmd->flags & CAM_MEM_FLAG_HW_READ_WRITE) ||
 		(cmd->flags & CAM_MEM_FLAG_PROTECTED_MODE)) {
