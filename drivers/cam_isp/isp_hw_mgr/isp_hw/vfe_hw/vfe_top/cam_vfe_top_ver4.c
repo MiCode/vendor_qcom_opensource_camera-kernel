@@ -972,6 +972,10 @@ int cam_vfe_top_ver4_stop(void *device_priv,
 		top_priv->perf_counters[i].dump_counter = false;
 	}
 
+	if (top_priv->common_data.hw_info->num_pdaf_lcr_res)
+		cam_io_w(1, soc_info->reg_map[VFE_CORE_BASE_IDX].mem_base +
+			top_priv->common_data.common_reg->pdaf_input_cfg_1);
+
 	atomic_set(&top_priv->overflow_pending, 0);
 	return rc;
 }

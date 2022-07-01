@@ -4750,6 +4750,7 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 
 	csid_hw->debug_info.test_bus_enabled = false;
 	csid_hw->flags.pf_err_detected = false;
+	csid_hw->flags.rdi_lcr_en = false;
 	mutex_unlock(&csid_hw->hw_info->hw_mutex);
 
 	return rc;
