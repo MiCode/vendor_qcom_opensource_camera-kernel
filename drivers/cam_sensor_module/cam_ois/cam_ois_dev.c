@@ -589,7 +589,7 @@ int cam_ois_driver_init(void)
 
 	dev = of_find_node_by_path(I3C_SENSOR_DEV_ID_DT_PATH);
 	if (!dev) {
-		CAM_WARN(CAM_OIS, "Couldnt Find the i3c-id-table dev node");
+		CAM_DBG(CAM_OIS, "Couldnt Find the i3c-id-table dev node");
 		return 0;
 	}
 
@@ -621,8 +621,17 @@ i2c_register_err:
 
 void cam_ois_driver_exit(void)
 {
+	struct device_node *dev;
+
 	platform_driver_unregister(&cam_ois_platform_driver);
 	i2c_del_driver(&cam_ois_i2c_driver);
+
+	dev = of_find_node_by_path(I3C_SENSOR_DEV_ID_DT_PATH);
+	if (!dev) {
+		CAM_DBG(CAM_EEPROM, "Couldnt Find the i3c-id-table dev node");
+		return;
+	}
+
 	i3c_driver_unregister(&cam_ois_i3c_driver);
 }
 
