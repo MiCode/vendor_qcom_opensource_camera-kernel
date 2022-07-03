@@ -2137,7 +2137,8 @@ int cam_sfe_bus_rd_deinit(
 			CAM_ERR(CAM_SFE,
 				"Deinit RM failed rc=%d", rc);
 	}
-	for (i = 0; i < CAM_SFE_BUS_RD_MAX; i++) {
+
+	for (i = 0; i < bus_priv->num_bus_rd_resc; i++) {
 		rc = cam_sfe_bus_deinit_sfe_bus_rd_resource(
 			&bus_priv->sfe_bus_rd[i]);
 		if (rc < 0)

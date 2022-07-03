@@ -3640,7 +3640,7 @@ int cam_sfe_bus_wr_deinit(
 	bus_priv->common_data.err_irq_subscribe = false;
 	spin_unlock_irqrestore(&bus_priv->common_data.spin_lock, flags);
 
-	for (i = 0; i < CAM_SFE_BUS_WR_COMP_GRP_MAX; i++) {
+	for (i = 0; i < bus_priv->num_comp_grp; i++) {
 		rc = cam_sfe_bus_deinit_comp_grp(&bus_priv->comp_grp[i]);
 		if (rc < 0)
 			CAM_ERR(CAM_SFE,
@@ -3648,7 +3648,7 @@ int cam_sfe_bus_wr_deinit(
 				bus_priv->common_data.core_index, i, rc);
 	}
 
-	for (i = 0; i < CAM_SFE_BUS_SFE_OUT_MAX; i++) {
+	for (i = 0; i < bus_priv->num_out; i++) {
 		rc = cam_sfe_bus_deinit_sfe_out_resource(
 			&bus_priv->sfe_out[i]);
 		if (rc < 0)
