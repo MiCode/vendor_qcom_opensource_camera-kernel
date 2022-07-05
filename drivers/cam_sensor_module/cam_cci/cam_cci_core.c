@@ -736,6 +736,7 @@ static int32_t cam_cci_data_queue(struct cci_device *cci_dev,
 		&cci_dev->soc_info;
 	void __iomem *base = soc_info->reg_map[0].mem_base;
 	unsigned long flags;
+	uint8_t next_position = i2c_msg->data_type;
 
 	if (i2c_cmd == NULL) {
 		CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d_Q%d Failed: i2c cmd is NULL",
@@ -877,38 +878,54 @@ static int32_t cam_cci_data_queue(struct cci_device *cci_dev,
 				if (c_ctrl->cmd == MSM_CCI_I2C_WRITE_SEQ)
 					reg_addr++;
 			} else {
-				if ((i + 1) <= cci_dev->payload_size) {
-					switch (i2c_msg->data_type) {
-					case CAMERA_SENSOR_I2C_TYPE_DWORD:
+				if (i <= cci_dev->payload_size) {
+					/*
+					 * this logic fill reg data to write_data[] array
+					 * which has a max index value 11,
+					 * and the sensor reg data type can be DWORD/3B/WORD,
+					 * next_position records the split position or the
+					 * position in the reg data where will be filled into
+					 * next write_data[] array slot.
+					 */
+					if (next_position >= CAMERA_SENSOR_I2C_TYPE_DWORD) {
 						write_data[i++] = (i2c_cmd->reg_data &
 							0xFF000000) >> 24;
-						/* fallthrough */
-					case CAMERA_SENSOR_I2C_TYPE_3B:
+						if ((i-1) == MSM_CCI_WRITE_DATA_PAYLOAD_SIZE_11) {
+							next_position = CAMERA_SENSOR_I2C_TYPE_3B;
+							break;
+						}
+					}
+					/* fill highest byte of 3B type sensor reg data */
+					if (next_position >= CAMERA_SENSOR_I2C_TYPE_3B) {
 						write_data[i++] = (i2c_cmd->reg_data &
 							0x00FF0000) >> 16;
-						/* fallthrough */
-					case CAMERA_SENSOR_I2C_TYPE_WORD:
+						if ((i-1) == MSM_CCI_WRITE_DATA_PAYLOAD_SIZE_11) {
+							next_position = CAMERA_SENSOR_I2C_TYPE_WORD;
+							break;
+						}
+					}
+					/* fill high byte of WORD type sensor reg data */
+					if (next_position >= CAMERA_SENSOR_I2C_TYPE_WORD) {
 						write_data[i++] = (i2c_cmd->reg_data &
 							0x0000FF00) >> 8;
-						/* fallthrough */
-					case CAMERA_SENSOR_I2C_TYPE_BYTE:
-						write_data[i++] = i2c_cmd->reg_data &
-							0x000000FF;
-						break;
-					default:
-						CAM_ERR(CAM_CCI,
-							"CCI%d_I2C_M%d_Q%d invalid data type: %d",
-							cci_dev->soc_info.index, master, queue, i2c_msg->data_type);
-						return -EINVAL;
+						if ((i-1) == MSM_CCI_WRITE_DATA_PAYLOAD_SIZE_11) {
+							next_position = CAMERA_SENSOR_I2C_TYPE_BYTE;
+							break;
+						}
 					}
+					/* fill lowest byte of sensor reg data */
+					write_data[i++] = i2c_cmd->reg_data & 0x000000FF;
+					next_position = i2c_msg->data_type;
 
 					if (c_ctrl->cmd == MSM_CCI_I2C_WRITE_SEQ)
-						reg_addr++;
-				} else
-					break;
+						reg_addr += i2c_msg->data_type;
+				}
 			}
-			i2c_cmd++;
-			--cmd_size;
+			/* move to next cmd while all reg data bytes are filled */
+			if (next_position == i2c_msg->data_type) {
+				i2c_cmd++;
+				--cmd_size;
+			}
 		} while (((c_ctrl->cmd == MSM_CCI_I2C_WRITE_SEQ ||
 			c_ctrl->cmd == MSM_CCI_I2C_WRITE_BURST) || pack--) &&
 				(cmd_size > 0) && (i <= cci_dev->payload_size));
