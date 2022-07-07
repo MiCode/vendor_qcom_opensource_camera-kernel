@@ -1604,7 +1604,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 	},
 
 	.num_comp_grp    = 14,
-	.comp_done_shift = 6,
+	.comp_done_shift = {
+		6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+	},
 	.top_irq_shift   = 7,
 	.support_consumed_addr = true,
 	.max_out_res = CAM_ISP_IFE_OUT_RES_BASE + 25,

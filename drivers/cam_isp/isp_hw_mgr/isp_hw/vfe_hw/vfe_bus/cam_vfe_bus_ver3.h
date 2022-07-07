@@ -193,10 +193,9 @@ struct cam_vfe_bus_ver3_vfe_out_hw_info {
 	uint32_t                            max_width;
 	uint32_t                            max_height;
 	uint32_t                            source_group;
-	uint32_t                         mid[CAM_VFE_BUS_VER3_MAX_MID_PER_PORT];
+	uint32_t                            mid[CAM_VFE_BUS_VER3_MAX_MID_PER_PORT];
 	uint32_t                            num_wm;
 	uint32_t                            line_based;
-	uint32_t                            bufdone_shift;
 	uint32_t                            wm_idx[PLANE_MAX];
 	uint8_t                            *name[PLANE_MAX];
 };
@@ -234,7 +233,7 @@ struct cam_vfe_bus_ver3_hw_info {
 	struct cam_vfe_constraint_error_info
 		constraint_error_list[CAM_VFE_BUS_VER3_CONS_ERR_MAX];
 	uint32_t num_comp_grp;
-	uint32_t comp_done_shift;
+	uint32_t comp_done_shift[CAM_VFE_BUS_VER3_COMP_GRP_MAX];
 	uint32_t top_irq_shift;
 	bool support_consumed_addr;
 	uint32_t max_out_res;

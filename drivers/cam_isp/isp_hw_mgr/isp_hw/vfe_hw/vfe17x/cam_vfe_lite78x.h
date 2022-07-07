@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -547,7 +548,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite78x_bus_hw_info = {
 	},
 	.num_comp_grp    = 5,
 	.support_consumed_addr = true,
-	.comp_done_shift = 0,
+	.comp_done_shift = {
+		0, 1, 2, 3, 4,
+	},
 	.top_irq_shift   = 0,
 	.max_out_res = CAM_ISP_IFE_OUT_RES_BASE + 34,
 };

@@ -96,7 +96,6 @@ struct cam_vfe_bus_ver3_common_data {
 	uint32_t                                    secure_mode;
 	uint32_t                                    num_sec_out;
 	uint32_t                                    addr_no_sync;
-	uint32_t                                    comp_done_shift;
 	uint32_t                                    supported_irq;
 	bool                                        comp_config_needed;
 	bool                                        is_lite;
@@ -161,6 +160,7 @@ struct cam_vfe_bus_ver3_comp_grp_data {
 	struct cam_vfe_bus_ver3_common_data         *common_data;
 
 	uint64_t                                     composite_mask;
+	uint32_t                                     comp_done_shift;
 	uint32_t                                     is_master;
 	uint32_t                                     is_dual;
 	uint32_t                                     dual_slave_core;
@@ -175,7 +175,6 @@ struct cam_vfe_bus_ver3_comp_grp_data {
 struct cam_vfe_bus_ver3_vfe_out_data {
 	uint32_t                              out_type;
 	uint32_t                              source_group;
-	uint32_t                              buf_done_mask_shift;
 	struct cam_vfe_bus_ver3_common_data  *common_data;
 	struct cam_vfe_bus_ver3_priv         *bus_priv;
 
@@ -1815,10 +1814,7 @@ skip_comp_cfg:
 			common_data->common_reg->ubwc_static_ctrl);
 	}
 
-	bus_irq_reg_mask[CAM_VFE_BUS_VER3_IRQ_REG0] =
-		(0x1 << (rsrc_data->comp_grp_type +
-		vfe_out_data->buf_done_mask_shift +
-		rsrc_data->common_data->comp_done_shift));
+	bus_irq_reg_mask[CAM_VFE_BUS_VER3_IRQ_REG0] = BIT(rsrc_data->comp_done_shift);
 
 	CAM_DBG(CAM_ISP, "Start Done VFE:%d comp_grp:%d bus_irq_mask_0: 0x%X",
 		rsrc_data->common_data->core_index,
@@ -1869,9 +1865,7 @@ static int cam_vfe_bus_ver3_handle_comp_done_bottom_half(
 	cam_ife_irq_regs = evt_payload->irq_reg_val;
 	status_0 = cam_ife_irq_regs[CAM_IFE_IRQ_BUS_VER3_REG_STATUS0];
 
-	if (status_0 & BIT(rsrc_data->comp_grp_type +
-		vfe_out->buf_done_mask_shift +
-		rsrc_data->common_data->comp_done_shift)) {
+	if (status_0 & BIT(rsrc_data->comp_done_shift)) {
 		evt_payload->evt_id = CAM_ISP_HW_EVENT_DONE;
 		rc = CAM_VFE_IRQ_STATUS_SUCCESS;
 	}
@@ -1908,6 +1902,7 @@ static int cam_vfe_bus_ver3_init_comp_grp(uint32_t index,
 	rsrc_data->comp_grp_type   = index;
 	rsrc_data->common_data     = &ver3_bus_priv->common_data;
 	rsrc_data->dual_slave_core = CAM_VFE_BUS_VER3_VFE_CORE_MAX;
+	rsrc_data->comp_done_shift = ver3_hw_info->comp_done_shift[index];
 
 	if (rsrc_data->comp_grp_type != CAM_VFE_BUS_VER3_COMP_GRP_0 &&
 		rsrc_data->comp_grp_type != CAM_VFE_BUS_VER3_COMP_GRP_1)
@@ -2404,8 +2399,7 @@ static int cam_vfe_bus_ver3_handle_vfe_out_done_top_half(uint32_t evt_id,
 
 	status_0 = th_payload->evt_status_arr[CAM_IFE_IRQ_BUS_VER3_REG_STATUS0];
 
-	if (status_0 & BIT(resource_data->comp_grp_type +
-		rsrc_data->common_data->comp_done_shift)) {
+	if (status_0 & BIT(resource_data->comp_done_shift)) {
 		trace_cam_log_event("bufdone", "bufdone_IRQ",
 			status_0, resource_data->comp_grp_type);
 	}
@@ -2559,8 +2553,6 @@ static int cam_vfe_bus_ver3_init_vfe_out_resource(uint32_t  index,
 
 	rsrc_data->source_group =
 		ver3_hw_info->vfe_out_hw_info[index].source_group;
-	rsrc_data->buf_done_mask_shift =
-		ver3_hw_info->vfe_out_hw_info[index].bufdone_shift;
 	rsrc_data->out_type     =
 		ver3_hw_info->vfe_out_hw_info[index].vfe_out_type;
 	rsrc_data->common_data  = &ver3_bus_priv->common_data;
@@ -4462,8 +4454,6 @@ int cam_vfe_bus_ver3_init(
 	bus_priv->common_data.hw_intf            = hw_intf;
 	bus_priv->common_data.vfe_irq_controller = vfe_irq_controller;
 	bus_priv->common_data.common_reg         = &ver3_hw_info->common_reg;
-	bus_priv->common_data.comp_done_shift    =
-		ver3_hw_info->comp_done_shift;
 	bus_priv->common_data.hw_init            = false;
 
 	bus_priv->common_data.is_lite = soc_private->is_ife_lite;
