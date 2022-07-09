@@ -41,11 +41,11 @@
 
 #define MAXIMUM_RETRY_ATTEMPTS 3
 
-#define MINIMUM_WORKQUEUE_SCHED_TIME_IN_MS 5
-
 #define VERSION_1  1
 #define VERSION_2  2
 #define CAM_REQ_MGR_MAX_TRIGGERS   2
+
+#define CAM_REQ_MGR_HALF_FRAME_DURATION(frame_duration) (frame_duration / 2)
 
 /**
  * enum crm_req_eof_trigger_type

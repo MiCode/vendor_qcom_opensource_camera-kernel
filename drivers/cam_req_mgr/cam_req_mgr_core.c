@@ -1871,6 +1871,7 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 	int                                  rc = 0, idx, i;
 	int                                  reset_step = 0;
 	uint32_t                             trigger = trigger_data->trigger;
+	uint64_t                             wq_sched_timeout = 0;
 	struct cam_req_mgr_slot             *slot = NULL;
 	struct cam_req_mgr_req_queue        *in_q;
 	struct cam_req_mgr_core_session     *session;
@@ -1944,13 +1945,26 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 		link->prev_sof_timestamp = link->sof_timestamp;
 		link->sof_timestamp = trigger_data->sof_timestamp_val;
 
+		/* Use half frame interval to detect the WQ congestion */
+		wq_sched_timeout = CAM_REQ_MGR_HALF_FRAME_DURATION(link->sof_timestamp -
+			link->prev_sof_timestamp) / CAM_COMMON_NS_PER_MS;
+
 		/* Check for WQ congestion */
 		if (jiffies_to_msecs(jiffies -
 			link->last_sof_trigger_jiffies) <
-			MINIMUM_WORKQUEUE_SCHED_TIME_IN_MS)
+			wq_sched_timeout)
 			link->wq_congestion = true;
 		else
 			link->wq_congestion = false;
+
+		/*
+		 * Only update the jiffies for SOF trigger,
+		 * since it is used to protect from
+		 * applying fails in ISP which is triggered at SOF.
+		 */
+		if (trigger == CAM_TRIGGER_POINT_SOF)
+			link->last_sof_trigger_jiffies = jiffies;
+
 	}
 
 	if (slot->status != CRM_SLOT_STATUS_REQ_READY) {
@@ -2137,13 +2151,6 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 		}
 	}
 end:
-	/*
-	 * Only update the jiffies for SOF trigger,
-	 * since it is used to protect from
-	 * applying fails in ISP which is triggered at SOF.
-	 */
-	if (trigger == CAM_TRIGGER_POINT_SOF)
-		link->last_sof_trigger_jiffies = jiffies;
 	mutex_unlock(&session->lock);
 	return rc;
 }

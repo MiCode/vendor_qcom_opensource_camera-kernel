@@ -29,6 +29,8 @@
 #define CAM_COMMON_ICP_NODE "IPE"
 #define CAM_COMMON_JPEG_NODE "JPEG"
 
+#define CAM_COMMON_NS_PER_MS              1000000ULL
+
 #define PTR_TO_U64(ptr) ((uint64_t)(uintptr_t)ptr)
 #define U64_TO_PTR(ptr) ((void *)(uintptr_t)ptr)
 
