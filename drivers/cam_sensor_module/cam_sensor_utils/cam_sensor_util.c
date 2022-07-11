@@ -1084,6 +1084,8 @@ int32_t msm_camera_fill_vreg_params(
 			return -EINVAL;
 		}
 
+		power_setting[i].valid_config = false;
+
 		switch (power_setting[i].seq_type) {
 		case SENSOR_VDIG:
 			for (j = 0; j < num_vreg; j++) {
@@ -1097,11 +1099,9 @@ int32_t msm_camera_fill_vreg_params(
 					if (VALIDATE_VOLTAGE(
 						soc_info->rgltr_min_volt[j],
 						soc_info->rgltr_max_volt[j],
-						power_setting[i].config_val)) {
-						soc_info->rgltr_min_volt[j] =
-						soc_info->rgltr_max_volt[j] =
-						power_setting[i].config_val;
-					}
+						power_setting[i].config_val))
+						power_setting[i].valid_config = true;
+
 					break;
 				}
 			}
@@ -1121,11 +1121,9 @@ int32_t msm_camera_fill_vreg_params(
 					if (VALIDATE_VOLTAGE(
 						soc_info->rgltr_min_volt[j],
 						soc_info->rgltr_max_volt[j],
-						power_setting[i].config_val)) {
-						soc_info->rgltr_min_volt[j] =
-						soc_info->rgltr_max_volt[j] =
-						power_setting[i].config_val;
-					}
+						power_setting[i].config_val))
+						power_setting[i].valid_config = true;
+
 					break;
 				}
 
@@ -1146,11 +1144,9 @@ int32_t msm_camera_fill_vreg_params(
 					if (VALIDATE_VOLTAGE(
 						soc_info->rgltr_min_volt[j],
 						soc_info->rgltr_max_volt[j],
-						power_setting[i].config_val)) {
-						soc_info->rgltr_min_volt[j] =
-						soc_info->rgltr_max_volt[j] =
-						power_setting[i].config_val;
-					}
+						power_setting[i].config_val))
+						power_setting[i].valid_config = true;
+
 					break;
 				}
 
@@ -1170,11 +1166,9 @@ int32_t msm_camera_fill_vreg_params(
 					if (VALIDATE_VOLTAGE(
 						soc_info->rgltr_min_volt[j],
 						soc_info->rgltr_max_volt[j],
-						power_setting[i].config_val)) {
-						soc_info->rgltr_min_volt[j] =
-						soc_info->rgltr_max_volt[j] =
-						power_setting[i].config_val;
-					}
+						power_setting[i].config_val))
+						power_setting[i].valid_config = true;
+
 					break;
 				}
 			}
@@ -1194,11 +1188,8 @@ int32_t msm_camera_fill_vreg_params(
 					if (VALIDATE_VOLTAGE(
 						soc_info->rgltr_min_volt[j],
 						soc_info->rgltr_max_volt[j],
-						power_setting[i].config_val)) {
-						soc_info->rgltr_min_volt[j] =
-						soc_info->rgltr_max_volt[j] =
-						power_setting[i].config_val;
-					}
+						power_setting[i].config_val))
+						power_setting[i].valid_config = true;
 
 					break;
 				}
@@ -1220,11 +1211,9 @@ int32_t msm_camera_fill_vreg_params(
 					if (VALIDATE_VOLTAGE(
 						soc_info->rgltr_min_volt[j],
 						soc_info->rgltr_max_volt[j],
-						power_setting[i].config_val)) {
-						soc_info->rgltr_min_volt[j] =
-						soc_info->rgltr_max_volt[j] =
-						power_setting[i].config_val;
-					}
+						power_setting[i].config_val))
+						power_setting[i].valid_config = true;
+
 					break;
 				}
 
@@ -1244,11 +1233,9 @@ int32_t msm_camera_fill_vreg_params(
 					if (VALIDATE_VOLTAGE(
 						soc_info->rgltr_min_volt[j],
 						soc_info->rgltr_max_volt[j],
-						power_setting[i].config_val)) {
-						soc_info->rgltr_min_volt[j] =
-						soc_info->rgltr_max_volt[j] =
-						power_setting[i].config_val;
-					}
+						power_setting[i].config_val))
+						power_setting[i].valid_config = true;
+
 					break;
 				}
 			}
@@ -2079,7 +2066,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 	int32_t vreg_idx = -1;
 	struct cam_sensor_power_setting *power_setting = NULL;
 	struct msm_camera_gpio_num_info *gpio_num_info = NULL;
-	long                                    time_left;
+	long                             time_left;
+	uint32_t                         seq_min_volt = 0;
+	uint32_t                         seq_max_volt = 0;
 
 	CAM_DBG(CAM_SENSOR, "Enter");
 	if (!ctrl) {
@@ -2251,11 +2240,19 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					goto power_up_failed;
 				}
 
+				if (power_setting->valid_config) {
+					seq_min_volt = power_setting->config_val;
+					seq_max_volt = power_setting->config_val;
+				} else {
+					seq_min_volt = soc_info->rgltr_min_volt[vreg_idx];
+					seq_max_volt = soc_info->rgltr_max_volt[vreg_idx];
+				}
+
 				rc =  cam_soc_util_regulator_enable(
 					soc_info->rgltr[vreg_idx],
 					soc_info->rgltr_name[vreg_idx],
-					soc_info->rgltr_min_volt[vreg_idx],
-					soc_info->rgltr_max_volt[vreg_idx],
+					seq_min_volt,
+					seq_max_volt,
 					soc_info->rgltr_op_mode[vreg_idx],
 					soc_info->rgltr_delay[vreg_idx]);
 				if (rc) {

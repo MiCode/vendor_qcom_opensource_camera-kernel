@@ -311,6 +311,7 @@ struct cam_sensor_power_setting {
 	long config_val;
 	unsigned short delay;
 	void *data[10];
+	bool valid_config;
 };
 
 struct cam_sensor_board_info {
