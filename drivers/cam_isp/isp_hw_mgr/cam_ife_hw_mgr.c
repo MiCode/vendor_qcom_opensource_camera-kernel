@@ -8925,7 +8925,7 @@ static int cam_ife_hw_mgr_update_scratch_offset(
 	port_info = &ctx->scratch_buf_info.sfe_scratch_config->buf_info[res_id];
 	port_info->offset = wm_config->offset;
 
-	CAM_DBG(CAM_ISP, "Scratch addr: 0x%x offset: %u updated for: %s",
+	CAM_DBG(CAM_ISP, "Scratch addr: 0x%x offset: %u updated for: 0x%x",
 		port_info->io_addr, port_info->offset, wm_config->port_type);
 
 	return 0;
