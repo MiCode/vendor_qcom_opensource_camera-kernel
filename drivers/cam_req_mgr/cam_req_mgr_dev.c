@@ -30,6 +30,7 @@
 #include "cam_compat.h"
 #include "cam_cpas_hw.h"
 #include "cam_compat.h"
+#include "camera_main.h"
 
 #define CAM_REQ_MGR_EVENT_MAX 30
 
@@ -1047,9 +1048,23 @@ static int cam_req_mgr_remove(struct platform_device *pdev)
 
 static int cam_req_mgr_probe(struct platform_device *pdev)
 {
-	int rc = 0;
+	int rc = 0, i;
 	struct component_match *match_list = NULL;
 	struct device *dev = &pdev->dev;
+	struct device_node *np = NULL;
+
+	for (i = 0; i < ARRAY_SIZE(cam_component_i2c_drivers); i++) {
+		while ((np = of_find_compatible_node(np, NULL,
+			cam_component_i2c_drivers[i]->driver.of_match_table->compatible))) {
+			if (of_device_is_available(np) && !(of_find_i2c_device_by_node(np))) {
+				CAM_INFO_RATE_LIMIT(CAM_CRM,
+					"I2C device: %s not available, deferring probe",
+					np->full_name);
+				rc = -EPROBE_DEFER;
+				goto end;
+			}
+		}
+	}
 
 	rc = camera_component_match_add_drivers(dev, &match_list);
 	if (rc) {
@@ -1070,6 +1085,7 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 	}
 
 end:
+	of_node_put(np);
 	return rc;
 }
 
