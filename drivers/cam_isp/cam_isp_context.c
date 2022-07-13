@@ -7481,8 +7481,8 @@ static int __cam_isp_ctx_reset_and_recover(
 	__cam_isp_ctx_notify_v4l2_error_event(CAM_REQ_MGR_WARN_TYPE_KMD_RECOVERY,
 		0, req->request_id, ctx);
 
-	CAM_DBG(CAM_ISP, "Internal Start HW success ctx %u on link: 0x%x",
-		ctx->ctx_id, ctx->link_hdl);
+	CAM_INFO(CAM_ISP, "Internal Start HW success ctx %u on link: 0x%x for req: %llu",
+		ctx->ctx_id, ctx->link_hdl, req->request_id);
 
 end:
 	return rc;

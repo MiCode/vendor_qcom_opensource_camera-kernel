@@ -52,6 +52,9 @@
 /* Max CSI Rx irq error count threshold value */
 #define CAM_IFE_CSID_MAX_IRQ_ERROR_COUNT               100
 
+/* Max sensor switch out of sync threshold */
+#define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         3
+
 #define CAM_CSID_IRQ_CTRL_NAME_LEN                     10
 
 static void cam_ife_csid_ver2_print_debug_reg_status(
@@ -1742,6 +1745,7 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	uint32_t                                      err_type = 0;
 	void    __iomem                              *base;
 	int                                           rc = 0;
+	bool                                          out_of_sync_fatal = false;
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params. evt_payload_priv: %s, handler_priv: %s",
@@ -1801,6 +1805,14 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	if (irq_status_ipp & path_reg->epoch0_irq_mask)
 		csid_hw->event_cb(csid_hw->token, CAM_ISP_HW_EVENT_EPOCH, (void *)&evt_info);
 
+	if (irq_status_ipp & IFE_CSID_VER2_PATH_SENSOR_SWITCH_OUT_OF_SYNC_FRAME_DROP) {
+		atomic_inc(&path_cfg->switch_out_of_sync_cnt);
+		/* If threshold is seen, notify error */
+		if (atomic_read(&path_cfg->switch_out_of_sync_cnt) >=
+			CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT)
+			out_of_sync_fatal = true;
+	}
+
 	err_mask = path_reg->fatal_err_mask | path_reg->non_fatal_err_mask;
 	spin_lock(&csid_hw->lock_state);
 	if (csid_hw->hw_info->hw_state != CAM_HW_STATE_POWER_UP) {
@@ -1810,16 +1822,17 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	}
 
 	err_type = cam_ife_csid_ver2_parse_path_irq_status(
-		csid_hw, res,
-		CAM_IFE_CSID_IRQ_REG_IPP,
+		csid_hw, res, CAM_IFE_CSID_IRQ_REG_IPP,
 		err_mask, irq_status_ipp, payload);
 
-	if (err_type)
+	if (err_type || out_of_sync_fatal) {
+		if (out_of_sync_fatal)
+			err_type = CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP;
+
 		cam_ife_csid_ver2_handle_event_err(csid_hw,
-			irq_status_ipp,
-			err_type,
-			false,
-			res);
+			irq_status_ipp, err_type, false, res);
+	}
+
 unlock:
 	spin_unlock(&csid_hw->lock_state);
 end:
@@ -2006,12 +2019,30 @@ static int cam_ife_csid_ver2_rdi_bottom_half(
 	evt_info.reg_val = irq_status_rdi;
 	evt_info.hw_type = CAM_ISP_HW_TYPE_CSID;
 
-	/* Check for specific secondary events */
-	if (path_cfg->sec_evt_config.en_secondary_evt &&
-		((irq_status_rdi & IFE_CSID_VER2_PATH_SENSOR_SWITCH_OUT_OF_SYNC_FRAME_DROP) &&
-		(path_cfg->sec_evt_config.evt_type & CAM_IFE_CSID_EVT_SENSOR_SYNC_FRAME_DROP)))
-		cam_ife_csid_ver2_handle_event_err(csid_hw, irq_status_rdi,
-			CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP, true, res);
+	if (irq_status_rdi & IFE_CSID_VER2_PATH_SENSOR_SWITCH_OUT_OF_SYNC_FRAME_DROP) {
+		bool is_secondary = true;
+		bool do_notify = false;
+
+		/* Only notify if secondary event is subscribed for */
+		if ((path_cfg->sec_evt_config.en_secondary_evt) &&
+			(path_cfg->sec_evt_config.evt_type &
+			CAM_IFE_CSID_EVT_SENSOR_SYNC_FRAME_DROP))
+			do_notify = true;
+
+		/* Validate error threshold for primary RDI (master) */
+		if (res->is_rdi_primary_res) {
+			atomic_inc(&path_cfg->switch_out_of_sync_cnt);
+			if (atomic_read(&path_cfg->switch_out_of_sync_cnt) >=
+				CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT) {
+				do_notify = true;
+				is_secondary = false;
+			}
+		}
+
+		if (do_notify)
+			cam_ife_csid_ver2_handle_event_err(csid_hw, irq_status_rdi,
+				CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP, is_secondary, res);
+	}
 
 	if (irq_status_rdi & rdi_reg->eof_irq_mask)
 		csid_hw->event_cb(csid_hw->token, CAM_ISP_HW_EVENT_EOF, (void *)&evt_info);
@@ -2319,6 +2350,7 @@ static int cam_ife_csid_ver2_disable_path(
 	path_cfg->skip_discard_frame_cfg = false;
 	path_cfg->num_frames_discard = 0;
 	path_cfg->sof_cnt = 0;
+	atomic_set(&path_cfg->switch_out_of_sync_cnt, 0);
 	return rc;
 }
 

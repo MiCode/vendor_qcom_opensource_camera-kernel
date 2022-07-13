@@ -162,6 +162,7 @@ struct cam_ife_csid_ver2_camif_data {
  * @sof_cnt:                SOF counter
  * @num_frames_discard:     number of frames to discard
  * @epoch_cfg:              Epoch configured value
+ * @switch_out_of_sync_cnt: Sensor out of sync error cnt
  * @sync_mode   :           Sync mode--> master/slave/none
  * @vfr_en   :              flag to indicate if variable frame rate is enabled
  * @frame_id_dec_en:        flag to indicate if frame id decoding is enabled
@@ -205,6 +206,7 @@ struct cam_ife_csid_ver2_path_cfg {
 	uint32_t                             sof_cnt;
 	uint32_t                             num_frames_discard;
 	uint32_t                             epoch_cfg;
+	atomic_t                             switch_out_of_sync_cnt;
 	enum cam_isp_hw_sync_mode            sync_mode;
 	bool                                 vfr_en;
 	bool                                 frame_id_dec_en;
