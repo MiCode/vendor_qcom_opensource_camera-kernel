@@ -656,6 +656,85 @@ static void __cam_req_mgr_tbl_set_all_skip_cnt(
 }
 
 /**
+ * __cam_req_mgr_find_slot_for_req()
+ *
+ * @brief    : Find idx from input queue at which req id is enqueued
+ * @in_q     : input request queue pointer
+ * @req_id   : request id which needs to be searched in input queue
+ *
+ * @return   : slot index where passed request id is stored, -1 for failure
+ *
+ */
+static int32_t __cam_req_mgr_find_slot_for_req(
+	struct cam_req_mgr_req_queue *in_q, int64_t req_id)
+{
+	int32_t                   idx, i;
+	struct cam_req_mgr_slot  *slot;
+
+	idx = in_q->rd_idx;
+	for (i = 0; i < in_q->num_slots; i++) {
+		slot = &in_q->slot[idx];
+		if (slot->req_id == req_id) {
+			CAM_DBG(CAM_CRM,
+				"req: %lld found at idx: %d status: %d sync_mode: %d",
+				req_id, idx, slot->status, slot->sync_mode);
+			break;
+		}
+		__cam_req_mgr_dec_idx(&idx, 1, in_q->num_slots);
+	}
+	if (i >= in_q->num_slots)
+		idx = -1;
+
+	return idx;
+}
+
+/**
+ * __cam_req_mgr_disconnect_flushed_req_on_sync_link()
+ *
+ * @brief    : Disconnect link and sync link
+ * @link     : pointer to link
+ * @slot     : poniter to slot
+ *
+ */
+static void __cam_req_mgr_disconnect_flushed_req_on_sync_link(
+	struct cam_req_mgr_core_link *link,
+	struct cam_req_mgr_slot      *slot)
+{
+	int                           i, j;
+	int                           sync_idx;
+	struct cam_req_mgr_slot      *sync_slot;
+	struct cam_req_mgr_req_queue *sync_in_q;
+	struct cam_req_mgr_core_link *sync_link;
+
+	for (i = 0; i < slot->num_sync_links; i++) {
+		sync_link = (struct cam_req_mgr_core_link *)
+			cam_get_device_priv(slot->sync_link_hdls[i]);
+		if (!sync_link)
+			continue;
+
+		sync_in_q = sync_link->req.in_q;
+		sync_idx = __cam_req_mgr_find_slot_for_req(sync_in_q, slot->req_id);
+		if (sync_idx < 0)
+			continue;
+
+		CAM_DBG(CAM_CRM,
+			"Req: %llu on link: 0x%x flushed, update sync_link: 0x%x at slot: %d",
+			slot->req_id, link->link_hdl, sync_link->link_hdl, sync_idx);
+
+		sync_slot = &sync_in_q->slot[sync_idx];
+		if (sync_slot->sync_mode == CAM_REQ_MGR_SYNC_MODE_SYNC) {
+			sync_slot->sync_mode = CAM_REQ_MGR_SYNC_MODE_NO_SYNC;
+			sync_slot->num_sync_links = 0;
+
+			for (j = 0; j < MAXIMUM_LINKS_PER_SESSION - 1; j++) {
+				if (sync_slot->sync_link_hdls[j] == link->link_hdl)
+					sync_slot->sync_link_hdls[j] = 0;
+			}
+		}
+	}
+}
+
+/**
  * __cam_req_mgr_flush_req_slot()
  *
  * @brief    : reset all the slots/pd tables when flush is
@@ -678,6 +757,9 @@ static void __cam_req_mgr_flush_req_slot(
 		CAM_DBG(CAM_CRM,
 			"RESET idx: %d req_id: %lld slot->status: %d",
 			idx, slot->req_id, slot->status);
+
+		if ((slot->req_id > 0) && slot->num_sync_links)
+			__cam_req_mgr_disconnect_flushed_req_on_sync_link(link, slot);
 
 		/* Reset input queue slot */
 		slot->req_id = -1;
@@ -1271,39 +1353,6 @@ static int __cam_req_mgr_check_link_is_ready(struct cam_req_mgr_core_link *link,
 }
 
 /**
- * __cam_req_mgr_find_slot_for_req()
- *
- * @brief    : Find idx from input queue at which req id is enqueued
- * @in_q     : input request queue pointer
- * @req_id   : request id which needs to be searched in input queue
- *
- * @return   : slot index where passed request id is stored, -1 for failure
- *
- */
-static int32_t __cam_req_mgr_find_slot_for_req(
-	struct cam_req_mgr_req_queue *in_q, int64_t req_id)
-{
-	int32_t                   idx, i;
-	struct cam_req_mgr_slot  *slot;
-
-	idx = in_q->rd_idx;
-	for (i = 0; i < in_q->num_slots; i++) {
-		slot = &in_q->slot[idx];
-		if (slot->req_id == req_id) {
-			CAM_DBG(CAM_CRM,
-				"req: %lld found at idx: %d status: %d sync_mode: %d",
-				req_id, idx, slot->status, slot->sync_mode);
-			break;
-		}
-		__cam_req_mgr_dec_idx(&idx, 1, in_q->num_slots);
-	}
-	if (i >= in_q->num_slots)
-		idx = -1;
-
-	return idx;
-}
-
-/**
  * __cam_req_mgr_check_sync_for_mslave()
  *
  * @brief    : Processes requests during sync mode [master-slave]
@@ -1742,6 +1791,22 @@ static int __cam_req_mgr_check_multi_sync_link_ready(
 
 	for (i = 0; i < num_sync_links; i++) {
 		if (sync_link[i]) {
+			if (slot->req_id <= sync_link[i]->last_flush_id) {
+				CAM_DBG(CAM_CRM,
+					"link:0x%x req:%lld has been flushed in sync link:0x%x, last_flush_id:%lld",
+					link->link_hdl, slot->req_id,
+					sync_link[i]->link_hdl,
+					sync_link[i]->last_flush_id);
+
+				rc = __cam_req_mgr_check_link_is_ready(link, slot->idx, true);
+				if (!rc)
+					continue;
+				else {
+					CAM_DBG(CAM_CRM, "link %x not ready", link->link_hdl);
+					return -EINVAL;
+				}
+			}
+
 			if (sync_link[i]->state ==
 				CAM_CRM_LINK_STATE_IDLE) {
 				CAM_ERR(CAM_CRM, "sync link hdl %x is idle",
@@ -2761,6 +2826,9 @@ static int __cam_req_mgr_try_cancel_req(struct cam_req_mgr_core_link *link,
 	}
 
 	slot = &in_q->slot[idx];
+	if ((slot->req_id > 0) && slot->num_sync_links)
+		__cam_req_mgr_disconnect_flushed_req_on_sync_link(link, slot);
+
 	switch (slot->status) {
 	case CRM_SLOT_STATUS_REQ_PENDING:
 	case CRM_SLOT_STATUS_REQ_APPLIED:
