@@ -362,6 +362,7 @@ int tpg_hw_dump_status(struct tpg_hw *hw)
 	case TPG_HW_VERSION_1_3:
 		if (hw->hw_info->ops->dump_status)
 			hw->hw_info->ops->dump_status(hw, NULL);
+		break;
 	default:
 		CAM_WARN(CAM_TPG, "Hw version doesn't support status dump");
 		break;

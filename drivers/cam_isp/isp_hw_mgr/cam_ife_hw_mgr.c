@@ -3518,7 +3518,7 @@ acquire_successful:
 	return rc;
 }
 
-static cam_ife_hw_mgr_is_need_csid_ipp(
+static bool cam_ife_hw_mgr_is_need_csid_ipp(
 	struct cam_ife_hw_mgr_ctx            *ife_ctx,
 	struct cam_isp_in_port_generic_info  *in_port)
 {

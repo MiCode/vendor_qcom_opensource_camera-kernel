@@ -72,11 +72,13 @@ static bool cam_icp_v2_cpas_cb(uint32_t handle, void *user_data,
 			"IPE/BPS UBWC decode error status=0x%08x",
 			irq_data->u.dec_err.decerr_status.value);
 		ret = true;
+		break;
 	case CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR:
 		CAM_ERR_RATE_LIMIT(CAM_ICP,
 			"IPE/BPS UBWC encode error status=0x%08x",
 			irq_data->u.enc_err.encerr_status.value);
 		ret = true;
+		break;
 	default:
 		break;
 	}

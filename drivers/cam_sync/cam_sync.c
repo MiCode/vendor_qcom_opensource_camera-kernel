@@ -1985,8 +1985,10 @@ static int cam_sync_component_bind(struct device *dev,
 	CAM_DBG(CAM_SYNC, "Component bound successfully");
 	return rc;
 
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
 dma_driver_deinit:
 	cam_dma_fence_driver_deinit();
+#endif
 workq_destroy:
 	destroy_workqueue(sync_dev->work_queue);
 v4l2_fail:

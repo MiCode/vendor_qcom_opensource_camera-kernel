@@ -435,6 +435,7 @@ int cam_sfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		core_info->sfe_top->hw_ops.process_cmd(
 			core_info->sfe_top->top_priv, cmd_type,
 			cmd_args, arg_size);
+		fallthrough;
 	case CAM_ISP_HW_CMD_GET_RES_FOR_MID:
 	case CAM_ISP_HW_CMD_DUMP_BUS_INFO:
 		/* propagate to SFE bus wr */
