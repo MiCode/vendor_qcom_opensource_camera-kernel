@@ -15,6 +15,7 @@
 #include <linux/list_sort.h>
 #include <linux/dma-iommu.h>
 #include <soc/qcom/of_common.h>
+#include <linux/spi/spi.h>
 
 #include "cam_csiphy_dev.h"
 #include "cam_cpastop_hw.h"
@@ -78,5 +79,11 @@ int cam_i3c_driver_remove(struct i3c_device *client);
 #endif
 
 long cam_dma_buf_set_name(struct dma_buf *dmabuf, const char *name);
+
+#if KERNEL_VERSION(5, 18, 0) <= LINUX_VERSION_CODE
+void cam_eeprom_spi_driver_remove(struct spi_device *sdev);
+#else
+int cam_eeprom_spi_driver_remove(struct spi_device *sdev);
+#endif
 
 #endif /* _CAM_COMPAT_H_ */
