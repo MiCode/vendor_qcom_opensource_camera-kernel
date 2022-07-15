@@ -425,20 +425,33 @@ static int inline cam_subdev_list_cmp(struct cam_subdev *entry_1, struct cam_sub
 		return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
-void cam_smmu_util_iommu_custom(struct device *dev,
-	dma_addr_t discard_start, size_t discard_length)
+#if (KERNEL_VERSION(5, 18, 0) <= LINUX_VERSION_CODE)
+int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
 {
-	return;
+	struct iosys_map mapping;
+	int error_code = dma_buf_vmap(dmabuf, &mapping);
+
+	if (error_code) {
+		*vaddr = 0;
+	} else {
+		*vaddr = (mapping.is_iomem) ?
+			(uintptr_t)mapping.vaddr_iomem : (uintptr_t)mapping.vaddr;
+		CAM_DBG(CAM_MEM,
+			"dmabuf=%p, *vaddr=%p, is_iomem=%d, vaddr_iomem=%p, vaddr=%p",
+			dmabuf, *vaddr, mapping.is_iomem, mapping.vaddr_iomem, mapping.vaddr);
+	}
+
+	return error_code;
 }
 
-int cam_req_mgr_ordered_list_cmp(void *priv,
-	const struct list_head *head_1, const struct list_head *head_2)
+void cam_compat_util_put_dmabuf_va(struct dma_buf *dmabuf, void *vaddr)
 {
-	return cam_subdev_list_cmp(list_entry(head_1, struct cam_subdev, list),
-		list_entry(head_2, struct cam_subdev, list));
+	struct iosys_map mapping = IOSYS_MAP_INIT_VADDR(vaddr);
+
+	dma_buf_vunmap(dmabuf, &mapping);
 }
 
+#elif (KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE)
 int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
 {
 	struct dma_buf_map mapping;
@@ -462,6 +475,42 @@ void cam_compat_util_put_dmabuf_va(struct dma_buf *dmabuf, void *vaddr)
 	struct dma_buf_map mapping = DMA_BUF_MAP_INIT_VADDR(vaddr);
 
 	dma_buf_vunmap(dmabuf, &mapping);
+}
+
+#else
+int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
+{
+	int error_code = 0;
+	void *addr = dma_buf_vmap(dmabuf);
+
+	if (!addr) {
+		*vaddr = 0;
+		error_code = -ENOSPC;
+	} else {
+		*vaddr = (uintptr_t)addr;
+	}
+
+	return error_code;
+}
+
+void cam_compat_util_put_dmabuf_va(struct dma_buf *dmabuf, void *vaddr)
+{
+	dma_buf_vunmap(dmabuf, vaddr);
+}
+#endif
+
+#if (KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE)
+void cam_smmu_util_iommu_custom(struct device *dev,
+	dma_addr_t discard_start, size_t discard_length)
+{
+
+}
+
+int cam_req_mgr_ordered_list_cmp(void *priv,
+	const struct list_head *head_1, const struct list_head *head_2)
+{
+	return cam_subdev_list_cmp(list_entry(head_1, struct cam_subdev, list),
+		list_entry(head_2, struct cam_subdev, list));
 }
 
 void cam_i3c_driver_remove(struct i3c_device *client)
@@ -489,26 +538,6 @@ int cam_req_mgr_ordered_list_cmp(void *priv,
 		list_entry(head_2, struct cam_subdev, list));
 }
 
-int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
-{
-	int error_code = 0;
-	void *addr = dma_buf_vmap(dmabuf);
-
-	if (!addr) {
-		*vaddr = 0;
-		error_code = -ENOSPC;
-	} else {
-		*vaddr = (uintptr_t)addr;
-	}
-
-	return error_code;
-}
-
-void cam_compat_util_put_dmabuf_va(struct dma_buf *dmabuf, void *vaddr)
-{
-	dma_buf_vunmap(dmabuf, vaddr);
-}
-
 int cam_i3c_driver_remove(struct i3c_device *client)
 {
 	CAM_DBG(CAM_SENSOR, "I3C remove invoked for %s",
@@ -517,7 +546,8 @@ int cam_i3c_driver_remove(struct i3c_device *client)
 }
 #endif
 
-#if KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE
+#if (KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE && \
+	KERNEL_VERSION(5, 18, 0) > LINUX_VERSION_CODE)
 long cam_dma_buf_set_name(struct dma_buf *dmabuf, const char *name)
 {
 	long ret = 0;
