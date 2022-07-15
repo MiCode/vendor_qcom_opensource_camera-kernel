@@ -39,7 +39,7 @@ void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 	link->link_hdl = 0;
 	link->num_devs = 0;
 	link->max_delay = CAM_PIPELINE_DELAY_0;
-	link->min_delay = CAM_PIPELINE_DELAY_MAX;
+	link->min_delay = CAM_PIPELINE_DELAY_2;
 	link->workq = NULL;
 	link->pd_mask = 0;
 	link->l_dev = NULL;
@@ -444,6 +444,12 @@ static int __cam_req_mgr_notify_error_on_link(
 	pd = dev->dev_info.p_delay;
 	if (pd >= CAM_PIPELINE_DELAY_MAX) {
 		CAM_ERR(CAM_CRM, "pd : %d is more than expected", pd);
+		return -EINVAL;
+	}
+
+	if (link->min_delay >= CAM_PIPELINE_DELAY_MAX) {
+		CAM_ERR(CAM_CRM, "min pd : %d is more than expected",
+			link->min_delay);
 		return -EINVAL;
 	}
 
@@ -2517,7 +2523,7 @@ static void __cam_req_mgr_destroy_link_info(struct cam_req_mgr_core_link *link)
 	link->pd_mask = 0;
 	link->num_devs = 0;
 	link->max_delay = CAM_PIPELINE_DELAY_0;
-	link->min_delay = CAM_PIPELINE_DELAY_MAX;
+	link->min_delay = CAM_PIPELINE_DELAY_2;
 }
 
 /**
@@ -2566,8 +2572,8 @@ static struct cam_req_mgr_core_link *__cam_req_mgr_reserve_link(
 
 	mutex_lock(&link->lock);
 	link->num_devs = 0;
-	link->max_delay = 0;
-	link->min_delay = CAM_PIPELINE_DELAY_MAX;
+	link->max_delay = CAM_PIPELINE_DELAY_0;
+	link->min_delay = CAM_PIPELINE_DELAY_2;
 	memset(in_q->slot, 0,
 		sizeof(struct cam_req_mgr_slot) * MAX_REQ_SLOTS);
 	link->req.in_q = in_q;
