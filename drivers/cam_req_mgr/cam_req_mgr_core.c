@@ -2480,7 +2480,7 @@ static void __cam_req_mgr_destroy_subdev(
 }
 
 /**
- * __cam_req_mgr_destroy_link_info()
+ * __cam_req_mgr_disconnect_link()
  *
  * @brief    : Unlinks all devices on the link
  * @link     : pointer to link

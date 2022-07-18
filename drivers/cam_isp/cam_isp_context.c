@@ -3159,7 +3159,7 @@ static int __cam_isp_ctx_epoch_in_bubble_applied(
 	list_add_tail(&req->list, &ctx->active_req_list);
 	ctx_isp->active_req_cnt++;
 	CAM_DBG(CAM_ISP, "move request %lld to active list(cnt = %d) ctx %u",
-		req->request_id, ctx_isp->active_req_cnt);
+		req->request_id, ctx_isp->active_req_cnt, ctx->ctx_id);
 
 	if (!req_isp->bubble_report) {
 		if (req->request_id > ctx_isp->reported_req_id) {
