@@ -135,8 +135,10 @@ struct cam_ife_csid_ver2_camif_data {
 /*
  * struct cam_ife_csid_ver2_path_cfg: place holder for path parameters
  *
- * @camif_data:             CAMIF data
  * @error_ts:               Error timestamp
+ * @sof_ts:                 SOF timestamp
+ * @epoch_ts:               Epoch timestamp
+ * @eof_ts:                 EOF timestamp
  * @cid:                    cid value for path
  * @path_format:            Array of Path format which contains format
  *                          info i.e Decode format, Packing format etc
@@ -180,6 +182,9 @@ struct cam_ife_csid_ver2_camif_data {
  */
 struct cam_ife_csid_ver2_path_cfg {
 	struct timespec64                    error_ts;
+	struct timespec64                    sof_ts;
+	struct timespec64                    epoch_ts;
+	struct timespec64                    eof_ts;
 	struct cam_ife_csid_path_format      path_format[CAM_ISP_VC_DT_CFG];
 	struct cam_csid_secondary_evt_config sec_evt_config;
 	uint32_t                             cid;

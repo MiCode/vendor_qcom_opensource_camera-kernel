@@ -474,6 +474,9 @@ int cam_vfe_top_ver4_dump_timestamps(
 
 		vfe_priv  = res->res_priv;
 
+		if (!vfe_priv->frame_irq_handle)
+			continue;
+
 		if (vfe_priv->is_pixel_path) {
 			camif_res = res;
 			if (res->res_id == res_id)
@@ -1288,8 +1291,8 @@ static int cam_vfe_handle_eof(struct cam_vfe_mux_ver4_data *vfe_priv,
 	struct cam_isp_hw_event_info *evt_info)
 {
 	CAM_DBG(CAM_ISP, "VFE:%d Received EOF", vfe_priv->hw_intf->hw_idx);
-	vfe_priv->epoch_ts.tv_sec = payload->ts.mono_time.tv_sec;
-	vfe_priv->epoch_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
+	vfe_priv->eof_ts.tv_sec = payload->ts.mono_time.tv_sec;
+	vfe_priv->eof_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
 
 	cam_cpas_notify_event("IFE EOF", vfe_priv->hw_intf->hw_idx);
 	return 0;
