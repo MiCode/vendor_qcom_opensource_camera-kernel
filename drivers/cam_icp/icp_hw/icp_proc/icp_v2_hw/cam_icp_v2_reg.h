@@ -37,6 +37,10 @@ struct cam_icp_v2_hw_info {
 #define ICP_V2_WD_CTRL        0x8
 #define ICP_V2_WD_INTCLR      0xC
 
+/* ICP DOM_MASK reg space */
+#define ICP_V2_DOM_0_CFG_OFFSET    0x0
+#define ICP_V2_DOM_1_CFG_OFFSET    0x20
+
 /* These bitfields are shared by OB_MASK, OB_CLEAR, OB_STATUS */
 #define ICP_V2_WDT_BITE_WS1       (1 << 6)
 #define ICP_V2_WDT_BARK_WS1       (1 << 5)

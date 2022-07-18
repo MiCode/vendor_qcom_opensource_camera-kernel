@@ -15,11 +15,16 @@
 #define UNSUPPORTED_PROC_PAS_ID   30
 #define CAM_FW_PAS_ID             33
 
+/* Domain ID masks */
+#define ICP_V2_DOMAIN_MASK_CFG_0 0x00FF00FF
+#define ICP_V2_DOMAIN_MASK_CFG_1 0xFF00FF00
+
 enum cam_icp_v2_reg_base {
 	ICP_V2_CSR_BASE,
 	ICP_V2_CIRQ_BASE,
 	ICP_V2_WD0_BASE,
 	ICP_V2_SYS_BASE,
+	ICP_V2_DOM_MASK_BASE,
 	ICP_V2_BASE_MAX,
 };
 
