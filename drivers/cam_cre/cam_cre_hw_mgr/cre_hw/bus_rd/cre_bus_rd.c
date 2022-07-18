@@ -225,7 +225,7 @@ static int cam_cre_bus_rd_prepare(struct cam_cre_hw *cam_cre_hw_info,
 	struct cre_io_buf *io_buf;
 	struct cam_cre_bus_rd_reg *rd_reg;
 	struct cam_cre_bus_rd_reg_val *rd_reg_val;
-	struct cre_reg_buffer *cre_reg_buf;
+	struct cre_reg_buffer *cre_reg_buf = NULL;
 
 	int val;
 
@@ -269,11 +269,12 @@ static int cam_cre_bus_rd_prepare(struct cam_cre_hw *cam_cre_hw_info,
 			rd_reg->offset + rd_reg->input_if_cmd,
 			val);
 	}
-
-	for (i = 0; i < cre_reg_buf->num_rd_reg_set; i++) {
-		CAM_DBG(CAM_CRE, "CRE value 0x%x offset 0x%x",
-				cre_reg_buf->rd_reg_set[i].value,
-				cre_reg_buf->rd_reg_set[i].offset);
+	if (cre_reg_buf) {
+		for (i = 0; i < cre_reg_buf->num_rd_reg_set; i++) {
+			CAM_DBG(CAM_CRE, "CRE value 0x%x offset 0x%x",
+					cre_reg_buf->rd_reg_set[i].value,
+					cre_reg_buf->rd_reg_set[i].offset);
+		}
 	}
 end:
 	return 0;
