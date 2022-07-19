@@ -218,6 +218,12 @@ enum cam_camnoc_slave_error_codes {
  * @CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR: Triggered if any error detected
  *                                            in the IPE/BPS UBWC encoder
  *                                            instance
+ * @CAM_CAMNOC_IRQ_OFE_WR_UBWC_DECODE_ERROR : Triggered if any error detected
+ *                                            in the OFE write UBWC decoder
+ *                                            instance
+ * @CAM_CAMNOC_IRQ_OFE_RD_UBWC_DECODE_ERROR : Triggered if any error detected
+ *                                            in the OFE read UBWC decoder
+ *                                            instance
  * @CAM_CAMNOC_IRQ_AHB_TIMEOUT              : Triggered when the QHS_ICP slave
  *                                            times out after 4000 AHB cycles
  */
@@ -237,6 +243,8 @@ enum cam_camnoc_irq_type {
 	CAM_CAMNOC_IRQ_IPE1_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_IRQ_IPE_BPS_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR,
+	CAM_CAMNOC_IRQ_OFE_WR_UBWC_DECODE_ERROR,
+	CAM_CAMNOC_IRQ_OFE_RD_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_IRQ_AHB_TIMEOUT,
 };
 

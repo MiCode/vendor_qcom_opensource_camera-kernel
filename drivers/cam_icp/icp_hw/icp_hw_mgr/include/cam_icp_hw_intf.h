@@ -30,6 +30,7 @@ enum cam_icp_hw_type {
 	CAM_ICP_DEV_ICP_V2,
 	CAM_ICP_DEV_IPE,
 	CAM_ICP_DEV_BPS,
+	CAM_ICP_DEV_OFE,
 	CAM_ICP_DEV_MAX,
 };
 

@@ -181,6 +181,9 @@ camera-$(CONFIG_SPECTRA_ICP) += \
 	drivers/cam_icp/icp_hw/bps_hw/bps_dev.o \
 	drivers/cam_icp/icp_hw/bps_hw/bps_core.o \
 	drivers/cam_icp/icp_hw/bps_hw/bps_soc.o \
+	drivers/cam_icp/icp_hw/ofe_hw/ofe_dev.o \
+	drivers/cam_icp/icp_hw/ofe_hw/ofe_core.o \
+	drivers/cam_icp/icp_hw/ofe_hw/ofe_soc.o \
 	drivers/cam_icp/cam_icp_subdev.o \
 	drivers/cam_icp/cam_icp_context.o \
 	drivers/cam_icp/hfi.o

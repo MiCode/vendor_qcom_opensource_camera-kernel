@@ -31,6 +31,7 @@
 #include "cam_icp_v2_dev.h"
 #include "ipe_core.h"
 #include "bps_core.h"
+#include "ofe_core.h"
 #include "cam_icp_subdev.h"
 
 #include "jpeg_dma_core.h"
@@ -128,6 +129,7 @@ static const struct camera_submodule_component camera_icp[] = {
 	{&cam_icp_v2_init_module, &cam_icp_v2_exit_module},
 	{&cam_ipe_init_module, &cam_ipe_exit_module},
 	{&cam_bps_init_module, &cam_bps_exit_module},
+	{&cam_ofe_init_module, &cam_ofe_exit_module},
 	{&cam_icp_init_module, &cam_icp_exit_module},
 #endif
 };
