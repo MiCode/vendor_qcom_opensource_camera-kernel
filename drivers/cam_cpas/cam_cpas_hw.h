@@ -15,13 +15,13 @@
 #include "cam_soc_bus.h"
 
 #define CAM_CPAS_INFLIGHT_WORKS              5
-#define CAM_CPAS_MAX_CLIENTS                 42
+#define CAM_CPAS_MAX_CLIENTS                 43
 #define CAM_CPAS_MAX_AXI_PORTS               6
 #define CAM_CPAS_MAX_DRV_PORTS               4
 #define CAM_CPAS_MAX_TREE_LEVELS             4
 #define CAM_CPAS_MAX_RT_WR_NIU_NODES         10
 #define CAM_CPAS_MAX_GRAN_PATHS_PER_CLIENT   32
-#define CAM_CPAS_PATH_DATA_MAX               41
+#define CAM_CPAS_PATH_DATA_MAX               42
 #define CAM_CPAS_TRANSACTION_MAX             2
 #define CAM_CAMNOC_FILL_LVL_REG_INFO_MAX     6
 #define CAM_CPAS_MAX_SLOPE_FACTOR            100
