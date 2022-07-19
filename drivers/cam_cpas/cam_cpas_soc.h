@@ -40,9 +40,13 @@
  *     (starting from end node of cpas client)
  * @pri_lut_low_offset: Register offset value for priority lut low.
  *                           Valid only for level1 nodes (representing NIUs)
+ * @pri_lut_high_offset: Register offset value for priority lut high.
+ *                           Valid only for level1 nodes (representing NIUs)
  * @niu_size: Size of NIU that this node represents. Size in KB
- * @curr_priority: New calculated priority
- * @applied_priority: Currently applied priority
+ * @curr_priority_low:     New calculated priority lut low values
+ * @curr_priority_high:    New calculated priority lut high values
+ * @applied_priority_low:  Currently applied priority lut low values
+ * @applied_priority_high: Currently applied priority lut high values
  *
  */
 struct cam_cpas_tree_node {
@@ -63,9 +67,12 @@ struct cam_cpas_tree_node {
 	struct device_node *tree_dev_node;
 	struct cam_cpas_tree_node *parent_node;
 	uint32_t pri_lut_low_offset;
+	uint32_t pri_lut_high_offset;
 	uint32_t niu_size;
-	uint32_t curr_priority;
-	uint32_t applied_priority;
+	uint32_t curr_priority_low;
+	uint32_t curr_priority_high;
+	uint32_t applied_priority_low;
+	uint32_t applied_priority_high;
 };
 
 /**
@@ -109,14 +116,28 @@ struct cam_sys_cache_info {
 /**
  * struct cam_cpas_smart_qos_info : Smart QOS info
  *
- * @rt_wr_priority_min:   Minimum priority value for rt write nius
- * @rt_wr_priority_max:   Maximum priority value for rt write nius
- * @num_rt_wr_nius:       Number of RT Wr NIUs
- * @rt_wr_niu_node:       List of level1 nodes representing RT Wr NIUs
+ * @rt_wr_priority_min:      Minimum priority value for rt write nius
+ * @rt_wr_priority_max:      Maximum priority value for rt write nius
+ * @rt_wr_priority_clamp:    Clamp priority value for rt write nius
+ * @rt_wr_slope_factor:      Slope factor value for rt write nius
+ * @leaststressed_clamp_th:  Leaststressed clamp threshold value for rt write nius
+ * @moststressed_clamp_th:   Moststressed clamp threshold value for rt write nius
+ * @highstress_indicator_th: Highstress indicator threshold value for rt write nius
+ * @lowstress_indicator_th:  Lowstress indicator threshold value for rt write nius
+ * @bw_ratio_scale_factor:   BW ratio scale factor value for rt write nius
+ * @num_rt_wr_nius:          Number of rt write nius
+ * @rt_wr_niu_node:          List of level1 nodes representing rt write nius
  */
 struct cam_cpas_smart_qos_info {
 	uint8_t rt_wr_priority_min;
 	uint8_t rt_wr_priority_max;
+	uint8_t rt_wr_priority_clamp;
+	uint8_t rt_wr_slope_factor;
+	uint8_t leaststressed_clamp_th;
+	uint8_t moststressed_clamp_th;
+	uint8_t highstress_indicator_th;
+	uint8_t lowstress_indicator_th;
+	uint8_t bw_ratio_scale_factor;
 	uint8_t num_rt_wr_nius;
 	struct cam_cpas_tree_node *rt_wr_niu_node[CAM_CPAS_MAX_RT_WR_NIU_NODES];
 };

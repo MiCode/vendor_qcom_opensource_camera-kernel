@@ -442,7 +442,14 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 				rc = of_property_read_u32(curr_node, "priority-lut-low-offset",
 					&curr_node_ptr->pri_lut_low_offset);
 				if (rc) {
-					CAM_ERR(CAM_CPAS, "Invalid priority offset rc %d", rc);
+					CAM_ERR(CAM_CPAS, "Invalid priority low offset rc %d", rc);
+					return rc;
+				}
+
+				rc = of_property_read_u32(curr_node, "priority-lut-high-offset",
+					&curr_node_ptr->pri_lut_high_offset);
+				if (rc) {
+					CAM_ERR(CAM_CPAS, "Invalid priority high offset rc %d", rc);
 					return rc;
 				}
 
@@ -1227,7 +1234,7 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 			"enable-smart-qos");
 
 	if (soc_private->enable_smart_qos) {
-		uint32_t value1, value2;
+		uint32_t value;
 
 		soc_private->smart_qos_info = kzalloc(sizeof(struct cam_cpas_smart_qos_info),
 			GFP_KERNEL);
@@ -1238,29 +1245,118 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 
 		/*
 		 * If enabled, we expect min and max priority values,
+		 * clamp priority value, slope factor, least and most
+		 * stressed clamp threshold values, high and low stress
+		 * indicator threshold values, bw ratio scale factor value,
 		 * so treat as fatal error if not available.
 		 */
 		rc = of_property_read_u32(of_node, "rt-wr-priority-min",
-			&value1);
+			&value);
 		if (rc) {
 			CAM_ERR(CAM_CPAS, "Invalid min Qos priority rc %d", rc);
 			goto cleanup_clients;
 		}
+		soc_private->smart_qos_info->rt_wr_priority_min = (uint8_t)value;
 
 		rc = of_property_read_u32(of_node, "rt-wr-priority-max",
-			&value2);
+			&value);
 		if (rc) {
-			CAM_ERR(CAM_CPAS, "Invalid min Qos priority rc %d", rc);
+			CAM_ERR(CAM_CPAS, "Invalid max Qos priority rc %d", rc);
+			goto cleanup_clients;
+		}
+		soc_private->smart_qos_info->rt_wr_priority_max = (uint8_t)value;
+
+		rc = of_property_read_u32(of_node, "rt-wr-priority-clamp",
+			&value);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Invalid clamp Qos priority rc %d", rc);
+			goto cleanup_clients;
+		}
+		soc_private->smart_qos_info->rt_wr_priority_clamp = (uint8_t)value;
+
+		rc = of_property_read_u32(of_node, "rt-wr-slope-factor",
+			&value);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Invalid slope factor rc %d", rc);
 			goto cleanup_clients;
 		}
 
-		soc_private->smart_qos_info->rt_wr_priority_min = (uint8_t)value1;
-		soc_private->smart_qos_info->rt_wr_priority_max = (uint8_t)value2;
+		if (value > CAM_CPAS_MAX_SLOPE_FACTOR) {
+			CAM_ERR(CAM_UTIL, "Invalid slope factor value %d", value);
+			rc = -EINVAL;
+			goto cleanup_clients;
+		} else
+			soc_private->smart_qos_info->rt_wr_slope_factor = (uint8_t)value;
 
 		CAM_DBG(CAM_CPAS,
-			"SmartQoS enabled, rt_wr_priority_min=%u, rt_wr_priority_max=%u",
+			"SmartQoS enabled, priority min=%u, max=%u, clamp=%u, slope factor=%u",
 			(uint32_t)soc_private->smart_qos_info->rt_wr_priority_min,
-			(uint32_t)soc_private->smart_qos_info->rt_wr_priority_max);
+			(uint32_t)soc_private->smart_qos_info->rt_wr_priority_max,
+			(uint32_t)soc_private->smart_qos_info->rt_wr_priority_clamp,
+			(uint32_t)soc_private->smart_qos_info->rt_wr_slope_factor);
+
+		rc = of_property_read_u32(of_node, "rt-wr-leaststressed-clamp-threshold",
+			&value);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Invalid leaststressed clamp threshold rc %d", rc);
+			goto cleanup_clients;
+		}
+		soc_private->smart_qos_info->leaststressed_clamp_th = (uint8_t)value;
+
+		rc = of_property_read_u32(of_node, "rt-wr-moststressed-clamp-threshold",
+			&value);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Invalid moststressed clamp threshold rc %d", rc);
+			goto cleanup_clients;
+		}
+		soc_private->smart_qos_info->moststressed_clamp_th = (uint8_t)value;
+
+		CAM_DBG(CAM_CPAS,
+			"leaststressed_clamp_th=%u, moststressed_clamp_th=%u",
+			(uint32_t)soc_private->smart_qos_info->leaststressed_clamp_th,
+			(uint32_t)soc_private->smart_qos_info->moststressed_clamp_th);
+
+		rc = of_property_read_u32(of_node, "rt-wr-highstress-indicator-threshold",
+			&value);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Invalid highstress indicator threshold rc %d", rc);
+			goto cleanup_clients;
+		}
+
+		if (value > CAM_CPAS_MAX_STRESS_INDICATOR) {
+			CAM_ERR(CAM_UTIL, "Invalid highstress indicator threshold value %d", value);
+			rc = -EINVAL;
+			goto cleanup_clients;
+		} else
+			soc_private->smart_qos_info->highstress_indicator_th = (uint8_t)value;
+
+		rc = of_property_read_u32(of_node, "rt-wr-lowstress-indicator-threshold",
+			&value);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Invalid lowstress indicator threshold rc %d", rc);
+			goto cleanup_clients;
+		}
+
+		if (value > CAM_CPAS_MAX_STRESS_INDICATOR) {
+			CAM_ERR(CAM_UTIL, "Invalid lowstress indicator threshold value %d", value);
+			rc = -EINVAL;
+			goto cleanup_clients;
+		} else
+			soc_private->smart_qos_info->lowstress_indicator_th = (uint8_t)value;
+
+		rc = of_property_read_u32(of_node, "rt-wr-bw-ratio-scale-factor",
+			&value);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Invalid bw ratio scale factor rc %d", rc);
+			goto cleanup_clients;
+		}
+		soc_private->smart_qos_info->bw_ratio_scale_factor = (uint8_t)value;
+
+		CAM_DBG(CAM_CPAS,
+			"highstress_indicator_th=%u, lowstress_indicator_th=%u, scale factor=%u",
+			(uint32_t)soc_private->smart_qos_info->highstress_indicator_th,
+			(uint32_t)soc_private->smart_qos_info->lowstress_indicator_th,
+			(uint32_t)soc_private->smart_qos_info->bw_ratio_scale_factor);
 	} else {
 		CAM_DBG(CAM_CPAS, "SmartQoS not enabled, use static settings");
 		soc_private->smart_qos_info = NULL;

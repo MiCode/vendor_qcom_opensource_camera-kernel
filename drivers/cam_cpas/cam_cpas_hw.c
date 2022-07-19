@@ -607,19 +607,23 @@ static void cam_cpas_print_smart_qos_priority(
 	int32_t reg_indx = cpas_core->regbase_index[CAM_CPAS_REG_CAMNOC];
 	char log_buf[CAM_CPAS_LOG_BUF_LEN] = {0};
 	size_t len = 0;
-	uint32_t val = 0;
+	uint32_t val_low = 0, val_high = 0;
 
 	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
 
-		val = cam_io_r_mb(soc_info->reg_map[reg_indx].mem_base +
+		val_high = cam_io_r_mb(soc_info->reg_map[reg_indx].mem_base +
+			niu_node->pri_lut_high_offset);
+
+		val_low = cam_io_r_mb(soc_info->reg_map[reg_indx].mem_base +
 			niu_node->pri_lut_low_offset);
 
 		len += scnprintf((log_buf + len), (CAM_CPAS_LOG_BUF_LEN - len),
-			" [%s:0x%x]", niu_node->node_name, val);
+			" [%s:high 0x%x low 0x%x]", niu_node->node_name,
+			val_high, val_low);
 	}
 
-	CAM_INFO(CAM_CPAS, "SmartQoS [Node Pri_lut_low] %s", log_buf);
+	CAM_INFO(CAM_CPAS, "SmartQoS [Node Pri_lut] %s", log_buf);
 }
 
 static bool cam_cpas_is_new_rt_bw_lower(
@@ -667,8 +671,10 @@ static void cam_cpas_reset_niu_priorities(
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	uint8_t i;
 
-	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++)
-		soc_private->smart_qos_info->rt_wr_niu_node[i]->applied_priority = 0x0;
+	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
+		soc_private->smart_qos_info->rt_wr_niu_node[i]->applied_priority_low = 0x0;
+		soc_private->smart_qos_info->rt_wr_niu_node[i]->applied_priority_high = 0x0;
+	}
 }
 
 static bool cam_cpas_calculate_smart_qos(
@@ -681,23 +687,25 @@ static bool cam_cpas_calculate_smart_qos(
 	uint8_t i;
 	bool needs_update = false;
 	uint64_t bw_per_kb, max_bw_per_kb = 0, remainder, ramp_val;
+	uint64_t total_bw_per_kb = 0, total_bw_ramp_val = 0;
 	int8_t pos;
-	uint32_t priority;
-	uint8_t val;
+	uint64_t priority;
+	uint8_t val, clamp_threshold;
 
 	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
 
 		bw_per_kb = niu_node->camnoc_bw;
 		remainder = do_div(bw_per_kb, niu_node->niu_size);
+		total_bw_per_kb += bw_per_kb;
 
 		if (max_bw_per_kb < bw_per_kb)
 			max_bw_per_kb = bw_per_kb;
 
 		CAM_DBG(CAM_PERF,
-			"NIU[%d][%s] : camnoc_bw %llu, niu_size %u, bw_per_kb %lld, remainder %lld max_bw_per_kb %lld",
+			"NIU[%d][%s]camnoc_bw %llu, niu_size %u, bw_per_kb %lld, remainder %lld, max_bw_per_kb %lld, total_bw_per_kb %lld",
 			i, niu_node->node_name, niu_node->camnoc_bw, niu_node->niu_size,
-			bw_per_kb, remainder, max_bw_per_kb);
+			bw_per_kb, remainder, max_bw_per_kb, total_bw_per_kb);
 	}
 
 	if (!max_bw_per_kb) {
@@ -711,15 +719,68 @@ static bool cam_cpas_calculate_smart_qos(
 		bw_per_kb = niu_node->camnoc_bw;
 		remainder = do_div(bw_per_kb, niu_node->niu_size); // --> dropping remainder
 
+		if ((bw_per_kb * CAM_CPAS_MAX_STRESS_INDICATOR) >
+			(total_bw_per_kb *
+			soc_private->smart_qos_info->highstress_indicator_th)) {
+			clamp_threshold = soc_private->smart_qos_info->moststressed_clamp_th;
+			CAM_DBG(CAM_PERF, "Current niu clamp_threshold=%d",
+				clamp_threshold);
+		} else {
+			ramp_val = soc_private->smart_qos_info->bw_ratio_scale_factor *
+				bw_per_kb;
+			ramp_val = ramp_val *
+				(soc_private->smart_qos_info->leaststressed_clamp_th -
+				soc_private->smart_qos_info->moststressed_clamp_th);
+
+			/*
+			 * Stress indicator threshold may have a float type value
+			 * such as 0.5 according max stress indicator value 1,
+			 * we take in percentages to avoid float type calcaulate.
+			 */
+			total_bw_ramp_val = total_bw_per_kb *
+				(soc_private->smart_qos_info->highstress_indicator_th -
+				soc_private->smart_qos_info->lowstress_indicator_th) /
+				CAM_CPAS_MAX_STRESS_INDICATOR;
+
+			CAM_DBG(CAM_PERF, "ramp_val=%lld, total_bw_ramp_val=%lld",
+				ramp_val, total_bw_ramp_val);
+
+			remainder = do_div(ramp_val, total_bw_ramp_val);
+			/* round the value */
+			if ((remainder * 2) >= total_bw_ramp_val)
+				ramp_val += 1;
+
+			val = (uint8_t)(ramp_val);
+			clamp_threshold =
+				soc_private->smart_qos_info->leaststressed_clamp_th - val;
+
+			CAM_DBG(CAM_PERF, "Current niu clamp_threshold=%d, val=%d",
+				clamp_threshold, val);
+		}
+
 		priority = 0;
 
-		for (pos = 7; pos >= 0; pos--) {
+		for (pos = 15; pos >= clamp_threshold; pos--) {
+			val = soc_private->smart_qos_info->rt_wr_priority_clamp;
+			priority = priority << 4;
+			priority |= val;
+
+			CAM_DBG(CAM_PERF, "pos=%d, val=0x%x, priority=0x%llx", pos, val, priority);
+		}
+
+		for (pos = clamp_threshold - 1; pos >= 0; pos--) {
 			if (pos == 0) {
 				val = soc_private->smart_qos_info->rt_wr_priority_min;
-			} else if (pos == 7) {
-				val = soc_private->smart_qos_info->rt_wr_priority_max;
 			} else {
 				ramp_val = pos * bw_per_kb;
+				/*
+				 * Slope factor may have a float type value such as 0.7
+				 * according max slope factor value 1,
+				 * we take in percentages to avoid float type calcaulate.
+				 */
+				ramp_val = ramp_val *
+					soc_private->smart_qos_info->rt_wr_slope_factor /
+					CAM_CPAS_MAX_SLOPE_FACTOR;
 				remainder = do_div(ramp_val, max_bw_per_kb);
 
 				CAM_DBG(CAM_PERF,
@@ -727,7 +788,7 @@ static bool cam_cpas_calculate_smart_qos(
 					pos, bw_per_kb, pos * bw_per_kb, ramp_val, remainder,
 					max_bw_per_kb);
 
-				// round the value
+				/* round the value */
 				if ((remainder * 2) >= max_bw_per_kb)
 					ramp_val += 1;
 
@@ -739,18 +800,21 @@ static bool cam_cpas_calculate_smart_qos(
 			priority = priority << 4;
 			priority |= val;
 
-			CAM_DBG(CAM_PERF, "pos=%d, val=0x%x, priority=0x%x", pos, val, priority);
+			CAM_DBG(CAM_PERF, "pos=%d, val=0x%x, priority=0x%llx", pos, val, priority);
 		}
 
-		niu_node->curr_priority = priority;
+		niu_node->curr_priority_low = (uint32_t)(priority & 0xFFFFFFFF);
+		niu_node->curr_priority_high = (uint32_t)((priority >> 32) & 0xFFFFFFFF);
 
-		if (niu_node->curr_priority != niu_node->applied_priority)
+		if ((niu_node->curr_priority_low != niu_node->applied_priority_low) ||
+			(niu_node->curr_priority_high != niu_node->applied_priority_high))
 			needs_update = true;
 
 		CAM_DBG(CAM_PERF,
-			"Node[%d][%s] : camnoc_bw=%lld, niu_size=%d, bw_per_kb %lld, Priority applied 0x%x new 0x%x needs_update %d",
-			i, niu_node->node_name, niu_node->camnoc_bw, niu_node->niu_size, bw_per_kb,
-			niu_node->applied_priority, niu_node->curr_priority,
+			"Node[%d][%s]Priority applied high 0x%x low 0x%x, new high 0x%x low 0x%x, needs_update %d",
+			i, niu_node->node_name,
+			niu_node->applied_priority_high, niu_node->applied_priority_low,
+			niu_node->curr_priority_high, niu_node->curr_priority_low,
 			needs_update);
 	}
 
@@ -758,10 +822,11 @@ static bool cam_cpas_calculate_smart_qos(
 		for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 			niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
 			CAM_INFO(CAM_PERF,
-				"Node[%d][%s] : camnoc_bw=%lld, niu_size=%d, offset 0x%x, Priority new 0x%x applied 0x%x",
+				"Node[%d][%s]camnoc_bw=%lld, niu_size=%d, offset high 0x%x, low 0x%x, Priority new high 0x%x low 0x%x, applied high 0x%x low 0x%x",
 				i, niu_node->node_name, niu_node->camnoc_bw, niu_node->niu_size,
-				niu_node->pri_lut_low_offset,
-				niu_node->curr_priority, niu_node->applied_priority);
+				niu_node->pri_lut_high_offset, niu_node->pri_lut_low_offset,
+				niu_node->curr_priority_high, niu_node->curr_priority_low,
+				niu_node->applied_priority_high, niu_node->applied_priority_low);
 		}
 	}
 
@@ -787,11 +852,20 @@ static int cam_cpas_apply_smart_qos(
 	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
 
-		if (niu_node->curr_priority != niu_node->applied_priority) {
-			cam_io_w_mb(niu_node->curr_priority,
+		if (niu_node->curr_priority_high != niu_node->applied_priority_high) {
+			cam_io_w_mb(niu_node->curr_priority_high,
+				soc_info->reg_map[reg_indx].mem_base +
+				niu_node->pri_lut_high_offset);
+
+			niu_node->applied_priority_high = niu_node->curr_priority_high;
+		}
+
+		if (niu_node->curr_priority_low != niu_node->applied_priority_low) {
+			cam_io_w_mb(niu_node->curr_priority_low,
 				soc_info->reg_map[reg_indx].mem_base +
 				niu_node->pri_lut_low_offset);
-			niu_node->applied_priority = niu_node->curr_priority;
+
+			niu_node->applied_priority_low = niu_node->curr_priority_low;
 		}
 	}
 
@@ -2677,9 +2751,13 @@ static void cam_cpas_update_monitor_array(struct cam_hw_info *cpas_hw,
 			struct cam_cpas_tree_node *niu_node =
 				soc_private->smart_qos_info->rt_wr_niu_node[i];
 
-			entry->rt_wr_niu_pri_lut[i] =
+			entry->rt_wr_niu_pri_lut_high[i] =
 				cam_io_r_mb(soc_info->reg_map[reg_camnoc].mem_base +
-				niu_node->pri_lut_low_offset);
+					niu_node->pri_lut_high_offset);
+
+			entry->rt_wr_niu_pri_lut_low[i] =
+				cam_io_r_mb(soc_info->reg_map[reg_camnoc].mem_base +
+					niu_node->pri_lut_low_offset);
 		}
 	}
 }
@@ -2783,11 +2861,12 @@ static void cam_cpas_dump_monitor_array(
 					soc_private->smart_qos_info->rt_wr_niu_node[j];
 
 				len += scnprintf((log_buf + len),
-					(CAM_CPAS_LOG_BUF_LEN - len), " [%s: 0x%x]",
+					(CAM_CPAS_LOG_BUF_LEN - len), " [%s: high 0x%x low 0x%x]",
 					niu_node->node_name,
-					entry->rt_wr_niu_pri_lut[j]);
+					entry->rt_wr_niu_pri_lut_high[j],
+					entry->rt_wr_niu_pri_lut_low[j]);
 			}
-			CAM_INFO(CAM_CPAS, "SmartQoS [Node: Pri_lut_low] %s", log_buf);
+			CAM_INFO(CAM_CPAS, "SmartQoS [Node: Pri_lut] %s", log_buf);
 		}
 
 		index = (index + 1) % CAM_CPAS_MONITOR_MAX_ENTRIES;

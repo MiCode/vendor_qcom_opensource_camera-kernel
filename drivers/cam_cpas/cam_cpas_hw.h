@@ -24,6 +24,8 @@
 #define CAM_CPAS_PATH_DATA_MAX               41
 #define CAM_CPAS_TRANSACTION_MAX             2
 #define CAM_CAMNOC_FILL_LVL_REG_INFO_MAX     6
+#define CAM_CPAS_MAX_SLOPE_FACTOR            100
+#define CAM_CPAS_MAX_STRESS_INDICATOR        100
 
 #define CAM_CPAS_AXI_MIN_MNOC_AB_BW   (2048 * 1024)
 #define CAM_CPAS_AXI_MIN_MNOC_IB_BW   (2048 * 1024)
@@ -294,7 +296,8 @@ struct cam_cpas_axi_port_debug_info {
  *           monitoring registers
  * @camnoc_port_name: Camnoc port names
  * @camnoc_fill_level: Camnoc fill level register info
- * @rt_wr_niu_pri_lut: priority lut low values of RT Wr NIUs
+ * @rt_wr_niu_pri_lut_low: priority lut low values of RT Wr NIUs
+ * @rt_wr_niu_pri_lut_high: priority lut high values of RT Wr NIUs
  */
 struct cam_cpas_monitor {
 	struct timespec64   timestamp;
@@ -311,7 +314,8 @@ struct cam_cpas_monitor {
 	uint32_t            num_camnoc_lvl_regs;
 	const char          *camnoc_port_name[CAM_CAMNOC_FILL_LVL_REG_INFO_MAX];
 	uint32_t            camnoc_fill_level[CAM_CAMNOC_FILL_LVL_REG_INFO_MAX];
-	uint32_t            rt_wr_niu_pri_lut[CAM_CPAS_MAX_RT_WR_NIU_NODES];
+	uint32_t            rt_wr_niu_pri_lut_low[CAM_CPAS_MAX_RT_WR_NIU_NODES];
+	uint32_t            rt_wr_niu_pri_lut_high[CAM_CPAS_MAX_RT_WR_NIU_NODES];
 };
 
 /**
