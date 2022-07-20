@@ -212,8 +212,6 @@ struct cam_ife_csid_csi2_rx_reg_info {
 	uint32_t de_scramble_type1_cfg1_addr;
 	uint32_t de_scramble_type0_cfg0_addr;
 	uint32_t de_scramble_type0_cfg1_addr;
-	uint32_t secure_cfg0;
-	uint32_t secure_mask_cfg0;
 
 	/*configurations */
 	uint32_t rst_srb_all;

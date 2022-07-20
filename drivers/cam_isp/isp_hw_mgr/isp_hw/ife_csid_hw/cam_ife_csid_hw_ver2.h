@@ -400,8 +400,6 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t buf_done_irq_set_addr;
 	uint32_t test_bus_ctrl;
 	uint32_t test_bus_debug;
-	uint32_t path_domain_id_cfg0;
-	uint32_t path_domain_id_cfg1;
 	uint32_t drv_cfg0_addr;
 	uint32_t drv_cfg1_addr;
 	uint32_t drv_cfg2_addr;
