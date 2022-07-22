@@ -107,7 +107,7 @@ struct cam_sensor_dev_res_info {
  * @sensor_name: Sensor name
  * @aon_camera_id: AON Camera ID associated with this sensor
  * @last_applied_req: Last applied request id
- * @is_flushed: Indicate if the request has been flushed
+ * @is_stopped_by_user: Indicate if sensor has been stopped by userland
  * @stream_off_after_eof: Indicates if sensor needs to stream off after eof
  */
 struct cam_sensor_ctrl_t {
@@ -140,7 +140,7 @@ struct cam_sensor_ctrl_t {
 	char                           sensor_name[CAM_SENSOR_NAME_MAX_SIZE];
 	uint8_t                        aon_camera_id;
 	int64_t                        last_applied_req;
-	bool                           is_flushed;
+	bool                           is_stopped_by_user;
 	bool                           stream_off_after_eof;
 };
 

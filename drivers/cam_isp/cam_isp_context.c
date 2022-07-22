@@ -5958,6 +5958,7 @@ static int __cam_isp_ctx_release_dev_in_top_state(struct cam_context *ctx,
 	ctx_isp->rdi_only_context = false;
 	ctx_isp->req_info.last_bufdone_req_id = 0;
 	ctx_isp->v4l2_event_sub_ids = 0;
+	ctx_isp->resume_hw_in_flushed = false;
 
 	atomic64_set(&ctx_isp->state_monitor_head, -1);
 	for (i = 0; i < CAM_ISP_CTX_EVENT_MAX; i++)
@@ -6116,6 +6117,11 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 			if (rc)
 				CAM_ERR(CAM_ISP, "Enqueue INIT pkt failed");
 			ctx_isp->init_received = true;
+
+			if ((ctx_isp->vfps_aux_context) && (req->request_id > 0))
+				ctx_isp->resume_hw_in_flushed = true;
+			else
+				ctx_isp->resume_hw_in_flushed = false;
 		} else {
 			rc = -EINVAL;
 			CAM_ERR(CAM_ISP, "Recevied INIT pkt in wrong state:%d",
@@ -6880,6 +6886,19 @@ static int __cam_isp_ctx_config_dev_in_flushed(struct cam_context *ctx,
 		CAM_WARN(CAM_ISP,
 			"Received update packet in flushed state, skip start");
 		goto end;
+	}
+
+	CAM_DBG(CAM_ISP, "vfps_ctx:%s resume_hw_in_flushed:%d ctx:%d",
+		CAM_BOOL_TO_YESNO(ctx_isp->vfps_aux_context),
+		ctx_isp->resume_hw_in_flushed,
+		ctx->ctx_id);
+
+	if (ctx_isp->vfps_aux_context) {
+		/* Resume the HW only when we get first valid req */
+		if (!ctx_isp->resume_hw_in_flushed)
+			goto end;
+		else
+			ctx_isp->resume_hw_in_flushed = false;
 	}
 
 	hw_cmd_args.ctxt_to_hw_map = ctx_isp->hw_ctx;

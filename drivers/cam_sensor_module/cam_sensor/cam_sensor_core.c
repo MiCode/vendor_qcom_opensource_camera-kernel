@@ -1168,7 +1168,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 
 		s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
 		s_ctrl->last_flush_req = 0;
-		s_ctrl->is_flushed = false;
+		s_ctrl->is_stopped_by_user = false;
 		CAM_INFO(CAM_SENSOR,
 			"CAM_ACQUIRE_DEV Success for %s sensor_id:0x%x,sensor_slave_addr:0x%x",
 			s_ctrl->sensor_name,
@@ -1276,6 +1276,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 		s_ctrl->sensor_state = CAM_SENSOR_START;
 
+		if (s_ctrl->stream_off_after_eof)
+			s_ctrl->is_stopped_by_user = false;
+
 		if (s_ctrl->bridge_intf.crm_cb &&
 			s_ctrl->bridge_intf.crm_cb->notify_timer) {
 			timer.link_hdl = s_ctrl->bridge_intf.link_hdl;
@@ -1302,7 +1305,8 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	}
 		break;
 	case CAM_STOP_DEV: {
-		if ((s_ctrl->stream_off_after_eof) && (!s_ctrl->is_flushed)) {
+		if (s_ctrl->stream_off_after_eof) {
+			s_ctrl->is_stopped_by_user = true;
 			CAM_DBG(CAM_SENSOR, "Ignore stop dev cmd for VFPS feature");
 			goto release_mutex;
 		}
@@ -1310,7 +1314,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		rc = cam_sensor_stream_off(s_ctrl);
 		if (rc)
 			goto release_mutex;
-		s_ctrl->is_flushed = false;
 	}
 		break;
 	case CAM_CONFIG_DEV: {
@@ -1366,6 +1369,14 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 
 		if (s_ctrl->i2c_data.config_settings.is_settings_valid &&
 			(s_ctrl->i2c_data.config_settings.request_id == 0)) {
+			if (s_ctrl->sensor_state == CAM_SENSOR_START) {
+				delete_request(&s_ctrl->i2c_data.config_settings);
+				CAM_ERR(CAM_SENSOR,
+					"%s: get config setting in start state",
+					s_ctrl->sensor_name);
+					goto release_mutex;
+			}
+
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
 				CAM_SENSOR_PACKET_OPCODE_SENSOR_CONFIG);
 
@@ -1852,6 +1863,16 @@ int32_t cam_sensor_flush_request(struct cam_req_mgr_flush_request *flush_req)
 		s_ctrl->last_flush_req = flush_req->req_id;
 		CAM_DBG(CAM_SENSOR, "last reqest to flush is %lld",
 			flush_req->req_id);
+
+		/*
+		 * Sensor can't get EOF event during flush if we do the flush
+		 * before EOF, so we need to stream off the sensor during flush
+		 * for VFPS usecase.
+		 */
+		if (s_ctrl->stream_off_after_eof && s_ctrl->is_stopped_by_user) {
+			cam_sensor_stream_off(s_ctrl);
+			s_ctrl->is_stopped_by_user = false;
+		}
 	}
 
 	for (i = 0; i < MAX_PER_FRAME_ARRAY; i++) {
@@ -1904,9 +1925,6 @@ int32_t cam_sensor_flush_request(struct cam_req_mgr_flush_request *flush_req)
 			"Flush request id:%lld not found in the pending list",
 			flush_req->req_id);
 
-	if (s_ctrl->stream_off_after_eof)
-		s_ctrl->is_flushed = true;
-
 	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
 	return rc;
 }
@@ -1950,6 +1968,10 @@ int cam_sensor_process_evt(struct cam_req_mgr_link_evt_data *evt_data)
 			s_ctrl->stream_off_after_eof = true;
 		else
 			s_ctrl->stream_off_after_eof = false;
+
+		CAM_DBG(CAM_SENSOR, "sensor %s stream off after eof:%s",
+			s_ctrl->sensor_name,
+			CAM_BOOL_TO_YESNO(s_ctrl->stream_off_after_eof));
 		break;
 	default:
 		/* No handling */

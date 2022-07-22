@@ -271,6 +271,7 @@ struct cam_isp_context_event_record {
  *                             true, if context is rdi only context
  * @offline_context:           Indicate whether context is for offline IFE
  * @vfps_aux_context:          Indicate whether context is for VFPS aux link
+ * @resume_hw_in_flushed:      Indicate whether resume hw in flushed state in vfps case
  * @hw_acquired:               Indicate whether HW resources are acquired
  * @init_received:             Indicate whether init config packet is received
  * @split_acquire:             Indicate whether a separate acquire is expected
@@ -327,6 +328,7 @@ struct cam_isp_context {
 	bool                                  rdi_only_context;
 	bool                                  offline_context;
 	bool                                  vfps_aux_context;
+	bool                                  resume_hw_in_flushed;
 	bool                                  hw_acquired;
 	bool                                  init_received;
 	bool                                  split_acquire;
