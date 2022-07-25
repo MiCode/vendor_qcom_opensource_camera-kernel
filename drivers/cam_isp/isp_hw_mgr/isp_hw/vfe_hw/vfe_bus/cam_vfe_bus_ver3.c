@@ -3740,16 +3740,6 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 		}
 
 		wm_data = vfe_out_data->wm_res[i].res_priv;
-
-		if (((!bus_priv->common_data.is_lite && wm_data->index > 22) ||
-			bus_priv->common_data.is_lite) &&
-			hfr_cfg->subsample_period > 3) {
-			CAM_ERR(CAM_ISP,
-				"RDI doesn't support irq subsample period %d",
-				hfr_cfg->subsample_period);
-			return -EINVAL;
-		}
-
 		if ((wm_data->framedrop_pattern !=
 			hfr_cfg->framedrop_pattern) ||
 			!wm_data->hfr_cfg_done) {
