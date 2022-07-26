@@ -704,6 +704,7 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 		}
 		break;
 	case CAM_ACTUATOR_PACKET_OPCODE_READ: {
+		uint64_t qtime_ns;
 		struct cam_buf_io_cfg *io_cfg;
 		struct i2c_settings_array i2c_read_settings;
 
@@ -755,6 +756,24 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 			CAM_ERR(CAM_ACTUATOR, "cannot read data, rc:%d", rc);
 			delete_request(&i2c_read_settings);
 			goto end;
+		}
+
+		if (csl_packet->num_io_configs > 1) {
+			rc = cam_sensor_util_get_current_qtimer_ns(&qtime_ns);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR, "failed to get qtimer rc:%d");
+				delete_request(&i2c_read_settings);
+				return rc;
+			}
+
+			rc = cam_sensor_util_write_qtimer_to_io_buffer(
+				qtime_ns, &io_cfg[1]);
+			if (rc < 0) {
+				CAM_ERR(CAM_ACTUATOR,
+					"write qtimer failed rc: %d", rc);
+				delete_request(&i2c_read_settings);
+				return rc;
+			}
 		}
 
 		rc = delete_request(&i2c_read_settings);

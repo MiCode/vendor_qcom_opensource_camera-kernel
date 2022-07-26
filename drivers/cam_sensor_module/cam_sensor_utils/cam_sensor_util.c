@@ -146,7 +146,7 @@ int32_t cam_sensor_util_get_current_qtimer_ns(uint64_t *qtime_ns)
 	if (qtime_ns != NULL) {
 		*qtime_ns = mul_u64_u32_div(ticks,
 			QTIMER_MUL_FACTOR, QTIMER_DIV_FACTOR);
-		CAM_DBG(CAM_SENSOR, "Qtimer time: 0x%x", *qtime_ns);
+		CAM_DBG(CAM_SENSOR, "Qtimer time: 0x%lx", *qtime_ns);
 	} else {
 		CAM_ERR(CAM_SENSOR, "NULL pointer passed");
 		return -EINVAL;
