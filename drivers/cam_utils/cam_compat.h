@@ -86,4 +86,6 @@ void cam_eeprom_spi_driver_remove(struct spi_device *sdev);
 int cam_eeprom_spi_driver_remove(struct spi_device *sdev);
 #endif
 
+int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info);
+
 #endif /* _CAM_COMPAT_H_ */

@@ -571,6 +571,19 @@ void cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 	v4l2_set_subdevdata(&e_ctrl->v4l2_dev_str.sd, NULL);
 	kfree(e_ctrl);
 }
+
+int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
+{
+	int rc = 0;
+
+	soc_info->irq_num = platform_get_irq(soc_info->pdev, 0);
+	if (soc_info->irq_num < 0) {
+		rc = soc_info->irq_num;
+		return rc;
+	}
+
+	return rc;
+}
 #else
 int cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 {
@@ -610,5 +623,21 @@ int cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 	kfree(e_ctrl);
 
 	return 0;
+}
+
+int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
+{
+	int rc = 0;
+
+	soc_info->irq_line =
+		platform_get_resource_byname(soc_info->pdev,
+		IORESOURCE_IRQ, soc_info->irq_name);
+	if (!soc_info->irq_line) {
+		rc = -ENODEV;
+		return rc;
+	}
+	soc_info->irq_num = soc_info->irq_line->start;
+
+	return rc;
 }
 #endif

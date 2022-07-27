@@ -383,7 +383,7 @@ static int cam_cci_irq_routine(struct v4l2_subdev *sd, u32 status,
 	struct cam_hw_soc_info *soc_info =
 		&cci_dev->soc_info;
 
-	ret = cam_cci_irq(soc_info->irq_line->start, cci_dev);
+	ret = cam_cci_irq(soc_info->irq_num, cci_dev);
 	*handled = true;
 	return 0;
 }
