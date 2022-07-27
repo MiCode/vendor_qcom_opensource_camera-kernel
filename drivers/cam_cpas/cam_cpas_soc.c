@@ -837,9 +837,6 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 		goto cleanup_tree;
 	}
 
-	of_property_read_u32(of_node, "qcom,cx-ipeak-gpu-limit",
-		&soc_private->cx_ipeak_gpu_limit);
-
 	return 0;
 
 cleanup_tree:

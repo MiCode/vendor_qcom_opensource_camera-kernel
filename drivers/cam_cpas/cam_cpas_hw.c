@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -1300,26 +1300,6 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 	if (rc)
 		goto remove_ahb_vote;
 
-	if ((soc_private->cx_ipeak_gpu_limit) &&
-		(!cpas_core->streamon_clients)) {
-		soc_private->gpu_pwr_limit =
-			kgsl_pwr_limits_add(KGSL_DEVICE_3D0);
-		if (soc_private->gpu_pwr_limit) {
-			rc = kgsl_pwr_limits_set_gpu_fmax(
-				soc_private->gpu_pwr_limit,
-				soc_private->cx_ipeak_gpu_limit);
-			if (rc) {
-				kgsl_pwr_limits_del(
-					soc_private->gpu_pwr_limit);
-				soc_private->gpu_pwr_limit = NULL;
-				CAM_ERR(CAM_CPAS,
-					"set cx_ipeak_gpu_limit failed, rc %d",
-					rc);
-				goto remove_axi_vote;
-			}
-		}
-	}
-
 	if (cpas_core->streamon_clients == 0) {
 		rc = cam_cpas_util_apply_default_axi_vote(cpas_hw, true);
 		if (rc)
@@ -1486,14 +1466,6 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		CAM_DBG(CAM_CPAS, "Disabled all the resources: irq_count=%d\n",
 			atomic_read(&cpas_core->irq_count));
 		cpas_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
-
-		if (soc_private->cx_ipeak_gpu_limit &&
-			soc_private->gpu_pwr_limit) {
-			kgsl_pwr_limits_set_default(
-				soc_private->gpu_pwr_limit);
-			kgsl_pwr_limits_del(soc_private->gpu_pwr_limit);
-			soc_private->gpu_pwr_limit = NULL;
-		}
 	}
 
 	ahb_vote.type = CAM_VOTE_ABSOLUTE;
