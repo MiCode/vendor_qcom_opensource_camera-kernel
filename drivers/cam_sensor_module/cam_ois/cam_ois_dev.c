@@ -271,8 +271,14 @@ static void cam_ois_i2c_component_unbind(struct device *dev,
 	CAM_INFO(CAM_OIS, "i2c driver remove invoked");
 	soc_info = &o_ctrl->soc_info;
 
-	for (i = 0; i < soc_info->num_clk; i++)
+	for (i = 0; i < soc_info->num_clk; i++) {
+		if (!soc_info->clk[i]) {
+			CAM_DBG(CAM_OIS, "%s handle is NULL skip put",
+				soc_info->clk_name[i]);
+			continue;
+		}
 		devm_clk_put(soc_info->dev, soc_info->clk[i]);
+	}
 
 	mutex_lock(&(o_ctrl->ois_mutex));
 	cam_ois_shutdown(o_ctrl);
@@ -429,8 +435,14 @@ static void cam_ois_component_unbind(struct device *dev,
 
 	CAM_INFO(CAM_OIS, "platform driver remove invoked");
 	soc_info = &o_ctrl->soc_info;
-	for (i = 0; i < soc_info->num_clk; i++)
+	for (i = 0; i < soc_info->num_clk; i++) {
+		if (!soc_info->clk[i]) {
+			CAM_DBG(CAM_OIS, "%s handle is NULL skip put",
+				soc_info->clk_name[i]);
+			continue;
+		}
 		devm_clk_put(soc_info->dev, soc_info->clk[i]);
+	}
 
 	mutex_lock(&(o_ctrl->ois_mutex));
 	cam_ois_shutdown(o_ctrl);

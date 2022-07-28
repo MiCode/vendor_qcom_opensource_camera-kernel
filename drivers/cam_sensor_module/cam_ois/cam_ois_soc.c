@@ -85,11 +85,15 @@ static int cam_ois_get_dt_data(struct cam_ois_ctrl_t *o_ctrl)
 	for (i = 0; i < soc_info->num_clk; i++) {
 		soc_info->clk[i] = devm_clk_get(soc_info->dev,
 			soc_info->clk_name[i]);
-		if (!soc_info->clk[i]) {
-			CAM_ERR(CAM_SENSOR, "get failed for %s",
+		if (IS_ERR(soc_info->clk[i])) {
+			CAM_ERR(CAM_OIS, "get failed for %s",
 				soc_info->clk_name[i]);
 			rc = -ENOENT;
 			return rc;
+		} else if (!soc_info->clk[i]) {
+			CAM_DBG(CAM_OIS, "%s handle is NULL skip get",
+				soc_info->clk_name[i]);
+			continue;
 		}
 	}
 

@@ -381,11 +381,15 @@ int cam_eeprom_parse_dt(struct cam_eeprom_ctrl_t *e_ctrl)
 	for (i = 0; i < soc_info->num_clk; i++) {
 		soc_info->clk[i] = devm_clk_get(soc_info->dev,
 			soc_info->clk_name[i]);
-		if (!soc_info->clk[i]) {
+		if (IS_ERR(soc_info->clk[i])) {
 			CAM_ERR(CAM_EEPROM, "get failed for %s",
 				soc_info->clk_name[i]);
 			rc = -ENOENT;
 			return rc;
+		} else if (!soc_info->clk[i]) {
+			CAM_DBG(CAM_EEPROM, "%s handle is NULL skip get",
+				soc_info->clk_name[i]);
+			continue;
 		}
 	}
 

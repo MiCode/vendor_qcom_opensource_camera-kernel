@@ -875,13 +875,15 @@ static int cam_soc_util_set_clk_rate(struct cam_hw_soc_info *soc_info,
 	long clk_rate_round = -1;
 	bool set_rate = false;
 
-	if (!clk || !clk_name) {
+	if (!clk_name) {
 		CAM_ERR(CAM_UTIL, "Invalid input clk %pK clk_name %pK",
 			clk, clk_name);
 		return -EINVAL;
 	}
 
 	CAM_DBG(CAM_UTIL, "set %s, rate %lld", clk_name, clk_rate);
+	if (!clk)
+		return 0;
 	if (clk_rate > 0) {
 		clk_rate_round = clk_round_rate(clk, clk_rate);
 		CAM_DBG(CAM_UTIL, "new_rate %ld", clk_rate_round);
@@ -1231,7 +1233,8 @@ int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info,
 		if (clk_idx == soc_info->src_clk_idx)
 			is_src_clk = true;
 	}
-
+	if (!clk)
+		return 0;
 	rc = cam_soc_util_set_clk_rate(soc_info, clk, clk_name, clk_rate,
 		CAM_IS_BIT_SET(shared_clk_mask, clk_idx), is_src_clk, clk_id,
 		applied_clock_rate);
@@ -1274,6 +1277,8 @@ int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info,
 	}
 
 	CAM_DBG(CAM_UTIL, "disable %s", clk_name);
+	if (!clk)
+		return 0;
 	clk_disable_unprepare(clk);
 
 	if (CAM_IS_BIT_SET(shared_clk_mask, clk_idx)) {
@@ -2660,11 +2665,15 @@ int cam_soc_util_request_platform_resource(
 	for (i = 0; i < soc_info->num_clk; i++) {
 		soc_info->clk[i] = clk_get(soc_info->dev,
 			soc_info->clk_name[i]);
-		if (!soc_info->clk[i]) {
+		if (IS_ERR(soc_info->clk[i])) {
 			CAM_ERR(CAM_UTIL, "get failed for %s",
 				soc_info->clk_name[i]);
 			rc = -ENOENT;
 			goto put_clk;
+		} else if (!soc_info->clk[i]) {
+			CAM_DBG(CAM_UTIL, "%s handle is NULL skip get",
+				soc_info->clk_name[i]);
+			continue;
 		}
 
 		/* Create a wrapper entry if this is a shared clock */
@@ -2796,7 +2805,11 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 		if (CAM_IS_BIT_SET(soc_info->shared_clk_mask, i))
 			cam_soc_util_clk_wrapper_unregister_entry(
 				soc_info->clk_id[i], soc_info);
-
+		if (!soc_info->clk[i]) {
+			CAM_DBG(CAM_UTIL, "%s handle is NULL skip put",
+				soc_info->clk_name[i]);
+			continue;
+		}
 		clk_put(soc_info->clk[i]);
 		soc_info->clk[i] = NULL;
 	}

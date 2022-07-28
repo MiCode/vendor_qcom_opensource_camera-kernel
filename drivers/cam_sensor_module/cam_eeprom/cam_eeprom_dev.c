@@ -306,8 +306,14 @@ static void cam_eeprom_i2c_component_unbind(struct device *dev,
 
 	CAM_INFO(CAM_EEPROM, "i2c driver remove invoked");
 	soc_info = &e_ctrl->soc_info;
-	for (i = 0; i < soc_info->num_clk; i++)
+	for (i = 0; i < soc_info->num_clk; i++) {
+		if (!soc_info->clk[i]) {
+			CAM_DBG(CAM_EEPROM, "%s handle is NULL skip put",
+				soc_info->clk_name[i]);
+			continue;
+		}
 		devm_clk_put(soc_info->dev, soc_info->clk[i]);
+	}
 
 	mutex_lock(&(e_ctrl->eeprom_mutex));
 	cam_eeprom_shutdown(e_ctrl);
@@ -555,8 +561,14 @@ static void cam_eeprom_component_unbind(struct device *dev,
 	CAM_DBG(CAM_EEPROM, "Component unbind called for: %s", pdev->name);
 	soc_info = &e_ctrl->soc_info;
 
-	for (i = 0; i < soc_info->num_clk; i++)
+	for (i = 0; i < soc_info->num_clk; i++) {
+		if (!soc_info->clk[i]) {
+			CAM_DBG(CAM_EEPROM, "%s handle is NULL skip put",
+				soc_info->clk_name[i]);
+			continue;
+		}
 		devm_clk_put(soc_info->dev, soc_info->clk[i]);
+	}
 
 	mutex_lock(&(e_ctrl->eeprom_mutex));
 	cam_eeprom_shutdown(e_ctrl);
