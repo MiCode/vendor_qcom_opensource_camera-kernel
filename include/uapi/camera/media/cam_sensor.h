@@ -32,6 +32,13 @@
 #define CAM_CSIPHY_CDR_ADD_TOLERANCE               1
 #define CAM_CSIPHY_CDR_SUB_TOLERANCE               2
 
+/* SENSOR driver cmd buffer meta types */
+#define CAM_SENSOR_PACKET_I2C_COMMANDS             0
+#define CAM_SENSOR_PACKET_GENERIC_BLOB             1
+
+/* SENSOR blob types */
+#define CAM_SENSOR_GENERIC_BLOB_RES_INFO           0
+
 enum camera_sensor_cmd_type {
 	CAMERA_SENSOR_CMD_TYPE_INVALID,
 	CAMERA_SENSOR_CMD_TYPE_PROBE,
@@ -292,6 +299,36 @@ struct cam_cmd_i2c_info {
 	__u8     i2c_freq_mode;
 	__u8     cmd_type;
 	__u16    reserved;
+} __attribute__((packed));
+
+/**
+ * struct cam_cmd_sensor_res_info - Contains sensor res info
+ *
+ * res_index is the key property, it specifies the
+ * combinations of other properties enclosed in this
+ * structure.
+ *
+ * @res_index        : The resolution index that gets updated
+ *                     during a mode switch
+ * @fps              : Frame rate
+ * @width            : Pixel width to output to csiphy
+ * @height           : Pixel height to output to csiphy
+ * @caps             : Specifies capability sensor is configured
+ *                     for, (eg, XCFA, HFR), num_exposures and
+ *                     PDAF type
+ * @num_valid_params : Number of valid params
+ * @valid_param_mask : Valid param mask
+ * @params           : params
+ */
+struct cam_sensor_res_info {
+	__u16 res_index;
+	__u32 fps;
+	__u32 width;
+	__u32 height;
+	char  caps[64];
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u16 params[3];
 } __attribute__((packed));
 
 /**
