@@ -84,15 +84,15 @@ struct cam_icp_boot_args {
  * struct cam_icp_clk_update_cmd - Payload for hw manager command
  *
  * @curr_clk_rate:        clk rate to HW
- * @ipe_bps_pc_enable     power collpase enable flag
  * @clk_level:            clk level corresponding to the clk rate
  *                        populated as output while the clk is being
  *                        updated to the given rate
+ * @dev_pc_enable:        power collpase enable flag
  */
 struct cam_icp_clk_update_cmd {
 	uint32_t  curr_clk_rate;
-	bool  ipe_bps_pc_enable;
 	int32_t clk_level;
+	bool  dev_pc_enable;
 };
 
 #endif

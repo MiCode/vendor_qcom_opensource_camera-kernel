@@ -151,7 +151,7 @@ struct clk_work_data {
 struct icp_frame_info {
 	uint64_t request_id;
 	dma_addr_t io_config;
-	struct hfi_cmd_ipebps_async hfi_cfg_io_cmd;
+	struct hfi_cmd_dev_async hfi_cfg_io_cmd;
 	struct cam_packet *pkt;
 };
 
@@ -218,7 +218,7 @@ struct cam_icp_ctx_perf_stats {
  * @hangdump_mem_regions: Mem regions for hangdump
  */
 struct hfi_frame_process_info {
-	struct hfi_cmd_ipebps_async hfi_frame_cmd[CAM_FRAME_CMD_MAX];
+	struct hfi_cmd_dev_async hfi_frame_cmd[CAM_FRAME_CMD_MAX];
 	void *bitmap;
 	size_t bits;
 	struct mutex lock;
@@ -302,7 +302,7 @@ struct cam_icp_hw_ctx_data {
 	struct cam_icp_hw_ctx_data *chain_ctx;
 	struct hfi_frame_process_info hfi_frame_process;
 	struct completion wait_complete;
-	struct ipe_bps_destroy temp_payload;
+	struct icp_dev_destroy temp_payload;
 	uint32_t ctx_id;
 	uint32_t bw_config_version;
 	struct cam_ctx_clk_info clk_info;
@@ -386,7 +386,7 @@ struct cam_icp_clk_info {
  * @bps_ctxt_cnt: BPS Active context count
  * @dentry: Debugfs entry
  * @icp_pc_flag: Flag to enable/disable power collapse
- * @ipe_bps_pc_flag: Flag to enable/disable
+ * @dev_pc_flag: Flag to enable/disable
  *                   power collapse for ipe & bps
  * @icp_use_pil: Flag to indicate usage of PIL framework
  * @icp_debug_clk: Set clock based on debug value
@@ -441,7 +441,7 @@ struct cam_icp_hw_mgr {
 	uint32_t bps_ctxt_cnt;
 	struct dentry *dentry;
 	bool icp_pc_flag;
-	bool ipe_bps_pc_flag;
+	bool dev_pc_flag;
 	bool icp_use_pil;
 	uint64_t icp_debug_clk;
 	uint64_t icp_default_clk;
@@ -537,7 +537,7 @@ struct cam_icp_hw_ctx_mini_dump {
  * @ipe1_enable: Is IPE1 enabled
  * @bps_enable:  Is BPS enabled
  * @icp_pc_flag: Is ICP PC enabled
- * @ipe_bps_pc_flag: Is IPE BPS PC enabled
+ * @dev_pc_flag: Is IPE BPS PC enabled
  * @icp_use_pil: Is PIL used
  */
 struct cam_icp_hw_mini_dump_info {
@@ -556,7 +556,7 @@ struct cam_icp_hw_mini_dump_info {
 	bool                               ipe1_enable;
 	bool                               bps_enable;
 	bool                               icp_pc_flag;
-	bool                               ipe_bps_pc_flag;
+	bool                               dev_pc_flag;
 	bool                               icp_use_pil;
 };
 

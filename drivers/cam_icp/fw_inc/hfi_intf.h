@@ -149,14 +149,14 @@ int hfi_set_fw_dump_level(uint32_t lvl);
 int hfi_send_freq_info(int32_t freq);
 
 /**
- * hfi_enable_ipe_bps_pc() - Enable interframe pc
+ * hfi_enable_dev_pc() - Enable interframe pc
  * Host sends a command to firmware to enable interframe
- * power collapse for IPE and BPS hardware.
+ * power collapse for ICP's controlled hardware.
  *
  * @enable: flag to enable/disable
  * @core_info: Core information to firmware
  */
-int hfi_enable_ipe_bps_pc(bool enable, uint32_t core_info);
+int hfi_enable_dev_pc(bool enable, uint32_t core_info);
 
 /**
  * hfi_cmd_ubwc_config_ext() - UBWC configuration to firmware

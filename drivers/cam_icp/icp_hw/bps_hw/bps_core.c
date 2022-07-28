@@ -430,7 +430,7 @@ int cam_bps_process_cmd(void *device_priv, uint32_t cmd_type,
 		CAM_DBG(CAM_PERF, "bps_src_clk rate = %d", (int)clk_rate);
 
 		if (!core_info->clk_enable) {
-			if (clk_upd_cmd->ipe_bps_pc_enable) {
+			if (clk_upd_cmd->dev_pc_enable) {
 				cam_bps_handle_pc(bps_dev);
 				cam_cpas_reg_write(core_info->cpas_handle,
 					CAM_CPAS_REG_CPASTOP,
@@ -441,7 +441,7 @@ int cam_bps_process_cmd(void *device_priv, uint32_t cmd_type,
 				CAM_ERR(CAM_ICP, "Enable failed");
 			else
 				core_info->clk_enable = true;
-			if (clk_upd_cmd->ipe_bps_pc_enable) {
+			if (clk_upd_cmd->dev_pc_enable) {
 				rc = cam_bps_handle_resume(bps_dev);
 				if (rc)
 					CAM_ERR(CAM_ICP, "BPS resume failed");

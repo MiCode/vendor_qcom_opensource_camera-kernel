@@ -421,14 +421,14 @@ int hfi_cmd_ubwc_config_ext(uint32_t *ubwc_ipe_cfg,
 }
 
 
-int hfi_enable_ipe_bps_pc(bool enable, uint32_t core_info)
+int hfi_enable_dev_pc(bool enable, uint32_t core_info)
 {
 	uint8_t *prop;
 	struct hfi_cmd_prop *dbg_prop;
 	uint32_t size = 0;
 
 	size = sizeof(struct hfi_cmd_prop) +
-		sizeof(struct hfi_ipe_bps_pc);
+		sizeof(struct hfi_dev_pc);
 
 	prop = kzalloc(size, GFP_KERNEL);
 	if (!prop)

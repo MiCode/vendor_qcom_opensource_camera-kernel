@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- *  Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _HFI_DEFS_H_
@@ -278,12 +279,12 @@ struct hfi_debug {
 } __packed;
 
 /**
- * struct hfi_ipe_bps_pc
- * payload structure to configure HFI_PROPERTY_SYS_IPEBPS_PC
+ * struct hfi_dev_pc
+ * payload structure to configure HFI_PROPERTY_SYS_DEV_PC
  * @enable: Flag to enable IPE, BPS interfrane power collapse
  * @core_info: Core information to firmware
  */
-struct hfi_ipe_bps_pc {
+struct hfi_dev_pc {
 	uint32_t enable;
 	uint32_t core_info;
 } __packed;
