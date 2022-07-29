@@ -41,5 +41,10 @@ int cam_csid_ppi100_init_module(void)
 	return platform_driver_register(&cam_csid_ppi100_driver);
 }
 
+void cam_csid_ppi100_exit_module(void)
+{
+	platform_driver_unregister(&cam_csid_ppi100_driver);
+}
+
 MODULE_DESCRIPTION("CAM CSID_PPI100 driver");
 MODULE_LICENSE("GPL v2");

@@ -48,6 +48,11 @@
 #include "cam_custom_sub_mod_dev.h"
 
 #include "cam_debug_util.h"
+#include "ope_dev_intf.h"
+#include "cam_csid_ppi100.h"
+#include "cam_tfe_dev.h"
+#include "cam_tfe_csid530.h"
+#include "cam_top_tpg_v1.h"
 
 struct camera_submodule_component {
 	int (*init)(void);
@@ -69,8 +74,17 @@ static const struct camera_submodule_component camera_base[] = {
 	{&cam_hw_cdm_init_module, &cam_hw_cdm_exit_module},
 };
 
+static const struct camera_submodule_component camera_tfe[] = {
+#ifdef CONFIG_SPECTRA_TFE
+	{&cam_csid_ppi100_init_module, &cam_csid_ppi100_exit_module},
+	{&cam_tfe_init_module, &cam_tfe_exit_module},
+	{&cam_tfe_csid530_init_module, &cam_tfe_csid530_exit_module},
+#endif
+};
+
 static const struct camera_submodule_component camera_isp[] = {
 #ifdef CONFIG_SPECTRA_ISP
+	{&cam_top_tpg_v1_init_module, &cam_top_tpg_v1_exit_module},
 	{&cam_isp_dev_init_module, &cam_isp_dev_exit_module},
 #endif
 };
@@ -96,6 +110,13 @@ static const struct camera_submodule_component camera_icp[] = {
 	{&cam_ipe_init_module, &cam_ipe_exit_module},
 	{&cam_bps_init_module, &cam_bps_exit_module},
 	{&cam_icp_init_module, &cam_icp_exit_module},
+#endif
+};
+
+static const struct camera_submodule_component camera_ope[] = {
+#ifdef CONFIG_SPECTRA_OPE
+	{&cam_ope_init_module, &cam_ope_exit_module},
+	{&cam_ope_subdev_init_module, &cam_ope_subdev_exit_module},
 #endif
 };
 
@@ -136,6 +157,11 @@ static const struct camera_submodule submodule_table[] = {
 		.component = camera_base,
 	},
 	{
+		.name = "Camera TFE",
+		.num_component = ARRAY_SIZE(camera_tfe),
+		.component = camera_tfe,
+	},
+	{
 		.name = "Camera ISP",
 		.num_component = ARRAY_SIZE(camera_isp),
 		.component = camera_isp,
@@ -149,6 +175,11 @@ static const struct camera_submodule submodule_table[] = {
 		.name = "Camera ICP",
 		.num_component = ARRAY_SIZE(camera_icp),
 		.component = camera_icp,
+	},
+	{
+		.name = "Camera OPE",
+		.num_component = ARRAY_SIZE(camera_ope),
+		.component = camera_ope,
 	},
 	{
 		.name = "Camera JPEG",

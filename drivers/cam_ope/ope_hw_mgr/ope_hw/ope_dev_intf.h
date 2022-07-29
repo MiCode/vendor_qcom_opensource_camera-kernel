@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_OPE_DEV_INTF_H
@@ -166,6 +167,12 @@ int cam_ope_bus_rd_process(struct ope_hw *ope_hw_info,
 
 int cam_ope_bus_wr_process(struct ope_hw *ope_hw_info,
 	int32_t ctx_id, uint32_t cmd_id, void *data);
+
+int cam_ope_init_module(void);
+void cam_ope_exit_module(void);
+
+int cam_ope_subdev_init_module(void);
+void cam_ope_subdev_exit_module(void);
 
 #endif /* CAM_OPE_DEV_INTF_H */
 
