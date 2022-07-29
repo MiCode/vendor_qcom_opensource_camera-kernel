@@ -22,6 +22,10 @@ ifeq ($(CONFIG_ARCH_BENGAL), y)
 include $(CAMERA_KERNEL_ROOT)/config/holi.mk
 endif
 
+ifeq ($(CONFIG_ARCH_KHAJE), y)
+include $(CAMERA_KERNEL_ROOT)/config/holi.mk
+endif
+
 ifeq ($(CONFIG_ARCH_HOLI), y)
 include $(CAMERA_KERNEL_ROOT)/config/holi.mk
 endif
@@ -94,41 +98,11 @@ camera-$(CONFIG_SPECTRA_ISP) += \
 	drivers/cam_isp/isp_hw_mgr/hw_utils/cam_tasklet_util.o \
 	drivers/cam_isp/isp_hw_mgr/hw_utils/cam_isp_packet_parser.o \
 	drivers/cam_isp/isp_hw_mgr/hw_utils/irq_controller/cam_irq_controller.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_dev.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_soc.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_common.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_hw_ver1.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_hw_ver2.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_mod.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_lite_mod.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_soc.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_dev.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_core.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_bus/cam_vfe_bus.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_bus/cam_vfe_bus_ver2.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_bus/cam_vfe_bus_rd_ver1.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_bus/cam_vfe_bus_ver3.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_camif_lite_ver2.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_top.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_top_common.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_top_ver4.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_top_ver3.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_top_ver2.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_camif_ver2.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_camif_ver3.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_rdi.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_fe_ver1.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe_top/cam_vfe_camif_lite_ver3.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe17x/cam_vfe.o \
 	drivers/cam_isp/isp_hw_mgr/isp_hw/top_tpg/cam_top_tpg_dev.o \
 	drivers/cam_isp/isp_hw_mgr/isp_hw/top_tpg/cam_top_tpg_soc.o \
 	drivers/cam_isp/isp_hw_mgr/isp_hw/top_tpg/cam_top_tpg_core.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/top_tpg/cam_top_tpg_ver1.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/top_tpg/cam_top_tpg_ver2.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/top_tpg/cam_top_tpg_ver3.o \
-	drivers/cam_isp/isp_hw_mgr/isp_hw/top_tpg/cam_top_tpg.o \
+	drivers/cam_isp/isp_hw_mgr/isp_hw/top_tpg/cam_top_tpg_v1.o \
 	drivers/cam_isp/isp_hw_mgr/cam_isp_hw_mgr.o \
-	drivers/cam_isp/isp_hw_mgr/cam_ife_hw_mgr.o \
 	drivers/cam_isp/cam_isp_dev.o \
 	drivers/cam_isp/cam_isp_context.o
 
