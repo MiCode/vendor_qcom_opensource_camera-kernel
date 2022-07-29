@@ -1749,7 +1749,7 @@ static int cam_ope_mgr_create_kmd_buf(struct cam_ope_hw_mgr *hw_mgr,
 	prepare_req.frame_process =
 		(struct ope_frame_process *)ope_cmd_buf_addr;
 
-	for (i = 0; i < ope_hw_mgr->num_ope; i++)
+	for (i = 0; i < ope_hw_mgr->num_ope; i++) {
 		rc = hw_mgr->ope_dev_intf[i]->hw_ops.process_cmd(
 			hw_mgr->ope_dev_intf[i]->hw_priv,
 			OPE_HW_PREPARE, &prepare_req, sizeof(prepare_req));
@@ -1757,6 +1757,7 @@ static int cam_ope_mgr_create_kmd_buf(struct cam_ope_hw_mgr *hw_mgr,
 			CAM_ERR(CAM_OPE, "OPE Dev prepare failed: %d", rc);
 			goto end;
 		}
+	}
 
 end:
 	return rc;
@@ -2761,9 +2762,9 @@ static int cam_ope_mgr_acquire_hw(void *hw_priv, void *hw_acquire_args)
 	ctx->ctxt_event_cb = args->event_cb;
 	cam_ope_ctx_clk_info_init(ctx);
 	ctx->ctx_state = OPE_CTX_STATE_ACQUIRED;
-	kzfree(cdm_acquire);
+	cam_free_clear((void *)cdm_acquire);
 	cdm_acquire = NULL;
-	kzfree(bw_update);
+	cam_free_clear((void *)bw_update);
 	bw_update = NULL;
 
 	mutex_unlock(&ctx->ctx_mutex);
@@ -3963,28 +3964,17 @@ static int cam_ope_create_debug_fs(void)
 		return -ENOMEM;
 	}
 
-	if (!debugfs_create_bool("frame_dump_enable",
+	debugfs_create_bool("frame_dump_enable",
 		0644,
 		ope_hw_mgr->dentry,
-		&ope_hw_mgr->frame_dump_enable)) {
-		CAM_ERR(CAM_OPE,
-			"failed to create dump_enable_debug");
-		goto err;
-	}
+		&ope_hw_mgr->frame_dump_enable);
 
-	if (!debugfs_create_bool("dump_req_data_enable",
+	debugfs_create_bool("dump_req_data_enable",
 		0644,
 		ope_hw_mgr->dentry,
-		&ope_hw_mgr->dump_req_data_enable)) {
-		CAM_ERR(CAM_OPE,
-			"failed to create dump_enable_debug");
-		goto err;
-	}
+		&ope_hw_mgr->dump_req_data_enable);
 
 	return 0;
-err:
-	debugfs_remove_recursive(ope_hw_mgr->dentry);
-	return -ENOMEM;
 }
 
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -659,12 +660,6 @@ void cam_video_device_cleanup(void)
 	video_device_release(g_dev.video);
 	g_dev.video = NULL;
 }
-
-void cam_register_subdev_fops(struct v4l2_file_operations *fops)
-{
-	*fops = v4l2_subdev_fops;
-}
-EXPORT_SYMBOL(cam_register_subdev_fops);
 
 void cam_subdev_notify_message(u32 subdev_type,
 		enum cam_subdev_message_type_t message_type,

@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_MGR_H_
 #define _CAM_ISP_HW_MGR_H_
 
-#include <uapi/media/cam_defs.h>
+#include <media/cam_defs.h>
 #include "cam_isp_hw_mgr_intf.h"
 #include "cam_tasklet_util.h"
 #include "cam_isp_hw.h"

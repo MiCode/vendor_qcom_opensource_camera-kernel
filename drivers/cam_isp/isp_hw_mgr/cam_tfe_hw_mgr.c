@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/debugfs.h>
-#include <soc/qcom/scm.h>
 #include <media/cam_tfe.h>
 
 #include "cam_smmu_api.h"
@@ -5478,15 +5478,15 @@ static int cam_tfe_hw_mgr_debug_register(void)
 
 	dbgfileptr = debugfs_create_file("tfe_csid_debug", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry, NULL, &cam_tfe_csid_debug);
-	dbgfileptr = debugfs_create_u32("enable_recovery", 0644,
+	debugfs_create_u32("enable_recovery", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
 		&g_tfe_hw_mgr.debug_cfg.enable_recovery);
-	dbgfileptr = debugfs_create_u32("enable_reg_dump", 0644,
+	debugfs_create_u32("enable_reg_dump", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
 		&g_tfe_hw_mgr.debug_cfg.enable_reg_dump);
 	dbgfileptr = debugfs_create_file("tfe_camif_debug", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry, NULL, &cam_tfe_camif_debug);
-	dbgfileptr = debugfs_create_u32("per_req_reg_dump", 0644,
+	debugfs_create_u32("per_req_reg_dump", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
 		&g_tfe_hw_mgr.debug_cfg.per_req_reg_dump);
 	if (IS_ERR(dbgfileptr)) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -350,7 +351,8 @@ int cam_ope_top_process(struct ope_hw *ope_hw_info,
 		rc = cam_ope_top_reset(ope_hw_info, 0, 0);
 		break;
 	case OPE_HW_DUMP_DEBUG:
-		rc - cam_ope_top_dump_debug_reg(ope_hw_info);
+		rc = cam_ope_top_dump_debug_reg(ope_hw_info);
+		break;
 	default:
 		break;
 	}

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/build_bug.h>
@@ -68,9 +69,6 @@ static const struct camera_submodule_component camera_base[] = {
 
 static const struct camera_submodule_component camera_isp[] = {
 #if IS_ENABLED(CONFIG_SPECTRA_ISP)
-	{&cam_ife_csid17x_init_module, &cam_ife_csid17x_exit_module},
-	{&cam_ife_csid_lite_init_module, &cam_ife_csid_lite_exit_module},
-	{&cam_vfe_init_module, &cam_vfe_exit_module},
 	{&cam_isp_dev_init_module, &cam_isp_dev_exit_module},
 #endif
 };

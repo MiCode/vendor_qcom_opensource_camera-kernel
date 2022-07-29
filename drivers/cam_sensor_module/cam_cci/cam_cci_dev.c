@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_cci_dev.h"
@@ -366,34 +367,6 @@ static const struct v4l2_subdev_ops cci_subdev_ops = {
 };
 
 static const struct v4l2_subdev_internal_ops cci_subdev_intern_ops;
-
-static struct v4l2_file_operations cci_v4l2_subdev_fops;
-
-static long cam_cci_subdev_do_ioctl(
-	struct file *file, unsigned int cmd, void *arg)
-{
-	struct video_device *vdev = video_devdata(file);
-	struct v4l2_subdev *sd = vdev_to_v4l2_subdev(vdev);
-
-	return cam_cci_subdev_ioctl(sd, cmd, NULL);
-}
-
-static long cam_cci_subdev_fops_ioctl(struct file *file, unsigned int cmd,
-	unsigned long arg)
-{
-	return video_usercopy(file, cmd, arg, cam_cci_subdev_do_ioctl);
-}
-
-#ifdef CONFIG_COMPAT
-static long cam_cci_subdev_fops_compat_ioctl(struct file *file,
-	unsigned int cmd, unsigned long arg)
-{
-	struct video_device *vdev = video_devdata(file);
-	struct v4l2_subdev *sd = vdev_to_v4l2_subdev(vdev);
-
-	return v4l2_subdev_call(sd, core, ioctl, cmd, NULL);
-}
-#endif
 
 static int cam_cci_get_debug(void *data, u64 *val)
 {

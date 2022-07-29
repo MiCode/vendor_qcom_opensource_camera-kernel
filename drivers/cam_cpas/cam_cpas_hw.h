@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_HW_H_
@@ -137,6 +138,7 @@ struct cam_cpas_bus_client {
 /**
  * struct cam_cpas_axi_port : AXI port information
  *
+ * @axi_port_name: Name of this AXI port
  * @bus_client: bus client info for this port
  * @ib_bw_voting_needed: if this port can update ib bw dynamically
  * @axi_port_node: Node representing AXI Port info in device tree
@@ -148,6 +150,7 @@ struct cam_cpas_bus_client {
  * @applied_ib_bw: applied ib bw for this port
  */
 struct cam_cpas_axi_port {
+	const char *axi_port_name;
 	struct cam_cpas_bus_client bus_client;
 	bool ib_bw_voting_needed;
 	struct device_node *axi_port_node;
