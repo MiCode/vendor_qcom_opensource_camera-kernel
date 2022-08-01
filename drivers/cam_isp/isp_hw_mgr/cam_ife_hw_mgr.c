@@ -3528,8 +3528,8 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 	bool                                 is_ipp,
 	bool                                 crop_enable)
 {
-	int rc = -1;
-	int i;
+	int rc = -1, i;
+	bool no_res_acquired = true;
 	struct cam_isp_out_port_generic_info     *out_port = NULL;
 	struct cam_ife_hw_mgr                    *ife_hw_mgr;
 	struct cam_isp_hw_mgr_res                *csid_res;
@@ -3569,6 +3569,7 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 	}
 
 	CAM_DBG(CAM_ISP, "CSID Acq: E");
+	cam_ife_hw_mgr_put_res(&ife_ctx->res_list_ife_csid, &csid_res);
 
 	/* for dual ife, acquire the right ife first */
 	for (i = csid_res->is_dual_isp; i >= 0 ; i--) {
@@ -3604,6 +3605,7 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 			goto put_res;
 		}
 
+		no_res_acquired = false;
 		csid_res->hw_res[i] = csid_acquire.node_res;
 		hw_intf = csid_res->hw_res[i]->hw_intf;
 
@@ -3622,7 +3624,6 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 			(i == 0) ? "left" : "right", hw_intf->hw_idx,
 			(is_ipp) ? "IPP" : "PPP");
 	}
-	cam_ife_hw_mgr_put_res(&ife_ctx->res_list_ife_csid, &csid_res);
 
 	if (!is_ipp)
 		goto end;
@@ -3659,7 +3660,8 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 
 	return 0;
 put_res:
-	cam_ife_hw_mgr_put_res(&ife_ctx->free_res_list, &csid_res);
+	if (no_res_acquired)
+		cam_ife_hw_mgr_put_res(&ife_ctx->free_res_list, &csid_res);
 end:
 	return rc;
 }
