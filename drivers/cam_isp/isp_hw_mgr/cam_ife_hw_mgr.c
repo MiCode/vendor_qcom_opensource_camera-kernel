@@ -6450,6 +6450,14 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 					ctx->curr_num_exp = hw_update_data->num_exp;
 				}
 				hw_update_data->mup_en = false;
+
+				/* Try for INIT packet reg dump by default - no debugfs set */
+				if (cfg->init_packet && !g_ife_hw_mgr.debug_cfg.per_req_reg_dump)
+					cam_ife_mgr_handle_reg_dump(ctx,
+						hw_update_data->reg_dump_buf_desc,
+						hw_update_data->num_reg_dump_buf,
+						CAM_ISP_PACKET_META_REG_DUMP_PER_REQUEST,
+						NULL, false);
 			}
 		}
 
