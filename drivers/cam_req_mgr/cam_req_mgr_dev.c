@@ -33,6 +33,7 @@
 #include "camera_main.h"
 
 #define CAM_REQ_MGR_EVENT_MAX 30
+#define CAM_I3C_MASTER_COMPAT "qcom,geni-i3c"
 
 static struct cam_req_mgr_device g_dev;
 struct kmem_cache *g_cam_req_mgr_timer_cachep;
@@ -42,6 +43,15 @@ DECLARE_RWSEM(rwsem_lock);
 
 static struct device_attribute camera_debug_sysfs_attr =
 	__ATTR(debug_node, 0600, NULL, cam_debug_sysfs_node_store);
+
+static const struct of_device_id cam_sensor_module_dt_match[] = {
+	{.compatible = "qcom,cam-sensor"},
+	{ .compatible = "qcom,eeprom" },
+	{.compatible = "qcom,actuator"},
+	{ .compatible = "qcom,ois" },
+	{.compatible = "qcom,camera-flash", .data = NULL},
+	{}
+};
 
 static int cam_media_device_setup(struct device *dev)
 {
@@ -1089,6 +1099,17 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 				rc = -EPROBE_DEFER;
 				goto end;
 			}
+		}
+	}
+
+	np = NULL;
+	while ((np = of_find_compatible_node(np, NULL, CAM_I3C_MASTER_COMPAT))) {
+		rc = of_platform_populate(np, cam_sensor_module_dt_match, NULL, NULL);
+		if (rc) {
+			CAM_ERR(CAM_CRM,
+				"Failed to populate child nodes as platform devices for parent: %s, rc=%d",
+				np->full_name, rc);
+			goto end;
 		}
 	}
 
