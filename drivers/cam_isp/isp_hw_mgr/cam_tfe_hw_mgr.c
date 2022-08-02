@@ -5475,12 +5475,19 @@ static int cam_tfe_hw_mgr_debug_register(void)
 	}
 	/* Store parent inode for cleanup in caller */
 	g_tfe_hw_mgr.debug_cfg.dentry = dbgfileptr;
+	g_tfe_hw_mgr.debug_cfg.set_tpg_pattern = CAM_TOP_TPG_DEFAULT_PATTERN;
 
 	dbgfileptr = debugfs_create_file("tfe_csid_debug", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry, NULL, &cam_tfe_csid_debug);
 	debugfs_create_u32("enable_recovery", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
 		&g_tfe_hw_mgr.debug_cfg.enable_recovery);
+	debugfs_create_u32("enable_csid_recovery", 0644,
+		g_tfe_hw_mgr.debug_cfg.dentry,
+		&g_tfe_hw_mgr.debug_cfg.enable_csid_recovery);
+	debugfs_create_u32("set_tpg_pattern" ,0644,
+		g_tfe_hw_mgr.debug_cfg.dentry,
+		&g_tfe_hw_mgr.debug_cfg.set_tpg_pattern);
 	debugfs_create_u32("enable_reg_dump", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
 		&g_tfe_hw_mgr.debug_cfg.enable_reg_dump);

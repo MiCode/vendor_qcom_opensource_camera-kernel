@@ -186,6 +186,11 @@ static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 	int rc = 0;
 	struct dentry *dbgfileptr = NULL;
 
+	if (!soc_info) {
+		CAM_ERR(CAM_UTIL, "soc info is NULL");
+		return -EINVAL;
+	}
+
 	if (!soc_info->dentry) {
 		CAM_DBG(CAM_UTIL, "Debugfs entry for %s already exist",
 			soc_info->dev_name);
@@ -215,6 +220,9 @@ static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 		else
 			rc = PTR_ERR(dbgfileptr);
 	}
+
+	CAM_DBG(CAM_UTIL, "clk lvl debugfs for %s successfully created",
+		soc_info->dev_name);
 end:
 	return rc;
 }
@@ -232,6 +240,7 @@ static void cam_soc_util_remove_clk_lvl_debugfs(
 	struct cam_hw_soc_info *soc_info)
 {
 	debugfs_remove_recursive(soc_info->dentry);
+	soc_info->dentry = NULL;
 }
 
 int cam_soc_util_get_level_from_string(const char *string,

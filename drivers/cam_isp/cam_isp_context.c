@@ -5000,6 +5000,10 @@ static int cam_isp_context_debug_register(void)
 
 	debugfs_create_u32("enable_state_monitor_dump", 0644,
 		isp_ctx_debug.dentry, &isp_ctx_debug.enable_state_monitor_dump);
+
+	debugfs_create_u8("enable_cdm_cmd_buffer_dump", 0644,
+		isp_ctx_debug.dentry, &isp_ctx_debug.enable_cdm_cmd_buff_dump);
+
 	if (IS_ERR(dbgfileptr)) {
 		if (PTR_ERR(dbgfileptr) == -ENODEV)
 			CAM_WARN(CAM_ICP, "DebugFS not enabled in kernel!");

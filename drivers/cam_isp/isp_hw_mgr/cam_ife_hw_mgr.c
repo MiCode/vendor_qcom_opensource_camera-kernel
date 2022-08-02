@@ -6887,12 +6887,12 @@ static int cam_ife_hw_mgr_debug_register(void)
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_csid_debug);
 	debugfs_create_u32("enable_recovery", 0644, g_ife_hw_mgr.debug_cfg.dentry,
 		&g_ife_hw_mgr.debug_cfg.enable_recovery);
+	debugfs_create_u32("enable_csid_recovery", 0644,
+		g_ife_hw_mgr.debug_cfg.dentry,
+	&g_ife_hw_mgr.debug_cfg.enable_csid_recovery);
 	debugfs_create_bool("enable_req_dump", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry,
 		&g_ife_hw_mgr.debug_cfg.enable_req_dump);
-	debugfs_create_u32("enable_csid_recovery", 0644,
-		g_ife_hw_mgr.debug_cfg.dentry,
-		&g_ife_hw_mgr.debug_cfg.enable_csid_recovery);
 	debugfs_create_file("ife_camif_debug", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_camif_debug);
 	debugfs_create_bool("per_req_reg_dump", 0644,
