@@ -3812,11 +3812,17 @@ static int cam_ife_csid_ver2_enable_path(
 		return -EINVAL;
 	}
 
-	val |= cam_io_r_mb(mem_base + ctrl_addr);
+	/* For single CSID use-cases with lcr configure global resume */
+	if (csid_hw->flags.rdi_lcr_en && !csid_hw->top_cfg.dual_en)
+		val |= path_reg->start_mode_global << path_reg->start_mode_shift;
+	else
+		/* For dual preserve the master-slave config for IPP/PPP */
+		val |= cam_io_r_mb(mem_base + ctrl_addr);
+
 	cam_io_w_mb(val, mem_base + ctrl_addr);
 
-	CAM_DBG(CAM_ISP, "CSID[%u] start cmd programmed for res: %s",
-		csid_hw->hw_intf->hw_idx, res->res_name);
+	CAM_DBG(CAM_ISP, "CSID[%u] start cmd: 0x%x programmed for res: %s",
+		csid_hw->hw_intf->hw_idx, val, res->res_name);
 end:
 	/* Change state even if we don't configure start cmd */
 	res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
@@ -4620,9 +4626,8 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	struct cam_hw_soc_info                *soc_info;
 	struct cam_hw_info                    *hw_info;
 	uint32_t                               rup_aup_mask = 0;
-	uint32_t                               enabled_res_mask = 0;
 	int                                    rc = 0, i;
-	bool                                   delay_ppp_enable = false;
+	bool                                   delay_rdi0_enable = false;
 
 	if (!hw_priv || !args) {
 		CAM_ERR(CAM_ISP, "CSID Invalid params");
@@ -4723,29 +4728,37 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	for (i = 0; i < start_args->num_res; i++) {
 		res = start_args->node_res[i];
 
-		if (csid_hw->flags.rdi_lcr_en && (res->res_id == CAM_IFE_PIX_PATH_RES_PPP) &&
-			(!(enabled_res_mask & BIT(CAM_IFE_PIX_PATH_RES_RDI_0)))) {
-			delay_ppp_enable = true;
+		if ((csid_hw->flags.rdi_lcr_en) &&
+			(res->res_id == CAM_IFE_PIX_PATH_RES_RDI_0)) {
+			delay_rdi0_enable = true;
 			continue;
 		}
 
 		cam_ife_csid_ver2_enable_path(csid_hw, res);
-		enabled_res_mask |= BIT(res->res_id);
-		CAM_DBG(CAM_ISP, "CSID:%d res_type :%d res_id:%d",
+		CAM_DBG(CAM_ISP,
+			"CSID[%u] res_type :%d res_id:%d enabled",
 			csid_hw->hw_intf->hw_idx, res->res_type, res->res_id);
 	}
 
-	if (delay_ppp_enable && (!(enabled_res_mask & BIT(CAM_IFE_PIX_PATH_RES_PPP)))) {
-		res = &csid_hw->path_res[CAM_IFE_PIX_PATH_RES_PPP];
+	if (delay_rdi0_enable) {
+		res = &csid_hw->path_res[CAM_IFE_PIX_PATH_RES_RDI_0];
 		cam_ife_csid_ver2_enable_path(csid_hw, res);
-		enabled_res_mask |= BIT(res->res_id);
-		CAM_DBG(CAM_ISP, "CSID[%u] Enabling PPP late for LCR-PD cases",
+		CAM_DBG(CAM_ISP, "CSID[%u] Enabling RDI0 after all paths for LCR-PD cases",
 			csid_hw->hw_intf->hw_idx);
 	}
 
 	if (csid_hw->debug_info.test_bus_val) {
 		cam_ife_csid_ver2_testbus_config(csid_hw, csid_hw->debug_info.test_bus_val);
 		csid_hw->debug_info.test_bus_enabled = true;
+	}
+
+	/* Check for global resume */
+	if (csid_hw->flags.rdi_lcr_en && !csid_hw->top_cfg.dual_en) {
+		cam_io_w_mb(1,
+			soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base +
+			csid_reg->cmn_reg->global_cmd_addr);
+		CAM_DBG(CAM_ISP, "CSID[%u] global start set",
+			csid_hw->hw_intf->hw_idx);
 	}
 
 	csid_hw->flags.reset_awaited = false;

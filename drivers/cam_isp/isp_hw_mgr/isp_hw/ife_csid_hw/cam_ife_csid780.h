@@ -700,6 +700,9 @@ static struct cam_ife_csid_ver2_path_reg_info
 							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
 							CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
+		.start_mode_internal              = 0x0,
+		.start_mode_global                = 0x1,
+		.start_mode_shift                 = 2,
 		.overflow_ctrl_mode_val           = 0x8,
 		.offline_mode_supported           = 1,
 		.mipi_pack_supported              = 1,
@@ -805,6 +808,9 @@ static struct cam_ife_csid_ver2_path_reg_info
 							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
 							CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
+		.start_mode_internal              = 0x0,
+		.start_mode_global                = 0x1,
+		.start_mode_shift                 = 2,
 		.overflow_ctrl_mode_val           = 0x8,
 		.mipi_pack_supported              = 1,
 		.offline_mode_supported           = 1,
@@ -909,6 +915,9 @@ static struct cam_ife_csid_ver2_path_reg_info
 							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
 							CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
+		.start_mode_internal              = 0x0,
+		.start_mode_global                = 0x1,
+		.start_mode_shift                 = 2,
 		.overflow_ctrl_mode_val           = 0x8,
 		.mipi_pack_supported              = 1,
 		.offline_mode_supported           = 1,
@@ -1009,6 +1018,9 @@ static struct cam_ife_csid_ver2_path_reg_info
 		/* configurations */
 		.capabilities                     = CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
 		.resume_frame_boundary            = 1,
+		.start_mode_internal              = 0x0,
+		.start_mode_global                = 0x1,
+		.start_mode_shift                 = 2,
 		.overflow_ctrl_en                 = 1,
 		.capabilities                     = 0,
 		.overflow_ctrl_mode_val           = 0x8,
@@ -1110,6 +1122,9 @@ static struct cam_ife_csid_ver2_path_reg_info
 		/* configurations */
 		.capabilities                    = CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
 		.resume_frame_boundary           = 1,
+		.start_mode_internal             = 0x0,
+		.start_mode_global               = 0x1,
+		.start_mode_shift                = 2,
 		.overflow_ctrl_en                = 1,
 		.capabilities                    = 0,
 		.overflow_ctrl_mode_val          = 0x8,
