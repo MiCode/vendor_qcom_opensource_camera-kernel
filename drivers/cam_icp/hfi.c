@@ -490,7 +490,8 @@ int hfi_set_debug_level(u64 icp_dbg_type, uint32_t lvl)
 	return 0;
 }
 
-int hfi_set_fw_dump_level(uint32_t lvl)
+int hfi_set_fw_dump_levels(uint32_t hang_dump_lvl,
+	uint32_t ram_dump_lvl)
 {
 	uint8_t *prop = NULL;
 	struct hfi_cmd_prop *fw_dump_level_switch_prop = NULL;
@@ -498,7 +499,7 @@ int hfi_set_fw_dump_level(uint32_t lvl)
 
 	CAM_DBG(CAM_HFI, "fw dump ENTER");
 
-	size = sizeof(struct hfi_cmd_prop) + sizeof(lvl);
+	size = sizeof(struct hfi_cmd_prop) + sizeof(uint32_t);
 	prop = kzalloc(size, GFP_KERNEL);
 	if (!prop)
 		return -ENOMEM;
@@ -508,20 +509,23 @@ int hfi_set_fw_dump_level(uint32_t lvl)
 	fw_dump_level_switch_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	fw_dump_level_switch_prop->num_prop = 1;
 	fw_dump_level_switch_prop->prop_data[0] = HFI_PROP_SYS_FW_DUMP_CFG;
-	fw_dump_level_switch_prop->prop_data[1] = lvl;
+	fw_dump_level_switch_prop->prop_data[1] = hang_dump_lvl;
 
-	CAM_DBG(CAM_HFI, "prop->size = %d\n"
-			 "prop->pkt_type = %d\n"
-			 "prop->num_prop = %d\n"
-			 "prop->prop_data[0] = %d\n"
-			 "prop->prop_data[1] = %d\n",
-			 fw_dump_level_switch_prop->size,
-			 fw_dump_level_switch_prop->pkt_type,
-			 fw_dump_level_switch_prop->num_prop,
-			 fw_dump_level_switch_prop->prop_data[0],
-			 fw_dump_level_switch_prop->prop_data[1]);
+	/* Write hang dump level */
+	hfi_write_cmd(prop);
+
+	/* Update and write ramdump level */
+	fw_dump_level_switch_prop->prop_data[0] = HFI_PROPERTY_SYS_RAMDUMP_MODE;
+	fw_dump_level_switch_prop->prop_data[1] = ram_dump_lvl;
 
 	hfi_write_cmd(prop);
+	CAM_DBG(CAM_HFI,
+		"prop->size = %d prop->pkt_type = %d prop->num_prop = %d hang_dump_lvl = %u ram_dump_lvl = %u",
+		fw_dump_level_switch_prop->size,
+		fw_dump_level_switch_prop->pkt_type,
+		fw_dump_level_switch_prop->num_prop,
+		hang_dump_lvl, ram_dump_lvl);
+
 	kfree(prop);
 	return 0;
 }

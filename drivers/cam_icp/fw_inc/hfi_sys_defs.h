@@ -178,6 +178,7 @@
 #define HFI_PROP_SYS_FW_DUMP_CFG           (HFI_PROPERTY_ICP_COMMON_START + 0x8)
 #define HFI_PROPERTY_SYS_UBWC_CONFIG_EX    (HFI_PROPERTY_ICP_COMMON_START + 0x9)
 #define HFI_PROPERTY_SYS_ICP_HW_FREQUENCY  (HFI_PROPERTY_ICP_COMMON_START + 0xa)
+#define HFI_PROPERTY_SYS_RAMDUMP_MODE      (HFI_PROPERTY_ICP_COMMON_START + 0xb)
 
 /* Capabilities reported at sys init */
 #define HFI_CAPS_PLACEHOLDER_1         (HFI_COMMON_BASE + 0x1)
@@ -209,6 +210,13 @@
 
 /* Number of available dump levels. */
 #define NUM_HFI_DUMP_LVL        0x00000003
+
+/* Number of available ramdump levels. */
+#define HFI_FW_RAMDUMP_DISABLED 0x00000000
+#define HFI_FW_RAMDUMP_ENABLED  0x00000001
+
+/* Number of available ramdump levels. */
+#define NUM_HFI_RAMDUMP_LVLS    0x00000002
 
 /* Debug Msg Communication types:
  * Section describes different modes (HFI_DEBUG_MODE_X)

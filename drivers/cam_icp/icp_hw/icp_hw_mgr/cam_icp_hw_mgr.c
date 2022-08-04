@@ -1904,21 +1904,37 @@ static int cam_icp_get_icp_dbg_type(void *data, u64 *val)
 DEFINE_SIMPLE_ATTRIBUTE(cam_icp_debug_type_fs, cam_icp_get_icp_dbg_type,
 	cam_icp_set_icp_dbg_type, "%08llu");
 
-static int cam_icp_set_icp_fw_dump_lvl(void *data, u64 val)
+static int cam_icp_set_icp_fw_hang_dump_lvl(void *data, u64 val)
 {
 	if (val < NUM_HFI_DUMP_LVL)
 		icp_hw_mgr.icp_fw_dump_lvl = val;
 	return 0;
 }
 
-static int cam_icp_get_icp_fw_dump_lvl(void *data, u64 *val)
+static int cam_icp_get_icp_fw_hang_dump_lvl(void *data, u64 *val)
 {
 	*val = icp_hw_mgr.icp_fw_dump_lvl;
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(cam_icp_debug_fw_dump, cam_icp_get_icp_fw_dump_lvl,
-	cam_icp_set_icp_fw_dump_lvl, "%08llu");
+DEFINE_DEBUGFS_ATTRIBUTE(cam_icp_debug_fw_dump, cam_icp_get_icp_fw_hang_dump_lvl,
+	cam_icp_set_icp_fw_hang_dump_lvl, "%08llu");
+
+static int cam_icp_set_icp_fw_ramdump_lvl(void *data, u64 val)
+{
+	if (val < NUM_HFI_RAMDUMP_LVLS)
+		icp_hw_mgr.icp_fw_ramdump_lvl = (uint32_t)val;
+	return 0;
+}
+
+static int cam_icp_get_icp_fw_ramdump_lvl(void *data, u64 *val)
+{
+	*val = icp_hw_mgr.icp_fw_ramdump_lvl;
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(cam_icp_debug_fw_ramdump, cam_icp_get_icp_fw_ramdump_lvl,
+	cam_icp_set_icp_fw_ramdump_lvl, "%08llu");
 
 #ifdef CONFIG_CAM_TEST_ICP_FW_DOWNLOAD
 static ssize_t cam_icp_hw_mgr_fw_load_unload(
@@ -2050,6 +2066,9 @@ static int cam_icp_hw_mgr_create_debugfs_entry(void)
 	debugfs_create_file("icp_fw_dump_lvl", 0644,
 		icp_hw_mgr.dentry, NULL, &cam_icp_debug_fw_dump);
 
+	debugfs_create_file("icp_fw_ramdump_lvl", 0644,
+		icp_hw_mgr.dentry, NULL, &cam_icp_debug_fw_ramdump);
+
 	debugfs_create_bool("disable_ubwc_comp", 0644,
 		icp_hw_mgr.dentry, &icp_hw_mgr.disable_ubwc_comp);
 
@@ -2061,7 +2080,7 @@ static int cam_icp_hw_mgr_create_debugfs_entry(void)
 		icp_hw_mgr.dentry, NULL, &cam_icp_irq_line_test);
 
 end:
-	/* Set default hang dump lvl */
+	/* Set default dump lvls */
 	icp_hw_mgr.icp_fw_dump_lvl = HFI_FW_DUMP_ON_FAILURE;
 	return rc;
 }
@@ -6419,7 +6438,8 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 			hfi_set_debug_level(icp_hw_mgr.icp_debug_type,
 				icp_hw_mgr.icp_dbg_lvl);
 
-		hfi_set_fw_dump_level(icp_hw_mgr.icp_fw_dump_lvl);
+		hfi_set_fw_dump_levels(icp_hw_mgr.icp_fw_dump_lvl,
+			icp_hw_mgr.icp_fw_ramdump_lvl);
 
 		rc = cam_icp_send_ubwc_cfg(hw_mgr);
 		if (rc)

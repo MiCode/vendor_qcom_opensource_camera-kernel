@@ -137,10 +137,11 @@ void cam_hfi_deinit(void);
 int hfi_set_debug_level(u64 icp_dbg_type, uint32_t lvl);
 
 /**
- * hfi_set_fw_dump_level() - set firmware dump level
- * @lvl: level of firmware dump level
+ * hfi_set_fw_dump_levels() - set firmware hang dump/ramdump levels
+ * @hang_dump_lvl : level of firmware hang dump
+ * @ram_dump_lvl  : level of firmware ram dump
  */
-int hfi_set_fw_dump_level(uint32_t lvl);
+int hfi_set_fw_dump_levels(uint32_t hang_dump_lvl, uint32_t ram_dump_lvl);
 
 /**
  * hfi_send_freq_info() - set firmware dump level
