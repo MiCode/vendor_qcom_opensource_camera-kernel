@@ -1400,7 +1400,7 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 	if (csiphy_dev->csiphy_state == CAM_CSIPHY_INIT)
 		return;
 
-	if (!csiphy_dev->acquire_count)
+	if (!csiphy_dev->acquire_count && !csiphy_dev->start_dev_count)
 		return;
 
 	if (csiphy_dev->acquire_count >= CSIPHY_MAX_INSTANCES_PER_PHY) {
@@ -1412,7 +1412,8 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 
 	csiphy_reg = csiphy_dev->ctrl_reg->csiphy_reg;
 
-	if (csiphy_dev->csiphy_state == CAM_CSIPHY_START) {
+	if ((csiphy_dev->csiphy_state == CAM_CSIPHY_START) ||
+		csiphy_dev->start_dev_count) {
 		soc_info = &csiphy_dev->soc_info;
 
 		for (i = 0; i < csiphy_dev->acquire_count; i++) {
@@ -1427,7 +1428,8 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 			cam_csiphy_reset_phyconfig_param(csiphy_dev, i);
 		}
 
-		if (csiphy_dev->prgm_cmn_reg_across_csiphy) {
+		if ((csiphy_dev->prgm_cmn_reg_across_csiphy) &&
+			(active_csiphy_hw_cnt > 0)) {
 			mutex_lock(&active_csiphy_cnt_mutex);
 			active_csiphy_hw_cnt--;
 			mutex_unlock(&active_csiphy_cnt_mutex);
@@ -2313,6 +2315,14 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		CAM_DBG(CAM_CSIPHY, "CAM_RELEASE_PHYDEV: %u Type: %s",
 			soc_info->index,
 			g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY");
+
+		if (csiphy_dev->acquire_count < csiphy_dev->start_dev_count) {
+			rc = -EINVAL;
+			CAM_ERR(CAM_CSIPHY,
+				"PHYDEV %u streamon count:%u bigger than acquire count:%u, missing stream offs",
+				soc_info->index, csiphy_dev->start_dev_count,
+				csiphy_dev->acquire_count);
+		}
 
 		break;
 	}
