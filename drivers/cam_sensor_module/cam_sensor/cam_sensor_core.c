@@ -436,6 +436,17 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 		s_ctrl->sensor_res.request_id = csl_packet->header.request_id;
 
+		/**
+		 * is_settings_valid is set to false for this case, as generic
+		 * blobs are meant to be used to send debugging information
+		 * alongside actual configuration settings. As these are sent
+		 * as separate packets at present, while sharing the same CONFIG
+		 * opcode, setting this to false prevents sensor driver from
+		 * applying non-existent configuration and changing s_ctrl
+		 * state to CAM_SENSOR_CONFIG
+		 */
+		i2c_reg_settings->is_settings_valid = 0;
+
 		rc = cam_packet_util_process_generic_cmd_buffer(cmd_desc,
 			cam_sensor_generic_blob_handler, s_ctrl);
 		if (rc)
