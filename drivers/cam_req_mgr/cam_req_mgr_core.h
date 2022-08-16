@@ -450,6 +450,7 @@ struct cam_req_mgr_core_link {
 	uint64_t                             last_sof_trigger_jiffies;
 	bool                                 wq_congestion;
 	bool                                 try_for_internal_recovery;
+	bool                                 is_sending_req;
 	uint32_t                             properties_mask;
 };
 

@@ -69,6 +69,7 @@ void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 	link->last_sof_trigger_jiffies = 0;
 	link->wq_congestion = false;
 	link->try_for_internal_recovery = false;
+	link->is_sending_req = false;
 	atomic_set(&link->eof_event_cnt, 0);
 	link->properties_mask = CAM_LINK_PROPERTY_NONE;
 	__cam_req_mgr_reset_apply_data(link);
@@ -1760,8 +1761,8 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 				"sync link %x too quickly, skip next frame of sync link",
 				sync_link->link_hdl);
 			link->sync_link_sof_skip = true;
-		} else if (sync_link->req.in_q->slot[sync_slot_idx].status !=
-			CRM_SLOT_STATUS_REQ_APPLIED) {
+		} else if ((sync_link->req.in_q->slot[sync_slot_idx].status !=
+			CRM_SLOT_STATUS_REQ_APPLIED) && !sync_link->is_sending_req) {
 			CAM_DBG(CAM_CRM,
 				"link %x other not applied", link->link_hdl);
 			return -EAGAIN;
@@ -2125,20 +2126,24 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 			spin_unlock_bh(&link->link_state_spin_lock);
 			__cam_req_mgr_notify_frame_skip(link, trigger);
 			__cam_req_mgr_validate_crm_wd_timer(link);
-			goto end;
+			mutex_unlock(&session->lock);
+			return rc;
 		} else {
 			slot->status = CRM_SLOT_STATUS_REQ_READY;
+			link->is_sending_req = true;
 			CAM_DBG(CAM_REQ,
 				"linx_hdl %x Req[%lld] idx %d ready to apply",
 				link->link_hdl, in_q->slot[in_q->rd_idx].req_id,
 				in_q->rd_idx);
 		}
 	}
+	mutex_unlock(&session->lock);
 
 	rc = __cam_req_mgr_send_req(link, link->req.in_q, trigger, &dev);
 	if (rc < 0) {
 		/* Apply req failed retry at next sof */
 		slot->status = CRM_SLOT_STATUS_REQ_PENDING;
+		link->is_sending_req = false;
 
 		if (!link->wq_congestion && dev) {
 			if (rc != -EAGAIN)
@@ -2234,7 +2239,11 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 				in_q->num_slots);
 			__cam_req_mgr_reset_req_slot(link, idx);
 		}
+		link->is_sending_req = false;
 	}
+
+	return rc;
+
 end:
 	mutex_unlock(&session->lock);
 	return rc;
@@ -2659,6 +2668,7 @@ static struct cam_req_mgr_core_link *__cam_req_mgr_reserve_link(
 	in_q->num_slots = 0;
 	link->state = CAM_CRM_LINK_STATE_IDLE;
 	link->parent = (void *)session;
+	link->is_sending_req = false;
 
 	for (i = 0; i < MAXIMUM_LINKS_PER_SESSION - 1; i++)
 		link->sync_link[i] = NULL;
