@@ -14,6 +14,7 @@
 
 #define CAM_REQ_MGR_MAX_LINKED_DEV     16
 #define MAX_REQ_SLOTS                  48
+#define MAX_REQ_STATE_MONITOR_NUM      40
 
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT          1000
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT_DEFAULT  5000
@@ -163,6 +164,27 @@ enum cam_req_mgr_sync_type {
 	CAM_SYNC_TYPE_DELAY_AT_SOF,
 	CAM_SYNC_TYPE_DELAY_AT_EOF,
 	CAM_SYNC_TYPE_APPLY_AT_EOF,
+};
+
+/**
+ * enum cam_req_mgr_req_state
+ * Request operation type for request state recording
+ * REQ_READY        : all packets for this request is added
+ * NOTIFY_TRIGGER   : request is triggered
+ * PROCESS_TRIGGER  : request is in trigger processing
+ * SEND_REQ         : CRM is sending request to each device
+ * NOTIFY_ERR       : request is notified an error
+ * PROCESS_ERR      : request is in error processing
+ * INVALID          : invalid state
+ */
+enum cam_req_mgr_req_state {
+	CAM_CRM_REQ_READY,
+	CAM_CRM_NOTIFY_TRIGGER,
+	CAM_CRM_PROCESS_TRIGGER,
+	CAM_CRM_SEND_REQ,
+	CAM_CRM_NOTIFY_ERR,
+	CAM_CRM_PROCESS_ERR,
+	CAM_CRM_STATE_INVALID,
 };
 
 /**
@@ -325,6 +347,24 @@ struct cam_req_mgr_req_queue {
 };
 
 /**
+ * struct cam_req_mgr_req_state_monitor
+ * @req_state    : operation type
+ * @req_id       : request id
+ * @dev_hdl      : to track which device is sending request
+ * @frame_id     : frame id
+ * @time_stamp   : the time stamp of the state
+ * @name         : device_name
+ */
+struct cam_req_mgr_state_monitor {
+	enum cam_req_mgr_req_state  req_state;
+	int64_t                     req_id;
+	int32_t                     dev_hdl;
+	int64_t                     frame_id;
+	struct timespec64           time_stamp;
+	char                        name[256];
+};
+
+/**
  * struct cam_req_mgr_req_data
  * @in_q             : Poiner to Input request queue
  * @l_tbl            : unique pd request tables.
@@ -332,6 +372,8 @@ struct cam_req_mgr_req_queue {
  * @apply_data       : Holds information about request id for a request
  * @prev_apply_data  : Holds information about request id for a previous
  *                     applied request
+ * @state_monitor    : used to track the request state in CRM
+ * @next_state_idx   : indicates index to hold new request state
  * @lock             : mutex lock protecting request data ops.
  */
 struct cam_req_mgr_req_data {
@@ -340,7 +382,11 @@ struct cam_req_mgr_req_data {
 	int32_t                       num_tbl;
 	struct cam_req_mgr_apply      apply_data[CAM_PIPELINE_DELAY_MAX];
 	struct cam_req_mgr_apply      prev_apply_data[CAM_PIPELINE_DELAY_MAX];
+	struct cam_req_mgr_state_monitor state_monitor[
+		MAX_REQ_STATE_MONITOR_NUM];
+	int32_t                       next_state_idx;
 	struct mutex                  lock;
+	spinlock_t                    monitor_slock;
 };
 
 /**
