@@ -911,7 +911,7 @@ static struct cam_camnoc_specific
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
-			.offset = 0x781A4, /* BPS_CRE_RD : NOC_NRT_3_QOSGEN_SHAPING_HIGH */
+			.offset = 0x71A4, /* BPS_CRE_RD : NOC_NRT_3_QOSGEN_SHAPING_HIGH */
 			.value = 0x38383838,
 		},
 	},
