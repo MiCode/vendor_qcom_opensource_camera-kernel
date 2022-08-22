@@ -3544,8 +3544,7 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 	bool                                 is_ipp,
 	bool                                 crop_enable)
 {
-	int rc = -1, i;
-	bool no_res_acquired = true;
+	int rc = 0, i;
 	struct cam_isp_out_port_generic_info     *out_port = NULL;
 	struct cam_ife_hw_mgr                    *ife_hw_mgr;
 	struct cam_isp_hw_mgr_res                *csid_res;
@@ -3618,10 +3617,9 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 			CAM_ERR(CAM_ISP,
 				"Cannot acquire ife csid pxl path rsrc %s",
 				(is_ipp) ? "IPP" : "PPP");
-			goto put_res;
+			goto end;
 		}
 
-		no_res_acquired = false;
 		csid_res->hw_res[i] = csid_acquire.node_res;
 		hw_intf = csid_res->hw_res[i]->hw_intf;
 
@@ -3675,10 +3673,6 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 		}
 	}
 
-	return 0;
-put_res:
-	if (no_res_acquired)
-		cam_ife_hw_mgr_put_res(&ife_ctx->free_res_list, &csid_res);
 end:
 	return rc;
 }
@@ -4461,7 +4455,7 @@ static int cam_ife_hw_mgr_acquire_offline_res_csid(
 		CAM_ERR(CAM_ISP,
 			"CSID Path reserve failed  rc=%d res_id=%d",
 			rc, path_res_id);
-		goto end;
+		goto put_res;
 	}
 
 	if (!ife_ctx->buf_done_controller && csid_acquire.buf_done_controller)
@@ -4474,6 +4468,11 @@ static int cam_ife_hw_mgr_acquire_offline_res_csid(
 	csid_res->hw_res[0] = csid_acquire.node_res;
 	csid_res->hw_res[1] = NULL;
 	cam_ife_hw_mgr_put_res(&ife_ctx->res_list_ife_csid, &csid_res);
+
+	return 0;
+
+put_res:
+	cam_ife_hw_mgr_put_res(&ife_ctx->free_res_list, &csid_res);
 
 end:
 	return rc;
