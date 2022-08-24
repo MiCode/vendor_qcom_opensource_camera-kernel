@@ -62,6 +62,7 @@ struct cam_subdev {
 					struct v4l2_subdev *sd,
 					enum cam_subdev_message_type_t msg_type,
 					uint32_t data);
+	bool                                   subdev_node_created;
 };
 
 /**
@@ -100,15 +101,6 @@ int cam_subdev_probe(struct cam_subdev *sd, struct platform_device *pdev,
  *
  */
 int cam_subdev_remove(struct cam_subdev *sd);
-
-/**
- * cam_register_subdev_fops()
- *
- * @brief:   This common utility function assigns subdev ops
- *
- * @fops:    v4l file operations
- */
-void cam_register_subdev_fops(struct v4l2_file_operations *fops);
 
 /**
  * cam_register_subdev()

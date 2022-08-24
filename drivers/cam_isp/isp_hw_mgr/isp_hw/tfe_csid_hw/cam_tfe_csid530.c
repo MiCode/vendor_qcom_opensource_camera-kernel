@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -37,17 +38,15 @@ static struct platform_driver cam_tfe_csid530_driver = {
 	},
 };
 
-static int __init cam_tfe_csid530_init_module(void)
+int cam_tfe_csid530_init_module(void)
 {
 	return platform_driver_register(&cam_tfe_csid530_driver);
 }
 
-static void __exit cam_tfe_csid530_exit_module(void)
+void cam_tfe_csid530_exit_module(void)
 {
 	platform_driver_unregister(&cam_tfe_csid530_driver);
 }
 
-module_init(cam_tfe_csid530_init_module);
-module_exit(cam_tfe_csid530_exit_module);
 MODULE_DESCRIPTION("CAM TFE_CSID530 driver");
 MODULE_LICENSE("GPL v2");

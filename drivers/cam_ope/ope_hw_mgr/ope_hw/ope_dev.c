@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -22,7 +23,6 @@
 
 static struct cam_ope_device_hw_info ope_hw_info;
 static struct ope_dev_soc ope_soc_info;
-EXPORT_SYMBOL(ope_soc_info);
 
 static struct hw_version_reg ope_hw_version_reg = {
 	.hw_ver = 0x0,
@@ -266,17 +266,15 @@ static struct platform_driver cam_ope_driver = {
 	},
 };
 
-static int __init cam_ope_init_module(void)
+int cam_ope_init_module(void)
 {
 	return platform_driver_register(&cam_ope_driver);
 }
 
-static void __exit cam_ope_exit_module(void)
+void cam_ope_exit_module(void)
 {
 	platform_driver_unregister(&cam_ope_driver);
 }
 
-module_init(cam_ope_init_module);
-module_exit(cam_ope_exit_module);
 MODULE_DESCRIPTION("CAM OPE driver");
 MODULE_LICENSE("GPL v2");

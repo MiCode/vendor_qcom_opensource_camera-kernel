@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/debugfs.h>
-#include <soc/qcom/scm.h>
 #include <media/cam_tfe.h>
+
 #include "cam_smmu_api.h"
 #include "cam_req_mgr_workq.h"
 #include "cam_isp_hw_mgr_intf.h"
@@ -25,6 +26,7 @@
 #include "cam_common_util.h"
 #include "cam_req_mgr_debug.h"
 #include "cam_trace.h"
+#include "cam_compat.h"
 
 #define CAM_TFE_HW_ENTRIES_MAX  20
 #define CAM_TFE_HW_CONFIG_TIMEOUT 60
@@ -2376,7 +2378,7 @@ static int cam_isp_tfe_blob_bw_update(
 	}
 
 end:
-	kzfree(bw_upd_args);
+	cam_free_clear((void *)bw_upd_args);
 	bw_upd_args = NULL;
 	return rc;
 }
@@ -5459,82 +5461,59 @@ DEFINE_DEBUGFS_ATTRIBUTE(cam_tfe_camif_debug,
 	cam_tfe_get_camif_debug,
 	cam_tfe_set_camif_debug, "%16llu");
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 static int cam_tfe_hw_mgr_debug_register(void)
 {
+	int rc = 0;
+	struct dentry *dbgfileptr = NULL;
+
+	dbgfileptr = debugfs_create_dir("camera_tfe", NULL);
+	if (!dbgfileptr) {
+		CAM_ERR(CAM_ISP,"DebugFS could not create directory!");
+		rc = -ENOENT;
+		goto end;
+	}
+	/* Store parent inode for cleanup in caller */
+	g_tfe_hw_mgr.debug_cfg.dentry = dbgfileptr;
 	g_tfe_hw_mgr.debug_cfg.set_tpg_pattern = CAM_TOP_TPG_DEFAULT_PATTERN;
-	g_tfe_hw_mgr.debug_cfg.dentry = debugfs_create_dir("camera_tfe",
-		NULL);
 
-	if (!g_tfe_hw_mgr.debug_cfg.dentry) {
-		CAM_ERR(CAM_ISP, "failed to create dentry");
-		return -ENOMEM;
-	}
-
-	if (!debugfs_create_file("tfe_csid_debug",
-		0644,
-		g_tfe_hw_mgr.debug_cfg.dentry, NULL,
-		&cam_tfe_csid_debug)) {
-		CAM_ERR(CAM_ISP, "failed to create cam_tfe_csid_debug");
-		goto err;
-	}
-
-	if (!debugfs_create_u32("enable_recovery",
-		0644,
+	dbgfileptr = debugfs_create_file("tfe_csid_debug", 0644,
+		g_tfe_hw_mgr.debug_cfg.dentry, NULL, &cam_tfe_csid_debug);
+	debugfs_create_u32("enable_recovery", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
-		&g_tfe_hw_mgr.debug_cfg.enable_recovery)) {
-		CAM_ERR(CAM_ISP, "failed to create enable_recovery");
-		goto err;
-	}
-
-	if (!debugfs_create_u32("enable_csid_recovery",
-		0644,
+		&g_tfe_hw_mgr.debug_cfg.enable_recovery);
+	debugfs_create_u32("enable_csid_recovery", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
-		&g_tfe_hw_mgr.debug_cfg.enable_csid_recovery)) {
-		CAM_ERR(CAM_ISP, "failed to create enable_csid_recovery");
-		goto err;
-	}
-
-	if (!debugfs_create_u32("set_tpg_pattern",
-		0644,
+		&g_tfe_hw_mgr.debug_cfg.enable_csid_recovery);
+	debugfs_create_u32("set_tpg_pattern" ,0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
-		&g_tfe_hw_mgr.debug_cfg.set_tpg_pattern)) {
-		CAM_ERR(CAM_ISP, "failed to create set_tpg_pattern");
-		goto err;
-	}
-
-	if (!debugfs_create_u32("enable_reg_dump",
-		0644,
+		&g_tfe_hw_mgr.debug_cfg.set_tpg_pattern);
+	debugfs_create_u32("enable_reg_dump", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
-		&g_tfe_hw_mgr.debug_cfg.enable_reg_dump)) {
-		CAM_ERR(CAM_ISP, "failed to create enable_reg_dump");
-		goto err;
-	}
-
-	if (!debugfs_create_file("tfe_camif_debug",
-		0644,
-		g_tfe_hw_mgr.debug_cfg.dentry, NULL,
-		&cam_tfe_camif_debug)) {
-		CAM_ERR(CAM_ISP, "failed to create cam_tfe_camif_debug");
-		goto err;
-	}
-
-	if (!debugfs_create_u32("per_req_reg_dump",
-		0644,
+		&g_tfe_hw_mgr.debug_cfg.enable_reg_dump);
+	dbgfileptr = debugfs_create_file("tfe_camif_debug", 0644,
+		g_tfe_hw_mgr.debug_cfg.dentry, NULL, &cam_tfe_camif_debug);
+	debugfs_create_u32("per_req_reg_dump", 0644,
 		g_tfe_hw_mgr.debug_cfg.dentry,
-		&g_tfe_hw_mgr.debug_cfg.per_req_reg_dump)) {
-		CAM_ERR(CAM_ISP, "failed to create per_req_reg_dump entry");
-		goto err;
+		&g_tfe_hw_mgr.debug_cfg.per_req_reg_dump);
+	if (IS_ERR(dbgfileptr)) {
+		if (PTR_ERR(dbgfileptr) == -ENODEV)
+			CAM_WARN(CAM_ISP, "DebugFS not enabled in kernel!");
+		else
+			rc = PTR_ERR(dbgfileptr);
 	}
-
-
+end:
 	g_tfe_hw_mgr.debug_cfg.enable_recovery = 0;
-
-	return 0;
-
-err:
-	debugfs_remove_recursive(g_tfe_hw_mgr.debug_cfg.dentry);
-	return -ENOMEM;
+	return rc;
 }
+#else
+static inline int cam_tfe_hw_mgr_debug_register(void)
+{
+	g_tfe_hw_mgr.debug_cfg.enable_recovery = 0;
+	CAM_WARN(CAM_ISP, "DebugFS not enabled in kernel");
+	return 0;
+}
+#endif
 
 int cam_tfe_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 {

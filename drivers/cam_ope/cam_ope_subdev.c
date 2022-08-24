@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -255,7 +256,7 @@ static const struct of_device_id cam_ope_dt_match[] = {
 };
 
 
-static struct platform_driver cam_ope_driver = {
+static struct platform_driver cam_ope_subdev_driver = {
 	.probe = cam_ope_subdev_probe,
 	.remove = cam_ope_subdev_remove,
 	.driver = {
@@ -265,17 +266,15 @@ static struct platform_driver cam_ope_driver = {
 	},
 };
 
-static int __init cam_ope_init_module(void)
+int cam_ope_subdev_init_module(void)
 {
-	return platform_driver_register(&cam_ope_driver);
+	return platform_driver_register(&cam_ope_subdev_driver);
 }
 
-static void __exit cam_ope_exit_module(void)
+void cam_ope_subdev_exit_module(void)
 {
-	platform_driver_unregister(&cam_ope_driver);
+	platform_driver_unregister(&cam_ope_subdev_driver);
 }
-module_init(cam_ope_init_module);
-module_exit(cam_ope_exit_module);
 MODULE_DESCRIPTION("MSM OPE driver");
 MODULE_LICENSE("GPL v2");
 

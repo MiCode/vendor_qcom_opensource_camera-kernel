@@ -261,17 +261,15 @@ static struct platform_driver csiphy_driver = {
 	},
 };
 
-static int32_t __init cam_csiphy_init_module(void)
+int32_t cam_csiphy_init_module(void)
 {
 	return platform_driver_register(&csiphy_driver);
 }
 
-static void __exit cam_csiphy_exit_module(void)
+void cam_csiphy_exit_module(void)
 {
 	platform_driver_unregister(&csiphy_driver);
 }
 
-module_init(cam_csiphy_init_module);
-module_exit(cam_csiphy_exit_module);
 MODULE_DESCRIPTION("CAM CSIPHY driver");
 MODULE_LICENSE("GPL v2");

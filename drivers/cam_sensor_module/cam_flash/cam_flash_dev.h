@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_FLASH_DEV_H_
@@ -13,7 +14,6 @@
 #include <linux/of.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/leds-qpnp-flash.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
@@ -28,6 +28,7 @@
 #include "cam_soc_util.h"
 #include "cam_debug_util.h"
 #include "cam_sensor_io.h"
+#include "cam_flash_leds.h"
 #include "cam_flash_core.h"
 #include "cam_context.h"
 
@@ -233,4 +234,14 @@ int cam_flash_pmic_flush_request(struct cam_flash_ctrl *fctrl,
 void cam_flash_shutdown(struct cam_flash_ctrl *fctrl);
 int cam_flash_release_dev(struct cam_flash_ctrl *fctrl);
 
+/**
+ * @brief : API to register FLASH hw to platform framework.
+ * @return struct platform_device pointer on on success, or ERR_PTR() on error.
+ */
+int32_t cam_flash_init_module(void);
+
+/**
+ * @brief : API to remove FLASH Hw from platform framework.
+ */
+void cam_flash_exit_module(void);
 #endif /*_CAM_FLASH_DEV_H_*/

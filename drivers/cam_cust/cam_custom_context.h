@@ -6,9 +6,10 @@
 #ifndef _CAM_CUSTOM_CONTEXT_H_
 #define _CAM_CUSTOM_CONTEXT_H_
 
-#include <linux/spinlock.h>
-#include <uapi/media/cam_custom.h>
-#include <uapi/media/cam_defs.h>
+#include <linux/spinlock_types.h>
+
+#include <media/cam_custom.h>
+#include <media/cam_defs.h>
 
 #include "cam_context.h"
 #include "cam_custom_hw_mgr_intf.h"

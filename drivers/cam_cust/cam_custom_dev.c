@@ -12,7 +12,8 @@
 #include <linux/timer.h>
 #include <linux/kernel.h>
 
-#include <uapi/media/cam_req_mgr.h>
+#include <media/cam_req_mgr.h>
+
 #include "cam_custom_dev.h"
 #include "cam_hw_mgr_intf.h"
 #include "cam_custom_hw_mgr_intf.h"
@@ -182,17 +183,15 @@ static struct platform_driver custom_driver = {
 	},
 };
 
-static int __init cam_custom_dev_init_module(void)
+int cam_custom_dev_init_module(void)
 {
 	return platform_driver_register(&custom_driver);
 }
 
-static void __exit cam_custom_dev_exit_module(void)
+void cam_custom_dev_exit_module(void)
 {
 	platform_driver_unregister(&custom_driver);
 }
 
-module_init(cam_custom_dev_init_module);
-module_exit(cam_custom_dev_exit_module);
 MODULE_DESCRIPTION("MSM CUSTOM driver");
 MODULE_LICENSE("GPL v2");

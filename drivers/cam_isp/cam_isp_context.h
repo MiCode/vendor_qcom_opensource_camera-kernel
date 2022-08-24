@@ -1,13 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_CONTEXT_H_
 #define _CAM_ISP_CONTEXT_H_
 
 
-#include <linux/spinlock.h>
+#include <linux/spinlock_types.h>
 #include <media/cam_isp.h>
 #include <media/cam_defs.h>
 #include <media/cam_tfe.h>
@@ -118,7 +119,7 @@ enum cam_isp_state_change_trigger {
 struct cam_isp_ctx_debug {
 	struct dentry  *dentry;
 	uint32_t        enable_state_monitor_dump;
-	uint32_t        enable_cdm_cmd_buff_dump;
+	uint8_t         enable_cdm_cmd_buff_dump;
 };
 
 /**

@@ -10,15 +10,17 @@
 #include <linux/iommu.h>
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
+#include <linux/of_address.h>
 #include <linux/msm_dma_iommu_mapping.h>
 #include <linux/workqueue.h>
 #include <linux/genalloc.h>
 #include <linux/debugfs.h>
 #include <linux/dma-iommu.h>
-
-#include <soc/qcom/scm.h>
 #include <soc/qcom/secure_buffer.h>
+
 #include <media/cam_req_mgr.h>
+
+#include "cam_compat.h"
 #include "cam_smmu_api.h"
 #include "cam_debug_util.h"
 #include "cam_trace.h"
@@ -46,13 +48,7 @@
 static int g_num_pf_handled = 4;
 module_param(g_num_pf_handled, int, 0644);
 
-struct firmware_alloc_info {
-	struct device *fw_dev;
-	void *fw_kva;
-	dma_addr_t fw_dma_hdl;
-};
-
-struct firmware_alloc_info icp_fw;
+struct cam_fw_alloc_info icp_fw;
 
 struct cam_smmu_work_payload {
 	int idx;
@@ -62,6 +58,12 @@ struct cam_smmu_work_payload {
 	int flags;
 	void *token;
 	struct list_head list;
+};
+
+enum cam_io_coherency_mode {
+	CAM_SMMU_NO_COHERENCY,
+	CAM_SMMU_DMA_COHERENT,
+	CAM_SMMU_DMA_COHERENT_HINT_CACHED,
 };
 
 enum cam_protection_type {
@@ -157,6 +159,7 @@ struct cam_context_bank_info {
 	bool is_mul_client;
 	int device_count;
 	int num_shared_hdl;
+	enum cam_io_coherency_mode coherency_mode;
 
 	/* discard iova - non-zero values are valid */
 	dma_addr_t discard_iova_start;
@@ -177,6 +180,7 @@ struct cam_iommu_cb_set {
 	struct dentry *dentry;
 	bool cb_dump_enable;
 	bool map_profile_enable;
+	bool force_cache_allocs;
 };
 
 static const struct of_device_id msm_cam_smmu_dt_match[] = {
@@ -357,6 +361,111 @@ static void cam_smmu_dump_monitor_array(
 
 		index = (index + 1) % CAM_SMMU_MONITOR_MAX_ENTRIES;
 	}
+}
+
+int cam_smmu_need_force_alloc_cached(bool *force_alloc_cached)
+{
+	int idx;
+	uint32_t curr_mode = 0, final_mode = 0;
+	bool validate = false;
+
+	if (!force_alloc_cached) {
+		CAM_ERR(CAM_SMMU, "Invalid arg");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_SMMU, "force_cache_allocs=%d",
+		iommu_cb_set.force_cache_allocs);
+
+	/*
+	 * First validate whether all SMMU CBs are properly setup to comply with
+	 * iommu_cb_set.force_alloc_cached flag.
+	 * This helps as a validation check to make sure a valid DT combination
+	 * is set for a given chipset.
+	 */
+	for (idx = 0; idx < iommu_cb_set.cb_num; idx++) {
+		/* ignore secure cb for now. need to revisit */
+		if (iommu_cb_set.cb_info[idx].is_secure)
+			continue;
+
+		curr_mode = iommu_cb_set.cb_info[idx].coherency_mode;
+
+		/*
+		 * 1. No coherency:
+		 *    We can map both CACHED and UNCACHED buffers into same CB.
+		 *    We need to allocate UNCACHED buffers for Cmdbuffers
+		 *    and Shared Buffers. UNCAHE support must exists with memory
+		 *    allocators (ion or dma-buf-heaps) for CmdBuffers,
+		 *    SharedBuffers to work - as it is difficult to do
+		 *    cache operations on these buffers in camera design.
+		 *    ImageBuffers can be CACHED or UNCACHED. If CACHED, clients
+		 *    need to make required CACHE operations.
+		 *    Cannot force all allocations to CACHE.
+		 * 2. dma-coherent:
+		 *    We cannot map CACHED and UNCACHED buffers into the same CB
+		 *    This means, we must force allocate all buffers to be
+		 *    CACHED.
+		 * 3. dma-coherent-hint-cached
+		 *    We can map both CACHED and UNCACHED buffers into the same
+		 *    CB. So any option is fine force_cache_allocs.
+		 *    Forcing to cache is preferable though.
+		 *
+		 * Other rule we are enforcing is - all camera CBs (except
+		 * secure CB) must have same coherency mode set. Assume one CB
+		 * is having no_coherency mode  and other CB is having
+		 * dma_coherent. For no_coherency CB to work - we must not force
+		 * buffers to be CACHE (exa cmd buffers), for dma_coherent mode
+		 * we must force all buffers to be CACHED. But at the time of
+		 * allocation, we dont know to which CB we will be mapping this
+		 * buffer. So it becomes difficult to generalize cache
+		 * allocations and io coherency mode that we want to support.
+		 * So, to simplify, all camera CBs will have same mode.
+		 */
+
+		CAM_DBG(CAM_SMMU, "[%s] : curr_mode=%d",
+			iommu_cb_set.cb_info[idx].name[0], curr_mode);
+
+		if (curr_mode == CAM_SMMU_NO_COHERENCY) {
+			if (iommu_cb_set.force_cache_allocs) {
+				CAM_ERR(CAM_SMMU,
+					"[%s] Can't force alloc cache with no coherency",
+					iommu_cb_set.cb_info[idx].name[0]);
+				return -EINVAL;
+			}
+		} else if (curr_mode == CAM_SMMU_DMA_COHERENT) {
+			if (!iommu_cb_set.force_cache_allocs) {
+				CAM_ERR(CAM_SMMU,
+					"[%s] Must force cache allocs for dma coherent device",
+					iommu_cb_set.cb_info[idx].name[0]);
+				return -EINVAL;
+			}
+		}
+
+		if (validate) {
+			if (curr_mode !=  final_mode) {
+				CAM_ERR(CAM_SMMU,
+					"[%s] CBs having different coherency modes final=%d, curr=%d",
+					iommu_cb_set.cb_info[idx].name[0],
+					final_mode, curr_mode);
+				return -EINVAL;
+			}
+		} else {
+			validate = true;
+			final_mode = curr_mode;
+		}
+	}
+
+	/*
+	 * To be more accurate - if this flag is TRUE and if this buffer will
+	 * be mapped to external devices like CVP - we need to ensure we do
+	 * one of below :
+	 * 1. CVP CB having dma-coherent or dma-coherent-hint-cached
+	 * 2. camera/cvp sw layers properly doing required cache operations. We
+	 *    cannot anymore assume these buffers (camera <--> cvp) are uncached
+	 */
+	*force_alloc_cached = iommu_cb_set.force_cache_allocs;
+
+	return 0;
 }
 
 static void cam_smmu_page_fault_work(struct work_struct *work)
@@ -1309,23 +1418,25 @@ int cam_smmu_alloc_firmware(int32_t smmu_hdl,
 	firmware_start = iommu_cb_set.cb_info[idx].firmware_info.iova_start;
 	CAM_DBG(CAM_SMMU, "Firmware area len from DT = %zu", firmware_len);
 
-	icp_fw.fw_kva = dma_alloc_coherent(icp_fw.fw_dev,
-		firmware_len,
-		&icp_fw.fw_dma_hdl,
-		GFP_KERNEL);
-	if (!icp_fw.fw_kva) {
-		CAM_ERR(CAM_SMMU, "FW memory alloc failed");
-		rc = -ENOMEM;
+	rc = cam_reserve_icp_fw(&icp_fw, firmware_len);
+	if (rc)
 		goto unlock_and_end;
-	} else {
+	else
 		CAM_DBG(CAM_SMMU, "DMA alloc returned fw = %pK, hdl = %pK",
-			icp_fw.fw_kva, (void *)icp_fw.fw_dma_hdl);
-	}
+			icp_fw.fw_kva, (void *)icp_fw.fw_hdl);
 
 	domain = iommu_cb_set.cb_info[idx].domain;
+
+	/*
+	 * Revisit this - what should we map this with - CACHED or UNCACHED?
+	 * chipsets using dma-coherent-hint-cached - leaving it like this is
+	 * fine as we can map both CACHED and UNCACHED on same CB.
+	 * But on chipsets which use dma-coherent - all the buffers that are
+	 * being mapped to this CB must be CACHED
+	 */
 	rc = iommu_map(domain,
 		firmware_start,
-		icp_fw.fw_dma_hdl,
+		(phys_addr_t) icp_fw.fw_hdl,
 		firmware_len,
 		IOMMU_READ|IOMMU_WRITE|IOMMU_PRIV);
 
@@ -1344,10 +1455,7 @@ int cam_smmu_alloc_firmware(int32_t smmu_hdl,
 	return rc;
 
 alloc_fail:
-	dma_free_coherent(icp_fw.fw_dev,
-		firmware_len,
-		icp_fw.fw_kva,
-		icp_fw.fw_dma_hdl);
+	cam_unreserve_icp_fw(&icp_fw, firmware_len);
 unlock_and_end:
 	mutex_unlock(&iommu_cb_set.cb_info[idx].lock);
 end:
@@ -1407,13 +1515,10 @@ int cam_smmu_dealloc_firmware(int32_t smmu_hdl)
 		rc = -EINVAL;
 	}
 
-	dma_free_coherent(icp_fw.fw_dev,
-		firmware_len,
-		icp_fw.fw_kva,
-		icp_fw.fw_dma_hdl);
+	cam_unreserve_icp_fw(&icp_fw, firmware_len);
 
-	icp_fw.fw_kva = 0;
-	icp_fw.fw_dma_hdl = 0;
+	icp_fw.fw_kva = NULL;
+	icp_fw.fw_hdl = 0;
 
 	iommu_cb_set.cb_info[idx].is_fw_allocated = false;
 
@@ -1469,6 +1574,14 @@ int cam_smmu_alloc_qdss(int32_t smmu_hdl,
 	CAM_DBG(CAM_SMMU, "QDSS area len from DT = %zu", qdss_len);
 
 	domain = iommu_cb_set.cb_info[idx].domain;
+
+	/*
+	 * Revisit this - what should we map this with - CACHED or UNCACHED?
+	 * chipsets using dma-coherent-hint-cached - leaving it like this is
+	 * fine as we can map both CACHED and UNCACHED on same CB.
+	 * But on chipsets which use dma-coherent - all the buffers that are
+	 * being mapped to this CB must be CACHED
+	 */
 	rc = iommu_map(domain,
 		qdss_start,
 		qdss_phy_addr,
@@ -1698,6 +1811,7 @@ int cam_smmu_reserve_sec_heap(int32_t smmu_hdl,
 	size_t sec_heap_iova_len = 0;
 	int idx;
 	int rc = 0;
+	int prot = 0;
 
 	idx = GET_SMMU_TABLE_IDX(smmu_hdl);
 	if (idx < 0 || idx >= iommu_cb_set.cb_num) {
@@ -1748,11 +1862,16 @@ int cam_smmu_reserve_sec_heap(int32_t smmu_hdl,
 
 	sec_heap_iova = iommu_cb_set.cb_info[idx].secheap_info.iova_start;
 	sec_heap_iova_len = iommu_cb_set.cb_info[idx].secheap_info.iova_len;
+
+	prot = IOMMU_READ | IOMMU_WRITE;
+	if (iommu_cb_set.force_cache_allocs)
+		prot |= IOMMU_CACHE;
+
 	size = iommu_map_sg(iommu_cb_set.cb_info[idx].domain,
 		sec_heap_iova,
 		secheap_buf->table->sgl,
 		secheap_buf->table->nents,
-		IOMMU_READ | IOMMU_WRITE);
+		prot);
 	if (size != sec_heap_iova_len) {
 		CAM_ERR(CAM_SMMU, "IOMMU mapping failed");
 		goto err_unmap_sg;
@@ -1845,6 +1964,7 @@ static int cam_smmu_map_buffer_validate(struct dma_buf *buf,
 	int rc = 0;
 	struct timespec64 ts1, ts2;
 	long microsec = 0;
+	int prot = 0;
 
 	if (IS_ERR_OR_NULL(buf)) {
 		rc = PTR_ERR(buf);
@@ -1895,8 +2015,12 @@ static int cam_smmu_map_buffer_validate(struct dma_buf *buf,
 			goto err_unmap_sg;
 		}
 
+		prot = IOMMU_READ | IOMMU_WRITE;
+		if (iommu_cb_set.force_cache_allocs)
+			prot |= IOMMU_CACHE;
+
 		size = iommu_map_sg(domain, iova, table->sgl, table->nents,
-				IOMMU_READ | IOMMU_WRITE);
+				prot);
 
 		if (size < 0) {
 			CAM_ERR(CAM_SMMU, "IOMMU mapping failed");
@@ -1937,8 +2061,9 @@ static int cam_smmu_map_buffer_validate(struct dma_buf *buf,
 	}
 
 	CAM_DBG(CAM_SMMU,
-		"iova=%pK, region_id=%d, paddr=%pK, len=%d, dma_map_attrs=%d",
-		iova, region_id, *paddr_ptr, *len_ptr, attach->dma_map_attrs);
+		"iova=%pK, region_id=%d, paddr=0x%x, len=%d, dma_map_attrs=%d",
+		iova, region_id, (uint64_t)*paddr_ptr, *len_ptr,
+		attach->dma_map_attrs);
 
 	if (iommu_cb_set.map_profile_enable) {
 		CAM_GET_TIMESTAMP(ts2);
@@ -1985,7 +2110,8 @@ static int cam_smmu_map_buffer_validate(struct dma_buf *buf,
 		rc = -ENOSPC;
 		goto err_alloc;
 	}
-	CAM_DBG(CAM_SMMU, "idx=%d, dma_buf=%pK, dev=%pK, paddr=%pK, len=%u",
+
+	CAM_DBG(CAM_SMMU, "idx=%d, dma_buf=%pK, dev=%pK, paddr=0x%x, len=%u",
 		idx, buf, (void *)iommu_cb_set.cb_info[idx].dev,
 		(void *)*paddr_ptr, (unsigned int)*len_ptr);
 
@@ -2098,7 +2224,7 @@ static int cam_smmu_unmap_buf_and_remove_from_list(
 		mapping_info);
 
 	CAM_DBG(CAM_SMMU,
-		"region_id=%d, paddr=%pK, len=%d, dma_map_attrs=%d",
+		"region_id=%d, paddr=0x%x, len=%d, dma_map_attrs=%d",
 		mapping_info->region_id, mapping_info->paddr, mapping_info->len,
 		mapping_info->attach->dma_map_attrs);
 
@@ -2358,6 +2484,9 @@ static int cam_smmu_alloc_scratch_buffer_add_to_list(int idx,
 			"Could not find valid iova for scratch buffer");
 		goto err_iommu_map;
 	}
+
+	if (iommu_cb_set.force_cache_allocs)
+		iommu_dir |= IOMMU_CACHE;
 
 	if (iommu_map_sg(domain,
 		iova,
@@ -3404,9 +3533,8 @@ EXPORT_SYMBOL(cam_smmu_destroy_handle);
 
 static void cam_smmu_deinit_cb(struct cam_context_bank_info *cb)
 {
-	if (cb->io_support && cb->domain) {
+	if (cb->io_support && cb->domain)
 		cb->domain = NULL;
-	}
 
 	if (cb->shared_support) {
 		gen_pool_destroy(cb->shared_mem_pool);
@@ -3494,11 +3622,9 @@ static int cam_smmu_setup_cb(struct cam_context_bank_info *cb,
 			goto end;
 		}
 
-		iommu_dma_enable_best_fit_algo(dev);
-
-		if (cb->discard_iova_start)
-			iommu_dma_reserve_iova(dev, cb->discard_iova_start,
-				cb->discard_iova_len);
+		/* Enable custom iommu features, if applicable */
+		cam_smmu_util_iommu_custom(dev, cb->discard_iova_start,
+			cb->discard_iova_len);
 
 		cb->state = CAM_SMMU_ATTACH;
 	} else {
@@ -3816,6 +3942,7 @@ static int cam_populate_smmu_context_banks(struct device *dev,
 	struct cam_context_bank_info *cb;
 	struct device *ctx = NULL;
 	int i = 0;
+	bool dma_coherent, dma_coherent_hint;
 
 	if (!dev) {
 		CAM_ERR(CAM_SMMU, "Error: Invalid device");
@@ -3880,6 +4007,27 @@ static int cam_populate_smmu_context_banks(struct device *dev,
 	ctx = dev;
 	CAM_DBG(CAM_SMMU, "getting Arm SMMU ctx : %s", cb->name[0]);
 
+	cb->coherency_mode = CAM_SMMU_NO_COHERENCY;
+
+	dma_coherent = of_property_read_bool(dev->of_node, "dma-coherent");
+	dma_coherent_hint = of_property_read_bool(dev->of_node,
+		"dma-coherent-hint-cached");
+
+	if (dma_coherent && dma_coherent_hint) {
+		CAM_ERR(CAM_SMMU,
+			"[%s] : Cannot enable both dma-coherent and dma-coherent-hint-cached",
+			cb->name[0]);
+		return -EBADR;
+	}
+
+	if (dma_coherent)
+		cb->coherency_mode = CAM_SMMU_DMA_COHERENT;
+	else if (dma_coherent_hint)
+		cb->coherency_mode = CAM_SMMU_DMA_COHERENT_HINT_CACHED;
+
+	CAM_DBG(CAM_SMMU, "[%s] : io cohereny mode %d", cb->name[0],
+		cb->coherency_mode);
+
 	rc = cam_smmu_setup_cb(cb, ctx);
 	if (rc < 0) {
 		CAM_ERR(CAM_SMMU, "Error: failed to setup cb : %s",
@@ -3916,36 +4064,24 @@ cb_init_fail:
 
 static int cam_smmu_create_debug_fs(void)
 {
-	iommu_cb_set.dentry = debugfs_create_dir("camera_smmu",
-		NULL);
+	int rc = 0;
+	struct dentry *dbgfileptr = NULL;
 
-	if (!iommu_cb_set.dentry) {
-		CAM_ERR(CAM_SMMU, "failed to create dentry");
-		return -ENOMEM;
+	dbgfileptr = debugfs_create_dir("camera_smmu", NULL);
+	if (!dbgfileptr) {
+		CAM_ERR(CAM_SMMU,"DebugFS could not create directory!");
+		rc = -ENOENT;
+		goto end;
 	}
+	/* Store parent inode for cleanup in caller */
+	iommu_cb_set.dentry = dbgfileptr;
 
-	if (!debugfs_create_bool("cb_dump_enable",
-		0644,
-		iommu_cb_set.dentry,
-		&iommu_cb_set.cb_dump_enable)) {
-		CAM_ERR(CAM_SMMU,
-			"failed to create dump_enable_debug");
-		goto err;
-	}
-
-	if (!debugfs_create_bool("map_profile_enable",
-		0644,
-		iommu_cb_set.dentry,
-		&iommu_cb_set.map_profile_enable)) {
-		CAM_ERR(CAM_SMMU,
-			"failed to create map_profile_enable");
-		goto err;
-	}
-
-	return 0;
-err:
-	debugfs_remove_recursive(iommu_cb_set.dentry);
-	return -ENOMEM;
+	debugfs_create_bool("cb_dump_enable", 0644,
+		iommu_cb_set.dentry, &iommu_cb_set.cb_dump_enable);
+	debugfs_create_bool("map_profile_enable", 0644,
+		iommu_cb_set.dentry, &iommu_cb_set.map_profile_enable);
+end:
+	return rc;
 }
 
 static int cam_smmu_probe(struct platform_device *pdev)
@@ -3982,7 +4118,7 @@ static int cam_smmu_probe(struct platform_device *pdev)
 	if (of_device_is_compatible(dev->of_node, "qcom,msm-cam-smmu-fw-dev")) {
 		icp_fw.fw_dev = &pdev->dev;
 		icp_fw.fw_kva = NULL;
-		icp_fw.fw_dma_hdl = 0;
+		icp_fw.fw_hdl = 0;
 		return rc;
 	}
 
@@ -4031,17 +4167,15 @@ static struct platform_driver cam_smmu_driver = {
 	},
 };
 
-static int __init cam_smmu_init_module(void)
+int cam_smmu_init_module(void)
 {
 	return platform_driver_register(&cam_smmu_driver);
 }
 
-static void __exit cam_smmu_exit_module(void)
+void cam_smmu_exit_module(void)
 {
 	platform_driver_unregister(&cam_smmu_driver);
 }
 
-module_init(cam_smmu_init_module);
-module_exit(cam_smmu_exit_module);
 MODULE_DESCRIPTION("MSM Camera SMMU driver");
 MODULE_LICENSE("GPL v2");

@@ -32,4 +32,14 @@ struct cam_isp_dev {
 	int32_t                    max_context;
 };
 
+/**
+ * @brief : API to register ISP Dev to platform framework.
+ * @return struct platform_device pointer on on success, or ERR_PTR() on error.
+ */
+int cam_isp_dev_init_module(void);
+
+/**
+ * @brief : API to remove ISP Dev from platform framework.
+ */
+void cam_isp_dev_exit_module(void);
 #endif /* __CAM_ISP_DEV_H__ */

@@ -9,7 +9,7 @@
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/mutex.h>
-#include <linux/spinlock.h>
+#include <linux/spinlock_types.h>
 #include <linux/timer.h>
 #include <linux/debugfs.h>
 #include <media/cam_defs.h>

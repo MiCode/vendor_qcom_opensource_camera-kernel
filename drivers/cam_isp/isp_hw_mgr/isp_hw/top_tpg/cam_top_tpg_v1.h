@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_TOP_TPG_V1_H_
@@ -51,4 +52,6 @@ static struct cam_top_tpg_reg_offset   cam_top_tpg_v1_reg_offset = {
 	.top_unicolor_bar_shift = 2,
 };
 
+int cam_top_tpg_v1_init_module(void);
+void cam_top_tpg_v1_exit_module(void);
 #endif /*_CAM_TOP_TPG_V1_H_ */

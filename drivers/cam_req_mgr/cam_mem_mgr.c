@@ -1,27 +1,33 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/mutex.h>
-#include <linux/msm_ion.h>
 #include <linux/slab.h>
-#include <linux/ion_kernel.h>
 #include <linux/dma-buf.h>
 #include <linux/debugfs.h>
+#include <linux/version.h>
 
+#include "cam_compat.h"
 #include "cam_req_mgr_util.h"
 #include "cam_mem_mgr.h"
 #include "cam_smmu_api.h"
 #include "cam_debug_util.h"
 #include "cam_trace.h"
 #include "cam_common_util.h"
+#include "cam_compat.h"
 
 static struct cam_mem_table tbl;
 static atomic_t cam_mem_mgr_state = ATOMIC_INIT(CAM_MEM_MGR_UNINITIALIZED);
+
+#if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
+static void cam_mem_mgr_put_dma_heaps(void);
+static int cam_mem_mgr_get_dma_heaps(void);
+#endif
 
 static int cam_mem_util_get_dma_dir(uint32_t flags)
 {
@@ -39,12 +45,9 @@ static int cam_mem_util_get_dma_dir(uint32_t flags)
 	return rc;
 }
 
-static int cam_mem_util_map_cpu_va(struct dma_buf *dmabuf,
-	uintptr_t *vaddr,
-	size_t *len)
+static int cam_mem_util_map_cpu_va(struct dma_buf *dmabuf, uintptr_t *vaddr, size_t *len)
 {
-	int i, j, rc;
-	void *addr;
+	int rc = 0;
 
 	/*
 	 * dma_buf_begin_cpu_access() and dma_buf_end_cpu_access()
@@ -56,54 +59,31 @@ static int cam_mem_util_map_cpu_va(struct dma_buf *dmabuf,
 		return rc;
 	}
 
-	/*
-	 * Code could be simplified if ION support of dma_buf_vmap is
-	 * available. This workaround takes the avandaage that ion_alloc
-	 * returns a virtually contiguous memory region, so we just need
-	 * to _kmap each individual page and then only use the virtual
-	 * address returned from the first call to _kmap.
-	 */
-	for (i = 0; i < PAGE_ALIGN(dmabuf->size) / PAGE_SIZE; i++) {
-		addr = dma_buf_kmap(dmabuf, i);
-		if (IS_ERR_OR_NULL(addr)) {
-			CAM_ERR(CAM_MEM, "kernel map fail");
-			for (j = 0; j < i; j++)
-				dma_buf_kunmap(dmabuf,
-					j,
-					(void *)(*vaddr + (j * PAGE_SIZE)));
-			*vaddr = 0;
-			*len = 0;
-			rc = -ENOSPC;
-			goto fail;
-		}
-		if (i == 0)
-			*vaddr = (uint64_t)addr;
+	rc = cam_compat_util_get_dmabuf_va(dmabuf, vaddr);
+	if (rc) {
+		CAM_ERR(CAM_MEM, "kernel vmap failed: rc = %d", rc);
+		*len = 0;
+		dma_buf_end_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
+	}
+	else {
+		*len = dmabuf->size;
+		CAM_DBG(CAM_MEM, "vaddr = %llu, len = %zu", *vaddr, *len);
 	}
 
-	*len = dmabuf->size;
-
-	return 0;
-
-fail:
-	dma_buf_end_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
 	return rc;
 }
+
 static int cam_mem_util_unmap_cpu_va(struct dma_buf *dmabuf,
 	uint64_t vaddr)
 {
-	int i, rc = 0, page_num;
+	int rc = 0;
 
 	if (!dmabuf || !vaddr) {
 		CAM_ERR(CAM_MEM, "Invalid input args %pK %llX", dmabuf, vaddr);
 		return -EINVAL;
 	}
 
-	page_num = PAGE_ALIGN(dmabuf->size) / PAGE_SIZE;
-
-	for (i = 0; i < page_num; i++) {
-		dma_buf_kunmap(dmabuf, i,
-			(void *)(vaddr + (i * PAGE_SIZE)));
-	}
+	cam_compat_util_put_dmabuf_va(dmabuf, (void *)vaddr);
 
 	/*
 	 * dma_buf_begin_cpu_access() and
@@ -122,38 +102,50 @@ static int cam_mem_util_unmap_cpu_va(struct dma_buf *dmabuf,
 
 static int cam_mem_mgr_create_debug_fs(void)
 {
-	tbl.dentry = debugfs_create_dir("camera_memmgr", NULL);
-	if (!tbl.dentry) {
-		CAM_ERR(CAM_MEM, "failed to create dentry");
-		return -ENOMEM;
-	}
+	int rc = 0;
+	struct dentry *dbgfileptr = NULL;
 
-	if (!debugfs_create_bool("alloc_profile_enable",
-		0644,
-		tbl.dentry,
-		&tbl.alloc_profile_enable)) {
-		CAM_ERR(CAM_MEM,
-			"failed to create alloc_profile_enable");
-		goto err;
+	dbgfileptr = debugfs_create_dir("camera_memmgr", NULL);
+	if (!dbgfileptr) {
+		CAM_ERR(CAM_MEM,"DebugFS could not create directory!");
+		rc = -ENOENT;
+		goto end;
 	}
+	/* Store parent inode for cleanup in caller */
+	tbl.dentry = dbgfileptr;
 
-	return 0;
-err:
-	debugfs_remove_recursive(tbl.dentry);
-	return -ENOMEM;
+	debugfs_create_bool("alloc_profile_enable", 0644,
+		tbl.dentry, &tbl.alloc_profile_enable);
+end:
+	return rc;
 }
 
 int cam_mem_mgr_init(void)
 {
 	int i;
 	int bitmap_size;
+	int rc = 0;
 
 	memset(tbl.bufq, 0, sizeof(tbl.bufq));
 
+	if (cam_smmu_need_force_alloc_cached(&tbl.force_cache_allocs)) {
+		CAM_ERR(CAM_MEM, "Error in getting force cache alloc flag");
+		return -EINVAL;
+	}
+
+#if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
+	rc = cam_mem_mgr_get_dma_heaps();
+	if (rc) {
+		CAM_ERR(CAM_MEM, "Failed in getting dma heaps rc=%d", rc);
+		return rc;
+	}
+#endif
 	bitmap_size = BITS_TO_LONGS(CAM_MEM_BUFQ_MAX) * sizeof(long);
 	tbl.bitmap = kzalloc(bitmap_size, GFP_KERNEL);
-	if (!tbl.bitmap)
-		return -ENOMEM;
+	if (!tbl.bitmap) {
+		rc = -ENOMEM;
+		goto put_heaps;
+	}
 
 	tbl.bits = bitmap_size * BITS_PER_BYTE;
 	bitmap_zero(tbl.bitmap, tbl.bits);
@@ -171,6 +163,11 @@ int cam_mem_mgr_init(void)
 	cam_mem_mgr_create_debug_fs();
 
 	return 0;
+put_heaps:
+#if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
+	cam_mem_mgr_put_dma_heaps();
+#endif
+	return rc;
 }
 
 static int32_t cam_mem_get_slot(void)
@@ -333,6 +330,10 @@ int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd)
 		goto end;
 	}
 
+#if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
+	CAM_DBG(CAM_MEM, "Calling dmap buf APIs for cache operations");
+	cache_dir = DMA_BIDIRECTIONAL;
+#else
 	if (dmabuf_flag & ION_FLAG_CACHED) {
 		switch (cmd->mem_cache_ops) {
 		case CAM_MEM_CLEAN_CACHE:
@@ -354,7 +355,7 @@ int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd)
 		CAM_DBG(CAM_MEM, "BUF is not cached");
 		goto end;
 	}
-
+#endif
 	rc = dma_buf_begin_cpu_access(tbl.bufq[idx].dma_buf,
 		(cmd->mem_cache_ops == CAM_MEM_CLEAN_INV_CACHE) ?
 		DMA_BIDIRECTIONAL : DMA_TO_DEVICE);
@@ -376,66 +377,176 @@ end:
 }
 EXPORT_SYMBOL(cam_mem_mgr_cache_ops);
 
+#if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
+static void cam_mem_mgr_put_dma_heaps(void)
+{
+	CAM_DBG(CAM_MEM, "Releasing DMA Buf heaps usage");
+}
+
+static int cam_mem_mgr_get_dma_heaps(void)
+{
+	int rc = 0;
+
+	tbl.system_heap = NULL;
+	tbl.system_uncached_heap = NULL;
+	tbl.camera_heap = NULL;
+	tbl.camera_uncached_heap = NULL;
+	tbl.secure_display_heap = NULL;
+
+	tbl.system_heap = dma_heap_find("qcom,system");
+	if (IS_ERR_OR_NULL(tbl.system_heap)) {
+		rc = PTR_ERR(tbl.system_heap);
+		CAM_ERR(CAM_MEM, "qcom system heap not found, rc=%d", rc);
+		tbl.system_heap = NULL;
+		goto put_heaps;
+	}
+
+	tbl.system_uncached_heap = dma_heap_find("qcom,system-uncached");
+	if (IS_ERR_OR_NULL(tbl.system_uncached_heap)) {
+		if (tbl.force_cache_allocs) {
+			/* optional, we anyway do not use uncached */
+			CAM_DBG(CAM_MEM,
+				"qcom system-uncached heap not found, err=%d",
+				PTR_ERR(tbl.system_uncached_heap));
+			tbl.system_uncached_heap = NULL;
+		} else {
+			/* fatal, must need uncached heaps */
+			rc = PTR_ERR(tbl.system_uncached_heap);
+			CAM_ERR(CAM_MEM,
+				"qcom system-uncached heap not found, rc=%d",
+				rc);
+			tbl.system_uncached_heap = NULL;
+			goto put_heaps;
+		}
+	}
+
+	tbl.secure_display_heap = dma_heap_find("qcom,secure-display");
+	if (IS_ERR_OR_NULL(tbl.secure_display_heap)) {
+		rc = PTR_ERR(tbl.secure_display_heap);
+		CAM_ERR(CAM_MEM, "qcom,secure-display heap not found, rc=%d",
+			rc);
+		tbl.secure_display_heap = NULL;
+		goto put_heaps;
+	}
+
+	tbl.camera_heap = dma_heap_find("qcom,camera");
+	if (IS_ERR_OR_NULL(tbl.camera_heap)) {
+		/* optional heap, not a fatal error */
+		CAM_DBG(CAM_MEM, "qcom camera heap not found, err=%d",
+			PTR_ERR(tbl.camera_heap));
+		tbl.camera_heap = NULL;
+	}
+
+	tbl.camera_uncached_heap = dma_heap_find("qcom,camera-uncached");
+	if (IS_ERR_OR_NULL(tbl.camera_uncached_heap)) {
+		/* optional heap, not a fatal error */
+		CAM_DBG(CAM_MEM, "qcom camera heap not found, err=%d",
+			PTR_ERR(tbl.camera_uncached_heap));
+		tbl.camera_uncached_heap = NULL;
+	}
+
+	CAM_INFO(CAM_MEM,
+		"Heaps : system=%pK, system_uncached=%pK, camera=%pK, camera-uncached=%pK, secure_display=%pK",
+		tbl.system_heap, tbl.system_uncached_heap,
+		tbl.camera_heap, tbl.camera_uncached_heap,
+		tbl.secure_display_heap);
+
+	return 0;
+put_heaps:
+	cam_mem_mgr_put_dma_heaps();
+	return rc;
+}
+
 static int cam_mem_util_get_dma_buf(size_t len,
-	unsigned int heap_id_mask,
-	unsigned int flags,
+	unsigned int cam_flags,
 	struct dma_buf **buf)
 {
 	int rc = 0;
+	struct dma_heap *heap;
+	struct dma_heap *try_heap = NULL;
+	struct timespec64 ts1, ts2;
+	long microsec = 0;
+	bool use_cached_heap = false;
 
 	if (!buf) {
 		CAM_ERR(CAM_MEM, "Invalid params");
 		return -EINVAL;
 	}
 
-	*buf = ion_alloc(len, heap_id_mask, flags);
-	if (IS_ERR_OR_NULL(*buf))
-		return -ENOMEM;
-
-	return rc;
-}
-
-static int cam_mem_util_get_dma_buf_fd(size_t len,
-	size_t align,
-	unsigned int heap_id_mask,
-	unsigned int flags,
-	struct dma_buf **buf,
-	int *fd)
-{
-	struct dma_buf *dmabuf = NULL;
-	int rc = 0;
-	struct timespec64 ts1, ts2;
-	long microsec = 0;
-
-	if (!buf || !fd) {
-		CAM_ERR(CAM_MEM, "Invalid params, buf=%pK, fd=%pK", buf, fd);
-		return -EINVAL;
-	}
-
 	if (tbl.alloc_profile_enable)
 		CAM_GET_TIMESTAMP(ts1);
 
-	*buf = ion_alloc(len, heap_id_mask, flags);
-	if (IS_ERR_OR_NULL(*buf))
-		return -ENOMEM;
-
-	*fd = dma_buf_fd(*buf, O_CLOEXEC);
-	if (*fd < 0) {
-		CAM_ERR(CAM_MEM, "get fd fail, *fd=%d", *fd);
-		rc = -EINVAL;
-		goto get_fd_fail;
+	if ((cam_flags & CAM_MEM_FLAG_CACHE) ||
+		(tbl.force_cache_allocs &&
+		(!(cam_flags & CAM_MEM_FLAG_PROTECTED_MODE)))) {
+		CAM_DBG(CAM_MEM,
+			"Using CACHED heap, cam_flags=0x%x, force_cache_allocs=%d",
+			cam_flags, tbl.force_cache_allocs);
+		use_cached_heap = true;
+	} else if (cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) {
+		use_cached_heap = true;
+		CAM_DBG(CAM_MEM,
+			"Using CACHED heap for secure, cam_flags=0x%x, force_cache_allocs=%d",
+			cam_flags, tbl.force_cache_allocs);
+	} else {
+		use_cached_heap = false;
+		CAM_DBG(CAM_MEM,
+			"Using UNCACHED heap, cam_flags=0x%x, force_cache_allocs=%d",
+			cam_flags, tbl.force_cache_allocs);
 	}
 
-	/*
-	 * increment the ref count so that ref count becomes 2 here
-	 * when we close fd, refcount becomes 1 and when we do
-	 * dmap_put_buf, ref count becomes 0 and memory will be freed.
-	 */
-	dmabuf = dma_buf_get(*fd);
-	if (IS_ERR_OR_NULL(dmabuf)) {
-		CAM_ERR(CAM_MEM, "dma_buf_get failed, *fd=%d", *fd);
-		rc = -EINVAL;
+	if ((cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) &&
+		(cam_flags & CAM_MEM_FLAG_CDSP_OUTPUT)) {
+		heap = tbl.secure_display_heap;
+		CAM_ERR(CAM_MEM, "Secure CDSP not supported yet");
+		return -EBADR;
+	} else if (cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) {
+		heap = tbl.secure_display_heap;
+		CAM_ERR(CAM_MEM, "Secure mode not supported yet");
+		return -EBADR;
 	}
+
+	if (use_cached_heap) {
+		try_heap = tbl.camera_heap;
+		heap = tbl.system_heap;
+	} else {
+		try_heap = tbl.camera_uncached_heap;
+		heap = tbl.system_uncached_heap;
+	}
+
+	CAM_DBG(CAM_MEM, "Using heaps : try=%pK, heap=%pK", try_heap, heap);
+
+	*buf = NULL;
+
+	if (!try_heap && !heap) {
+		CAM_ERR(CAM_MEM,
+			"No heap available for allocation, cant allocate");
+		return -EINVAL;
+	}
+
+	if (try_heap) {
+		*buf = dma_heap_buffer_alloc(try_heap, len, O_RDWR, 0);
+		if (IS_ERR_OR_NULL(*buf)) {
+			CAM_WARN(CAM_MEM,
+				"Failed in allocating from try heap, heap=%pK, len=%zu, err=%d",
+				try_heap, len, PTR_ERR(*buf));
+			*buf = NULL;
+		}
+	}
+
+	if (*buf == NULL) {
+		*buf = dma_heap_buffer_alloc(heap, len, O_RDWR, 0);
+		if (IS_ERR_OR_NULL(*buf)) {
+			rc = PTR_ERR(*buf);
+			CAM_ERR(CAM_MEM,
+				"Failed in allocating from heap, heap=%pK, len=%zu, err=%d",
+				heap, len, rc);
+			*buf = NULL;
+			return rc;
+		}
+	}
+
+	CAM_DBG(CAM_MEM, "Allocate success, len=%zu, *buf=%pK", len, *buf);
 
 	if (tbl.alloc_profile_enable) {
 		CAM_GET_TIMESTAMP(ts2);
@@ -445,26 +556,32 @@ static int cam_mem_util_get_dma_buf_fd(size_t len,
 	}
 
 	return rc;
-
-get_fd_fail:
-	dma_buf_put(*buf);
-	return rc;
 }
-
-static int cam_mem_util_ion_alloc(struct cam_mem_mgr_alloc_cmd *cmd,
-	struct dma_buf **dmabuf,
-	int *fd)
+#else
+static int cam_mem_util_get_dma_buf(size_t len,
+	unsigned int cam_flags,
+	struct dma_buf **buf)
 {
-	uint32_t heap_id;
-	uint32_t ion_flag = 0;
-	int rc;
+	int rc = 0;
+	unsigned int heap_id;
+	int32_t ion_flag = 0;
+	struct timespec64 ts1, ts2;
+	long microsec = 0;
 
-	if ((cmd->flags & CAM_MEM_FLAG_PROTECTED_MODE) &&
-		(cmd->flags & CAM_MEM_FLAG_CDSP_OUTPUT)) {
+	if (!buf) {
+		CAM_ERR(CAM_MEM, "Invalid params");
+		return -EINVAL;
+	}
+
+	if (tbl.alloc_profile_enable)
+		CAM_GET_TIMESTAMP(ts1);
+
+	if ((cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) &&
+		(cam_flags & CAM_MEM_FLAG_CDSP_OUTPUT)) {
 		heap_id = ION_HEAP(ION_SECURE_DISPLAY_HEAP_ID);
 		ion_flag |=
 			ION_FLAG_SECURE | ION_FLAG_CP_CAMERA | ION_FLAG_CP_CDSP;
-	} else if (cmd->flags & CAM_MEM_FLAG_PROTECTED_MODE) {
+	} else if (cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) {
 		heap_id = ION_HEAP(ION_SECURE_DISPLAY_HEAP_ID);
 		ion_flag |= ION_FLAG_SECURE | ION_FLAG_CP_CAMERA;
 	} else {
@@ -472,21 +589,74 @@ static int cam_mem_util_ion_alloc(struct cam_mem_mgr_alloc_cmd *cmd,
 			ION_HEAP(ION_CAMERA_HEAP_ID);
 	}
 
-	if (cmd->flags & CAM_MEM_FLAG_CACHE)
+	if (cam_flags & CAM_MEM_FLAG_CACHE)
 		ion_flag |= ION_FLAG_CACHED;
 	else
 		ion_flag &= ~ION_FLAG_CACHED;
 
-	rc = cam_mem_util_get_dma_buf_fd(cmd->len,
-		cmd->align,
-		heap_id,
-		ion_flag,
-		dmabuf,
-		fd);
+	if (tbl.force_cache_allocs && (!(ion_flag & ION_FLAG_SECURE)))
+		ion_flag |= ION_FLAG_CACHED;
+
+	*buf = ion_alloc(len, heap_id, ion_flag);
+	if (IS_ERR_OR_NULL(*buf))
+		return -ENOMEM;
+
+	if (tbl.alloc_profile_enable) {
+		CAM_GET_TIMESTAMP(ts2);
+		CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts1, ts2, microsec);
+		trace_cam_log_event("IONAllocProfile", "size and time in micro",
+			len, microsec);
+	}
 
 	return rc;
 }
+#endif
 
+static int cam_mem_util_buffer_alloc(struct cam_mem_mgr_alloc_cmd *cmd,
+	struct dma_buf **dmabuf,
+	int *fd)
+{
+	int rc;
+	struct dma_buf *temp_dmabuf = NULL;
+
+	rc = cam_mem_util_get_dma_buf(cmd->len,
+		cmd->flags,
+		dmabuf);
+	if (rc) {
+		CAM_ERR(CAM_MEM,
+			"Error allocating dma buf : len=%llu, flags=0x%x",
+			cmd->len, cmd->flags);
+		return rc;
+	}
+
+	*fd = dma_buf_fd(*dmabuf, O_CLOEXEC);
+	if (*fd < 0) {
+		CAM_ERR(CAM_MEM, "get fd fail, *fd=%d", *fd);
+		rc = -EINVAL;
+		goto put_buf;
+	}
+
+	CAM_DBG(CAM_MEM, "Alloc success : len=%zu, *dmabuf=%pK, fd=%d",
+		cmd->len, *dmabuf, *fd);
+
+	/*
+	 * increment the ref count so that ref count becomes 2 here
+	 * when we close fd, refcount becomes 1 and when we do
+	 * dmap_put_buf, ref count becomes 0 and memory will be freed.
+	 */
+	temp_dmabuf = dma_buf_get(*fd);
+	if (IS_ERR_OR_NULL(temp_dmabuf)) {
+		CAM_ERR(CAM_MEM, "dma_buf_get failed, *fd=%d", *fd);
+		rc = -EINVAL;
+		goto put_buf;
+	}
+
+	return rc;
+
+put_buf:
+	dma_buf_put(*dmabuf);
+	return rc;
+}
 
 static int cam_mem_util_check_alloc_flags(struct cam_mem_mgr_alloc_cmd *cmd)
 {
@@ -637,7 +807,7 @@ int cam_mem_mgr_alloc_and_map(struct cam_mem_mgr_alloc_cmd *cmd)
 		return rc;
 	}
 
-	rc = cam_mem_util_ion_alloc(cmd,
+	rc = cam_mem_util_buffer_alloc(cmd,
 		&dmabuf,
 		&fd);
 	if (rc) {
@@ -909,6 +1079,10 @@ static void cam_mem_mgr_unmap_active_buf(int idx)
 		region = CAM_SMMU_REGION_IO;
 
 	cam_mem_util_unmap_hw_va(idx, region, CAM_SMMU_MAPPING_USER);
+
+	if (tbl.bufq[idx].flags & CAM_MEM_FLAG_KMD_ACCESS)
+		cam_mem_util_unmap_cpu_va(tbl.bufq[idx].dma_buf,
+			tbl.bufq[idx].kmdvaddr);
 }
 
 static int cam_mem_mgr_cleanup_table(void)
@@ -1096,8 +1270,6 @@ int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,
 	struct dma_buf *buf = NULL;
 	int ion_fd = -1;
 	int rc = 0;
-	uint32_t heap_id;
-	int32_t ion_flag = 0;
 	uintptr_t kvaddr;
 	dma_addr_t iova = 0;
 	size_t request_len = 0;
@@ -1125,17 +1297,8 @@ int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,
 		return -EINVAL;
 	}
 
-	if (inp->flags & CAM_MEM_FLAG_CACHE)
-		ion_flag |= ION_FLAG_CACHED;
-	else
-		ion_flag &= ~ION_FLAG_CACHED;
-
-	heap_id = ION_HEAP(ION_SYSTEM_HEAP_ID) |
-		ION_HEAP(ION_CAMERA_HEAP_ID);
-
 	rc = cam_mem_util_get_dma_buf(inp->size,
-		heap_id,
-		ion_flag,
+		inp->flags,
 		&buf);
 
 	if (rc) {
@@ -1278,7 +1441,6 @@ int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,
 	struct dma_buf *buf = NULL;
 	int rc = 0;
 	int ion_fd = -1;
-	uint32_t heap_id;
 	dma_addr_t iova = 0;
 	size_t request_len = 0;
 	uint32_t mem_handle;
@@ -1306,10 +1468,7 @@ int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,
 		return -EINVAL;
 	}
 
-	heap_id = ION_HEAP(ION_SYSTEM_HEAP_ID) |
-		ION_HEAP(ION_CAMERA_HEAP_ID);
 	rc = cam_mem_util_get_dma_buf(inp->size,
-		heap_id,
 		0,
 		&buf);
 

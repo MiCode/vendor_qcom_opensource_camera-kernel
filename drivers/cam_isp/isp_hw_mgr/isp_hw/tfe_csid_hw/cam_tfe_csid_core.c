@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -17,7 +18,7 @@
 #include "cam_debug_util.h"
 #include "cam_cpas_api.h"
 #include "cam_isp_hw_mgr_intf.h"
-#include <dt-bindings/msm/msm-camera.h>
+#include <dt-bindings/msm-camera.h>
 #include "cam_subdev.h"
 #include "cam_tasklet_util.h"
 
@@ -1703,7 +1704,7 @@ static int cam_tfe_csid_get_time_stamp(
 		CAM_TFE_CSID_QTIMER_DIV_FACTOR);
 
 	if (!csid_hw->prev_boot_timestamp) {
-		get_monotonic_boottime64(&ts);
+		ktime_get_boottime_ts64(&ts);
 		time_stamp->boot_timestamp =
 			(uint64_t)((ts.tv_sec * 1000000000) +
 			ts.tv_nsec);
@@ -3140,7 +3141,7 @@ int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
 	tfe_csid_hw->device_enabled = 0;
 	tfe_csid_hw->hw_info->hw_state = CAM_HW_STATE_POWER_DOWN;
 
-	if (!cam_cpas_is_feature_supported(CAM_CPAS_ISP_FUSE_ID,
+	if (!cam_cpas_is_feature_supported(CAM_CPAS_ISP_FUSE,
 		csid_idx)) {
 		CAM_INFO(CAM_ISP, "TFE:%d  is not supported",
 		csid_idx);
@@ -3151,7 +3152,7 @@ int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
 	CAM_DBG(CAM_ISP, "type %d index %d supported",
 		tfe_csid_hw->hw_intf->hw_type, csid_idx);
 
-	if (!cam_cpas_is_feature_supported(CAM_CPAS_ISP_PIX_FUSE_ID,
+	if (!cam_cpas_is_feature_supported(CAM_CPAS_ISP_PIX_FUSE,
 		csid_idx)) {
 		pixel_pipe_supported = false;
 		CAM_INFO(CAM_ISP, "TFE:%d PIX path is not supported",

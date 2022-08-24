@@ -7,12 +7,14 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+
 #include <media/v4l2-event.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-subdev.h>
 #include <media/cam_cpas.h>
 #include <media/cam_req_mgr.h>
-#include <dt-bindings/msm/msm-camera.h>
+
+#include <dt-bindings/msm-camera.h>
 
 #include "cam_subdev.h"
 #include "cam_cpas_hw_intf.h"
@@ -781,17 +783,15 @@ static struct platform_driver cam_cpas_driver = {
 	},
 };
 
-static int __init cam_cpas_dev_init_module(void)
+int cam_cpas_dev_init_module(void)
 {
 	return platform_driver_register(&cam_cpas_driver);
 }
 
-static void __exit cam_cpas_dev_exit_module(void)
+void cam_cpas_dev_exit_module(void)
 {
 	platform_driver_unregister(&cam_cpas_driver);
 }
 
-module_init(cam_cpas_dev_init_module);
-module_exit(cam_cpas_dev_exit_module);
 MODULE_DESCRIPTION("MSM CPAS driver");
 MODULE_LICENSE("GPL v2");

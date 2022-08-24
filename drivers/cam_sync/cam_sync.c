@@ -12,6 +12,7 @@
 #include "cam_sync_util.h"
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
+#include "cam_compat.h"
 #include "cam_req_mgr_workq.h"
 
 #ifdef CONFIG_MSM_GLOBAL_SYNX
@@ -1015,22 +1016,23 @@ static void cam_sync_init_entity(struct sync_device *sync_dev)
 
 static int cam_sync_create_debugfs(void)
 {
-	sync_dev->dentry = debugfs_create_dir("camera_sync", NULL);
+	int rc = 0;
+	struct dentry *dbgfileptr = NULL;
 
-	if (!sync_dev->dentry) {
-		CAM_ERR(CAM_SYNC, "Failed to create sync dir");
-		return -ENOMEM;
+	dbgfileptr = debugfs_create_dir("camera_sync", NULL);
+	if (!dbgfileptr) {
+		CAM_ERR(CAM_SYNC,"DebugFS could not create directory!");
+		rc = -ENOENT;
+		goto end;
 	}
+	/* Store parent inode for cleanup in caller */
+	sync_dev->dentry = dbgfileptr;
 
-	if (!debugfs_create_bool("trigger_cb_without_switch",
-		0644, sync_dev->dentry,
-		&trigger_cb_without_switch)) {
-		CAM_ERR(CAM_SYNC,
-			"failed to create trigger_cb_without_switch entry");
-		return -ENOMEM;
-	}
+	debugfs_create_bool("trigger_cb_without_switch", 0644,
+		sync_dev->dentry, &trigger_cb_without_switch);
 
-	return 0;
+end:
+	return rc;
 }
 
 #ifdef CONFIG_MSM_GLOBAL_SYNX
@@ -1089,11 +1091,16 @@ static int cam_sync_probe(struct platform_device *pdev)
 	sync_dev->vdev->fops     = &cam_sync_v4l2_fops;
 	sync_dev->vdev->ioctl_ops = &g_cam_sync_ioctl_ops;
 	sync_dev->vdev->minor     = -1;
-	sync_dev->vdev->vfl_type  = VFL_TYPE_GRABBER;
+	sync_dev->vdev->vfl_type  = VFL_TYPE_VIDEO;
+	sync_dev->vdev->device_caps |= V4L2_CAP_VIDEO_CAPTURE;
 	rc = video_register_device(sync_dev->vdev,
-		VFL_TYPE_GRABBER, -1);
-	if (rc < 0)
+		VFL_TYPE_VIDEO, -1);
+	if (rc < 0) {
+		CAM_ERR(CAM_SYNC,
+			"video device registration failure rc = %d, name = %s, device_caps = %d",
+			rc, sync_dev->vdev->name, sync_dev->vdev->device_caps);
 		goto v4l2_fail;
+	}
 
 	cam_sync_init_entity(sync_dev);
 	video_set_drvdata(sync_dev->vdev, sync_dev);
@@ -1164,10 +1171,9 @@ static struct platform_driver cam_sync_driver = {
 	},
 };
 
-static int __init cam_sync_init(void)
+int cam_sync_init(void)
 {
 	int rc;
-
 	rc = platform_device_register(&cam_sync_device);
 	if (rc)
 		return -ENODEV;
@@ -1175,7 +1181,7 @@ static int __init cam_sync_init(void)
 	return platform_driver_register(&cam_sync_driver);
 }
 
-static void __exit cam_sync_exit(void)
+void cam_sync_exit(void)
 {
 	int idx;
 
@@ -1186,7 +1192,5 @@ static void __exit cam_sync_exit(void)
 	kfree(sync_dev);
 }
 
-module_init(cam_sync_init);
-module_exit(cam_sync_exit);
 MODULE_DESCRIPTION("Camera sync driver");
 MODULE_LICENSE("GPL v2");

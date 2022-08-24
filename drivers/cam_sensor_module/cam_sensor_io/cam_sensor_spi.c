@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  */
 
-#include <linux/dma-contiguous.h>
 #include "cam_sensor_spi.h"
 #include "cam_debug_util.h"
 
@@ -111,7 +110,8 @@ static int32_t cam_spi_tx_helper(struct camera_io_master *client,
 	uint32_t len, hlen;
 	uint8_t retries = client->spi_client->retries;
 	uint32_t txr = 0, rxr = 0;
-	struct page *page_tx = NULL, *page_rx = NULL;
+	void  *vaddr_tx = NULL;
+	void  *vaddr_rx = NULL;
 
 	hlen = cam_camera_spi_get_hlen(inst);
 	len = hlen + num_byte;
@@ -125,30 +125,32 @@ static int32_t cam_spi_tx_helper(struct camera_io_master *client,
 	if (tx) {
 		ctx = tx;
 	} else {
-		txr = PAGE_ALIGN(len) >> PAGE_SHIFT;
-		page_tx = cma_alloc(dev_get_cma_area(dev),
-			txr, 0, GFP_KERNEL);
-		if (!page_tx)
+		txr = len;
+		vaddr_tx = vmalloc(txr);
+		if (!vaddr_tx) {
+			CAM_ERR(CAM_SENSOR,
+				 "Fail to allocate Memory: len: %u", txr);
 			return -ENOMEM;
+		}
 
-		ctx = page_address(page_tx);
+		ctx = (char *)vaddr_tx;
 	}
 
 	if (num_byte) {
 		if (rx) {
 			crx = rx;
 		} else {
-			rxr = PAGE_ALIGN(len) >> PAGE_SHIFT;
-			page_rx = cma_alloc(dev_get_cma_area(dev),
-				rxr, 0, GFP_KERNEL);
-			if (!page_rx) {
+			rxr = len;
+			vaddr_rx = vmalloc(rxr);
+			if (!vaddr_rx) {
 				if (!tx)
-					cma_release(dev_get_cma_area(dev),
-						page_tx, txr);
-
+					vfree(vaddr_tx);
+				CAM_ERR(CAM_SENSOR,
+					"Fail to allocate memory: len: %u",
+					rxr);
 				return -ENOMEM;
 			}
-			crx = page_address(page_rx);
+			crx = (char *)vaddr_rx;
 		}
 	} else {
 		crx = NULL;
@@ -168,10 +170,14 @@ static int32_t cam_spi_tx_helper(struct camera_io_master *client,
 		memcpy(data, crx + hlen, num_byte);
 
 out:
-	if (!tx)
-		cma_release(dev_get_cma_area(dev), page_tx, txr);
-	if (!rx)
-		cma_release(dev_get_cma_area(dev), page_rx, rxr);
+	if (!tx) {
+		vfree(vaddr_tx);
+		vaddr_tx = NULL;
+	}
+	if (!rx) {
+		vfree(vaddr_rx);
+		vaddr_rx = NULL;
+	}
 	return rc;
 }
 

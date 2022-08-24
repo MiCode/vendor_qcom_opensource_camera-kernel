@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -35,16 +36,15 @@ static struct platform_driver cam_csid_ppi100_driver = {
 	},
 };
 
-static int __init cam_csid_ppi100_init_module(void)
+int cam_csid_ppi100_init_module(void)
 {
 	return platform_driver_register(&cam_csid_ppi100_driver);
 }
 
-static void __exit cam_csid_ppi100_exit_module(void)
+void cam_csid_ppi100_exit_module(void)
 {
 	platform_driver_unregister(&cam_csid_ppi100_driver);
 }
 
-module_init(cam_csid_ppi100_init_module);
 MODULE_DESCRIPTION("CAM CSID_PPI100 driver");
 MODULE_LICENSE("GPL v2");

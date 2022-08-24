@@ -150,4 +150,14 @@ int cam_sync_wait(int32_t sync_obj, uint64_t timeout_ms);
  */
 int cam_sync_check_valid(int32_t sync_obj);
 
+/**
+ * @brief : API to register SYNC to platform framework.
+ * @return struct platform_device pointer on on success, or ERR_PTR() on error.
+ */
+int cam_sync_init(void);
+
+/**
+ * @brief : API to remove SYNC from platform framework.
+ */
+void cam_sync_exit(void);
 #endif /* __CAM_SYNC_API_H__ */

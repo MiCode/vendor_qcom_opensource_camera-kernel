@@ -6,7 +6,6 @@
 #ifndef _CAM_CPAS_SOC_H_
 #define _CAM_CPAS_SOC_H_
 
-#include <linux/msm_kgsl.h>
 #include "cam_soc_util.h"
 #include "cam_cpas_hw.h"
 
@@ -92,6 +91,7 @@ struct cam_cpas_feature_info {
  *
  * @arch_compat: ARCH compatible string
  * @client_id_based: Whether clients are id based
+ * @bus_icc_based: Interconnect based bus interaction
  * @num_clients: Number of clients supported
  * @client_name: Client names
  * @tree_node: Array of pointers to all tree nodes required to calculate
@@ -107,8 +107,6 @@ struct cam_cpas_feature_info {
  * @camnoc_axi_min_ib_bw: Min camnoc BW which varies based on target
  * @num_feature_entries: number of feature entries
  * @feature_info: fuse based feature info for hw supported features
- * @cx_ipeak_gpu_limit: Flag for Cx Ipeak GPU mitigation
- * @gpu_pwr_limit: Handle for Cx Ipeak GPU Mitigation
  * @custom_id: Custom id to differentiate between target if
  *      cpas version is same
  *
@@ -116,6 +114,7 @@ struct cam_cpas_feature_info {
 struct cam_cpas_private_soc {
 	const char *arch_compat;
 	bool client_id_based;
+	bool bus_icc_based;
 	uint32_t num_clients;
 	const char *client_name[CAM_CPAS_MAX_CLIENTS];
 	struct cam_cpas_tree_node *tree_node[CAM_CPAS_MAX_TREE_NODES];
@@ -129,8 +128,6 @@ struct cam_cpas_private_soc {
 	uint64_t camnoc_axi_min_ib_bw;
 	uint32_t num_feature_entries;
 	struct cam_cpas_feature_info  feature_info[CAM_CPAS_MAX_FUSE_FEATURE];
-	uint32_t cx_ipeak_gpu_limit;
-	struct kgsl_pwr_limit *gpu_pwr_limit;
 	uint32_t custom_id;
 };
 

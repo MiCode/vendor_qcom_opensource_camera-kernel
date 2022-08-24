@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_REQ_MGR_DEBUG_H_
@@ -8,6 +9,7 @@
 
 #include <linux/debugfs.h>
 #include "cam_req_mgr_core.h"
+#include "cam_debug_util.h"
 
 int cam_req_mgr_debug_register(struct cam_req_mgr_core_device *core_dev);
 
