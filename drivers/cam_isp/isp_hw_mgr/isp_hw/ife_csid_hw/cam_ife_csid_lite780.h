@@ -530,6 +530,8 @@ static struct cam_ife_csid_csi2_rx_reg_info
 		.epd_mode_shift_en                    = 8,
 		.eotp_shift_en                        = 9,
 		.dyn_sensor_switch_shift_en           = 10,
+		.rup_aup_latch_shift                  = 11,
+		.rup_aup_latch_supported              = true,
 		.long_pkt_strobe_rst_shift            = 0,
 		.short_pkt_strobe_rst_shift           = 1,
 		.cphy_pkt_strobe_rst_shift            = 2,

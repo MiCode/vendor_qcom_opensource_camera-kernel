@@ -234,6 +234,8 @@ struct cam_ife_csid_csi2_rx_reg_info {
 	uint32_t epd_mode_shift_en;
 	uint32_t eotp_shift_en;
 	uint32_t dyn_sensor_switch_shift_en;
+	uint32_t rup_aup_latch_shift;
+	bool     rup_aup_latch_supported;
 	uint32_t phy_num_mask;
 	uint32_t vc_mask;
 	uint32_t wc_mask;

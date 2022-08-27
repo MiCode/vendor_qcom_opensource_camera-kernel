@@ -4104,8 +4104,12 @@ static int cam_ife_csid_ver2_enable_csi2(struct cam_ife_csid_ver2_hw *csid_hw)
 	val = 1 << csi2_reg->misr_enable_shift_val;
 	val |= 1 << csi2_reg->ecc_correction_shift_en;
 	val |= (rx_cfg->epd_supported << csi2_reg->epd_mode_shift_en);
-	if (rx_cfg->dynamic_sensor_switch_en)
+	if (rx_cfg->dynamic_sensor_switch_en) {
 		val |= 1 << csi2_reg->dyn_sensor_switch_shift_en;
+		/* Disable rup_aup latch feature */
+		if (csi2_reg->rup_aup_latch_supported)
+			val |= 1 << csi2_reg->rup_aup_latch_shift;
+	}
 
 	vc_full_width = cam_ife_csid_is_vc_full_width(csid_hw->cid_data);
 
