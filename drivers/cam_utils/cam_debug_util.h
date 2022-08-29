@@ -347,6 +347,22 @@ struct cam_cpas_debug_settings {
 	uint64_t mnoc_sf_icp_ab_bw;
 	uint64_t mnoc_sf_icp_ib_bw;
 	uint64_t camnoc_bw;
+	uint64_t cam_ife_0_drv_ab_high_bw;
+	uint64_t cam_ife_0_drv_ib_high_bw;
+	uint64_t cam_ife_1_drv_ab_high_bw;
+	uint64_t cam_ife_1_drv_ib_high_bw;
+	uint64_t cam_ife_2_drv_ab_high_bw;
+	uint64_t cam_ife_2_drv_ib_high_bw;
+	uint64_t cam_ife_0_drv_ab_low_bw;
+	uint64_t cam_ife_0_drv_ib_low_bw;
+	uint64_t cam_ife_1_drv_ab_low_bw;
+	uint64_t cam_ife_1_drv_ib_low_bw;
+	uint64_t cam_ife_2_drv_ab_low_bw;
+	uint64_t cam_ife_2_drv_ib_low_bw;
+	uint64_t cam_ife_0_drv_low_set_zero;
+	uint64_t cam_ife_1_drv_low_set_zero;
+	uint64_t cam_ife_2_drv_low_set_zero;
+	bool     is_updated;
 };
 
 /**

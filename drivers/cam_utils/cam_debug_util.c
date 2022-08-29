@@ -135,11 +135,42 @@ static int cam_debug_parse_cpas_settings(const char *setting, u64 value)
 		cam_debug.cpas_settings.mnoc_sf_icp_ab_bw = value;
 	} else if (!strcmp(setting, "mnoc_sf_icp_ib_bw")) {
 		cam_debug.cpas_settings.mnoc_sf_icp_ib_bw = value;
+	} else if (!strcmp(setting, "cam_ife_0_drv_ab_high_bw")) {
+		cam_debug.cpas_settings.cam_ife_0_drv_ab_high_bw = value;
+	} else if (!strcmp(setting, "cam_ife_0_drv_ib_high_bw")) {
+		cam_debug.cpas_settings.cam_ife_0_drv_ib_high_bw = value;
+	} else if (!strcmp(setting, "cam_ife_1_drv_ab_high_bw")) {
+		cam_debug.cpas_settings.cam_ife_1_drv_ab_high_bw = value;
+	} else if (!strcmp(setting, "cam_ife_1_drv_ib_high_bw")) {
+		cam_debug.cpas_settings.cam_ife_1_drv_ib_high_bw = value;
+	} else if (!strcmp(setting, "cam_ife_2_drv_ab_high_bw")) {
+		cam_debug.cpas_settings.cam_ife_2_drv_ab_high_bw = value;
+	} else if (!strcmp(setting, "cam_ife_2_drv_ib_high_bw")) {
+		cam_debug.cpas_settings.cam_ife_2_drv_ib_high_bw = value;
+	} else if (!strcmp(setting, "cam_ife_0_drv_ab_low_bw")) {
+		cam_debug.cpas_settings.cam_ife_0_drv_ab_low_bw = value;
+	} else if (!strcmp(setting, "cam_ife_0_drv_ib_low_bw")) {
+		cam_debug.cpas_settings.cam_ife_0_drv_ib_low_bw = value;
+	} else if (!strcmp(setting, "cam_ife_1_drv_ab_low_bw")) {
+		cam_debug.cpas_settings.cam_ife_1_drv_ab_low_bw = value;
+	} else if (!strcmp(setting, "cam_ife_1_drv_ib_low_bw")) {
+		cam_debug.cpas_settings.cam_ife_1_drv_ib_low_bw = value;
+	} else if (!strcmp(setting, "cam_ife_2_drv_ab_low_bw")) {
+		cam_debug.cpas_settings.cam_ife_2_drv_ab_low_bw = value;
+	} else if (!strcmp(setting, "cam_ife_2_drv_ib_low_bw")) {
+		cam_debug.cpas_settings.cam_ife_2_drv_ib_low_bw = value;
+	} else if (!strcmp(setting, "cam_ife_0_drv_low_set_zero")) {
+		cam_debug.cpas_settings.cam_ife_0_drv_low_set_zero = value;
+	} else if (!strcmp(setting, "cam_ife_1_drv_low_set_zero")) {
+		cam_debug.cpas_settings.cam_ife_1_drv_low_set_zero = value;
+	} else if (!strcmp(setting, "cam_ife_2_drv_low_set_zero")) {
+		cam_debug.cpas_settings.cam_ife_2_drv_low_set_zero = value;
 	} else {
 		CAM_ERR(CAM_UTIL, "Unsupported cpas sysfs entry");
 		return -EINVAL;
 	}
 
+	cam_debug.cpas_settings.is_updated = true;
 	return 0;
 }
 

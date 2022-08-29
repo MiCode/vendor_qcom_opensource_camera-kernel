@@ -32,6 +32,75 @@ static void cam_cpas_update_monitor_array(struct cam_hw_info *cpas_hw,
 static void cam_cpas_dump_monitor_array(
 	struct cam_hw_info *cpas_hw);
 
+static void cam_cpas_process_drv_bw_overrides(
+	struct cam_cpas_bus_client *bus_client, uint64_t *high_ab, uint64_t *high_ib,
+	uint64_t *low_ab, uint64_t *low_ib, const struct cam_cpas_debug_settings *cpas_settings)
+{
+	uint64_t curr_ab_high = *high_ab;
+	uint64_t curr_ib_high = *high_ib;
+	uint64_t curr_ab_low = *low_ab;
+	uint64_t curr_ib_low = *low_ib;
+	size_t name_len = strlen(bus_client->common_data.name);
+
+	if (!cpas_settings) {
+		CAM_ERR(CAM_CPAS, "Invalid cpas debug settings");
+		return;
+	}
+
+	if (strnstr(bus_client->common_data.name, "cam_ife_0_drv",
+		name_len)) {
+		if (cpas_settings->cam_ife_0_drv_ab_high_bw)
+			*high_ab = cpas_settings->cam_ife_0_drv_ab_high_bw;
+		if (cpas_settings->cam_ife_0_drv_ib_high_bw)
+			*high_ib = cpas_settings->cam_ife_0_drv_ib_high_bw;
+		if (cpas_settings->cam_ife_0_drv_ab_low_bw)
+			*low_ab = cpas_settings->cam_ife_0_drv_ab_low_bw;
+		if (cpas_settings->cam_ife_0_drv_ib_low_bw)
+			*low_ib = cpas_settings->cam_ife_0_drv_ib_low_bw;
+		if (cpas_settings->cam_ife_0_drv_low_set_zero) {
+			*low_ab = 0;
+			*low_ib = 0;
+		}
+	} else if (strnstr(bus_client->common_data.name, "cam_ife_1_drv",
+		name_len)) {
+		if (cpas_settings->cam_ife_1_drv_ab_high_bw)
+			*high_ab = cpas_settings->cam_ife_1_drv_ab_high_bw;
+		if (cpas_settings->cam_ife_1_drv_ib_high_bw)
+			*high_ib = cpas_settings->cam_ife_1_drv_ib_high_bw;
+		if (cpas_settings->cam_ife_1_drv_ab_low_bw)
+			*low_ab = cpas_settings->cam_ife_1_drv_ab_low_bw;
+		if (cpas_settings->cam_ife_1_drv_ib_low_bw)
+			*low_ib = cpas_settings->cam_ife_1_drv_ib_low_bw;
+		if (cpas_settings->cam_ife_1_drv_low_set_zero) {
+			*low_ab = 0;
+			*low_ib = 0;
+		}
+	} else if (strnstr(bus_client->common_data.name, "cam_ife_2_drv",
+		name_len)) {
+		if (cpas_settings->cam_ife_2_drv_ab_high_bw)
+			*high_ab = cpas_settings->cam_ife_2_drv_ab_high_bw;
+		if (cpas_settings->cam_ife_2_drv_ib_high_bw)
+			*high_ib = cpas_settings->cam_ife_2_drv_ib_high_bw;
+		if (cpas_settings->cam_ife_2_drv_ab_low_bw)
+			*low_ab = cpas_settings->cam_ife_2_drv_ab_low_bw;
+		if (cpas_settings->cam_ife_2_drv_ib_low_bw)
+			*low_ib = cpas_settings->cam_ife_2_drv_ib_low_bw;
+		if (cpas_settings->cam_ife_2_drv_low_set_zero) {
+			*low_ab = 0;
+			*low_ib = 0;
+		}
+	} else {
+		CAM_ERR(CAM_CPAS, "unknown mnoc port: %s, bw override failed",
+			bus_client->common_data.name);
+		return;
+	}
+
+	CAM_INFO(CAM_CPAS,
+		"Overriding mnoc bw for: %s with [AB IB] high: [%llu %llu], low: [%llu %llu], curr high: [%llu %llu], curr low: [%llu %llu]",
+		bus_client->common_data.name, *high_ab, *high_ib, *low_ab, *low_ib,
+		curr_ab_high, curr_ib_high, curr_ab_low, curr_ib_low);
+}
+
 static void cam_cpas_process_bw_overrides(
 	struct cam_cpas_bus_client *bus_client, uint64_t *ab, uint64_t *ib,
 	const struct cam_cpas_debug_settings *cpas_settings)
@@ -182,6 +251,7 @@ static int cam_cpas_util_vote_drv_bus_client_bw(struct cam_cpas_bus_client *bus_
 	struct cam_cpas_axi_bw_info *curr_vote, struct cam_cpas_axi_bw_info *applied_vote)
 {
 	int rc = 0;
+	const struct camera_debug_settings *cam_debug = NULL;
 
 	if (!bus_client->valid) {
 		CAM_ERR(CAM_CPAS, "bus client: %s not valid",
@@ -198,6 +268,23 @@ static int cam_cpas_util_vote_drv_bus_client_bw(struct cam_cpas_bus_client *bus_
 	if ((curr_vote->drv_vote.high.ib > 0) &&
 		(curr_vote->drv_vote.high.ib < CAM_CPAS_AXI_MIN_MNOC_IB_BW))
 		curr_vote->drv_vote.high.ib = CAM_CPAS_AXI_MIN_MNOC_IB_BW;
+
+	if ((curr_vote->drv_vote.low.ab > 0) &&
+		(curr_vote->drv_vote.low.ab < CAM_CPAS_AXI_MIN_MNOC_AB_BW))
+		curr_vote->drv_vote.low.ab = CAM_CPAS_AXI_MIN_MNOC_AB_BW;
+
+	if ((curr_vote->drv_vote.low.ib > 0) &&
+		(curr_vote->drv_vote.low.ib < CAM_CPAS_AXI_MIN_MNOC_IB_BW))
+		curr_vote->drv_vote.low.ib = CAM_CPAS_AXI_MIN_MNOC_IB_BW;
+
+	cam_debug = cam_debug_get_settings();
+
+	if ((curr_vote->drv_vote.high.ab || curr_vote->drv_vote.high.ib ||
+		curr_vote->drv_vote.low.ab || curr_vote->drv_vote.low.ib) &&
+		cam_debug && cam_debug->cpas_settings.is_updated)
+		cam_cpas_process_drv_bw_overrides(bus_client, &curr_vote->drv_vote.high.ab,
+			&curr_vote->drv_vote.high.ib, &curr_vote->drv_vote.low.ab,
+			&curr_vote->drv_vote.low.ib, &cam_debug->cpas_settings);
 
 	if (debug_drv)
 		CAM_INFO(CAM_CPAS, "Bus_client: %s, DRV vote high=[%llu %llu] low=[%llu %llu]",
@@ -239,7 +326,7 @@ end:
 
 static int cam_cpas_util_vote_hlos_bus_client_bw(
 	struct cam_cpas_bus_client *bus_client, uint64_t ab, uint64_t ib,
-	bool camnoc_bw, uint64_t *applied_ab, uint64_t *applied_ib)
+	bool is_camnoc_bw, uint64_t *applied_ab, uint64_t *applied_ib)
 {
 	int rc = 0;
 	uint64_t min_camnoc_ib_bw = CAM_CPAS_AXI_MIN_CAMNOC_IB_BW;
@@ -261,7 +348,7 @@ static int cam_cpas_util_vote_hlos_bus_client_bw(
 		min_camnoc_ib_bw);
 
 	mutex_lock(&bus_client->lock);
-	if (camnoc_bw) {
+	if (is_camnoc_bw) {
 		if ((ab > 0) && (ab < CAM_CPAS_AXI_MIN_CAMNOC_AB_BW))
 			ab = CAM_CPAS_AXI_MIN_CAMNOC_AB_BW;
 
@@ -277,16 +364,7 @@ static int cam_cpas_util_vote_hlos_bus_client_bw(
 
 	cam_debug = cam_debug_get_settings();
 
-	if (cam_debug && (cam_debug->cpas_settings.mnoc_hf_0_ab_bw ||
-		cam_debug->cpas_settings.mnoc_hf_0_ib_bw ||
-		cam_debug->cpas_settings.mnoc_hf_1_ab_bw ||
-		cam_debug->cpas_settings.mnoc_hf_1_ib_bw ||
-		cam_debug->cpas_settings.mnoc_sf_0_ab_bw ||
-		cam_debug->cpas_settings.mnoc_sf_0_ib_bw ||
-		cam_debug->cpas_settings.mnoc_sf_1_ab_bw ||
-		cam_debug->cpas_settings.mnoc_sf_1_ib_bw ||
-		cam_debug->cpas_settings.mnoc_sf_icp_ab_bw ||
-		cam_debug->cpas_settings.mnoc_sf_icp_ib_bw))
+	if ((ab || ib) && cam_debug && cam_debug->cpas_settings.is_updated)
 		cam_cpas_process_bw_overrides(bus_client, &ab, &ib,
 			&cam_debug->cpas_settings);
 
