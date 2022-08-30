@@ -1079,8 +1079,9 @@ static int cam_generic_fence_handle_dma_release(
 		rc = cam_dma_fence_release(&release_params);
 		if (rc) {
 			CAM_ERR(CAM_DMA_FENCE,
-				"Failed to destroy dma fence at index: %d rc: %d num fences [requested: %u processed: %u]",
-				i, rc, fence_input_info->num_fences_requested,
+				"Failed to destroy dma fence at index: %d fd: %d rc: %d num fences [requested: %u processed: %u]",
+				i, fence_cfg->dma_fence_fd, rc,
+				fence_input_info->num_fences_requested,
 				fence_input_info->num_fences_processed);
 			fence_cfg->reason_code = rc;
 			/* Continue to release other fences, but mark the call as failed */
