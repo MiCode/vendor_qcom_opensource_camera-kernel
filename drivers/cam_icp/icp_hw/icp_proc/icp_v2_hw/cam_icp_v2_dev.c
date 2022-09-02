@@ -61,7 +61,7 @@ static int cam_icp_v2_soc_info_init(struct cam_hw_soc_info *soc_info,
 	soc_info->dev_name = pdev->name;
 	soc_info->soc_private = icp_soc_info;
 
-	icp_soc_info->dev_type = CAM_ICP_DEV_ICP_V2;
+	icp_soc_info->dev_type = CAM_ICP_HW_ICP_V2;
 
 	return 0;
 }
@@ -127,7 +127,7 @@ static int cam_icp_v2_component_bind(struct device *dev,
 		goto free_soc_info;
 
 	icp_v2_intf->hw_priv = icp_v2_info;
-	icp_v2_intf->hw_type = CAM_ICP_DEV_ICP_V2;
+	icp_v2_intf->hw_type = CAM_ICP_HW_ICP_V2;
 	icp_v2_intf->hw_idx = icp_v2_info->soc_info.index;
 	icp_v2_intf->hw_ops.init = cam_icp_v2_hw_init;
 	icp_v2_intf->hw_ops.deinit = cam_icp_v2_hw_deinit;

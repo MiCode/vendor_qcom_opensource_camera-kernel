@@ -408,7 +408,7 @@ int hfi_cmd_ubwc_config_ext(uint32_t *ubwc_ipe_cfg,
 	dbg_prop->size = size;
 	dbg_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	dbg_prop->num_prop = 1;
-	dbg_prop->prop_data[0] = HFI_PROPERTY_SYS_UBWC_CONFIG_EX;
+	dbg_prop->prop_data[0] = HFI_PROP_SYS_UBWC_CONFIG_EX;
 	dbg_prop->prop_data[1] = ubwc_bps_cfg[0];
 	dbg_prop->prop_data[2] = ubwc_bps_cfg[1];
 	dbg_prop->prop_data[3] = ubwc_ipe_cfg[0];
@@ -515,7 +515,7 @@ int hfi_set_fw_dump_levels(uint32_t hang_dump_lvl,
 	hfi_write_cmd(prop);
 
 	/* Update and write ramdump level */
-	fw_dump_level_switch_prop->prop_data[0] = HFI_PROPERTY_SYS_RAMDUMP_MODE;
+	fw_dump_level_switch_prop->prop_data[0] = HFI_PROP_SYS_ICP_RAMDUMP_MODE;
 	fw_dump_level_switch_prop->prop_data[1] = ram_dump_lvl;
 
 	hfi_write_cmd(prop);
@@ -553,7 +553,7 @@ int hfi_send_freq_info(int32_t freq)
 	dbg_prop->size = size;
 	dbg_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	dbg_prop->num_prop = 1;
-	dbg_prop->prop_data[0] = HFI_PROPERTY_SYS_ICP_HW_FREQUENCY;
+	dbg_prop->prop_data[0] = HFI_PROP_SYS_ICP_HW_FREQUENCY;
 	dbg_prop->prop_data[1] = freq;
 
 	CAM_DBG(CAM_HFI, "prop->size = %d\n"

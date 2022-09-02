@@ -196,7 +196,9 @@ static int __cam_icp_config_dev_in_ready(struct cam_context *ctx,
 	if (((packet->header.op_code & 0xff) ==
 		CAM_ICP_OPCODE_IPE_SETTINGS) ||
 		((packet->header.op_code & 0xff) ==
-		CAM_ICP_OPCODE_BPS_SETTINGS))
+		CAM_ICP_OPCODE_BPS_SETTINGS) ||
+		((packet->header.op_code & 0xff) ==
+		CAM_ICP_OPCODE_OFE_SETTINGS))
 		rc = cam_context_config_dev_to_hw(ctx, cmd);
 	else
 		rc = cam_context_prepare_dev_to_hw(ctx, cmd);

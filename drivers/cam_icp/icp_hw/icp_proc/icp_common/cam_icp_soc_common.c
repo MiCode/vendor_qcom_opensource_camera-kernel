@@ -49,7 +49,7 @@ static int cam_icp_soc_ubwc_config_get(struct device_node *np,
 
 	rc = __ubwc_config_get(np, "ubwc-ipe-fetch-cfg", ubwc_cfg_ext->ipe_fetch);
 	if (rc) {
-		if (dev_type == CAM_ICP_DEV_ICP_V1) {
+		if (dev_type == CAM_ICP_HW_ICP_V1) {
 			rc = __ubwc_config_get(np, "ubwc-cfg", icp_soc_info->uconfig.ubwc_cfg);
 			if (rc)
 				return rc;

@@ -11,7 +11,7 @@
 #include "hfi_intf.h"
 
 /* general purpose registers */
-#define GEN_PURPOSE_REG(n)              (n * 4)
+#define GEN_PURPOSE_REG(n)              (n << 2)
 
 #define HFI_REG_FW_VERSION                   GEN_PURPOSE_REG(1)
 #define HFI_REG_HOST_ICP_INIT_REQUEST        GEN_PURPOSE_REG(2)

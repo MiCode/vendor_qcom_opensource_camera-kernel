@@ -7,15 +7,15 @@
 #include "cam_icp_v2_core.h"
 #include "hfi_intf.h"
 
-#define CAM_ICP_GET_PROC_DEV_INTF(devices) \
-(devices[CAM_ICP_DEV_ICP_V1] ? devices[CAM_ICP_DEV_ICP_V1][0] : \
-	devices[CAM_ICP_DEV_ICP_V2][0])
+#define CAM_ICP_GET_PROC_DEV_INTF(devices)                              \
+	(devices[CAM_ICP_HW_ICP_V1] ? devices[CAM_ICP_HW_ICP_V1][0] : \
+	devices[CAM_ICP_HW_ICP_V2][0])
 
 /**
  * @brief : Get ICP device type (ICP_V1/ICP_V2/...)
  */
 int cam_icp_alloc_processor_devs(struct device_node *np, int *icp_hw_type,
-	struct cam_hw_intf ***devices);
+	struct cam_hw_intf ***devices, uint32_t *hw_dev_cnt, uint32_t *dev_cap_cnt);
 
 /**
  * @brief : Get device operations per device type

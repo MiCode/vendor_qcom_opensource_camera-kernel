@@ -6,15 +6,17 @@
 #include "cam_debug_util.h"
 #include "cam_icp_proc.h"
 
+uint32_t icp_request_cnt[CAM_ICP_MAX_ICP_HW_TYPE];
+
 static int cam_icp_get_device_num(uint32_t dev_type, uint32_t *num_dev)
 {
 	int rc = 0;
 
 	switch (dev_type) {
-	case CAM_ICP_DEV_ICP_V1:
+	case CAM_ICP_HW_ICP_V1:
 		*num_dev = cam_icp_v1_get_device_num();
 		break;
-	case CAM_ICP_DEV_ICP_V2:
+	case CAM_ICP_HW_ICP_V2:
 		*num_dev = cam_icp_v2_get_device_num();
 		break;
 	default:
@@ -26,7 +28,7 @@ static int cam_icp_get_device_num(uint32_t dev_type, uint32_t *num_dev)
 }
 
 int cam_icp_alloc_processor_devs(struct device_node *np, int *icp_hw_type,
-	struct cam_hw_intf ***devices)
+	struct cam_hw_intf ***devices, uint32_t *hw_dev_cnt, uint32_t *dev_cap_cnt)
 {
 	uint32_t num_icp_found = 0, num_icp_listed;
 	int rc, i;
@@ -47,7 +49,8 @@ int cam_icp_alloc_processor_devs(struct device_node *np, int *icp_hw_type,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < CAM_ICP_MAX_ICP_DEV_TYPE; i++) {
+	/* Only one version of ICP processor supported per ICP subdevice */
+	for (i = 0; i < CAM_ICP_MAX_ICP_HW_TYPE; i++) {
 		rc = cam_icp_get_device_num(i, &num_icp_found);
 		if (rc)
 			return rc;
@@ -58,15 +61,24 @@ int cam_icp_alloc_processor_devs(struct device_node *np, int *icp_hw_type,
 		}
 	}
 
-	if (i == CAM_ICP_MAX_ICP_DEV_TYPE) {
+	if (i == CAM_ICP_MAX_ICP_HW_TYPE) {
 		CAM_ERR(CAM_ICP, "No ICP device probed");
 		return -ENODEV;
 	}
 
-	if (num_icp_listed != num_icp_found) {
+	if (num_icp_found != dev_cap_cnt[i]) {
 		CAM_ERR(CAM_ICP,
-			"number of ICP devices do not match num_icp_listed: %d num_icp_found: %d",
-			num_icp_listed, num_icp_found);
+			"Number of ICP core probed: %u is not equal to CPAS supported devices: %u",
+			num_icp_found, dev_cap_cnt[i]);
+		return -EINVAL;
+	}
+
+	icp_request_cnt[i] += num_icp_listed;
+
+	if (icp_request_cnt[i] > num_icp_found) {
+		CAM_ERR(CAM_ICP,
+			"number of ICP_V%u total requested: %u exceeds number of icp hw available: %u",
+			i+1, icp_request_cnt[i], num_icp_found);
 		return -EINVAL;
 	}
 
@@ -78,8 +90,10 @@ int cam_icp_alloc_processor_devs(struct device_node *np, int *icp_hw_type,
 		return -ENOMEM;
 	}
 
+	hw_dev_cnt[i] = num_icp_listed;
+
 	CAM_DBG(CAM_ICP, "allocated device iface for %s",
-		*icp_hw_type == CAM_ICP_DEV_ICP_V1 ? "ICP_V1" : "ICP_V2");
+		i == CAM_ICP_HW_ICP_V1 ? "ICP_V1" : "ICP_V2");
 
 	return rc;
 }
@@ -89,10 +103,10 @@ int cam_icp_get_hfi_device_ops(uint32_t hw_type, const struct hfi_ops **hfi_proc
 	int rc = 0;
 
 	switch (hw_type) {
-	case CAM_ICP_DEV_ICP_V1:
+	case CAM_ICP_HW_ICP_V1:
 		cam_icp_v1_populate_hfi_ops(hfi_proc_ops);
 		break;
-	case CAM_ICP_DEV_ICP_V2:
+	case CAM_ICP_HW_ICP_V2:
 		cam_icp_v2_populate_hfi_ops(hfi_proc_ops);
 		break;
 	default:
