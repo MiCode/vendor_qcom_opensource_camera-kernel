@@ -4786,6 +4786,7 @@ static int __cam_isp_ctx_dump_in_top_state(
 	uint32_t                            min_len;
 	uint64_t                            diff;
 	uintptr_t                           cpu_addr;
+	uint8_t                             req_type;
 	struct cam_isp_context             *ctx_isp;
 	struct cam_ctx_request             *req = NULL;
 	struct cam_isp_ctx_req             *req_isp;
@@ -4801,6 +4802,7 @@ static int __cam_isp_ctx_dump_in_top_state(
 		if (req->request_id == dump_info->req_id) {
 			CAM_INFO(CAM_ISP, "isp dump active list req: %lld",
 			    dump_info->req_id);
+			req_type = 'a';
 			goto hw_dump;
 		}
 	}
@@ -4809,6 +4811,16 @@ static int __cam_isp_ctx_dump_in_top_state(
 		if (req->request_id == dump_info->req_id) {
 			CAM_INFO(CAM_ISP, "isp dump wait list req: %lld",
 			    dump_info->req_id);
+			req_type = 'w';
+			goto hw_dump;
+		}
+	}
+	list_for_each_entry_safe(req, req_temp,
+		&ctx->pending_req_list, list) {
+		if (req->request_id == dump_info->req_id) {
+			CAM_INFO(CAM_ISP, "isp dump pending list req: %lld",
+			    dump_info->req_id);
+			req_type = 'p';
 			goto hw_dump;
 		}
 	}
@@ -4859,7 +4871,7 @@ hw_dump:
 
 	/* Dump time info */
 	rc = cam_common_user_dump_helper(&dump_args, cam_isp_ctx_user_dump_timer,
-		req, sizeof(uint64_t), "ISP_CTX_DUMP:");
+		req, sizeof(uint64_t), "ISP_CTX_DUMP:.%c", req_type);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Time dump fail %lld, rc: %d",
 			req->request_id, rc);
