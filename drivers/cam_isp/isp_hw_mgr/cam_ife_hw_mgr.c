@@ -3843,7 +3843,7 @@ end:
 static int cam_ife_hw_mgr_get_csid_rdi_for_sfe_ipp_input(
 	struct cam_ife_hw_mgr_ctx            *ife_ctx,
 	struct cam_isp_in_port_generic_info  *in_port,
-	uint32_t                              acquired_rdi_res)
+	uint32_t                             *acquired_rdi_res)
 {
 	struct cam_ife_hw_mgr   *hw_mgr;
 	uint32_t                 res_id = CAM_IFE_PIX_PATH_RES_MAX;
@@ -3854,7 +3854,7 @@ static int cam_ife_hw_mgr_get_csid_rdi_for_sfe_ipp_input(
 	if (hw_mgr->csid_hw_caps[0].sfe_ipp_input_rdi_res && !in_port->usage_type)
 		res_id = ffs(hw_mgr->csid_hw_caps[0].sfe_ipp_input_rdi_res) - 1;
 
-	if ((res_id != CAM_IFE_PIX_PATH_RES_MAX) && (!(BIT(res_id) & acquired_rdi_res))) {
+	if ((res_id != CAM_IFE_PIX_PATH_RES_MAX) && (!(BIT(res_id) & (*acquired_rdi_res)))) {
 		rc  = cam_ife_hw_mgr_acquire_csid_rdi_util(ife_ctx,
 			in_port, res_id, NULL);
 		if (rc) {
@@ -3862,6 +3862,7 @@ static int cam_ife_hw_mgr_get_csid_rdi_for_sfe_ipp_input(
 				ife_ctx->ctx_index, res_id, rc);
 			goto end;
 		}
+		*acquired_rdi_res |= BIT(res_id);
 	}
 
 	CAM_DBG(CAM_ISP, "Ctx: %d rdi_res:%d ctx_type %d rc %d", ife_ctx->ctx_index,
@@ -4730,7 +4731,7 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 	 */
 	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE) {
 		rc = cam_ife_hw_mgr_get_csid_rdi_for_sfe_ipp_input(ife_ctx, in_port,
-			*acquired_rdi_res);
+			acquired_rdi_res);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Acquire RDI for SFE IPP failed Ctx: %d rc %d",
 				ife_ctx->ctx_index, rc);
