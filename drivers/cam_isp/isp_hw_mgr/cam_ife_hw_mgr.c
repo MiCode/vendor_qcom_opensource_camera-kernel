@@ -11924,14 +11924,13 @@ static void cam_ife_mgr_pf_dump(struct cam_ife_hw_mgr_ctx *ctx)
 static void cam_ife_mgr_pf_dump_mid_info(
 	struct cam_ife_hw_mgr_ctx    *ctx,
 	struct cam_hw_cmd_args       *hw_cmd_args,
-	struct cam_isp_hw_intf_data  *hw_intf_data)
+	struct cam_isp_hw_intf_data  *hw_intf_data,
+	struct cam_packet            *packet)
 {
-	struct cam_packet                  *packet;
 	struct cam_isp_hw_get_cmd_update    cmd_update;
 	struct cam_isp_hw_get_res_for_mid   get_res;
 	int                                 rc = 0;
 
-	packet = hw_cmd_args->u.pf_cmd_args->pf_req_info->packet;
 	get_res.mid = hw_cmd_args->u.pf_cmd_args->pf_args->pf_smmu_info->mid;
 	cmd_update.cmd_type = CAM_ISP_HW_CMD_GET_RES_FOR_MID;
 	cmd_update.data = (void *) &get_res;
@@ -11964,12 +11963,17 @@ static void cam_ife_mgr_dump_pf_data(
 	struct cam_packet                  *packet;
 	struct cam_isp_hw_intf_data        *hw_intf_data;
 	struct cam_hw_dump_pf_args         *pf_args;
+	struct cam_hw_mgr_pf_request_info  *pf_req_info;
 	bool                               *ctx_found;
-	int                                 i, j;
+	int                                 i, j, rc;
 
 	ctx = (struct cam_ife_hw_mgr_ctx *)hw_cmd_args->ctxt_to_hw_map;
+	pf_req_info = hw_cmd_args->u.pf_cmd_args->pf_req_info;
+	rc = cam_packet_util_get_packet_addr(&packet, pf_req_info->packet_handle,
+		pf_req_info->packet_offset);
+	if (rc)
+		return;
 
-	packet  = hw_cmd_args->u.pf_cmd_args->pf_req_info->packet;
 	pf_args = hw_cmd_args->u.pf_cmd_args->pf_args;
 	ctx_found = &(pf_args->pf_context_info.ctx_found);
 
@@ -11992,7 +11996,8 @@ static void cam_ife_mgr_dump_pf_data(
 		 */
 		if (!g_ife_hw_mgr.hw_pid_support) {
 			if (ctx->base[i].split_id == CAM_ISP_HW_SPLIT_LEFT)
-				cam_ife_mgr_pf_dump_mid_info(ctx, hw_cmd_args, hw_intf_data);
+				cam_ife_mgr_pf_dump_mid_info(ctx, hw_cmd_args, hw_intf_data,
+					packet);
 			continue;
 		}
 
@@ -12002,7 +12007,8 @@ static void cam_ife_mgr_dump_pf_data(
 				CAM_ERR(CAM_ISP, "PF found for %s%d pid: %u",
 					ctx->base[i].hw_type == CAM_ISP_HW_TYPE_VFE ? "VFE" : "SFE",
 					ctx->base[i].idx, pf_args->pf_smmu_info->pid);
-				cam_ife_mgr_pf_dump_mid_info(ctx, hw_cmd_args, hw_intf_data);
+				cam_ife_mgr_pf_dump_mid_info(ctx, hw_cmd_args, hw_intf_data,
+					packet);
 
 				/* If MID found - stop hw res and dump client info */
 				if (ctx->flags.pf_mid_found) {

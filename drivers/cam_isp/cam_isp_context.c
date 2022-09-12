@@ -6092,6 +6092,9 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	req_isp->bubble_detected = false;
 	req_isp->cdm_reset_before_apply = false;
 	req_isp->hw_update_data.packet = packet;
+	req->pf_data.packet_handle = cmd->packet_handle;
+	req->pf_data.packet_offset = cmd->offset;
+	req->pf_data.req = req;
 
 	for (i = 0; i < req_isp->num_fence_map_out; i++) {
 		rc = cam_sync_get_obj_ref(req_isp->fence_map_out[i].sync_id);

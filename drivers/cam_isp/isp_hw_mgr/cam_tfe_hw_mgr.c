@@ -4676,7 +4676,10 @@ static void cam_tfe_mgr_dump_pf_data(
 	ctx = (struct cam_tfe_hw_mgr_ctx *)hw_cmd_args->ctxt_to_hw_map;
 
 	pf_cmd_args = hw_cmd_args->u.pf_cmd_args;
-	packet  = pf_cmd_args->pf_req_info->packet;
+	rc = cam_packet_util_get_packet_addr(packet,
+		pf_cmd_args->pf_req_info->packet_handle, pf_cmd_args->pf_req_info->packet_offset);
+	if (rc)
+		return rc;
 	ctx_found = &pf_cmd_args->pf_args->pf_context_info.ctx_found;
 	resource_type = &pf_cmd_args->pf_args->pf_context_info.resource_type;
 

@@ -3322,8 +3322,6 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 	prepare_args->num_hw_update_entries       = 1;
 	prepare_args->hw_update_entries[0].addr   = (uintptr_t)ope_req->cdm_cmd;
 	prepare_args->priv                        = ope_req;
-	prepare_args->pf_data->packet             = packet;
-	prepare_args->pf_data->req                = ope_req;
 
 	CAM_INFO(CAM_REQ, "OPE req %x num_batch %d", ope_req, ope_req->num_batch);
 
@@ -4107,13 +4105,14 @@ static void cam_ope_mgr_dump_pf_data(
 	struct cam_ope_hw_mgr  *hw_mgr,
 	struct cam_hw_cmd_args *hw_cmd_args)
 {
-	struct cam_ope_ctx             *ctx_data;
-	struct cam_packet              *packet;
-	struct cam_buf_io_cfg          *io_cfg = NULL;
-	struct cam_ope_request         *ope_request;
-	struct ope_io_buf              *io_buf = NULL;
-	struct cam_ope_match_pid_args  ope_pid_mid_args;
-	struct cam_hw_dump_pf_args     *pf_args;
+	struct cam_ope_ctx                *ctx_data;
+	struct cam_packet                 *packet;
+	struct cam_buf_io_cfg             *io_cfg = NULL;
+	struct cam_ope_request            *ope_request;
+	struct ope_io_buf                 *io_buf = NULL;
+	struct cam_ope_match_pid_args      ope_pid_mid_args;
+	struct cam_hw_dump_pf_args        *pf_args;
+	struct cam_hw_mgr_pf_request_info *pf_req_info;
 
 	int          device_idx;
 	bool         *ctx_found;
@@ -4127,9 +4126,12 @@ static void cam_ope_mgr_dump_pf_data(
 
 	ctx_data    = (struct cam_ope_ctx *)hw_cmd_args->ctxt_to_hw_map;
 	pf_args = hw_cmd_args->u.pf_cmd_args->pf_args;
-	packet  = hw_cmd_args->u.pf_cmd_args->pf_req_info->packet;
-
-	ope_request = hw_cmd_args->u.pf_cmd_args->pf_req_info->req;
+	pf_req_info = hw_cmd_args->u.pf_cmd_args->pf_req_info;
+	rc = cam_packet_util_get_packet_addr(&packet, pf_req_info->packet_handle,
+		pf_req_info->packet_offset);
+	if (rc)
+		return rc;
+	ope_request = pf_req_info->req;
 
 	ope_pid_mid_args.fault_mid =  pf_args->pf_smmu_info->mid;
 	ope_pid_mid_args.fault_pid = pf_args->pf_smmu_info->pid;

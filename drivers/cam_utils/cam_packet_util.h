@@ -9,6 +9,7 @@
 
 #include <media/cam_defs.h>
 #include "cam_hw_mgr_intf.h"
+
 /**
  * @brief                  KMD scratch buffer information
  *
@@ -30,6 +31,18 @@ struct cam_kmd_buf_info {
 /* Generic Cmd Buffer blob callback function type */
 typedef int (*cam_packet_generic_blob_handler)(void *user_data,
 	uint32_t blob_type, uint32_t blob_size, uint8_t *blob_data);
+
+/**
+ * @brief                  Get packet buffer address
+ *
+ * @packet:                Pointer to packet to be retrieved
+ * @packet_handle:         Buffer handle of the packet
+ * @offset:                offset to packet start address
+ *
+ * @return:                0 for success
+ */
+int cam_packet_util_get_packet_addr(struct cam_packet **packet,
+	uint64_t packet_handle, uint32_t offset);
 
 /**
  * cam_packet_util_get_cmd_mem_addr()

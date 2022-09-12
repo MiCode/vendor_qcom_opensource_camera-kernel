@@ -1336,8 +1336,6 @@ static int cam_cre_mgr_process_io_cfg(struct cam_cre_hw_mgr *hw_mgr,
 	int32_t merged_sync_in_obj;
 	struct cam_cre_request *cre_request;
 
-	prep_arg->pf_data->packet = packet;
-
 	rc = cam_cre_mgr_process_cmd_io_buf_req(hw_mgr, packet, ctx_data,
 		req_idx);
 	if (rc) {
@@ -2281,7 +2279,6 @@ static int cam_cre_mgr_prepare_hw_update(void *hw_priv,
 
 	prepare_args->num_hw_update_entries = 1;
 	prepare_args->priv = ctx_data->req_list[request_idx];
-	prepare_args->pf_data->packet = packet;
 	cre_req->hang_data.packet = packet;
 	ktime_get_boottime_ts64(&ts);
 	ctx_data->last_req_time = (uint64_t)((ts.tv_sec * 1000000000) +
@@ -2409,9 +2406,19 @@ static void cam_cre_mgr_dump_pf_data(struct cam_cre_hw_mgr  *hw_mgr,
 {
 	struct cam_packet          *packet;
 	struct cam_hw_dump_pf_args *pf_args;
+	size_t                      len;
+	uintptr_t                   packet_addr;
 
-	packet = pf_cmd_args->pf_req_info->packet;
 	pf_args = pf_cmd_args->pf_args;
+
+	rc = cam_mem_get_cpu_buf(pf_cmd_args->pf_req_info->packet_handle, &packet_addr, &len);
+	if (rc) {
+		CAM_ERR(CAM_CRE, "Fail to get packet address from handle: %llu",
+			pf_cmd_args->pf_req_info->packet_handle);
+		return;
+	}
+	packet = (struct cam_packet *)((uint8_t *)packet_addr +
+		(uint32_t)pf_cmd_args->pf_req_info->packet_offset);
 
 	cam_packet_util_dump_io_bufs(packet, hw_mgr->iommu_hdl,
 		hw_mgr->iommu_sec_hdl, pf_args, false);

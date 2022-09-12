@@ -22,6 +22,32 @@ struct cam_patch_unique_src_buf_tbl {
 	uint32_t      flags;
 };
 
+int cam_packet_util_get_packet_addr(struct cam_packet **packet,
+	uint64_t packet_handle, uint32_t offset)
+{
+	uintptr_t          packet_addr;
+	size_t             len;
+	int                rc = 0;
+
+	if (!packet) {
+		CAM_ERR(CAM_UTIL, "Invalid parameter packet is NULL");
+		return -EINVAL;
+	}
+
+	rc = cam_mem_get_cpu_buf(packet_handle, &packet_addr,
+		&len);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "Failed to get packet address from handle: 0x%llx rc: %d",
+			packet_handle, rc);
+		*packet = NULL;
+		return rc;
+	}
+
+	*packet = (struct cam_packet *)((uint8_t *)packet_addr + offset);
+
+	return rc;
+}
+
 int cam_packet_util_get_cmd_mem_addr(int handle, uint32_t **buf_addr,
 	size_t *len)
 {

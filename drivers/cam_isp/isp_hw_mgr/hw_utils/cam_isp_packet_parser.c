@@ -756,7 +756,6 @@ int cam_isp_add_io_buffers(
 	num_out_buf = prepare->num_out_map_entries;
 	num_in_buf  = prepare->num_in_map_entries;
 	io_cfg_used_bytes = 0;
-	prepare->pf_data->packet = prepare->packet;
 
 	/* Max one hw entries required for each base */
 	if (prepare->num_hw_update_entries + 1 >=

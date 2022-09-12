@@ -5640,8 +5640,6 @@ static int cam_icp_mgr_prepare_hw_update(void *hw_mgr_priv,
 		return rc;
 	}
 
-	prepare_args->pf_data->packet = packet;
-
 	CAM_DBG(CAM_REQ, "req id = %lld for ctx = %u",
 		packet->header.request_id, ctx_data->ctx_id);
 	/* Update Buffer Address from handles and patch information */
@@ -6913,9 +6911,14 @@ static void cam_icp_mgr_dump_pf_data(struct cam_icp_hw_mgr *hw_mgr,
 {
 	struct cam_packet          *packet;
 	struct cam_hw_dump_pf_args *pf_args;
+	int                         rc;
 
-	packet = pf_cmd_args->pf_req_info->packet;
 	pf_args = pf_cmd_args->pf_args;
+
+	rc = cam_packet_util_get_packet_addr(&packet, pf_cmd_args->pf_req_info->packet_handle,
+		pf_cmd_args->pf_req_info->packet_offset);
+	if (rc)
+		return;
 
 	/*
 	 * res_id_support is false since ICP doesn't have knowledge
