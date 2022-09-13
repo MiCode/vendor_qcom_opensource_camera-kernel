@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CAM_SYNC_PRIVATE_H__
@@ -47,6 +47,35 @@
 
 #define CAM_SYNC_TYPE_INDV              0
 #define CAM_SYNC_TYPE_GROUP             1
+
+/* Number of monitor table elements */
+#define CAM_SYNC_MONITOR_TABLE_SIZE     16
+/* Number of monitored objects per table entry */
+#define CAM_SYNC_MONITOR_TABLE_ENTRY_SZ (CAM_SYNC_MAX_OBJS / CAM_SYNC_MONITOR_TABLE_SIZE)
+#define CAM_SYNC_MONITOR_MAX_ENTRIES    30
+#define CAM_SYNC_INC_MONITOR_HEAD(head, ret) \
+	div_u64_rem(atomic64_add_return(1, head),\
+	CAM_SYNC_MONITOR_MAX_ENTRIES, (ret))
+#define CAM_SYNC_MONITOR_GET_DATA(idx)  \
+	(sync_dev->mon_data[idx / CAM_SYNC_MONITOR_TABLE_ENTRY_SZ] + \
+	(idx % CAM_SYNC_MONITOR_TABLE_ENTRY_SZ))
+#define CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ CAM_SYNC_MONITOR_TABLE_ENTRY_SZ
+#define CAM_GENERIC_MONITOR_GET_DATA(mon_data, idx) \
+	((mon_data)[idx / CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ] + \
+	(idx % CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ))
+
+/**
+ * Feature is enabled by setting BIT(fence_type), this will trigger the fence
+ * dumps on any error, to explicitly trigger a dump on every fence release
+ * below BIT(fence_type_dump) needs to be used at the same time
+ */
+#define CAM_GENERIC_FENCE_DUMP         0x10
+#define CAM_GENERIC_FENCE_TYPE_SYNC_OBJ_DUMP \
+	(CAM_GENERIC_FENCE_TYPE_SYNC_OBJ + (CAM_GENERIC_FENCE_DUMP))
+#define CAM_GENERIC_FENCE_TYPE_DMA_FENCE_DUMP \
+	(CAM_GENERIC_FENCE_TYPE_DMA_FENCE + (CAM_GENERIC_FENCE_DUMP))
+#define CAM_GENERIC_FENCE_TYPE_SYNX_OBJ_DUMP \
+	(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ + (CAM_GENERIC_FENCE_DUMP))
 
 /**
  * enum sync_type - Enum to indicate the type of sync object,
@@ -146,6 +175,105 @@ struct sync_dma_fence_info {
 };
 
 /**
+ * enum cam_fence_op - Enum to indicate the type of operation performed
+ *
+ * @CAM_FENCE_OP_CREATE                : Created obj
+ * @CAM_FENCE_OP_REGISTER_CB           : Successful callback registration
+ * @CAM_FENCE_OP_SKIP_REGISTER_CB      : Callback registration skipped
+ * @CAM_FENCE_OP_ALREADY_REGISTERED_CB : Callback already registered
+ * @CAM_FENCE_OP_SIGNAL                : Signaled obj
+ * @CAM_FENCE_OP_UNREGISTER_ON_SIGNAL  : Callback unregistered after signaling
+ * @CAM_FENCE_OP_UNREGISTER_CB         : Callback unregistered
+ * @CAM_FENCE_OP_DESTROY               : Destroyed obj
+ */
+enum cam_fence_op {
+	CAM_FENCE_OP_CREATE,
+	CAM_FENCE_OP_REGISTER_CB,
+	CAM_FENCE_OP_SKIP_REGISTER_CB,
+	CAM_FENCE_OP_ALREADY_REGISTERED_CB,
+	CAM_FENCE_OP_SIGNAL,
+	CAM_FENCE_OP_UNREGISTER_ON_SIGNAL,
+	CAM_FENCE_OP_UNREGISTER_CB,
+	CAM_FENCE_OP_DESTROY,
+};
+
+/**
+ * struct cam_generic_fence_monitor_entry - Single operation sync data
+ *
+ * @timestamp     : Timestamp of op
+ * @op            : Operation id
+ */
+struct cam_generic_fence_monitor_entry {
+	struct timespec64 timestamp;
+	enum cam_fence_op op;
+};
+
+/**
+ * struct cam_generic_fence_monitor_data - All operations data from current &
+ *                          previous use of a fence object
+ *
+ * @monitor_head         : Executed operations count
+ * @prev_name            : Previous name of this fence obj
+ * @prev_type            : Previous type of this fence obj
+ * @prev_obj_id          : Previous handle of this fence obj
+ * @prev_sync_id         : Previous handle of this fence's associated sync obj
+ * @prev_remaining       : Previous count of remaining children that not been
+ *                         signaled
+ * @prev_state           : Previous state (INVALID, ACTIVE, SIGNALED_SUCCESS or
+ *                         SIGNALED_ERROR)
+ * @prev_monitor_head    : Previous executed ops count
+ * @swap_monitor_entries : Flag indicating which entry table should be used
+ *                         as current/previous. Used to avoid copying.
+ * @monitor_entries      : Op info entry table
+ * @prev_monitor_entries : Previous op info entry table
+ */
+struct cam_generic_fence_monitor_data {
+	atomic64_t                        monitor_head;
+	char                              prev_name[CAM_DMA_FENCE_NAME_LEN];
+	enum sync_type                    prev_type;
+	int32_t                           prev_obj_id;
+	int32_t                           prev_sync_id;
+	uint32_t                          prev_remaining;
+	uint32_t                          prev_state;
+	uint64_t                          prev_monitor_head;
+	bool                              swap_monitor_entries;
+	struct cam_generic_fence_monitor_entry monitor_entries[
+		CAM_SYNC_MONITOR_MAX_ENTRIES];
+	struct cam_generic_fence_monitor_entry prev_monitor_entries[
+		CAM_SYNC_MONITOR_MAX_ENTRIES];
+};
+
+/**
+ * struct cam_generic_fence_monitor_obj_info - Single object monitor info
+ *
+ * @name                 : Name of this fence obj
+ * @sync_type            : Type of this fence obj
+ * @obj_id               : Handle of this fence obj
+ * @sync_id              : Handle of this fence's associated sync obj
+ * @state                : Previous state (INVALID, ACTIVE, SIGNALED_SUCCESS or
+ *                         SIGNALED_ERROR)
+ * @remaining            : Count of remaining children that not been signaled
+ * @ref_cnt              : Ref count of the number of usage of the fence.
+ * @fence_type           : Fence type - DMA/Sync/Synx
+ * @monitor_data         : Fence operations data
+ * @monitor_entries      : Op info entry table
+ * @prev_monitor_entries : Previous op info entry table
+ */
+struct cam_generic_fence_monitor_obj_info {
+	char *name;
+	enum sync_type sync_type;
+	int32_t obj_id;
+	int32_t sync_id;
+	uint32_t state;
+	uint32_t remaining;
+	uint32_t ref_cnt;
+	uint32_t fence_type;
+	struct cam_generic_fence_monitor_data *monitor_data;
+	struct cam_generic_fence_monitor_entry *monitor_entries;
+	struct cam_generic_fence_monitor_entry *prev_monitor_entries;
+};
+
+/**
  * struct sync_synx_obj_info - Synx object info associated with this sync obj
  *
  * @synx_obj               : Synx object handle
@@ -225,6 +353,7 @@ struct cam_signalable_info {
  * @work_queue      : Work queue used for dispatching kernel callbacks
  * @cam_sync_eventq : Event queue used to dispatch user payloads to user space
  * @bitmap          : Bitmap representation of all sync objects
+ * @mon_data        : Objects monitor data
  * @params          : Parameters for synx call back registration
  * @version         : version support
  */
@@ -240,6 +369,7 @@ struct sync_device {
 	struct v4l2_fh *cam_sync_eventq;
 	spinlock_t cam_sync_eventq_lock;
 	DECLARE_BITMAP(bitmap, CAM_SYNC_MAX_OBJS);
+	struct cam_generic_fence_monitor_data **mon_data;
 #if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
 	struct synx_register_params params;
 #endif

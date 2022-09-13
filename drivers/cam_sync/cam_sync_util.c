@@ -1,12 +1,302 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sync_util.h"
 #include "cam_req_mgr_workq.h"
 #include "cam_common_util.h"
+
+extern unsigned long cam_sync_monitor_mask;
+
+static int cam_generic_expand_monitor_table(int idx, struct mutex *lock,
+	struct cam_generic_fence_monitor_data **mon_data)
+{
+	struct cam_generic_fence_monitor_data *row_mon_data;
+
+	mutex_lock(lock);
+	row_mon_data = mon_data[(idx / CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ)];
+	if (!row_mon_data) {
+		row_mon_data = kzalloc(
+			sizeof(struct cam_generic_fence_monitor_data) *
+			CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ, GFP_KERNEL);
+		mon_data[(idx / CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ)] = row_mon_data;
+	}
+	if (!row_mon_data) {
+		CAM_ERR(CAM_SYNC, "Error allocating memory %d, idx %d",
+			sizeof(struct cam_generic_fence_monitor_data) *
+			CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ, idx);
+		mutex_unlock(lock);
+		return -ENOMEM;
+	}
+
+	mutex_unlock(lock);
+
+	return 0;
+}
+
+static inline struct cam_generic_fence_monitor_entry *__cam_sync_get_monitor_entries(int idx)
+{
+	struct cam_generic_fence_monitor_data *mon_data;
+
+	mon_data = CAM_SYNC_MONITOR_GET_DATA(idx);
+	if (mon_data->swap_monitor_entries)
+		return mon_data->prev_monitor_entries;
+	else
+		return mon_data->monitor_entries;
+}
+
+static inline struct cam_generic_fence_monitor_entry *__cam_sync_get_prev_monitor_entries(int idx)
+{
+	struct cam_generic_fence_monitor_data *mon_data;
+
+	mon_data = CAM_SYNC_MONITOR_GET_DATA(idx);
+	if (mon_data->swap_monitor_entries)
+		return mon_data->monitor_entries;
+	else
+		return mon_data->prev_monitor_entries;
+}
+
+const char *cam_fence_op_to_string(
+	enum cam_fence_op op)
+{
+	switch (op) {
+	case CAM_FENCE_OP_CREATE:
+		return "CREATE";
+	case CAM_FENCE_OP_REGISTER_CB:
+		return "REGISTER_CB";
+	case CAM_FENCE_OP_SIGNAL:
+		return "SIGNAL";
+	case CAM_FENCE_OP_UNREGISTER_ON_SIGNAL:
+		return "UNREGISTER_ON_SIGNAL";
+	case CAM_FENCE_OP_UNREGISTER_CB:
+		return "UNREGISTER_CB";
+	case CAM_FENCE_OP_SKIP_REGISTER_CB:
+		return "SKIP_REGISTER_CB";
+	case CAM_FENCE_OP_ALREADY_REGISTERED_CB:
+		return "ALREADY_REGISTERED_CB";
+	case CAM_FENCE_OP_DESTROY:
+		return "DESTROY";
+	default:
+		return "INVALID";
+	}
+}
+
+static void __cam_sync_save_previous_monitor_data(
+	struct sync_table_row *row)
+{
+	struct cam_generic_fence_monitor_data *row_mon_data;
+
+	if (!sync_dev->mon_data)
+		return;
+
+	row_mon_data = CAM_SYNC_MONITOR_GET_DATA(row->sync_id);
+
+	/* save current usage details into prev variables */
+	strscpy(row_mon_data->prev_name, row->name, SYNC_DEBUG_NAME_LEN);
+	row_mon_data->prev_type         = row->type;
+	row_mon_data->prev_obj_id       = row->sync_id;
+	row_mon_data->prev_state        = row->state;
+	row_mon_data->prev_remaining    = row->remaining;
+	row_mon_data->prev_monitor_head = atomic64_read(&row_mon_data->monitor_head);
+
+	/* Toggle swap flag. Avoid copying and just read/write using correct table idx */
+	row_mon_data->swap_monitor_entries = !row_mon_data->swap_monitor_entries;
+}
+
+void cam_generic_fence_update_monitor_array(int idx,
+	struct mutex *lock,
+	struct cam_generic_fence_monitor_data **mon_data,
+	enum cam_fence_op op)
+{
+	int iterator, rc;
+	struct cam_generic_fence_monitor_data *row_mon_data;
+	struct cam_generic_fence_monitor_entry *row_mon_entries;
+
+	/* Validate inputs */
+	if (!lock || !mon_data)
+		return;
+
+	row_mon_data = mon_data[(idx / CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ)];
+	if (!row_mon_data) {
+		rc = cam_generic_expand_monitor_table(idx, lock, mon_data);
+		if (rc) {
+			CAM_ERR(CAM_SYNC, "Failed to expand monitor table");
+			return;
+		}
+	}
+
+	row_mon_data = CAM_GENERIC_MONITOR_GET_DATA(mon_data, idx);
+	if (op == CAM_FENCE_OP_CREATE)
+		atomic64_set(&row_mon_data->monitor_head, -1);
+	if (row_mon_data->swap_monitor_entries)
+		row_mon_entries = row_mon_data->monitor_entries;
+	else
+		row_mon_entries = row_mon_data->prev_monitor_entries;
+
+	CAM_SYNC_INC_MONITOR_HEAD(&row_mon_data->monitor_head, &iterator);
+	CAM_GET_TIMESTAMP(row_mon_entries[iterator].timestamp);
+	row_mon_entries[iterator].op = op;
+}
+
+static void __cam_generic_fence_dump_monitor_entries(
+	struct cam_generic_fence_monitor_entry *monitor_entries,
+	uint32_t index, uint32_t num_entries)
+{
+	int i = 0;
+	uint64_t ms, hrs, min, sec;
+
+	for (i = 0; i < num_entries; i++) {
+		CAM_CONVERT_TIMESTAMP_FORMAT(monitor_entries[index].timestamp,
+			hrs, min, sec, ms);
+
+		CAM_INFO(CAM_SYNC,
+			"**** %llu:%llu:%llu.%llu : Index[%d] Op[%s]",
+			hrs, min, sec, ms,
+			index,
+			cam_fence_op_to_string(monitor_entries[index].op));
+
+		index = (index + 1) % CAM_SYNC_MONITOR_MAX_ENTRIES;
+	}
+}
+
+static int __cam_generic_fence_get_monitor_entries_info(uint64_t  state_head,
+	uint32_t *oldest_entry, uint32_t *num_entries)
+{
+	*oldest_entry = 0;
+	*num_entries  = 0;
+
+	if (state_head == -1) {
+		return -EINVAL;
+	} else if (state_head < CAM_SYNC_MONITOR_MAX_ENTRIES) {
+		/* head starts from -1 */
+		*num_entries = state_head + 1;
+		*oldest_entry = 0;
+	} else {
+		*num_entries = CAM_SYNC_MONITOR_MAX_ENTRIES;
+		div_u64_rem(state_head + 1,
+			CAM_SYNC_MONITOR_MAX_ENTRIES, oldest_entry);
+	}
+
+	return 0;
+}
+
+void cam_generic_fence_dump_monitor_array(
+	struct cam_generic_fence_monitor_obj_info *obj_info)
+{
+	int rc;
+	uint32_t num_entries, oldest_entry;
+	uint64_t ms, hrs, min, sec;
+	struct timespec64 current_ts;
+	struct cam_generic_fence_monitor_data *mon_data = obj_info->monitor_data;
+
+	/* Check if there are any current entries in the monitor data */
+	rc = __cam_generic_fence_get_monitor_entries_info(
+		atomic64_read(&mon_data->monitor_head),
+		&oldest_entry, &num_entries);
+
+	if (rc)
+		return;
+
+	/* Print current monitor entries */
+	CAM_GET_TIMESTAMP(current_ts);
+	CAM_CONVERT_TIMESTAMP_FORMAT(current_ts, hrs, min, sec, ms);
+	switch (obj_info->fence_type) {
+	case CAM_GENERIC_FENCE_TYPE_SYNC_OBJ:
+		CAM_INFO(CAM_SYNC,
+			"======== %llu:%llu:%llu:%llu Dumping monitor information for sync obj %s, type %d, sync_id %d state %d remaining %d ref_cnt %d num_entries %u ===========",
+			hrs, min, sec, ms, obj_info->name, obj_info->sync_type,
+			obj_info->obj_id, obj_info->state, obj_info->remaining,
+			obj_info->ref_cnt, num_entries);
+		break;
+	case CAM_GENERIC_FENCE_TYPE_DMA_FENCE:
+		CAM_INFO(CAM_DMA_FENCE,
+			"======== %llu:%llu:%llu:%llu Dumping monitor information for dma obj %s, fd %d sync_id %d state %d ref_cnt %d num_entries %u ===========",
+			hrs, min, sec, ms, obj_info->name, obj_info->obj_id,
+			obj_info->sync_id, obj_info->state, obj_info->ref_cnt,
+			num_entries);
+		break;
+	case CAM_GENERIC_FENCE_TYPE_SYNX_OBJ:
+		CAM_INFO(CAM_SYNX,
+			"======== %llu:%llu:%llu:%llu Dumping monitor information for synx obj %s, synx_id %d sync_id %d state %d ref_cnt %d num_entries %u ===========",
+			hrs, min, sec, ms, obj_info->name, obj_info->obj_id,
+			obj_info->sync_id, obj_info->state, obj_info->ref_cnt,
+			num_entries);
+		break;
+	default:
+		break;
+	}
+
+	__cam_generic_fence_dump_monitor_entries(obj_info->monitor_entries,
+		oldest_entry, num_entries);
+
+
+	/* Check if there are any previous entries in the monitor data */
+	rc = __cam_generic_fence_get_monitor_entries_info(
+		mon_data->prev_monitor_head,
+		&oldest_entry, &num_entries);
+
+	if (rc)
+		return;
+
+	/* Print previous monitor entries */
+	CAM_GET_TIMESTAMP(current_ts);
+	CAM_CONVERT_TIMESTAMP_FORMAT(current_ts, hrs, min, sec, ms);
+	switch (obj_info->fence_type) {
+	case CAM_GENERIC_FENCE_TYPE_SYNC_OBJ:
+		CAM_INFO(CAM_SYNC,
+			"======== %llu:%llu:%llu:%llu Dumping previous monitor information for sync obj %s, type %d, sync_id %d state %d remaining %d num_entries %u ===========",
+			hrs, min, sec, ms, mon_data->prev_name, mon_data->prev_type,
+			mon_data->prev_obj_id, mon_data->prev_state, mon_data->prev_remaining,
+			num_entries);
+		break;
+	case CAM_GENERIC_FENCE_TYPE_DMA_FENCE:
+		CAM_INFO(CAM_DMA_FENCE,
+			"======== %llu:%llu:%llu:%llu Dumping previous monitor information for dma obj %s, fd %d sync_id %d state %d num_entries %u ===========",
+			hrs, min, sec, ms, mon_data->prev_name, mon_data->prev_obj_id,
+			mon_data->prev_sync_id, mon_data->prev_state,
+			num_entries);
+		break;
+	case CAM_GENERIC_FENCE_TYPE_SYNX_OBJ:
+		CAM_INFO(CAM_SYNX,
+			"======== %llu:%llu:%llu:%llu Dumping previous monitor information for synx obj %s, synx_id %d sync_id %d state %d num_entries %u ===========",
+			hrs, min, sec, ms, mon_data->prev_name, mon_data->prev_obj_id,
+			mon_data->prev_sync_id, mon_data->prev_state,
+			num_entries);
+		break;
+	default:
+		break;
+	}
+
+	__cam_generic_fence_dump_monitor_entries(obj_info->prev_monitor_entries,
+		oldest_entry, num_entries);
+
+}
+
+void cam_sync_dump_monitor_array(struct sync_table_row *row)
+{
+	struct cam_generic_fence_monitor_obj_info obj_info;
+
+	if (!sync_dev->mon_data ||
+		!test_bit(CAM_GENERIC_FENCE_TYPE_SYNC_OBJ, &cam_sync_monitor_mask) ||
+		!(CAM_GENERIC_MONITOR_GET_DATA(sync_dev->mon_data, row->sync_id)->prev_obj_id))
+		return;
+
+	obj_info.name = row->name;
+	obj_info.sync_type = row->type;
+	obj_info.obj_id = row->sync_id;
+	obj_info.state = row->state;
+	obj_info.remaining = row->remaining;
+	obj_info.ref_cnt = atomic_read(&row->ref_cnt);
+	obj_info.monitor_data = CAM_SYNC_MONITOR_GET_DATA(row->sync_id);
+	obj_info.fence_type = CAM_GENERIC_FENCE_TYPE_SYNC_OBJ;
+	obj_info.monitor_entries =
+		__cam_sync_get_monitor_entries(row->sync_id);
+	obj_info.prev_monitor_entries =
+		__cam_sync_get_prev_monitor_entries(row->sync_id);
+	cam_generic_fence_dump_monitor_array(&obj_info);
+}
 
 int cam_sync_util_find_and_set_empty_row(struct sync_device *sync_dev,
 	long *idx)
@@ -35,8 +325,6 @@ int cam_sync_init_row(struct sync_table_row *table,
 	if (!table || idx <= 0 || idx >= CAM_SYNC_MAX_OBJS)
 		return -EINVAL;
 
-	memset(row, 0, sizeof(*row));
-
 	strlcpy(row->name, name, SYNC_DEBUG_NAME_LEN);
 	INIT_LIST_HEAD(&row->parents_list);
 	INIT_LIST_HEAD(&row->children_list);
@@ -48,6 +336,11 @@ int cam_sync_init_row(struct sync_table_row *table,
 	init_completion(&row->signaled);
 	INIT_LIST_HEAD(&row->callback_list);
 	INIT_LIST_HEAD(&row->user_payload_list);
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNC_OBJ, &cam_sync_monitor_mask)) {
+		cam_generic_fence_update_monitor_array(idx, &sync_dev->table_lock,
+			sync_dev->mon_data,
+			CAM_FENCE_OP_CREATE);
+	}
 	CAM_DBG(CAM_SYNC,
 		"row name:%s sync_id:%i [idx:%u] row_state:%u ",
 		row->name, row->sync_id, idx, row->state);
@@ -60,7 +353,7 @@ int cam_sync_init_group_object(struct sync_table_row *table,
 	uint32_t *sync_objs,
 	uint32_t num_objs)
 {
-	int i, rc = 0;
+	int i, rc;
 	struct sync_child_info *child_info;
 	struct sync_parent_info *parent_info;
 	struct sync_table_row *row = table + idx;
@@ -160,7 +453,7 @@ int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx,
 	struct sync_table_row      *child_row = NULL, *parent_row = NULL;
 	struct list_head            temp_child_list, temp_parent_list;
 
-	if (!table || idx <= 0 || idx >= CAM_SYNC_MAX_OBJS)
+	if (!table || (idx <= 0) || (idx >= CAM_SYNC_MAX_OBJS))
 		return -EINVAL;
 
 	CAM_DBG(CAM_SYNC,
@@ -181,6 +474,15 @@ int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx,
 		CAM_DBG(CAM_SYNC,
 			"Destroying an active sync object name:%s id:%i",
 			row->name, row->sync_id);
+
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNC_OBJ, &cam_sync_monitor_mask)) {
+		cam_generic_fence_update_monitor_array(idx, &sync_dev->table_lock,
+			sync_dev->mon_data,
+			CAM_FENCE_OP_DESTROY);
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNC_OBJ_DUMP, &cam_sync_monitor_mask))
+			cam_sync_dump_monitor_array(row);
+		__cam_sync_save_previous_monitor_data(row);
+	}
 
 	row->state = CAM_SYNC_STATE_INVALID;
 
@@ -359,6 +661,11 @@ void cam_sync_util_dispatch_signaled_cb(int32_t sync_obj,
 		temp_sync_cb, &signalable_row->callback_list, list) {
 		sync_cb->status = status;
 		list_del_init(&sync_cb->list);
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNC_OBJ,
+			&cam_sync_monitor_mask))
+			cam_generic_fence_update_monitor_array(sync_obj,
+				&sync_dev->table_lock, sync_dev->mon_data,
+				CAM_FENCE_OP_UNREGISTER_ON_SIGNAL);
 		queue_work(sync_dev->work_queue,
 			&sync_cb->cb_dispatch_work);
 	}
@@ -382,12 +689,18 @@ void cam_sync_util_dispatch_signaled_cb(int32_t sync_obj,
 			event_cause);
 
 		list_del_init(&payload_info->list);
+
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNC_OBJ,
+			&cam_sync_monitor_mask))
+			cam_generic_fence_update_monitor_array(sync_obj,
+				&sync_dev->table_lock, sync_dev->mon_data,
+				CAM_FENCE_OP_UNREGISTER_ON_SIGNAL);
 		/*
 		 * We can free the list node here because
 		 * sending V4L event will make a deep copy
 		 * anyway
 		 */
-		 kfree(payload_info);
+		kfree(payload_info);
 	}
 
 	/*

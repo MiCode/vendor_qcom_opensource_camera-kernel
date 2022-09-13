@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __CAM_SYNC_DMA_FENCE_H__
 #define __CAM_SYNC_DMA_FENCE_H__
@@ -16,6 +16,7 @@
 
 #define CAM_DMA_FENCE_MAX_FENCES  128
 #define CAM_DMA_FENCE_NAME_LEN    128
+#define CAM_DMA_FENCE_TABLE_SZ (CAM_DMA_FENCE_MAX_FENCES / CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ)
 
 /* DMA fence state */
 enum cam_dma_fence_state {

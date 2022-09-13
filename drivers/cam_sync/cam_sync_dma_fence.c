@@ -2,7 +2,11 @@
 /*
  * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+
 #include "cam_sync_dma_fence.h"
+#include "cam_sync_util.h"
+
+extern unsigned long cam_sync_monitor_mask;
 
 /**
  * struct cam_dma_fence_row - DMA fence row
@@ -29,6 +33,7 @@ struct cam_dma_fence_device {
 	spinlock_t row_spinlocks[CAM_DMA_FENCE_MAX_FENCES];
 	struct mutex dev_lock;
 	DECLARE_BITMAP(bitmap, CAM_DMA_FENCE_MAX_FENCES);
+	struct cam_generic_fence_monitor_data **monitor_data;
 };
 
 static atomic64_t g_cam_dma_fence_seq_no;
@@ -60,6 +65,30 @@ static struct dma_fence_ops cam_sync_dma_fence_ops = {
 	.get_timeline_name = __cam_dma_fence_get_driver_name,
 	.release = __cam_dma_fence_free,
 };
+
+static inline struct cam_generic_fence_monitor_entry *
+	__cam_dma_fence_get_monitor_entries(int idx)
+{
+	struct cam_generic_fence_monitor_data *monitor_data;
+
+	monitor_data = CAM_GENERIC_MONITOR_GET_DATA(g_cam_dma_fence_dev->monitor_data, idx);
+	if (monitor_data->swap_monitor_entries)
+		return monitor_data->prev_monitor_entries;
+	else
+		return monitor_data->monitor_entries;
+}
+
+static inline struct cam_generic_fence_monitor_entry *
+	__cam_dma_fence_get_prev_monitor_entries(int idx)
+{
+	struct cam_generic_fence_monitor_data *monitor_data;
+
+	monitor_data = CAM_GENERIC_MONITOR_GET_DATA(g_cam_dma_fence_dev->monitor_data, idx);
+	if (monitor_data->swap_monitor_entries)
+		return monitor_data->monitor_entries;
+	else
+		return monitor_data->prev_monitor_entries;
+}
 
 static void __cam_dma_fence_print_table(void)
 {
@@ -131,12 +160,17 @@ static void __cam_dma_fence_init_row(const char *name,
 
 	spin_lock_bh(&g_cam_dma_fence_dev->row_spinlocks[idx]);
 	row = &g_cam_dma_fence_dev->rows[idx];
-	memset(row, 0, sizeof(*row));
 	row->fence = dma_fence;
 	row->fd = fd;
 	row->state = CAM_DMA_FENCE_STATE_ACTIVE;
 	row->ext_dma_fence = ext_dma_fence;
 	strscpy(row->name, name, CAM_DMA_FENCE_NAME_LEN);
+
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &cam_sync_monitor_mask)) {
+		cam_generic_fence_update_monitor_array(idx,
+			&g_cam_dma_fence_dev->dev_lock, g_cam_dma_fence_dev->monitor_data,
+			CAM_FENCE_OP_CREATE);
+	}
 	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[idx]);
 }
 
@@ -146,6 +180,7 @@ void __cam_dma_fence_signal_cb(
 	struct cam_dma_fence_signal_sync_obj signal_sync_obj;
 	struct cam_dma_fence_row *dma_fence_row =
 		container_of(cb, struct cam_dma_fence_row, fence_cb);
+	uint32_t idx;
 
 	if (dma_fence_row->state == CAM_DMA_FENCE_STATE_INVALID) {
 		CAM_ERR(CAM_DMA_FENCE, "dma fence seqno: %llu is in invalid state: %d",
@@ -169,7 +204,47 @@ void __cam_dma_fence_signal_cb(
 		signal_sync_obj.status = dma_fence_get_status_locked(fence);
 		dma_fence_row->state = CAM_DMA_FENCE_STATE_SIGNALED;
 		dma_fence_row->sync_cb(dma_fence_row->sync_obj, &signal_sync_obj);
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
+			&cam_sync_monitor_mask)) {
+			__cam_dma_fence_find_fence_in_table(dma_fence_row->fd, &idx);
+			cam_generic_fence_update_monitor_array(idx,
+				&g_cam_dma_fence_dev->dev_lock,
+				g_cam_dma_fence_dev->monitor_data,
+				CAM_FENCE_OP_UNREGISTER_ON_SIGNAL);
+		}
 	}
+}
+
+static void __cam_dma_fence_dump_monitor_array(int dma_row_idx)
+{
+	struct dma_fence *fence;
+	struct cam_generic_fence_monitor_obj_info obj_info;
+	struct cam_dma_fence_row *row;
+
+	if (!g_cam_dma_fence_dev->monitor_data ||
+		!test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &cam_sync_monitor_mask))
+		return;
+
+	if (!CAM_GENERIC_MONITOR_GET_DATA(g_cam_dma_fence_dev->monitor_data,
+		dma_row_idx)->prev_obj_id)
+		return;
+
+	row = &g_cam_dma_fence_dev->rows[dma_row_idx];
+	fence = row->fence;
+
+	obj_info.name = row->name;
+	obj_info.obj_id = row->fd;
+	obj_info.state = row->state;
+	obj_info.ref_cnt = kref_read(&fence->refcount);
+	obj_info.monitor_data = CAM_GENERIC_MONITOR_GET_DATA(
+		g_cam_dma_fence_dev->monitor_data, dma_row_idx);
+	obj_info.fence_type = CAM_GENERIC_FENCE_TYPE_DMA_FENCE;
+	obj_info.sync_id = row->sync_obj;
+	obj_info.monitor_entries =
+		__cam_dma_fence_get_monitor_entries(dma_row_idx);
+	obj_info.prev_monitor_entries =
+		__cam_dma_fence_get_prev_monitor_entries(dma_row_idx);
+	cam_generic_fence_dump_monitor_array(&obj_info);
 }
 
 int cam_dma_fence_get_put_ref(
@@ -177,6 +252,7 @@ int cam_dma_fence_get_put_ref(
 {
 	struct dma_fence *dma_fence;
 	struct cam_dma_fence_row *row;
+	int rc = 0;
 
 	if ((dma_fence_row_idx < 0) ||
 		(dma_fence_row_idx >= CAM_DMA_FENCE_MAX_FENCES)) {
@@ -192,8 +268,8 @@ int cam_dma_fence_get_put_ref(
 		CAM_ERR(CAM_DMA_FENCE,
 			"dma fence at idx: %d is in invalid state: %d",
 			dma_fence_row_idx, row->state);
-		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto monitor_dump;
 	}
 
 	dma_fence = row->fence;
@@ -209,7 +285,12 @@ int cam_dma_fence_get_put_ref(
 		kref_read(&dma_fence->refcount), (get_or_put ? "getref" : "putref"),
 		dma_fence->seqno);
 
-	return 0;
+	return rc;
+
+monitor_dump:
+	__cam_dma_fence_dump_monitor_array(dma_fence_row_idx);
+	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
+	return rc;
 }
 
 static struct dma_fence *cam_dma_fence_get_fence_from_sync_file(
@@ -292,11 +373,17 @@ int cam_dma_fence_register_cb(int32_t *sync_obj, int32_t *dma_fence_idx,
 	dma_fence = row->fence;
 
 	if (row->state != CAM_DMA_FENCE_STATE_ACTIVE) {
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
+			&cam_sync_monitor_mask))
+			cam_generic_fence_update_monitor_array(dma_fence_row_idx,
+				&g_cam_dma_fence_dev->dev_lock,
+				g_cam_dma_fence_dev->monitor_data,
+				CAM_FENCE_OP_SKIP_REGISTER_CB);
 		CAM_ERR(CAM_DMA_FENCE,
 			"dma fence at idx: %d fd: %d seqno: %llu is not active, current state: %d",
 			dma_fence_row_idx, row->fd, dma_fence->seqno, row->state);
 		rc = -EINVAL;
-		goto end;
+		goto monitor_dump;
 	}
 
 	/**
@@ -305,6 +392,12 @@ int cam_dma_fence_register_cb(int32_t *sync_obj, int32_t *dma_fence_idx,
 	 * possible that same fd is returned to a new fence.
 	 */
 	if (row->cb_registered_for_sync) {
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
+			&cam_sync_monitor_mask))
+			cam_generic_fence_update_monitor_array(dma_fence_row_idx,
+				&g_cam_dma_fence_dev->dev_lock, g_cam_dma_fence_dev->monitor_data,
+				CAM_FENCE_OP_ALREADY_REGISTERED_CB);
+
 		CAM_WARN(CAM_DMA_FENCE,
 			"dma fence at idx: %d fd: %d seqno: %llu has already registered a cb for sync: %d - same fd for 2 fences?",
 			dma_fence_row_idx, row->fd, dma_fence->seqno, row->sync_obj);
@@ -317,8 +410,13 @@ int cam_dma_fence_register_cb(int32_t *sync_obj, int32_t *dma_fence_idx,
 		CAM_ERR(CAM_DMA_FENCE,
 			"Failed to register cb for dma fence fd: %d seqno: %llu rc: %d",
 			row->fd, dma_fence->seqno, rc);
-		goto end;
+		goto monitor_dump;
 	}
+
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &cam_sync_monitor_mask))
+		cam_generic_fence_update_monitor_array(dma_fence_row_idx,
+			&g_cam_dma_fence_dev->dev_lock, g_cam_dma_fence_dev->monitor_data,
+			CAM_FENCE_OP_REGISTER_CB);
 
 	row->cb_registered_for_sync = true;
 	row->sync_obj = *sync_obj;
@@ -327,6 +425,11 @@ int cam_dma_fence_register_cb(int32_t *sync_obj, int32_t *dma_fence_idx,
 	CAM_DBG(CAM_DMA_FENCE,
 		"CB successfully registered for dma fence fd: %d seqno: %llu for sync_obj: %d",
 		row->fd, dma_fence->seqno, *sync_obj);
+	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
+	return rc;
+
+monitor_dump:
+	__cam_dma_fence_dump_monitor_array(dma_fence_row_idx);
 
 end:
 	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
@@ -357,7 +460,7 @@ int cam_dma_fence_internal_signal(
 	int32_t dma_fence_row_idx,
 	struct cam_dma_fence_signal *signal_dma_fence)
 {
-	int rc = 0;
+	int rc;
 	struct dma_fence *dma_fence = NULL;
 	struct cam_dma_fence_row *row = NULL;
 
@@ -376,10 +479,10 @@ int cam_dma_fence_internal_signal(
 	dma_fence = row->fence;
 
 	if (IS_ERR_OR_NULL(dma_fence)) {
-		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
 		CAM_ERR(CAM_DMA_FENCE, "DMA fence in row: %d is invalid",
 			dma_fence_row_idx);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto monitor_dump;
 	}
 
 	if (row->state == CAM_DMA_FENCE_STATE_SIGNALED) {
@@ -389,6 +492,11 @@ int cam_dma_fence_internal_signal(
 			signal_dma_fence->dma_fence_fd, dma_fence->seqno);
 		return 0;
 	}
+
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &cam_sync_monitor_mask))
+		cam_generic_fence_update_monitor_array(dma_fence_row_idx,
+			&g_cam_dma_fence_dev->dev_lock, g_cam_dma_fence_dev->monitor_data,
+			CAM_FENCE_OP_SIGNAL);
 
 	rc = __cam_dma_fence_signal_fence(dma_fence, signal_dma_fence->status);
 	if (rc)
@@ -405,11 +513,16 @@ int cam_dma_fence_internal_signal(
 		signal_dma_fence->status, rc);
 
 	return rc;
+
+monitor_dump:
+	__cam_dma_fence_dump_monitor_array(dma_fence_row_idx);
+	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
+	return rc;
 }
 
 int cam_dma_fence_signal_fd(struct cam_dma_fence_signal *signal_dma_fence)
 {
-	int rc = 0;
+	int rc;
 	uint32_t idx;
 	struct dma_fence *dma_fence = NULL;
 	struct cam_dma_fence_row *row = NULL;
@@ -430,11 +543,11 @@ int cam_dma_fence_signal_fd(struct cam_dma_fence_signal *signal_dma_fence)
 	 * between signal and release
 	 */
 	if (row->state == CAM_DMA_FENCE_STATE_INVALID) {
-		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[idx]);
 		CAM_ERR(CAM_DMA_FENCE,
 			"dma fence fd: %d is invalid row_idx: %u, failed to signal",
 			signal_dma_fence->dma_fence_fd, idx);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto monitor_dump;
 	}
 
 	if (row->state == CAM_DMA_FENCE_STATE_SIGNALED) {
@@ -444,6 +557,11 @@ int cam_dma_fence_signal_fd(struct cam_dma_fence_signal *signal_dma_fence)
 			signal_dma_fence->dma_fence_fd, dma_fence->seqno);
 		return 0;
 	}
+
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &cam_sync_monitor_mask))
+		cam_generic_fence_update_monitor_array(idx,
+			&g_cam_dma_fence_dev->dev_lock, g_cam_dma_fence_dev->monitor_data,
+			CAM_FENCE_OP_SIGNAL);
 
 	rc = __cam_dma_fence_signal_fence(dma_fence, signal_dma_fence->status);
 	if (rc)
@@ -459,6 +577,11 @@ int cam_dma_fence_signal_fd(struct cam_dma_fence_signal *signal_dma_fence)
 		signal_dma_fence->dma_fence_fd, dma_fence->seqno,
 		signal_dma_fence->status, rc);
 
+	return rc;
+
+monitor_dump:
+	__cam_dma_fence_dump_monitor_array(idx);
+	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[idx]);
 	return rc;
 }
 
@@ -542,32 +665,69 @@ end:
 	return rc;
 }
 
+void __cam_dma_fence_save_previous_monitor_data(int dma_row_idx)
+{
+	struct cam_generic_fence_monitor_data *row_mon_data;
+	struct cam_dma_fence_row *row;
+
+	if (!g_cam_dma_fence_dev->monitor_data)
+		return;
+
+	row = &g_cam_dma_fence_dev->rows[dma_row_idx];
+	row_mon_data = CAM_GENERIC_MONITOR_GET_DATA(
+	g_cam_dma_fence_dev->monitor_data, dma_row_idx);
+
+	/* save current usage details into prev variables */
+	strscpy(row_mon_data->prev_name, row->name, CAM_DMA_FENCE_NAME_LEN);
+	row_mon_data->prev_obj_id          = row->fd;
+	row_mon_data->prev_sync_id         = row->sync_obj;
+	row_mon_data->prev_state           = row->state;
+	row_mon_data->swap_monitor_entries = !row_mon_data->swap_monitor_entries;
+	row_mon_data->prev_monitor_head    = atomic64_read(&row_mon_data->monitor_head);
+}
+
 static int __cam_dma_fence_release(int32_t dma_row_idx)
 {
 	struct dma_fence *dma_fence = NULL;
 	struct cam_dma_fence_row *row = NULL;
+	int rc;
 
 	spin_lock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_row_idx]);
 	row = &g_cam_dma_fence_dev->rows[dma_row_idx];
 	dma_fence = row->fence;
 
 	if (row->state == CAM_DMA_FENCE_STATE_INVALID) {
-		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_row_idx]);
 		CAM_ERR(CAM_DMA_FENCE, "Invalid row index: %u, state: %u",
 			dma_row_idx, row->state);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto monitor_dump;
 	}
 
 	if (row->state == CAM_DMA_FENCE_STATE_ACTIVE) {
 		CAM_WARN(CAM_DMA_FENCE,
 			"Unsignaled fence being released name: %s seqno: %llu fd:%d",
 			row->name, dma_fence->seqno, row->fd);
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
+			&cam_sync_monitor_mask))
+			cam_generic_fence_update_monitor_array(dma_row_idx,
+				&g_cam_dma_fence_dev->dev_lock, g_cam_dma_fence_dev->monitor_data,
+				CAM_FENCE_OP_SIGNAL);
 		__cam_dma_fence_signal_fence(dma_fence, -ECANCELED);
 	}
 
 	CAM_DBG(CAM_DMA_FENCE,
 		"Releasing dma fence with fd: %d[%s] row_idx: %u current ref_cnt: %u",
 		row->fd, row->name, dma_row_idx, kref_read(&dma_fence->refcount));
+
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &cam_sync_monitor_mask)) {
+		/* Update monitor entries & save data before row memset to 0 */
+		cam_generic_fence_update_monitor_array(dma_row_idx,
+			&g_cam_dma_fence_dev->dev_lock, g_cam_dma_fence_dev->monitor_data,
+			CAM_FENCE_OP_DESTROY);
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE_DUMP, &cam_sync_monitor_mask))
+			__cam_dma_fence_dump_monitor_array(dma_row_idx);
+		__cam_dma_fence_save_previous_monitor_data(dma_row_idx);
+	}
 
 	/* putref on dma fence */
 	dma_fence_put(dma_fence);
@@ -576,7 +736,13 @@ static int __cam_dma_fence_release(int32_t dma_row_idx)
 	memset(row, 0, sizeof(struct cam_dma_fence_row));
 	clear_bit(dma_row_idx, g_cam_dma_fence_dev->bitmap);
 	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_row_idx]);
+
 	return 0;
+
+monitor_dump:
+	__cam_dma_fence_dump_monitor_array(dma_row_idx);
+	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_row_idx]);
+	return rc;
 }
 
 static int __cam_dma_fence_release_fd(int fd)
@@ -632,13 +798,27 @@ void cam_dma_fence_close(void)
 				kref_read(&row->fence->refcount));
 
 			/* If registered for cb, remove cb */
-			if (row->cb_registered_for_sync)
+			if (row->cb_registered_for_sync) {
+				if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
+					&cam_sync_monitor_mask))
+					cam_generic_fence_update_monitor_array(i,
+						&g_cam_dma_fence_dev->dev_lock,
+						g_cam_dma_fence_dev->monitor_data,
+						CAM_FENCE_OP_UNREGISTER_CB);
 				dma_fence_remove_callback(row->fence, &row->fence_cb);
+			}
 
 			/* Signal and put if the dma fence is created from camera */
 			if (!row->ext_dma_fence) {
-				if (row->state != CAM_DMA_FENCE_STATE_SIGNALED)
+				if (row->state != CAM_DMA_FENCE_STATE_SIGNALED) {
+					if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
+						&cam_sync_monitor_mask))
+						cam_generic_fence_update_monitor_array(i,
+							&g_cam_dma_fence_dev->dev_lock,
+							g_cam_dma_fence_dev->monitor_data,
+							CAM_FENCE_OP_SIGNAL);
 					__cam_dma_fence_signal_fence(row->fence, -EADV);
+				}
 				dma_fence_put(row->fence);
 			}
 
@@ -648,6 +828,12 @@ void cam_dma_fence_close(void)
 		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[i]);
 	}
 
+	if (g_cam_dma_fence_dev->monitor_data) {
+		for (i = 0; i < CAM_DMA_FENCE_TABLE_SZ; i++)
+			kfree(g_cam_dma_fence_dev->monitor_data[i]);
+	}
+	kfree(g_cam_dma_fence_dev->monitor_data);
+
 	mutex_unlock(&g_cam_dma_fence_dev->dev_lock);
 	CAM_DBG(CAM_DMA_FENCE, "Close on Camera DMA fence driver");
 }
@@ -655,6 +841,17 @@ void cam_dma_fence_close(void)
 void cam_dma_fence_open(void)
 {
 	mutex_lock(&g_cam_dma_fence_dev->dev_lock);
+
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &cam_sync_monitor_mask)) {
+		g_cam_dma_fence_dev->monitor_data = kzalloc(
+			sizeof(struct cam_generic_fence_monitor_data *) *
+			CAM_DMA_FENCE_TABLE_SZ, GFP_KERNEL);
+		if (!g_cam_dma_fence_dev->monitor_data) {
+			CAM_WARN(CAM_DMA_FENCE, "Failed to allocate memory %d",
+				sizeof(struct cam_generic_fence_monitor_data *) *
+				CAM_DMA_FENCE_TABLE_SZ);
+		}
+	}
 
 	/* DMA fence seqno reset */
 	atomic64_set(&g_cam_dma_fence_seq_no, 0);
