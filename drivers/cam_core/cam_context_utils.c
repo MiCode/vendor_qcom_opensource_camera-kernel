@@ -1426,7 +1426,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	struct cam_hw_dump_args *dump_args)
 {
 	int                              rc, i;
-	struct cam_ctx_request          *req, *req_temp;
+	struct cam_ctx_request          *req = NULL, *req_temp;
 	struct cam_context_dump_header  *hdr;
 	uint8_t                         *dst;
 	uint64_t                        *addr, *start;
@@ -1440,20 +1440,9 @@ static int cam_context_user_dump(struct cam_context *ctx,
 		return -EINVAL;
 	}
 
-	spin_lock_bh(&ctx->lock);
-	if (list_empty(&ctx->active_req_list)) {
-		CAM_ERR(CAM_CTXT, "[%s][%d] no active request",
-			ctx->dev_name, ctx->ctx_id);
-		spin_unlock_bh(&ctx->lock);
-		return 0;
-	}
-
-	req = list_first_entry(&ctx->active_req_list,
-		struct cam_ctx_request, list);
-	spin_unlock_bh(&ctx->lock);
-
 	rc = cam_mem_get_cpu_buf(dump_args->buf_handle,
 		&cpu_addr, &buf_len);
+
 	if (rc) {
 		CAM_ERR(CAM_CTXT, "Invalid hdl %u rc %d",
 			dump_args->buf_handle, rc);
@@ -1466,15 +1455,34 @@ static int cam_context_user_dump(struct cam_context *ctx,
 		return -ENOSPC;
 	}
 
-	remain_len = buf_len - dump_args->offset;
-	min_len = sizeof(struct cam_context_dump_header) +
-		(CAM_CTXT_DUMP_NUM_WORDS + req->num_in_map_entries +
-		(req->num_out_map_entries * 2)) * sizeof(uint64_t);
+	spin_lock_bh(&ctx->lock);
+	if (!list_empty(&ctx->active_req_list)) {
+		req = list_first_entry(&ctx->active_req_list,
+			struct cam_ctx_request, list);
+	} else if (!list_empty(&ctx->wait_req_list)) {
+		req = list_first_entry(&ctx->wait_req_list,
+			struct cam_ctx_request, list);
+	} else if (!list_empty(&ctx->pending_req_list)) {
+		req = list_first_entry(&ctx->pending_req_list,
+			struct cam_ctx_request, list);
+	} else {
+		CAM_ERR(CAM_CTXT, "[%s][%d] no request to dump",
+			ctx->dev_name, ctx->ctx_id);
+	}
+	spin_unlock_bh(&ctx->lock);
 
-	if (remain_len < min_len) {
-		CAM_WARN(CAM_CTXT, "dump buffer exhaust remain %zu min %u",
-			remain_len, min_len);
-		return -ENOSPC;
+	/* Check for min len in case of available request to dump */
+	if (req != NULL) {
+		remain_len = buf_len - dump_args->offset;
+		min_len = sizeof(struct cam_context_dump_header) +
+			(CAM_CTXT_DUMP_NUM_WORDS + req->num_in_map_entries +
+			(req->num_out_map_entries * 2)) * sizeof(uint64_t);
+
+		if (remain_len < min_len) {
+			CAM_WARN(CAM_CTXT, "dump buffer exhaust remain %zu min %u",
+				remain_len, min_len);
+			return -ENOSPC;
+		}
 	}
 
 	/* Dump context info */
@@ -1505,7 +1513,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	hdr->word_size = sizeof(uint64_t);
 	addr = (uint64_t *)(dst + sizeof(struct cam_context_dump_header));
 	start = addr;
-	if (!list_empty(&ctx->wait_req_list)) {
+	if (!list_empty(&ctx->pending_req_list)) {
 		list_for_each_entry_safe(req, req_temp, &ctx->pending_req_list, list) {
 			*addr++ = req->request_id;
 		}
@@ -1515,7 +1523,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	dump_args->offset += hdr->size +
 		sizeof(struct cam_context_dump_header);
 
-	/* Dump applied request IDs */
+	/* Dump wait request IDs */
 	dst = (uint8_t *)cpu_addr + dump_args->offset;
 	hdr = (struct cam_context_dump_header *)dst;
 	scnprintf(hdr->tag, CAM_CTXT_DUMP_TAG_MAX_LEN,
@@ -1523,7 +1531,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	hdr->word_size = sizeof(uint64_t);
 	addr = (uint64_t *)(dst + sizeof(struct cam_context_dump_header));
 	start = addr;
-	if (!list_empty(&ctx->pending_req_list)) {
+	if (!list_empty(&ctx->wait_req_list)) {
 		list_for_each_entry_safe(req, req_temp, &ctx->wait_req_list, list) {
 			*addr++ = req->request_id;
 		}
@@ -1550,6 +1558,52 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset += hdr->size +
 		sizeof(struct cam_context_dump_header);
+
+	/* Dump waiting requests */
+	if (!list_empty(&ctx->wait_req_list)) {
+		list_for_each_entry_safe(req, req_temp, &ctx->wait_req_list, list) {
+			for (i = 0; i < req->num_out_map_entries; i++) {
+				dst = (uint8_t *)cpu_addr + dump_args->offset;
+				hdr = (struct cam_context_dump_header *)dst;
+				scnprintf(hdr->tag, CAM_CTXT_DUMP_TAG_MAX_LEN,
+					"%s_OUT_FENCE_REQUEST_APPLIED.%d.%d.%d:",
+					ctx->dev_name,
+					req->out_map_entries[i].resource_handle,
+					&(req->out_map_entries[i].image_buf_addr),
+					req->out_map_entries[i].sync_id);
+				hdr->word_size = sizeof(uint64_t);
+				addr = (uint64_t *)(dst + sizeof(struct cam_context_dump_header));
+				start = addr;
+				*addr++ = req->request_id;
+				hdr->size = hdr->word_size * (addr - start);
+				dump_args->offset += hdr->size +
+					sizeof(struct cam_context_dump_header);
+			}
+		}
+	}
+
+	/* Dump pending requests */
+	if (!list_empty(&ctx->pending_req_list)) {
+		list_for_each_entry_safe(req, req_temp, &ctx->pending_req_list, list) {
+			for (i = 0; i < req->num_out_map_entries; i++) {
+				dst = (uint8_t *)cpu_addr + dump_args->offset;
+				hdr = (struct cam_context_dump_header *)dst;
+				scnprintf(hdr->tag, CAM_CTXT_DUMP_TAG_MAX_LEN,
+					"%s_OUT_FENCE_REQUEST_PENDING.%d.%d.%d:",
+					ctx->dev_name,
+					req->out_map_entries[i].resource_handle,
+					&(req->out_map_entries[i].image_buf_addr),
+					req->out_map_entries[i].sync_id);
+				hdr->word_size = sizeof(uint64_t);
+				addr = (uint64_t *)(dst + sizeof(struct cam_context_dump_header));
+				start = addr;
+				*addr++ = req->request_id;
+				hdr->size = hdr->word_size * (addr - start);
+				dump_args->offset += hdr->size +
+					sizeof(struct cam_context_dump_header);
+			}
+		}
+	}
 
 	/* Dump active requests */
 	if (!list_empty(&ctx->active_req_list)) {
