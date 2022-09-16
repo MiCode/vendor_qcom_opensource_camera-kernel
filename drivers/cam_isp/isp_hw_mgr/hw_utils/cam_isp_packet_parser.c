@@ -1299,15 +1299,12 @@ int cam_isp_add_reg_update(
 
 int cam_isp_add_go_cmd(
 	struct cam_hw_prepare_update_args    *prepare,
-	struct list_head                     *res_list_isp_rd,
-	uint32_t                              base_idx,
+	struct cam_isp_resource_node         *res,
 	struct cam_kmd_buf_info              *kmd_buf_info)
 {
 	int rc = -EINVAL;
-	struct cam_isp_resource_node         *res;
-	struct cam_isp_hw_mgr_res            *hw_mgr_res;
 	struct cam_isp_hw_get_cmd_update      get_regup;
-	uint32_t kmd_buf_remain_size, num_ent, i, reg_update_size;
+	uint32_t kmd_buf_remain_size, num_ent, reg_update_size;
 
 	/* Max one hw entries required for each base */
 	if (prepare->num_hw_update_entries + 1 >=
@@ -1319,76 +1316,57 @@ int cam_isp_add_go_cmd(
 	}
 
 	reg_update_size = 0;
-	list_for_each_entry(hw_mgr_res, res_list_isp_rd, list) {
-		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)
-			continue;
-
-		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			if (!hw_mgr_res->hw_res[i])
-				continue;
-
-			res = hw_mgr_res->hw_res[i];
-			if (res->hw_intf->hw_idx != base_idx)
-				continue;
-
-			if (kmd_buf_info->size > (kmd_buf_info->used_bytes +
-				reg_update_size)) {
-				kmd_buf_remain_size =  kmd_buf_info->size -
-					(kmd_buf_info->used_bytes +
-					reg_update_size);
-			} else {
-				CAM_ERR(CAM_ISP, "no free mem %d %d %d",
-					base_idx, kmd_buf_info->size,
-					kmd_buf_info->used_bytes +
-					reg_update_size);
-				rc = -EINVAL;
-				return rc;
-			}
-
-			get_regup.cmd.cmd_buf_addr = kmd_buf_info->cpu_addr +
-				kmd_buf_info->used_bytes/4 +
-				reg_update_size/4;
-			get_regup.cmd.size = kmd_buf_remain_size;
-			get_regup.cmd_type = CAM_ISP_HW_CMD_FE_TRIGGER_CMD;
-			get_regup.res = res;
-
-			rc = res->process_cmd(res->res_priv,
-				CAM_ISP_HW_CMD_FE_TRIGGER_CMD, &get_regup,
-				sizeof(struct cam_isp_hw_get_cmd_update));
-			if (rc)
-				return rc;
-
-			CAM_DBG(CAM_ISP, "GO_CMD added for RD res %d hw_id %d",
-				res->res_type, res->hw_intf->hw_idx);
-			reg_update_size += get_regup.cmd.used_bytes;
-		}
+	if (kmd_buf_info->size > (kmd_buf_info->used_bytes +
+		reg_update_size)) {
+		kmd_buf_remain_size =  kmd_buf_info->size -
+			(kmd_buf_info->used_bytes +
+			reg_update_size);
+	} else {
+		CAM_ERR(CAM_ISP, "no free mem %d %d",
+			kmd_buf_info->size,
+			kmd_buf_info->used_bytes +
+			reg_update_size);
+		rc = -EINVAL;
+		return rc;
 	}
 
-	if (reg_update_size) {
-		/* Update the HW entries */
-		num_ent = prepare->num_hw_update_entries;
-		prepare->hw_update_entries[num_ent].handle =
-			kmd_buf_info->handle;
-		prepare->hw_update_entries[num_ent].len = reg_update_size;
-		prepare->hw_update_entries[num_ent].offset =
-			kmd_buf_info->offset;
-		prepare->hw_update_entries[num_ent].flags = CAM_ISP_COMMON_CFG_BL;
-		CAM_DBG(CAM_ISP,
-			"num_ent=%d handle=0x%x, len=%u, offset=%u",
-			num_ent,
-			prepare->hw_update_entries[num_ent].handle,
-			prepare->hw_update_entries[num_ent].len,
-			prepare->hw_update_entries[num_ent].offset);
-		num_ent++;
+	get_regup.cmd.cmd_buf_addr = kmd_buf_info->cpu_addr +
+		kmd_buf_info->used_bytes/4 +
+		reg_update_size/4;
+	get_regup.cmd.size = kmd_buf_remain_size;
+	get_regup.cmd_type = CAM_ISP_HW_CMD_FE_TRIGGER_CMD;
+	get_regup.res = res;
 
-		kmd_buf_info->used_bytes += reg_update_size;
-		kmd_buf_info->offset     += reg_update_size;
-		prepare->num_hw_update_entries = num_ent;
+	rc = res->process_cmd(res->res_priv,
+		CAM_ISP_HW_CMD_FE_TRIGGER_CMD, &get_regup,
+		sizeof(struct cam_isp_hw_get_cmd_update));
+	if (rc)
+		return rc;
 
-		rc = 0;
-	}
+	CAM_DBG(CAM_ISP, "GO_CMD added for RD res %d hw_id %d",
+		res->res_type, res->hw_intf->hw_idx);
+	reg_update_size += get_regup.cmd.used_bytes;
 
-	return rc;
+	/* Update the HW entries */
+	num_ent = prepare->num_hw_update_entries;
+	prepare->hw_update_entries[num_ent].handle =
+		kmd_buf_info->handle;
+	prepare->hw_update_entries[num_ent].len = reg_update_size;
+	prepare->hw_update_entries[num_ent].offset =
+		kmd_buf_info->offset;
+	prepare->hw_update_entries[num_ent].flags = CAM_ISP_COMMON_CFG_BL;
+	CAM_DBG(CAM_ISP,
+		"num_ent=%d handle=0x%x, len=%u, offset=%u",
+		num_ent,
+		prepare->hw_update_entries[num_ent].handle,
+		prepare->hw_update_entries[num_ent].len,
+		prepare->hw_update_entries[num_ent].offset);
+	num_ent++;
+	kmd_buf_info->used_bytes += reg_update_size;
+	kmd_buf_info->offset     += reg_update_size;
+	prepare->num_hw_update_entries = num_ent;
+
+	return 0;
 }
 
 int cam_isp_add_comp_wait(
@@ -1808,14 +1786,11 @@ int cam_isp_add_csid_reg_update(
 
 int cam_isp_add_csid_offline_cmd(
 	struct cam_hw_prepare_update_args    *prepare,
-	struct list_head                     *res_list,
-	uint32_t                              base_idx,
+	struct cam_isp_resource_node         *res,
 	struct cam_kmd_buf_info              *kmd_buf_info)
 {
 	int rc = -EINVAL;
-	struct cam_isp_hw_mgr_res            *hw_mgr_res;
-	struct cam_isp_resource_node         *res;
-	uint32_t kmd_buf_remain_size, num_ent, i, go_cmd_size;
+	uint32_t kmd_buf_remain_size, num_ent, go_cmd_size;
 	struct cam_ife_csid_offline_cmd_update_args go_args;
 
 	if (prepare->num_hw_update_entries + 1 >=
@@ -1827,80 +1802,61 @@ int cam_isp_add_csid_offline_cmd(
 	}
 
 	go_cmd_size = 0;
-	list_for_each_entry(hw_mgr_res, res_list, list) {
-		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)
-			continue;
-
-		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			if (!hw_mgr_res->hw_res[i])
-				continue;
-
-			res = hw_mgr_res->hw_res[i];
-			if (res->hw_intf->hw_idx != base_idx)
-				continue;
-
-			if (kmd_buf_info->size > (kmd_buf_info->used_bytes +
-				go_cmd_size)) {
-				kmd_buf_remain_size =  kmd_buf_info->size -
-					(kmd_buf_info->used_bytes +
-					go_cmd_size);
-			} else {
-				CAM_ERR(CAM_ISP, "no free mem %d %d %d",
-					base_idx, kmd_buf_info->size,
-					kmd_buf_info->used_bytes +
-					go_cmd_size);
-				rc = -EINVAL;
-				goto end;
-			}
-			go_args.cmd.cmd_buf_addr = kmd_buf_info->cpu_addr +
-				kmd_buf_info->used_bytes / 4 +
-				go_cmd_size / 4;
-			go_args.cmd.size = kmd_buf_remain_size;
-			go_args.res = res;
-
-			rc = res->hw_intf->hw_ops.process_cmd(
-				res->hw_intf->hw_priv,
-				CAM_IFE_CSID_PROGRAM_OFFLINE_CMD, &go_args,
-				sizeof(go_args));
-			if (rc)
-				goto end;
-
-			CAM_DBG(CAM_ISP,
-				"offline cmd update added for CSID: %u  res: %d",
-				res->hw_intf->hw_idx, res->res_id);
-
-			go_cmd_size += go_args.cmd.used_bytes;
-			goto go_cmd_added;
-		}
+	if (kmd_buf_info->size > (kmd_buf_info->used_bytes +
+		go_cmd_size)) {
+		kmd_buf_remain_size =  kmd_buf_info->size -
+			(kmd_buf_info->used_bytes +
+			go_cmd_size);
+	} else {
+		CAM_ERR(CAM_ISP, "no free mem %d %d",
+			kmd_buf_info->size,
+			kmd_buf_info->used_bytes +
+			go_cmd_size);
+		rc = -EINVAL;
+		goto end;
 	}
 
-go_cmd_added:
+	go_args.cmd.cmd_buf_addr = kmd_buf_info->cpu_addr +
+		kmd_buf_info->used_bytes / 4 +
+		go_cmd_size / 4;
+	go_args.cmd.size = kmd_buf_remain_size;
+	go_args.res = res;
 
-	if (go_cmd_size) {
-		/* Update the HW entries */
-		num_ent = prepare->num_hw_update_entries;
-		prepare->hw_update_entries[num_ent].handle =
-			kmd_buf_info->handle;
-		prepare->hw_update_entries[num_ent].len = go_cmd_size;
-		prepare->hw_update_entries[num_ent].offset =
-			kmd_buf_info->offset;
+	rc = res->hw_intf->hw_ops.process_cmd(
+			res->hw_intf->hw_priv,
+			CAM_IFE_CSID_PROGRAM_OFFLINE_CMD, &go_args,
+			sizeof(go_args));
+	if (rc)
+		goto end;
 
-		/* Marking go update as COMMON */
-		prepare->hw_update_entries[num_ent].flags = CAM_ISP_COMMON_CFG_BL;
-		CAM_DBG(CAM_ISP,
-			"num_ent=%d handle=0x%x, len=%u, offset=%u",
-			num_ent,
-			prepare->hw_update_entries[num_ent].handle,
-			prepare->hw_update_entries[num_ent].len,
-			prepare->hw_update_entries[num_ent].offset);
-		num_ent++;
+	CAM_DBG(CAM_ISP,
+		"offline cmd update added for CSID: %u res: %d",
+		res->hw_intf->hw_idx, res->res_id);
 
-		kmd_buf_info->used_bytes += go_cmd_size;
-		kmd_buf_info->offset     += go_cmd_size;
-		prepare->num_hw_update_entries = num_ent;
-		/* offline cmd update is success return status 0 */
-		rc = 0;
-	}
+	go_cmd_size += go_args.cmd.used_bytes;
+	/* Update the HW entries */
+	num_ent = prepare->num_hw_update_entries;
+	prepare->hw_update_entries[num_ent].handle =
+		kmd_buf_info->handle;
+	prepare->hw_update_entries[num_ent].len = go_cmd_size;
+	prepare->hw_update_entries[num_ent].offset =
+		kmd_buf_info->offset;
+
+	/* Marking go update as COMMON */
+	prepare->hw_update_entries[num_ent].flags = CAM_ISP_COMMON_CFG_BL;
+	CAM_DBG(CAM_ISP,
+		"num_ent=%d handle=0x%x, len=%u, offset=%u",
+		num_ent,
+		prepare->hw_update_entries[num_ent].handle,
+		prepare->hw_update_entries[num_ent].len,
+		prepare->hw_update_entries[num_ent].offset);
+	num_ent++;
+
+	kmd_buf_info->used_bytes += go_cmd_size;
+	kmd_buf_info->offset     += go_cmd_size;
+	prepare->num_hw_update_entries = num_ent;
+	/* offline cmd update is success return status 0 */
+	rc = 0;
 
 end:
 	return rc;

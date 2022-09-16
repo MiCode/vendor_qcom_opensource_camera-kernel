@@ -4621,7 +4621,8 @@ static int cam_ife_mgr_acquire_hw_for_offline_ctx(
 	if ((!in_port->ipp_count && !in_port->lcr_count) ||
 		!in_port->ife_rd_count) {
 		CAM_ERR(CAM_ISP,
-			"Invalid %d BUS RD %d PIX %d LCR ports for FE ctx");
+			"Invalid %d BUS RD %d PIX %d LCR ports for FE ctx",
+			in_port->ife_rd_count, in_port->ipp_count, in_port->lcr_count);
 		return -EINVAL;
 	}
 
@@ -11309,6 +11310,110 @@ static int cam_ife_mgr_isp_add_reg_update(struct cam_ife_hw_mgr_ctx *ctx,
 	return rc;
 }
 
+static int cam_ife_hw_mgr_add_csid_go_cmd(
+	struct cam_ife_hw_mgr_ctx            *ctx,
+	struct cam_hw_prepare_update_args    *prepare,
+	struct cam_kmd_buf_info              *kmd_buf_info)
+{
+	int rc = -EINVAL, i;
+	bool is_found = false;
+	struct cam_isp_hw_mgr_res        *hw_mgr_res;
+	struct cam_isp_change_base_args   change_base_info = {0};
+
+	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
+		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)
+			continue;
+
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			if (!hw_mgr_res->hw_res[i])
+				continue;
+
+			if (i == CAM_ISP_HW_SPLIT_RIGHT) {
+				CAM_ERR(CAM_ISP,
+					"Offline with right rsrc [%u] not supported ctx: %u",
+					hw_mgr_res->hw_res[i]->res_id, ctx->ctx_index);
+				return -EINVAL;
+			}
+
+			is_found = true;
+			goto add_cmds;
+		}
+	}
+
+add_cmds:
+
+	if (is_found) {
+		change_base_info.base_idx = hw_mgr_res->hw_res[i]->hw_intf->hw_idx;
+		change_base_info.cdm_id = ctx->cdm_id;
+
+		rc = cam_isp_add_change_base(prepare,
+			&ctx->res_list_ife_csid,
+			&change_base_info, kmd_buf_info);
+		if (rc)
+			return rc;
+
+		rc = cam_isp_add_csid_offline_cmd(prepare,
+			hw_mgr_res->hw_res[i], kmd_buf_info);
+		if (rc)
+			return rc;
+
+		rc = 0;
+	}
+
+	return rc;
+}
+
+static int cam_ife_hw_mgr_add_vfe_go_cmd(
+	struct cam_ife_hw_mgr_ctx            *ctx,
+	struct cam_hw_prepare_update_args    *prepare,
+	struct cam_kmd_buf_info              *kmd_buf_info)
+{
+	int rc = -EINVAL, i;
+	bool is_found = false;
+	struct cam_isp_hw_mgr_res        *hw_mgr_res;
+	struct cam_isp_change_base_args   change_base_info = {0};
+
+	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_in_rd, list) {
+		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)
+			continue;
+
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			if (!hw_mgr_res->hw_res[i])
+				continue;
+
+			if (i == CAM_ISP_HW_SPLIT_RIGHT) {
+				CAM_ERR(CAM_ISP,
+					"Offline with right rsrc [%u] not supported ctx: %u",
+					hw_mgr_res->hw_res[i]->res_id, ctx->ctx_index);
+				return -EINVAL;
+			}
+
+			is_found = true;
+			goto add_cmds;
+		}
+	}
+
+add_cmds:
+
+	if (is_found) {
+		change_base_info.base_idx = hw_mgr_res->hw_res[i]->hw_intf->hw_idx;
+		change_base_info.cdm_id = ctx->cdm_id;
+
+		rc = cam_isp_add_change_base(prepare, &ctx->res_list_ife_src,
+			&change_base_info, kmd_buf_info);
+		if (rc)
+			return rc;
+
+		rc = cam_isp_add_go_cmd(prepare, hw_mgr_res->hw_res[i], kmd_buf_info);
+		if (rc)
+			return rc;
+
+		rc = 0;
+	}
+
+	return rc;
+}
+
 static int cam_ife_hw_mgr_update_cmd_buffer(
 	struct cam_ife_hw_mgr_ctx               *ctx,
 	struct cam_hw_prepare_update_args       *prepare,
@@ -11767,18 +11872,16 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 		prepare->num_in_map_entries &&
 		ctx->flags.is_offline) {
 		if (ctx->ctx_type != CAM_IFE_CTX_TYPE_SFE)
-			rc = cam_isp_add_go_cmd(prepare, &ctx->res_list_ife_in_rd,
-				ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info);
+			rc = cam_ife_hw_mgr_add_vfe_go_cmd(ctx, prepare,
+				&prepare_hw_data->kmd_cmd_buff_info);
 		else
-			rc = cam_isp_add_csid_offline_cmd(prepare,
-				&ctx->res_list_ife_csid,
-				ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info);
+			rc = cam_ife_hw_mgr_add_csid_go_cmd(ctx, prepare,
+				&prepare_hw_data->kmd_cmd_buff_info);
 		if (rc)
 			CAM_ERR(CAM_ISP,
-				"Add %s GO_CMD faled i: %d, idx: %d, rc: %d",
+				"Add %s GO_CMD failed in ctx: %u rc: %d",
 				(ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE ?
-				"CSID" : "IFE RD"),
-				i, ctx->base[i].idx, rc);
+				"CSID" : "IFE RD"), ctx->ctx_index, rc);
 	}
 
 	if (prepare_hw_data->kmd_cmd_buff_info.size <=

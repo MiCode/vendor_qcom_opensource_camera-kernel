@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_PARSER_H_
@@ -326,16 +327,14 @@ int cam_isp_add_wait_trigger(
  * @brief                  Add go_cmd in the hw entries list for each rd source
  *
  * @prepare:               Contain the  packet and HW update variables
- * @res_list_isp_rd:       Resource list for BUS RD ports
- * @base_idx:              Base or dev index of the IFE/VFE HW instance
+ * @res:                   go_cmd added for this resource
  * @kmd_buf_info:          Kmd buffer to store the change base command
  * @return:                0 for success
  *                         -EINVAL for Fail
  */
 int cam_isp_add_go_cmd(
 	struct cam_hw_prepare_update_args    *prepare,
-	struct list_head                     *res_list_isp_rd,
-	uint32_t                              base_idx,
+	struct cam_isp_resource_node         *res,
 	struct cam_kmd_buf_info              *kmd_buf_info);
 
 /* cam_isp_csid_add_reg_update()
@@ -361,16 +360,14 @@ int cam_isp_add_csid_reg_update(
  * @brief                  Add csid go cmd for offline mode
  *
  * @prepare:               Contain the  packet and HW update variables
- * @res_list:              Resource list for CSID
- * @base_idx:              Base or dev index of the CSID/IFE HW instance
+ * @res:                   go_cmd added for this resource
  * @kmd_buf_info:          Kmd buffer to store the change base command
  * @return:                0 for success
  *                         -EINVAL for Fail
  */
 int cam_isp_add_csid_offline_cmd(
 	struct cam_hw_prepare_update_args    *prepare,
-	struct list_head                     *res_list,
-	uint32_t                              base_idx,
+	struct cam_isp_resource_node         *res,
 	struct cam_kmd_buf_info              *kmd_buf_info);
 
 /*
