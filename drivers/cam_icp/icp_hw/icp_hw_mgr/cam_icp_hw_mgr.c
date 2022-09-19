@@ -6402,7 +6402,8 @@ static int cam_icp_get_acquire_info(struct cam_icp_hw_mgr *hw_mgr,
 		return -EINVAL;
 	}
 
-	if (icp_dev_acquire_info.dev_type >= CAM_ICP_RES_TYPE_MAX) {
+	if (icp_dev_acquire_info.dev_type < CAM_ICP_RES_TYPE_BPS ||
+		icp_dev_acquire_info.dev_type > CAM_ICP_RES_TYPE_BPS_SEMI_RT) {
 		CAM_ERR(CAM_ICP, "Invalid device type: %d",
 			icp_dev_acquire_info.dev_type);
 		return -EFAULT;

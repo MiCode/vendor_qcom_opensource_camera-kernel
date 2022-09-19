@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_ICP_H__
@@ -15,7 +16,17 @@
 #define CAM_ICP_DEV_TYPE_BPS     3
 #define CAM_ICP_DEV_TYPE_IPE_CDM 4
 #define CAM_ICP_DEV_TYPE_BPS_CDM 5
+/**
+ * This macro is deprecated; a device type max is not necessary.
+ * The new macro CAM_ICP_MAX_NUM_OF_DEV_TYPES will dictate
+ * max number of different types of devices supported by a single
+ * instance of the ICP device.
+ */
 #define CAM_ICP_DEV_TYPE_MAX     5
+
+/* ICP and OFE types added to indicate capability to userspace */
+#define CAM_ICP_DEV_TYPE_ICP     6
+#define CAM_ICP_DEV_TYPE_OFE     7
 
 /* definitions needed for icp aquire device */
 #define CAM_ICP_RES_TYPE_BPS         1
@@ -24,13 +35,21 @@
 #define CAM_ICP_RES_TYPE_IPE_SEMI_RT 4
 #define CAM_ICP_RES_TYPE_BPS_RT      5
 #define CAM_ICP_RES_TYPE_BPS_SEMI_RT 6
+
+/* This macro is deprecated and no longer needed */
 #define CAM_ICP_RES_TYPE_MAX         7
+
+#define CAM_ICP_RES_TYPE_OFE_RT      7
+#define CAM_ICP_RES_TYPE_OFE         8
+#define CAM_ICP_RES_TYPE_OFE_SEMI_RT 9
 
 /* packet opcode types */
 #define CAM_ICP_OPCODE_IPE_UPDATE   0
 #define CAM_ICP_OPCODE_BPS_UPDATE   1
 #define CAM_ICP_OPCODE_IPE_SETTINGS 2
 #define CAM_ICP_OPCODE_BPS_SETTINGS 3
+#define CAM_ICP_OPCODE_OFE_UPDATE   4
+#define CAM_ICP_OPCODE_OFE_SETTINGS 5
 
 
 /* IPE input port resource type */
@@ -80,6 +99,9 @@
 #define CAM_ICP_CMD_GENERIC_BLOB_FW_MEM_UNMAP     0x4
 #define CAM_ICP_CMD_GENERIC_BLOB_CLK_V2           0x5
 #define CAM_ICP_CMD_GENERIC_BLOB_PRESIL_HANGDUMP  0x6
+
+/* Max number of device types supported per ICP instance */
+#define CAM_ICP_MAX_NUM_OF_DEV_TYPES              0x5
 
 /**
  * struct cam_icp_clk_bw_request_v2

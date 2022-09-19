@@ -666,7 +666,7 @@ int hfi_get_hw_caps(void *query_buf)
 	query_cmd->num_ipe = 2;
 	query_cmd->num_bps = 1;
 
-	for (i = 0; i < CAM_ICP_DEV_TYPE_MAX; i++) {
+	for (i = 0; i < CAM_ICP_MAX_NUM_OF_DEV_TYPES; i++) {
 		query_cmd->dev_ver[i].dev_type = i;
 		query_cmd->dev_ver[i].hw_ver.major = 0x34 + i;
 		query_cmd->dev_ver[i].hw_ver.minor = 0x34 + i;
