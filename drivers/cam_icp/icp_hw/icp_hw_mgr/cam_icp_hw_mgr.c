@@ -5897,7 +5897,6 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	size_t                           remain_len;
 	uint8_t                         *dst;
 	uint32_t                         min_len;
-	uint64_t                         diff;
 	uint64_t                        *addr, *start;
 	uint64_t                        *clk_addr, *clk_start;
 	uint32_t                        *mgr_addr, *mgr_start;
@@ -5911,12 +5910,15 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	struct cam_icp_dump_header      *hdr;
 	struct cam_icp_hw_dump_args      icp_dump_args;
 	struct hfi_frame_process_info   *frm_process;
+	bool                             frame_found = false;
 
 	if ((!hw_priv) || (!hw_dump_args)) {
 		CAM_ERR(CAM_ICP, "Invalid params %pK %pK",
 			hw_priv, hw_dump_args);
 		return -EINVAL;
 	}
+
+	memset(&req_ts, 0, sizeof(struct timespec64));
 
 	dump_args = (struct cam_hw_dump_args *)hw_dump_args;
 	hw_mgr = hw_priv;
@@ -5927,23 +5929,13 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 		if ((frm_process->request_id[i] ==
 			dump_args->request_id) &&
 			frm_process->fw_process_flag[i])
-			goto hw_dump;
+			frame_found = true;
 	}
-	return 0;
-hw_dump:
-	cur_time = ktime_get();
-	diff = ktime_us_delta(frm_process->submit_timestamp[i], cur_time);
-	cur_ts = ktime_to_timespec64(cur_time);
-	req_ts = ktime_to_timespec64(frm_process->submit_timestamp[i]);
 
-	if (diff < CAM_ICP_CTX_RESPONSE_TIME_THRESHOLD) {
-		CAM_INFO(CAM_ICP, "No Error req %lld %ld:%06ld %ld:%06ld",
-			dump_args->request_id,
-			req_ts.tv_sec,
-			req_ts.tv_nsec/NSEC_PER_USEC,
-			cur_ts.tv_sec,
-			cur_ts.tv_nsec/NSEC_PER_USEC);
-		return 0;
+	cur_time = ktime_get();
+	cur_ts = ktime_to_timespec64(cur_time);
+	if (frame_found) {
+		req_ts = ktime_to_timespec64(frm_process->submit_timestamp[i]);
 	}
 
 	CAM_INFO(CAM_ICP, "Error req %lld %ld:%06ld %ld:%06ld",
@@ -6025,7 +6017,7 @@ hw_dump:
 	hdr->word_size = sizeof(uint64_t);
 	addr = (uint64_t *)(dst + sizeof(struct cam_icp_dump_header));
 	start = addr;
-	*addr++ = frm_process->request_id[i];
+	*addr++ = dump_args->request_id;
 	*addr++ = req_ts.tv_sec;
 	*addr++ = req_ts.tv_nsec / NSEC_PER_USEC;
 	*addr++ = cur_ts.tv_sec;

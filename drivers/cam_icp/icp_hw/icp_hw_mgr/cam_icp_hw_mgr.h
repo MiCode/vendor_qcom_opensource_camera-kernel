@@ -71,12 +71,6 @@
 /* Current appliacble vote paths, based on number of UAPI definitions */
 #define CAM_ICP_MAX_PER_PATH_VOTES 6
 
-/*
- * Response time threshold in ms beyond which a request is not expected
- * to be with ICP hw
- */
-#define CAM_ICP_CTX_RESPONSE_TIME_THRESHOLD   300000
-
 struct hfi_mini_dump_info;
 
 /**
