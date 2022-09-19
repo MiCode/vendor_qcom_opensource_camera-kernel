@@ -112,6 +112,7 @@
 
 /* Camera DRV enable masks */
 #define CAM_DDR_DRV    0x1
+#define CAM_CLK_DRV    0x2
 
 /* Port index for BW voting */
 #define CAM_CPAS_PORT_HLOS_DRV    0
