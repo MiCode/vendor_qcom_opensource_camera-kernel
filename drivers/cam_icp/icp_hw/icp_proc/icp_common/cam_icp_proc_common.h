@@ -21,6 +21,17 @@
 #define PC_POLL_TIMEOUT_US      10000
 
 /**
+ * struct cam_icp_proc_ubwc_cfg_cmd
+ * @ubwc_cfg: UBWC cfg info parsed from DT
+ * @ubwc_cfg_dev_mask: mask to indicate which device
+ *                     ubwc cfg to send to fw
+ */
+struct cam_icp_proc_ubwc_cfg_cmd {
+	struct cam_icp_ubwc_cfg *ubwc_cfg;
+	uint32_t ubwc_cfg_dev_mask;
+};
+
+/**
  * @brief : Validate FW elf image
  */
 int32_t cam_icp_validate_fw(const uint8_t *elf, uint32_t machine_id);
@@ -51,7 +62,7 @@ int cam_icp_proc_mini_dump(struct cam_icp_hw_dump_args *args,
 /**
  * @brief : Update UBWC configuration for IPE and BPS
  */
-int cam_icp_proc_ubwc_configure(struct cam_icp_ubwc_cfg ubwc_cfg,
-	uint32_t force_disable_ubwc);
+int cam_icp_proc_ubwc_configure(struct cam_icp_proc_ubwc_cfg_cmd *ubwc_cfg_cmd,
+	bool force_disable_ubwc, int hfi_handle);
 
 #endif /* _CAM_ICP_UTILS_H_ */

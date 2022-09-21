@@ -60,11 +60,6 @@
 /* Used for targets >= 480 and its variants */
 #define CPAS_TITAN_IPE0_CAP_BIT 0x800
 
-#define ICP_PWR_CLP_BPS         0x00000001
-#define ICP_PWR_CLP_IPE0        0x00010000
-#define ICP_PWR_CLP_IPE1        0x00020000
-#define ICP_PWR_CLP_OFE         0x00000001
-
 #define CAM_ICP_CTX_STATE_FREE      0x0
 #define CAM_ICP_CTX_STATE_IN_USE    0x1
 #define CAM_ICP_CTX_STATE_ACQUIRED  0x2
@@ -416,6 +411,7 @@ struct cam_icp_clk_info {
  * @icp_resumed: Processor is powered on
  * @iommu_hdl: Non secure IOMMU handle
  * @iommu_sec_hdl: Secure IOMMU handle
+ * @hfi_handle: hfi handle for this ICP hw mgr
  * @hfi_mem: Memory for hfi
  * @cmd_work: Work queue for hfi commands
  * @msg_work: Work queue for hfi messages
@@ -470,6 +466,7 @@ struct cam_icp_hw_mgr {
 	bool icp_resumed;
 	int32_t iommu_hdl;
 	int32_t iommu_sec_hdl;
+	int32_t hfi_handle;
 	struct icp_hfi_mem_info hfi_mem;
 	struct cam_req_mgr_core_workq *cmd_work;
 	struct cam_req_mgr_core_workq *msg_work;

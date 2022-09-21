@@ -38,6 +38,7 @@
  * @icp_v1_acquire: Acquire information of ICP_V1
  * @irq_cb: IRQ callback
  * @cpas_handle: CPAS handle for ICP_V1
+ * @hfi_handle: hfi handle for ICP V1
  * @hw_version: hw version of icp v1 processor
  * @cpas_start: state variable for cpas
  */
@@ -49,6 +50,7 @@ struct cam_icp_v1_device_core_info {
 	uint64_t fw_buf_len;
 	struct cam_icp_irq_cb irq_cb;
 	uint32_t cpas_handle;
+	int32_t hfi_handle;
 	bool cpas_start;
 };
 

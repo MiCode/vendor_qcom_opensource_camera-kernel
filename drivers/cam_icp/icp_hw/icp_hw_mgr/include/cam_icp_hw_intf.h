@@ -67,6 +67,7 @@ enum cam_icp_cmd_type {
 	CAM_ICP_CMD_HW_DUMP,
 	CAM_ICP_CMD_HW_MINI_DUMP,
 	CAM_ICP_CMD_HW_REG_DUMP,
+	CAM_ICP_CMD_SET_HFI_HANDLE,
 	CAM_ICP_CMD_MAX,
 };
 
@@ -98,7 +99,7 @@ struct cam_icp_boot_args {
 };
 
 /**
- * struct cam_icp_clk_update_cmd - Payload for hw manager command
+ * struct cam_icp_dev_clk_update_cmd - Payload for hw manager command
  *
  * @curr_clk_rate:        clk rate to HW
  * @clk_level:            clk level corresponding to the clk rate
@@ -106,10 +107,21 @@ struct cam_icp_boot_args {
  *                        updated to the given rate
  * @dev_pc_enable:        power collpase enable flag
  */
-struct cam_icp_clk_update_cmd {
+struct cam_icp_dev_clk_update_cmd {
 	uint32_t  curr_clk_rate;
 	int32_t clk_level;
 	bool  dev_pc_enable;
+};
+
+/**
+ * struct cam_icp_ubwc_cfg_cmd - ubwc cmd to send
+ *
+ * @ubwc_cfg_dev_mask: mask to indicate which device ubwc cfg to send to fw
+ * @disable_ubwc_comp: flag to force disable ubwc
+ */
+struct cam_icp_ubwc_cfg_cmd {
+	uint32_t ubwc_cfg_dev_mask;
+	bool disable_ubwc_comp;
 };
 
 #endif

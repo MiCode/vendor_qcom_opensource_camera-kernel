@@ -72,6 +72,10 @@
 #define U32_OFFSET                              0x1
 #define BYTE_WORD_SHIFT                         2
 
+#define HFI_GET_CLIENT_HANDLE(idx) (idx)
+#define HFI_GET_INDEX(client_handle) (client_handle)
+#define IS_VALID_HFI_INDEX(idx) (((idx) >= 0) && ((idx) < HFI_NUM_MAX))
+
 /**
  * @INVALID: Invalid state
  * @HFI_DEINIT: HFI is not initialized yet

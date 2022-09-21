@@ -175,6 +175,7 @@ static int cam_icp_v1_component_bind(struct device *dev,
 		CAM_ERR(CAM_ICP, "icp_v1 cpas registration failed");
 		goto cpas_reg_failed;
 	}
+	core_info->hfi_handle = HFI_HANDLE_INIT_VALUE;
 	icp_v1_dev->hw_state = CAM_HW_STATE_POWER_DOWN;
 	mutex_init(&icp_v1_dev->hw_mutex);
 	spin_lock_init(&icp_v1_dev->hw_lock);

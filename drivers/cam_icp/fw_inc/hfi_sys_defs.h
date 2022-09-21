@@ -270,6 +270,11 @@
 
 #define HFI_DEV_VERSION_MAX      0x6
 
+#define ICP_PWR_CLP_BPS          0x00000001
+#define ICP_PWR_CLP_IPE0         0x00010000
+#define ICP_PWR_CLP_IPE1         0x00020000
+#define ICP_PWR_CLP_OFE          0x00000001
+
 /**
  * start of sys command packet types
  * These commands are used to get system level information
