@@ -10,6 +10,7 @@
 #include "tpg_hw/tpg_hw_v_1_0/tpg_hw_v_1_0_data.h"
 #include "tpg_hw/tpg_hw_v_1_2/tpg_hw_v_1_2_data.h"
 #include "tpg_hw/tpg_hw_v_1_3/tpg_hw_v_1_3_data.h"
+#include "tpg_hw/tpg_hw_v_1_4/tpg_hw_v_1_4_data.h"
 
 static int cam_tpg_subdev_close(struct v4l2_subdev *sd,
 	struct v4l2_subdev_fh *fh)
@@ -383,6 +384,10 @@ static const struct of_device_id cam_tpg_dt_match[] = {
 	{
 		.compatible = "qcom,cam-tpg1031",
 		.data = &tpg_v_1_3_1_hw_info,
+	},
+	{
+		.compatible = "qcom,cam-tpg104",
+		.data = &tpg_v_1_4_hw_info,
 	},
 	{}
 };

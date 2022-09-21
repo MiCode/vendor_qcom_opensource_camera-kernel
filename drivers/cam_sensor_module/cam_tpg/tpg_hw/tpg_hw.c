@@ -486,6 +486,7 @@ int tpg_hw_dump_status(struct tpg_hw *hw)
 	switch (hw->hw_info->version) {
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
+	case TPG_HW_VERSION_1_4:
 		if (hw->hw_info->ops->dump_status)
 			hw->hw_info->ops->dump_status(hw, NULL);
 		break;
@@ -512,6 +513,7 @@ int tpg_hw_start(struct tpg_hw *hw)
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
+	case TPG_HW_VERSION_1_4:
 		if (hw->hw_info->ops->start)
 			hw->hw_info->ops->start(hw, NULL);
 		if (hw->stream_version == 1)
@@ -543,6 +545,7 @@ int tpg_hw_stop(struct tpg_hw *hw)
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
+	case TPG_HW_VERSION_1_4:
 		if (hw->hw_info->ops->stop) {
 			rc = hw->hw_info->ops->stop(hw, NULL);
 			if (rc) {
@@ -584,6 +587,7 @@ int tpg_hw_acquire(struct tpg_hw *hw,
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
+	case TPG_HW_VERSION_1_4:
 		// Start Cpas and enable required clocks
 		break;
 	default:
@@ -609,6 +613,7 @@ int tpg_hw_release(struct tpg_hw *hw)
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
+	case TPG_HW_VERSION_1_4:
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
@@ -671,6 +676,7 @@ static int tpg_hw_configure_init_settings(
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
+	case TPG_HW_VERSION_1_4:
 		clk_level = get_tpg_clk_level(hw);
 		rc = tpg_hw_soc_enable(hw, clk_level);
 		if (rc) {
@@ -712,6 +718,7 @@ static int tpg_hw_configure_init_settings_v3(
 	case TPG_HW_VERSION_1_2:
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
+	case TPG_HW_VERSION_1_4:
 		rc = tpg_hw_soc_enable(hw, CAM_SVS_VOTE);
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",

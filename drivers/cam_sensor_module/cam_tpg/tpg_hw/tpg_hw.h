@@ -17,7 +17,7 @@
 #define TPG_HW_VERSION_1_2   0x10000002
 #define TPG_HW_VERSION_1_3   0x10000003
 #define TPG_HW_VERSION_1_3_1 0x10000004
-
+#define TPG_HW_VERSION_1_4   0x10000005
 
 struct tpg_hw;
 
