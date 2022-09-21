@@ -54,7 +54,7 @@ static void cam_cpas_process_bw_overrides(
 		name_len)) {
 		if (cpas_settings->mnoc_hf_1_ab_bw)
 			*ab = cpas_settings->mnoc_hf_1_ab_bw;
-		if (cpas_settings->mnoc_hf_0_ib_bw)
+		if (cpas_settings->mnoc_hf_1_ib_bw)
 			*ib = cpas_settings->mnoc_hf_1_ib_bw;
 	} else if (strnstr(bus_client->common_data.name, "cam_sf_0",
 		name_len)) {
