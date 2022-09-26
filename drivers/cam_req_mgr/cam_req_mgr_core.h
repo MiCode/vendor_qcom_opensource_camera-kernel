@@ -45,6 +45,8 @@
 #define VERSION_2  2
 #define CAM_REQ_MGR_MAX_TRIGGERS   2
 
+#define REQ_MAXIMUM_BUBBLE_TIMES   2
+
 #define CAM_REQ_MGR_HALF_FRAME_DURATION(frame_duration) (frame_duration / 2)
 
 /**
@@ -287,6 +289,9 @@ struct cam_req_mgr_req_tbl {
  * @recovery_counter   : Internal recovery counter
  * @num_sync_links     : Num of sync links
  * @sync_link_hdls     : Array of sync link handles
+ * @bubble_times       : times of bubbles the req happended
+ * @internal_recovered : indicate if internal recover is already done for request
+ * of this slot
  */
 struct cam_req_mgr_slot {
 	int32_t               idx;
@@ -299,6 +304,8 @@ struct cam_req_mgr_slot {
 	int32_t               recovery_counter;
 	int32_t               num_sync_links;
 	int32_t               sync_link_hdls[MAXIMUM_LINKS_PER_SESSION - 1];
+	uint32_t              bubble_times;
+	bool                  internal_recovered;
 };
 
 /**
