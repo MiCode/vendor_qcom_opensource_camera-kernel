@@ -3233,7 +3233,8 @@ static int __cam_isp_ctx_buf_done_in_bubble_applied(
 	return rc;
 }
 
-static void get_notification_evt_params(uint32_t hw_error, uint32_t *fence_evt_cause,
+static void __cam_isp_get_notification_evt_params(
+	uint32_t hw_error, uint32_t *fence_evt_cause,
 	uint32_t *req_mgr_err_code, uint32_t *recovery_type)
 {
 	uint32_t err_type, err_code = 0, recovery_type_temp;
@@ -3440,10 +3441,15 @@ static int __cam_isp_ctx_handle_recovery_req_util(
 }
 
 static int __cam_isp_ctx_trigger_error_req_reapply(
-	struct cam_isp_context *ctx_isp)
+	uint32_t err_type, struct cam_isp_context *ctx_isp)
 {
 	int rc = 0;
 	struct cam_context *ctx = ctx_isp->base;
+
+	if ((err_type & CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW) &&
+		(isp_ctx_debug.disable_internal_recovery_mask &
+		CAM_ISP_CTX_DISABLE_RECOVERY_BUS_OVERFLOW))
+		return -EINVAL;
 
 	/*
 	 * For errors that can be recoverable within kmd, we
@@ -3491,7 +3497,7 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 	CAM_DBG(CAM_ISP, "Enter HW error_type = %d", error_event_data->error_type);
 
 	if (error_event_data->try_internal_recovery) {
-		rc = __cam_isp_ctx_trigger_error_req_reapply(ctx_isp);
+		rc = __cam_isp_ctx_trigger_error_req_reapply(error_event_data->error_type, ctx_isp);
 		if (!rc)
 			goto exit;
 	}
@@ -3501,8 +3507,8 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 
 	__cam_isp_ctx_trigger_reg_dump(CAM_HW_MGR_CMD_REG_DUMP_ON_ERROR, ctx);
 
-	get_notification_evt_params(error_event_data->error_type, &fence_evt_cause,
-		&req_mgr_err_code, &recovery_type);
+	__cam_isp_get_notification_evt_params(error_event_data->error_type,
+		&fence_evt_cause, &req_mgr_err_code, &recovery_type);
 	/*
 	 * The error is likely caused by first request on the active list.
 	 * If active list is empty check wait list (maybe error hit as soon
@@ -4086,7 +4092,8 @@ static int __cam_isp_ctx_handle_secondary_events(
 		break;
 	}
 
-	if (recover && ctx_isp->do_internal_recovery)
+	if (recover &&
+		!(isp_ctx_debug.disable_internal_recovery_mask & CAM_ISP_CTX_DISABLE_RECOVERY_AEB))
 		rc = __cam_isp_ctx_trigger_internal_recovery(sync_frame_drop, ctx_isp);
 
 end:
@@ -5901,7 +5908,6 @@ static int __cam_isp_ctx_release_hw_in_top_state(struct cam_context *ctx,
 	ctx_isp->init_received = false;
 	ctx_isp->support_consumed_addr = false;
 	ctx_isp->aeb_enabled = false;
-	ctx_isp->do_internal_recovery = false;
 	ctx_isp->req_info.last_bufdone_req_id = 0;
 
 	atomic64_set(&ctx_isp->state_monitor_head, -1);
@@ -6744,9 +6750,6 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 	ctx_isp->aeb_enabled =
 		(param.op_flags & CAM_IFE_CTX_AEB_EN);
 
-	if ((ctx_isp->aeb_enabled) && (!isp_ctx_debug.disable_internal_recovery))
-		ctx_isp->do_internal_recovery = true;
-
 	/* Query the context has rdi only resource */
 	hw_cmd_args.ctxt_to_hw_map = param.ctxt_to_hw_map;
 	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
@@ -7536,6 +7539,10 @@ static bool __cam_isp_ctx_try_internal_recovery_for_bubble(
 	struct cam_isp_context *ctx_isp =
 		(struct cam_isp_context *)ctx->ctx_priv;
 
+	if (isp_ctx_debug.disable_internal_recovery_mask &
+		CAM_ISP_CTX_DISABLE_RECOVERY_BUBBLE)
+		return false;
+
 	/* Perform recovery if bubble recovery is stalled */
 	if (!atomic_read(&ctx_isp->process_bubble))
 		return false;
@@ -8126,8 +8133,8 @@ static int cam_isp_context_debug_register(void)
 		isp_ctx_debug.dentry, &isp_ctx_debug.enable_state_monitor_dump);
 	debugfs_create_u8("enable_cdm_cmd_buffer_dump", 0644,
 		isp_ctx_debug.dentry, &isp_ctx_debug.enable_cdm_cmd_buff_dump);
-	debugfs_create_bool("disable_internal_recovery", 0644,
-		isp_ctx_debug.dentry, &isp_ctx_debug.disable_internal_recovery);
+	debugfs_create_u32("disable_internal_recovery_mask", 0644,
+		isp_ctx_debug.dentry, &isp_ctx_debug.disable_internal_recovery_mask);
 
 	return 0;
 }

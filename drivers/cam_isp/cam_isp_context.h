@@ -113,20 +113,24 @@ enum cam_isp_state_change_trigger {
 	CAM_ISP_STATE_CHANGE_TRIGGER_MAX
 };
 
+#define CAM_ISP_CTX_DISABLE_RECOVERY_AEB           BIT(0)
+#define CAM_ISP_CTX_DISABLE_RECOVERY_BUS_OVERFLOW  BIT(1)
+#define CAM_ISP_CTX_DISABLE_RECOVERY_BUBBLE        BIT(2)
+
 /**
  * struct cam_isp_ctx_debug -  Contains debug parameters
  *
  * @dentry:                     Debugfs entry
  * @enable_state_monitor_dump:  Enable isp state monitor dump
  * @enable_cdm_cmd_buff_dump:   Enable CDM Command buffer dump
- * @disable_internal_recovery:  Disable internal kernel recovery
+ * @disable_internal_recovery:  Disable internal kernel recovery mask
  *
  */
 struct cam_isp_ctx_debug {
 	struct dentry  *dentry;
 	uint32_t        enable_state_monitor_dump;
 	uint8_t         enable_cdm_cmd_buff_dump;
-	bool            disable_internal_recovery;
+	uint32_t        disable_internal_recovery_mask;
 };
 
 /**
@@ -290,7 +294,6 @@ struct cam_isp_context_event_record {
  * @v4l2_event_sub_ids         contains individual bits representing subscribed v4l2 ids
  * @evt_inject_params:         event injection parameters
  * @aeb_enabled:               Indicate if stream is for AEB
- * @do_internal_recovery:      Enable KMD halt/reset/resume internal recovery
  *
  */
 struct cam_isp_context {
@@ -348,7 +351,6 @@ struct cam_isp_context {
 	uint32_t                              v4l2_event_sub_ids;
 	struct cam_hw_inject_evt_param        evt_inject_params;
 	bool                                  aeb_enabled;
-	bool                                  do_internal_recovery;
 };
 
 /**
