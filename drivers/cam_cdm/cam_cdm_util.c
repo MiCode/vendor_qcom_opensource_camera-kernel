@@ -505,8 +505,7 @@ static int cam_cdm_util_reg_cont_write(void __iomem *base_addr,
 	}
 
 	reg_cont = (struct cdm_regcontinuous_cmd *)cmd_buf;
-	if ((!reg_cont->count) || (reg_cont->count > 0x10000) ||
-		(((reg_cont->count * sizeof(uint32_t)) +
+	if ((!reg_cont->count) || (((reg_cont->count * sizeof(uint32_t)) +
 			cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_CONT)) >
 			cmd_buf_size)) {
 		CAM_ERR(CAM_CDM, "buffer size %d is not sufficient for count%d",
@@ -536,8 +535,7 @@ static int cam_cdm_util_reg_random_write(void __iomem *base_addr,
 	}
 
 	reg_random = (struct cdm_regrandom_cmd *) cmd_buf;
-	if ((!reg_random->count) || (reg_random->count > 0x10000) ||
-		(((reg_random->count * (sizeof(uint32_t) * 2)) +
+	if ((!reg_random->count) || (((reg_random->count * (sizeof(uint32_t) * 2)) +
 		cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_RANDOM)) >
 			cmd_buf_size)) {
 		CAM_ERR(CAM_CDM, "invalid reg_count  %d cmd_buf_size %d",
