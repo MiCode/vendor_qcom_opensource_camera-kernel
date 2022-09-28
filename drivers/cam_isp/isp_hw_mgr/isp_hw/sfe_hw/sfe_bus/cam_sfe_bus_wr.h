@@ -185,6 +185,7 @@ struct cam_sfe_bus_sfe_out_hw_info {
  * @max_out_res:               maximum number of sfe out res in uapi
  * @pack_align_shift:          Packer format alignment bit shift
  * @max_bw_counter_limit:      Max BW counter limit
+ * @sys_cache_default_val:     System cache default config
  * @irq_err_mask:              IRQ error mask
  */
 struct cam_sfe_bus_wr_hw_info {
@@ -204,6 +205,7 @@ struct cam_sfe_bus_wr_hw_info {
 	uint32_t max_out_res;
 	uint32_t pack_align_shift;
 	uint32_t max_bw_counter_limit;
+	uint32_t sys_cache_default_val;
 	uint32_t irq_err_mask;
 };
 

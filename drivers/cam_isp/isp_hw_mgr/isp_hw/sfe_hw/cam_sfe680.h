@@ -579,6 +579,7 @@ static struct cam_sfe_bus_rd_hw_info sfe680_bus_rd_hw_info = {
 	 * the minimum
 	 */
 	.latency_buf_allocation = 2048,
+	.sys_cache_default_val  = 0x20,
 	.irq_err_mask           = 0x1,
 	.fs_sync_shift          = 0x5,
 	.constraint_error_info  = &sfe680_bus_rd_constraint_error_info,
@@ -1294,13 +1295,14 @@ static struct cam_sfe_bus_wr_hw_info sfe680_bus_wr_hw_info = {
 	.comp_done_shift = {
 		17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
 	},
-	.num_comp_grp         = 10,
-	.line_done_cfg        = 0x11,
-	.top_irq_shift        = 0x0,
-	.max_out_res          = CAM_ISP_SFE_OUT_RES_BASE + 13,
-	.pack_align_shift     = 0x5,
-	.max_bw_counter_limit = 0xFF,
-	.irq_err_mask         = 0xD0000000,
+	.num_comp_grp          = 10,
+	.line_done_cfg         = 0x11,
+	.top_irq_shift         = 0x0,
+	.max_out_res           = CAM_ISP_SFE_OUT_RES_BASE + 13,
+	.pack_align_shift      = 0x5,
+	.max_bw_counter_limit  = 0xFF,
+	.sys_cache_default_val = 0x20,
+	.irq_err_mask          = 0xD0000000,
 };
 
 static struct cam_irq_register_set sfe680_top_irq_reg_set[1] = {

@@ -91,6 +91,7 @@ struct cam_sfe_bus_wr_common_data {
 	cam_hw_mgr_event_cb_func                    event_cb;
 	uint32_t                                    irq_err_mask;
 
+	uint32_t                                    sys_cache_default_cfg;
 	uint32_t                                    sfe_debug_cfg;
 	struct cam_sfe_bus_cache_dbg_cfg            cache_dbg_cfg;
 };
@@ -2539,7 +2540,7 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 			reg_val_pair[j-1]);
 
 		curr_cache_cfg = wm_data->cache_cfg;
-		wm_data->cache_cfg = 0;
+		wm_data->cache_cfg = bus_priv->common_data.sys_cache_default_cfg;
 		if (wm_data->enable_caching) {
 			if ((cache_dbg_cfg->disable_for_scratch) &&
 				(update_buf->use_scratch_cfg))
@@ -2799,7 +2800,7 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 			CAM_BOOL_TO_YESNO(cam_smmu_is_expanded_memory));
 
 		curr_cache_cfg = wm_data->cache_cfg;
-		wm_data->cache_cfg = 0;
+		wm_data->cache_cfg = bus_priv->common_data.sys_cache_default_cfg;
 		if ((!cache_dbg_cfg->disable_for_scratch) &&
 			(wm_data->enable_caching)) {
 			wm_data->cache_cfg =
@@ -3500,6 +3501,7 @@ int cam_sfe_bus_wr_init(
 	bus_priv->common_data.err_irq_subscribe    = false;
 	bus_priv->common_data.sfe_irq_controller   = sfe_irq_controller;
 	bus_priv->common_data.irq_err_mask         = hw_info->irq_err_mask;
+	bus_priv->common_data.sys_cache_default_cfg = hw_info->sys_cache_default_val;
 	bus_priv->constraint_error_info            = hw_info->constraint_error_info;
 	bus_priv->sfe_out_hw_info                  = hw_info->sfe_out_hw_info;
 	rc = cam_cpas_get_cpas_hw_version(&bus_priv->common_data.hw_version);

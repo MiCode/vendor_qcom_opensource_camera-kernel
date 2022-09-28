@@ -860,6 +860,7 @@ static struct cam_sfe_bus_rd_hw_info sfe880_bus_rd_hw_info = {
 	},
 	.top_irq_shift          = 0x1,
 	.latency_buf_allocation = 2048,
+	.sys_cache_default_val  = 0x20,
 	.irq_err_mask           = 0x80000001,
 	.fs_sync_shift          = 0x14,
 	.constraint_error_info  = &sfe880_bus_rd_constraint_error_info,
@@ -1773,6 +1774,7 @@ static struct cam_sfe_bus_wr_hw_info sfe880_bus_wr_hw_info = {
 	.max_out_res            = CAM_ISP_SFE_OUT_RES_BASE + 18,
 	.pack_align_shift       = 5,
 	.max_bw_counter_limit   = 0xFF,
+	.sys_cache_default_val  = 0x20,
 	.irq_err_mask           = 0xD0000000,
 };
 

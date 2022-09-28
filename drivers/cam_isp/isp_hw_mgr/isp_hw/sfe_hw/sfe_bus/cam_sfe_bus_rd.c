@@ -133,6 +133,7 @@ struct cam_sfe_bus_rd_priv {
 	void                               *tasklet_info;
 	uint32_t                            top_irq_shift;
 	uint32_t                            latency_buf_allocation;
+	uint32_t                            sys_cache_default_cfg;
 };
 
 static void cam_sfe_bus_rd_pxls_to_bytes(uint32_t pxls, uint32_t fmt,
@@ -1411,7 +1412,7 @@ static int cam_sfe_bus_rd_config_rm(void *priv, void *cmd_args,
 		rm_data->height = height;
 		rm_data->width = width;
 		curr_cache_cfg = rm_data->cache_cfg;
-		rm_data->cache_cfg = 0x20;
+		rm_data->cache_cfg = bus_priv->sys_cache_default_cfg;
 		if ((!cache_dbg_cfg->disable_for_scratch) &&
 			(rm_data->enable_caching)) {
 			rm_data->cache_cfg =
@@ -1562,7 +1563,7 @@ static int cam_sfe_bus_rd_update_rm(void *priv, void *cmd_args,
 		rm_data->width = width;
 
 		curr_cache_cfg = rm_data->cache_cfg;
-		rm_data->cache_cfg = 0x20;
+		rm_data->cache_cfg = bus_priv->sys_cache_default_cfg;
 		if (rm_data->enable_caching) {
 			if ((cache_dbg_cfg->disable_for_scratch) &&
 				(update_buf->use_scratch_cfg))
@@ -2030,6 +2031,7 @@ int cam_sfe_bus_rd_init(
 		bus_rd_hw_info->constraint_error_info->cons_chk_en_avail;
 	bus_priv->top_irq_shift                 = bus_rd_hw_info->top_irq_shift;
 	bus_priv->latency_buf_allocation        = bus_rd_hw_info->latency_buf_allocation;
+	bus_priv->sys_cache_default_cfg         = bus_rd_hw_info->sys_cache_default_val;
 	bus_priv->bus_rd_hw_info = bus_rd_hw_info;
 
 	rc = cam_irq_controller_init(drv_name,
