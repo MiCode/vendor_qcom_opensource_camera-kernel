@@ -43,7 +43,7 @@
 #define CAM_SOC_MAX_CLK             32
 
 /* maximum number of optional device clock */
-#define CAM_SOC_MAX_OPT_CLK    2
+#define CAM_SOC_MAX_OPT_CLK    7
 
 /* maximum number of pinctrl mapping */
 #define CAM_SOC_MAX_PINCTRL_MAP     2

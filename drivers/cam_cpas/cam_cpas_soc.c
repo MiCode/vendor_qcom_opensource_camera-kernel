@@ -948,6 +948,69 @@ err:
 	return rc;
 }
 
+static int cam_cpas_get_domain_id_support_clks(struct device_node *of_node,
+	struct cam_hw_soc_info *soc_info, struct cam_cpas_private_soc *soc_private)
+{
+	int rc = 0, count, i;
+	struct cam_cpas_domain_id_support_clks *domain_id_clks;
+
+	soc_private->domain_id_clks = kzalloc(sizeof(struct cam_cpas_domain_id_support_clks),
+		GFP_KERNEL);
+	if (!soc_private->domain_id_clks) {
+		CAM_ERR(CAM_CPAS, "Failed in allocating memory for domain_id_clk");
+		return -ENOMEM;
+	}
+
+	domain_id_clks = soc_private->domain_id_clks;
+
+	count = of_property_count_strings(of_node, "domain-id-support-clks");
+	CAM_DBG(CAM_CPAS, "Domain-id clk count: %d", count);
+	if (count > CAM_SOC_MAX_OPT_CLK) {
+		CAM_ERR(CAM_CPAS, "Invalid cnt of clocks, count: %d", count);
+		rc  = -EINVAL;
+		goto err;
+	}
+	if (count <= 0) {
+		CAM_ERR(CAM_CPAS, "No domain-id clk found");
+		rc = -EINVAL;
+		goto err;
+	}
+
+	domain_id_clks->number_clks = count;
+
+	for (i = 0; i < count; i++) {
+		rc = of_property_read_string_index(of_node, "domain-id-support-clks",
+			i, &domain_id_clks->clk_names[i]);
+		if (rc) {
+			CAM_ERR(CAM_CPAS,
+				"Failed reading domain-id clk name at i: %d, total clks: %d",
+				i, count);
+			rc = -EINVAL;
+			goto err;
+		}
+
+		rc = cam_soc_util_get_option_clk_by_name(soc_info, domain_id_clks->clk_names[i],
+			&domain_id_clks->clk_idx[i]);
+		if (rc) {
+			CAM_ERR(CAM_CPAS,
+				"Failed reading domain-id clk %s at i: %d, total clks; %d",
+					domain_id_clks->clk_names[i], i, count);
+			rc = -EINVAL;
+			goto err;
+		}
+
+	CAM_DBG(CAM_CPAS, "Domain-id-clk %s with clk index %d",
+		domain_id_clks->clk_names[i], domain_id_clks->clk_idx[i]);
+
+	}
+
+	return rc;
+
+err:
+	kfree(domain_id_clks);
+	return rc;
+}
+
 int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	struct platform_device *pdev, struct cam_cpas_private_soc *soc_private)
 {
@@ -1500,11 +1563,19 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 	rc = cam_soc_util_get_option_clk_by_name(soc_info, CAM_ICP_CLK_NAME,
 		&soc_private->icp_clk_index);
 	if (rc) {
-		CAM_DBG(CAM_CPAS, "Option clk get failed with rc %d", rc);
+		CAM_DBG(CAM_CPAS, "ICP option clk get failed with rc %d", rc);
 		soc_private->icp_clk_index = -1;
 		rc = 0;
 	} else {
-		CAM_DBG(CAM_CPAS, "Option clk get success index %d", soc_private->icp_clk_index);
+		CAM_DBG(CAM_CPAS, "ICP option clk get success index %d",
+			soc_private->icp_clk_index);
+	}
+
+	if (soc_private->domain_id_info.domain_id_supported) {
+		rc = cam_cpas_get_domain_id_support_clks(soc_info->pdev->dev.of_node,
+			soc_info, soc_private);
+		if (rc)
+			goto free_soc_private;
 	}
 
 	return rc;
@@ -1531,6 +1602,8 @@ int cam_cpas_soc_deinit_resources(struct cam_hw_soc_info *soc_info)
 	}
 
 	kfree(soc_private->domain_id_info.domain_id_entries);
+
+	kfree(soc_private->domain_id_clks);
 
 	rc = cam_soc_util_release_platform_resource(soc_info);
 	if (rc)

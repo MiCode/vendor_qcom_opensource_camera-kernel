@@ -169,6 +169,21 @@ struct cam_cpas_domain_id_info {
 };
 
 /**
+ * struct cam_cpas_domain_id_support_clks : Stores all information
+ *                                          related to clocks
+ *                                          needed to turn on SWIs
+ *                                          for domain id programming
+ * @clk_names:   Clock names as declared in DT
+ * @clk_idx:     Corresponding clk index as declared in DT
+ * @number_clks: Number of clocks declared to turn all CSIDs
+ */
+struct cam_cpas_domain_id_support_clks {
+	const char *clk_names[CAM_SOC_MAX_OPT_CLK];
+	int32_t clk_idx[CAM_SOC_MAX_OPT_CLK];
+	int number_clks;
+};
+
+/**
  * struct cam_cpas_private_soc : CPAS private DT info
  *
  * @arch_compat: ARCH compatible string
@@ -198,6 +213,7 @@ struct cam_cpas_domain_id_info {
  * @smart_qos_info: Pointer to smart qos info
  * @icp_clk_index: Index of optional icp clk
  * @domain_id_info: Stores all information related to domain id support
+ * @domain_id_clks: All clock related information for domain id support
  */
 struct cam_cpas_private_soc {
 	const char *arch_compat;
@@ -225,6 +241,7 @@ struct cam_cpas_private_soc {
 	struct cam_cpas_smart_qos_info *smart_qos_info;
 	int32_t icp_clk_index;
 	struct cam_cpas_domain_id_info domain_id_info;
+	struct cam_cpas_domain_id_support_clks *domain_id_clks;
 };
 
 void cam_cpas_util_debug_parse_data(struct cam_cpas_private_soc *soc_private);

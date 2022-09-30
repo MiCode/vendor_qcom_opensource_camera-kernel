@@ -1232,7 +1232,7 @@ static int cam_csiphy_program_secure_mode(struct csiphy_device *csiphy_dev,
 			protect, offset);
 
 		if (!protect)
-			csiphy_dev->csiphy_info[offset].secure_info.protect = false;
+			csiphy_dev->csiphy_info[offset].secure_info_updated = false;
 	}
 
 	return rc;

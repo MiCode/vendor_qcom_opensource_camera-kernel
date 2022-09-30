@@ -3097,6 +3097,53 @@ static int cam_cpas_hw_csid_input_core_info_update(struct cam_hw_info *cpas_hw,
 	return rc;
 }
 
+static int cam_cpas_hw_enable_domain_id_clks(struct cam_hw_info *cpas_hw,
+	bool enable)
+{
+	int rc = 0, i;
+	struct cam_cpas_private_soc *soc_private =
+		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
+	struct cam_cpas_domain_id_support_clks *domain_id_clks =
+		soc_private->domain_id_clks;
+
+	if (!soc_private->domain_id_info.domain_id_supported) {
+		CAM_DBG(CAM_CPAS, "Domain-id not supported on target");
+		return -EINVAL;
+	}
+
+	if (enable) {
+		for (i = 0; i < domain_id_clks->number_clks; i++) {
+			rc = cam_soc_util_clk_enable(&cpas_hw->soc_info, true,
+				domain_id_clks->clk_idx[i], 0, NULL);
+			if (rc) {
+				CAM_ERR(CAM_CPAS, "Domain-id clk %s enable failed, rc: %d",
+					domain_id_clks->clk_names[i], i);
+				goto clean_up;
+			}
+		}
+		CAM_DBG(CAM_CPAS, "Domain-id clks enable success");
+	} else {
+		for (i = 0; i < domain_id_clks->number_clks; i++) {
+			rc = cam_soc_util_clk_disable(&cpas_hw->soc_info, true,
+				domain_id_clks->clk_idx[i]);
+			if (rc)
+				CAM_WARN(CAM_CPAS, "Domain-id clk %s disable failed, rc: %d",
+					domain_id_clks->clk_names[i], rc);
+		}
+		if (!rc)
+			CAM_DBG(CAM_CPAS, "Domain-id clks disable success");
+	}
+
+	return rc;
+
+clean_up:
+	for (--i; i >= 0; i--)
+		cam_soc_util_clk_disable(&cpas_hw->soc_info, true,
+			domain_id_clks->clk_idx[i]);
+
+	return rc;
+}
+
 static int cam_cpas_hw_csid_process_resume(struct cam_hw_info *cpas_hw, uint32_t csid_idx)
 {
 	int i, rc = 0;
@@ -3355,6 +3402,19 @@ static int cam_cpas_hw_process_cmd(void *hw_priv,
 
 		csid_idx = (uint32_t *)cmd_args;
 		rc = cam_cpas_hw_csid_process_resume(hw_priv, *csid_idx);
+		break;
+	}
+	case CAM_CPAS_HW_CMD_ENABLE_DISABLE_DOMAIN_ID_CLK: {
+		bool *enable;
+
+		if (sizeof(bool) != arg_size) {
+			CAM_ERR(CAM_CPAS, "cmd_type %d, size mismatch %d",
+				cmd_type, arg_size);
+			break;
+		}
+
+		enable = (bool *)cmd_args;
+		rc = cam_cpas_hw_enable_domain_id_clks(hw_priv, *enable);
 		break;
 	}
 

@@ -803,6 +803,26 @@ bool cam_cpas_query_domain_id_security_support(void)
 }
 EXPORT_SYMBOL(cam_cpas_query_domain_id_security_support);
 
+int cam_cpas_enable_clks_for_domain_id(bool enable)
+{
+	int rc = 0;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+
+	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
+		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
+			g_cpas_intf->hw_intf->hw_priv,
+			CAM_CPAS_HW_CMD_ENABLE_DISABLE_DOMAIN_ID_CLK, &enable,
+			sizeof(enable));
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(cam_cpas_enable_clks_for_domain_id);
+
 int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 	struct cam_control *cmd)
 {

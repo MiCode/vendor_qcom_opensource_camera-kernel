@@ -906,4 +906,15 @@ int cam_cpas_query_drv_enable(bool *is_drv_enabled);
  */
 bool cam_cpas_query_domain_id_security_support(void);
 
+/**
+ * cam_cpas_enable_clks_for_domain_id()
+ *
+ * @brief: API to enable/disable clocks for domain id support.
+ *         All CSIDs including those not in use for a ctxt
+ *         needs to be programmed in a secure session.
+ * @enable: True to turn on, false otherwise.
+ * @return 0 on success
+ */
+int cam_cpas_enable_clks_for_domain_id(bool enable);
+
 #endif /* _CAM_CPAS_API_H_ */
