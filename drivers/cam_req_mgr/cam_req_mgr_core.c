@@ -690,14 +690,14 @@ static int32_t __cam_req_mgr_find_slot_for_req(
 }
 
 /**
- * __cam_req_mgr_disconnect_flushed_req_on_sync_link()
+ * __cam_req_mgr_disconnect_req_on_sync_link()
  *
  * @brief    : Disconnect link and sync link
  * @link     : pointer to link
  * @slot     : poniter to slot
  *
  */
-static void __cam_req_mgr_disconnect_flushed_req_on_sync_link(
+static void __cam_req_mgr_disconnect_req_on_sync_link(
 	struct cam_req_mgr_core_link *link,
 	struct cam_req_mgr_slot      *slot)
 {
@@ -760,7 +760,7 @@ static void __cam_req_mgr_flush_req_slot(
 			idx, slot->req_id, slot->status);
 
 		if ((slot->req_id > 0) && slot->num_sync_links)
-			__cam_req_mgr_disconnect_flushed_req_on_sync_link(link, slot);
+			__cam_req_mgr_disconnect_req_on_sync_link(link, slot);
 
 		/* Reset input queue slot */
 		slot->req_id = -1;
@@ -820,6 +820,9 @@ static void __cam_req_mgr_reset_req_slot(struct cam_req_mgr_core_link *link,
 		in_q->last_applied_idx == idx ||
 		idx < 0)
 		return;
+
+	if ((slot->req_id > 0) && slot->num_sync_links)
+		__cam_req_mgr_disconnect_req_on_sync_link(link, slot);
 
 	/* Reset input queue slot */
 	slot->req_id = -1;
@@ -2838,7 +2841,7 @@ static int __cam_req_mgr_try_cancel_req(struct cam_req_mgr_core_link *link,
 
 	slot = &in_q->slot[idx];
 	if ((slot->req_id > 0) && slot->num_sync_links)
-		__cam_req_mgr_disconnect_flushed_req_on_sync_link(link, slot);
+		__cam_req_mgr_disconnect_req_on_sync_link(link, slot);
 
 	switch (slot->status) {
 	case CRM_SLOT_STATUS_REQ_PENDING:
