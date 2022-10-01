@@ -1593,7 +1593,8 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 		"link_hdl %x sync link_hdl %x req %lld",
 		link->link_hdl, sync_link->link_hdl, req_id);
 
-	if (sync_link->initial_skip) {
+	if ((sync_link->initial_skip) &&
+		(req_id >= sync_req_id)) {
 		link->initial_skip = false;
 		CAM_DBG(CAM_CRM,
 			"sync link %x not streamed on",
@@ -5134,6 +5135,8 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 					link->link_hdl);
 				rc = -EFAULT;
 			}
+			/* Wait for the streaming of sync link */
+			link->initial_skip = true;
 			/* Pause the timer before sensor stream on */
 			link->watchdog->pause_timer = true;
 			/* notify nodes */
