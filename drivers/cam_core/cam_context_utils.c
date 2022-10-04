@@ -1837,7 +1837,7 @@ int cam_context_apply_evt_injection(struct cam_context *ctx, void *inject_evt_ar
 	struct cam_common_evt_inject_data *inject_evt;
 	struct cam_hw_inject_evt_param *evt_params;
 	uint32_t evt_notify_type;
-	int rc = 0;
+	int rc = -EINVAL;
 
 	if (!ctx || !inject_evt_arg) {
 		CAM_ERR(CAM_CTXT, "Invalid parameters ctx %s inject evt args %s",
@@ -1851,6 +1851,7 @@ int cam_context_apply_evt_injection(struct cam_context *ctx, void *inject_evt_ar
 	switch (evt_params->inject_id) {
 	case CAM_COMMON_EVT_INJECT_BUFFER_ERROR_TYPE:
 		rc = cam_context_apply_buf_done_err_injection(ctx, inject_evt);
+		break;
 	case CAM_COMMON_EVT_INJECT_NOTIFY_EVENT_TYPE:
 		evt_notify_type = evt_params->u.evt_notify.evt_notify_type;
 		switch (evt_notify_type) {
@@ -1863,7 +1864,12 @@ int cam_context_apply_evt_injection(struct cam_context *ctx, void *inject_evt_ar
 		case V4L_EVENT_CAM_REQ_MGR_NODE_EVENT:
 			rc = cam_context_apply_node_event_injection(ctx, evt_params);
 			break;
+		default:
+			CAM_ERR(CAM_CTXT, "Invalid notify type %u", evt_notify_type);
 		}
+		break;
+	default:
+		CAM_ERR(CAM_CTXT, "Invalid inject id %u", evt_params->inject_id);
 	}
 
 	return rc;
