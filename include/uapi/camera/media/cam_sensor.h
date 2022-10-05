@@ -121,6 +121,7 @@ enum cam_sensor_packet_opcodes {
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_PROBE_V2,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_UNLOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_LOCK,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_BUBBLE_UPDATE,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_NOP = 127,
 };
 
@@ -336,6 +337,15 @@ struct cam_cmd_i2c_info {
 	__u8     cmd_type;
 	__u16    reserved;
 } __attribute__((packed));
+
+#define CAM_SENSOR_FEATURE_MASK                    BIT(0)
+
+#define CAM_SENSOR_FEATURE_NONE                    0
+#define CAM_SENSOR_FEATURE_AEB_ON                  BIT(0)
+#define CAM_SENSOR_FEATURE_AEB_UPDATE              BIT(1)
+#define CAM_SENSOR_FEATURE_AEB_OFF                 BIT(2)
+#define CAM_SENSOR_FEATURE_INSENSOR_HDR_3EXP_ON    BIT(3)
+#define CAM_SENSOR_FEATURE_INSENSOR_HDR_3EXP_OFF   BIT(4)
 
 /**
  * struct cam_cmd_sensor_res_info - Contains sensor res info

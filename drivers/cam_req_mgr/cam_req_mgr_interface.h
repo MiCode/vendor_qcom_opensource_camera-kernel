@@ -352,15 +352,17 @@ struct cam_req_mgr_core_dev_link_setup {
  * @report_if_bubble : report to crm if failure in applying
  * @trigger_point    : the trigger point of this apply
  * @re_apply         : to skip re_apply for buf_done request
+ * @recovery         : Indicate if it is recovery req
  *
  */
 struct cam_req_mgr_apply_request {
 	int32_t    link_hdl;
 	int32_t    dev_hdl;
-	uint64_t   request_id;
+	int64_t    request_id;
 	int32_t    report_if_bubble;
 	uint32_t   trigger_point;
 	bool       re_apply;
+	bool       recovery;
 };
 
 /**

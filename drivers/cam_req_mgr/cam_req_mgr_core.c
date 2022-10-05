@@ -1066,6 +1066,11 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 			apply_req.re_apply = true;
 	}
 
+	if (link->state == CAM_CRM_LINK_STATE_ERR)
+		apply_req.recovery = true;
+	else
+		apply_req.recovery = false;
+
 	apply_data = link->req.apply_data;
 
 	/*
