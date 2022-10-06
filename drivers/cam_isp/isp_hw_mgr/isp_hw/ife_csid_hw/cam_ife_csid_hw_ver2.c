@@ -144,7 +144,8 @@ static void cam_ife_csid_ver2_print_camif_timestamps(
 	}
 
 	if (found && path_cfg)
-		CAM_INFO(CAM_ISP, "CSID[%u] %s SOF[%lld:%lld] EPOCH[%lld:%lld] EOF[%lld:%lld]",
+		CAM_INFO(CAM_ISP,
+			"CSID[%u] %s SOF timestamp:[%lld.%09lld] EPOCH timestamp:[%lld.%09lld] EOF timestamp:[%lld.%09lld]",
 			csid_hw->hw_intf->hw_idx, res->res_name,
 			path_cfg->sof_ts.tv_sec, path_cfg->sof_ts.tv_nsec,
 			path_cfg->epoch_ts.tv_sec, path_cfg->epoch_ts.tv_nsec,
@@ -1138,7 +1139,7 @@ static int cam_ife_csid_ver2_handle_event_err(
 			path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
 			evt.res_id   = res->res_id;
 			CAM_ERR(CAM_ISP,
-				"csid[%u] Res:%s Err 0x%x status 0x%x time_stamp: %lld:%lld",
+				"csid[%u] Res:%s Err 0x%x status 0x%x time_stamp: %lld.%09lld",
 				csid_hw->hw_intf->hw_idx, res->res_name, err_type,
 				irq_status, path_cfg->error_ts.tv_sec,
 				path_cfg->error_ts.tv_nsec);
@@ -1613,7 +1614,7 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	bit_pos = 0;
 	while (status) {
 		if (status & 0x1)
-			CAM_INFO(CAM_ISP, "CSID[%d] IRQ %s %s timestamp:[%lld:%lld]",
+			CAM_INFO(CAM_ISP, "CSID[%d] IRQ %s %s timestamp:[%lld.%09lld]",
 				csid_hw->hw_intf->hw_idx, irq_reg_tag[index],
 				csid_reg->path_irq_desc[bit_pos].desc,
 				evt_payload->timestamp.tv_sec,
@@ -1662,20 +1663,20 @@ static int cam_ife_csid_ver2_top_info_irq_bottom_half(
 
 	if (irq_status & IFE_CSID_VER2_TOP_INFO_VOTE_UP) {
 		cam_cpas_log_votes(true);
-		CAM_INFO(CAM_ISP, "CSID:%d INFO_VOTE_UP timestamp:[%lld:%lld]",
+		CAM_INFO(CAM_ISP, "CSID:%d INFO_VOTE_UP timestamp:[%lld.%09lld]",
 			csid_hw->hw_intf->hw_idx, payload->timestamp.tv_sec,
 			payload->timestamp.tv_nsec);
 	}
 
 	if (irq_status & IFE_CSID_VER2_TOP_INFO_VOTE_DN) {
 		cam_cpas_log_votes(true);
-		CAM_INFO(CAM_ISP, "CSID:%d INFO_VOTE_DN timestamp:[%lld:%lld]",
+		CAM_INFO(CAM_ISP, "CSID:%d INFO_VOTE_DN timestamp:[%lld.%09lld]",
 			csid_hw->hw_intf->hw_idx, payload->timestamp.tv_sec,
 			payload->timestamp.tv_nsec);
 	}
 
 	if (irq_status & IFE_CSID_VER2_TOP_ERR_NO_VOTE_DN) {
-		CAM_INFO(CAM_ISP, "CSID:%d ERR_NO_VOTE_DN timestamp:[%lld:%lld]",
+		CAM_INFO(CAM_ISP, "CSID:%d ERR_NO_VOTE_DN timestamp:[%lld.%09lld]",
 			csid_hw->hw_intf->hw_idx, payload->timestamp.tv_sec,
 			payload->timestamp.tv_nsec);
 

@@ -329,10 +329,10 @@ static void cam_tfe_log_error_irq_status(
 	soc_info = top_priv->common_data.soc_info;
 	soc_private = top_priv->common_data.soc_info->soc_private;
 
-	CAM_INFO(CAM_ISP, "current monotonic time stamp seconds %lld:%lld",
+	CAM_INFO(CAM_ISP, "current monotonic timestamp:[%lld.%06lld]",
 		ts.tv_sec, ts.tv_nsec/1000);
 	CAM_INFO(CAM_ISP,
-		"ERROR time %lld:%lld SOF %lld:%lld EPOCH %lld:%lld EOF %lld:%lld",
+		"ERROR timestamp:[%lld.%06lld] SOF timestamp:[%lld.%06lld] EPOCH timestamp:[%lld.%06lld] EOF timestamp:[%lld.%06lld]",
 		top_priv->error_ts.tv_sec,
 		top_priv->error_ts.tv_nsec/1000,
 		top_priv->sof_ts.tv_sec,

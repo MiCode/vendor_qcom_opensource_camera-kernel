@@ -74,7 +74,8 @@
 	rem_jiffies = cam_common_wait_for_completion_timeout((complete), (timeout_jiffies)); \
 	if (!rem_jiffies) {                                                                  \
 		end_time = ktime_to_timespec64(ktime_get());                                 \
-		CAM_ERR(module_id, fmt " (timeout: %ums start: %llu.%llu end: %llu.%llu)",   \
+		CAM_ERR(module_id,                                                           \
+		fmt " (timeout: %ums start: timestamp:[%lld.%06lld] end: timestamp:[%lld.%06lld])",\
 		##args, jiffies_to_msecs(timeout_jiffies),                                   \
 		start_time.tv_sec, (start_time.tv_nsec/NSEC_PER_USEC),                       \
 		end_time.tv_sec, (end_time.tv_nsec/NSEC_PER_USEC));                          \

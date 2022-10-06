@@ -5938,7 +5938,7 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 		req_ts = ktime_to_timespec64(frm_process->submit_timestamp[i]);
 	}
 
-	CAM_INFO(CAM_ICP, "Error req %lld %ld:%06ld %ld:%06ld",
+	CAM_INFO(CAM_ICP, "Error req %lld req timestamp:[%lld.%06lld] curr timestamp:[%lld.%06lld]",
 		dump_args->request_id,
 		req_ts.tv_sec,
 		req_ts.tv_nsec/NSEC_PER_USEC,

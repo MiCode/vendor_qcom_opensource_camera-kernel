@@ -2559,7 +2559,8 @@ static int cam_cre_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	req_ts = ktime_to_timespec64(ctx_data->req_list[idx]->submit_timestamp);
 
 	if (diff < (CRE_REQUEST_TIMEOUT * 1000)) {
-		CAM_INFO(CAM_CRE, "No Error req %llu %ld:%06ld %ld:%06ld",
+		CAM_INFO(CAM_CRE,
+			"No Error req %llu req timestamp:[%lld.%06lld] curr timestamp:[%lld.%06lld]",
 			dump_args->request_id,
 			req_ts.tv_sec,
 			req_ts.tv_nsec/NSEC_PER_USEC,
@@ -2570,7 +2571,7 @@ static int cam_cre_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 		return 0;
 	}
 
-	CAM_ERR(CAM_CRE, "Error req %llu %ld:%06ld %ld:%06ld",
+	CAM_ERR(CAM_CRE, "Error req %llu req timestamp:[%lld.%06lld] curr timestamp:[%lld.%06lld]",
 		dump_args->request_id,
 		req_ts.tv_sec,
 		req_ts.tv_nsec/NSEC_PER_USEC,

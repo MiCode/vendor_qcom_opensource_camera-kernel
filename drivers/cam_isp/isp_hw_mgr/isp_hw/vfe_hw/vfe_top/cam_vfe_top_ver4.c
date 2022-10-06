@@ -500,11 +500,11 @@ int cam_vfe_top_ver4_dump_timestamps(
 	ktime_get_boottime_ts64(&ts);
 
 	CAM_INFO(CAM_ISP,
-		"VFE[%u] current monotonic time stamp seconds %lld:%lld",
+		"VFE[%u] current monotonic timestamp:[%lld.%09lld]",
 		vfe_priv->hw_intf->hw_idx, ts.tv_sec, ts.tv_nsec);
 
 	CAM_INFO(CAM_ISP,
-		"CAMIF Error time %lld:%lld SOF %lld:%lld EPOCH %lld:%lld EOF %lld:%lld",
+		"CAMIF Error timestamp:[%lld.%09lld] SOF timestamp:[%lld.%09lld] EPOCH timestamp:[%lld.%09lld] EOF timestamp:[%lld.%09lld]",
 		vfe_priv->error_ts.tv_sec,
 		vfe_priv->error_ts.tv_nsec,
 		vfe_priv->sof_ts.tv_sec,
@@ -1438,7 +1438,7 @@ static int cam_vfe_handle_irq_bottom_half(void *handler_priv,
 		evt_info.event_data = (void *)&err_evt_info;
 		ktime_get_boottime_ts64(&ts);
 		CAM_INFO(CAM_ISP,
-			"current monotonic time stamp seconds %lld:%lld",
+			"current monotonic timestamp:[%lld.%09lld]",
 			ts.tv_sec, ts.tv_nsec);
 
 		if (vfe_priv->event_cb)

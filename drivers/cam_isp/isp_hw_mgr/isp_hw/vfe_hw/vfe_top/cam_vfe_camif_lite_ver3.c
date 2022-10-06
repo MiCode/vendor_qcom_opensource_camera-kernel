@@ -1173,16 +1173,16 @@ static int cam_vfe_camif_lite_handle_irq_bottom_half(
 		evt_info.event_data = (void *)&err_evt_info;
 		ktime_get_boottime_ts64(&ts);
 		CAM_INFO(CAM_ISP,
-			"current monotonic time stamp seconds %lld:%lld",
+			"current monotonic timestamp:[%lld.%09lld]",
 			ts.tv_sec, ts.tv_nsec);
 		CAM_INFO(CAM_ISP,
-			"ERROR time %lld:%lld",
+			"ERROR timestamp:[%lld.%09lld]",
 			camif_lite_priv->error_ts.tv_sec,
 			camif_lite_priv->error_ts.tv_nsec);
 
 		if (camif_lite_node->is_rdi_primary_res)
 			CAM_INFO(CAM_ISP,
-				"SOF %lld:%lld EPOCH %lld:%lld EOF %lld:%lld",
+				"SOF timestamp:[%lld.%09lld] EPOCH timestamp:[%lld.%09lld] EOF timestamp:[%lld.%09lld]",
 				camif_lite_priv->sof_ts.tv_sec,
 				camif_lite_priv->sof_ts.tv_nsec,
 				camif_lite_priv->epoch_ts.tv_sec,

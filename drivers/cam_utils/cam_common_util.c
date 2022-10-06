@@ -157,7 +157,7 @@ void cam_common_util_thread_switch_delay_detect(
 		scheduled_ts  = ktime_to_timespec64(scheduled_time);
 		cur_ts = ktime_to_timespec64(cur_time);
 		CAM_WARN_RATE_LIMIT_CUSTOM(CAM_UTIL, 1, 1,
-			"%s delay detected %ld:%06ld cur %ld:%06ld diff %ld: threshold %d",
+			"%s delay detected sched timestamp:[%lld.%06lld] cur timestamp:[%lld.%06lld] diff %ld: threshold %d",
 			token, scheduled_ts.tv_sec,
 			scheduled_ts.tv_nsec/NSEC_PER_USEC,
 			cur_ts.tv_sec, cur_ts.tv_nsec/NSEC_PER_USEC,

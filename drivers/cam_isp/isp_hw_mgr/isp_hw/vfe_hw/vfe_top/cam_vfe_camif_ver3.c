@@ -820,7 +820,7 @@ int cam_vfe_camif_ver3_dump_timestamps(
 		(struct cam_vfe_mux_camif_ver3_data *)rsrc_node->res_priv;
 
 	CAM_INFO(CAM_ISP,
-		"CAMIF ERROR time %lld:%lld SOF %lld:%lld EPOCH %lld:%lld EOF %lld:%lld",
+		"CAMIF ERROR timestamp:[%lld.%09lld] SOF timestamp:[%lld.%09lld] EPOCH timestamp:[%lld.%09lld] EOF timestamp:[%lld.%09lld]",
 		camif_priv->error_ts.tv_sec,
 		camif_priv->error_ts.tv_nsec,
 		camif_priv->sof_ts.tv_sec,
@@ -1470,7 +1470,7 @@ static int cam_vfe_camif_ver3_handle_irq_bottom_half(void *handler_priv,
 
 		ktime_get_boottime_ts64(&ts);
 		CAM_INFO(CAM_ISP,
-			"current monotonic time stamp seconds %lld:%lld",
+			"current monotonic timestamp:[%lld.%09lld]",
 			ts.tv_sec, ts.tv_nsec);
 
 		ret = CAM_VFE_IRQ_STATUS_OVERFLOW;
@@ -1504,7 +1504,7 @@ static int cam_vfe_camif_ver3_handle_irq_bottom_half(void *handler_priv,
 
 		ktime_get_boottime_ts64(&ts);
 		CAM_INFO(CAM_ISP,
-			"current monotonic time stamp seconds %lld:%lld",
+			"current monotonic timestamp:[%lld.%09lld]",
 			ts.tv_sec, ts.tv_nsec);
 
 		ret = CAM_VFE_IRQ_STATUS_VIOLATION;

@@ -536,7 +536,7 @@ static int cam_vfe_rdi_handle_irq_bottom_half(void *handler_priv,
 	if (irq_rdi_status) {
 		ktime_get_boottime_ts64(&ts);
 		CAM_INFO(CAM_ISP,
-			"current monotonic time stamp seconds %lld:%lld",
+			"current monotonic timestamp:[%lld.%09lld]",
 			ts.tv_sec, ts.tv_nsec);
 
 		cam_vfe_rdi_cpas_reg_dump(rdi_priv);
@@ -544,7 +544,7 @@ static int cam_vfe_rdi_handle_irq_bottom_half(void *handler_priv,
 		CAM_INFO(CAM_ISP, "ife_clk_src:%lld",
 			soc_private->ife_clk_src);
 		CAM_INFO(CAM_ISP,
-			"ERROR time %lld:%lld SOF %lld:%lld",
+			"ERROR timestamp:[%lld.%09lld] SOF timestamp:[%lld.%09lld]",
 			rdi_priv->error_ts.tv_sec,
 			rdi_priv->error_ts.tv_nsec,
 			rdi_priv->sof_ts.tv_sec,
