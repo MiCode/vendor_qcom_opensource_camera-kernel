@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -2329,9 +2329,28 @@ static void cam_icp_mgr_compute_fw_avg_response_time(struct cam_icp_hw_ctx_data 
 		(perf_stats->total_resp_time / perf_stats->total_requests));
 }
 
+static int cam_icp_mgr_dump_clk(struct cam_icp_hw_ctx_data *ctx_data)
+{
+	uint32_t i;
+	struct cam_hw_intf *dev_intf = NULL;
+
+	for (i = 0; i < ctx_data->device_info->hw_dev_cnt; i++) {
+		dev_intf = ctx_data->device_info->dev_intf[i];
+		if (!dev_intf) {
+			CAM_ERR(CAM_ICP, "Device intf for %s[%u] is NULL",
+				ctx_data->device_info->dev_name, i);
+			return -EINVAL;
+		}
+		dev_intf->hw_ops.process_cmd(dev_intf->hw_priv, CAM_ICP_DEV_CMD_DUMP_CLK,
+				NULL, 0);
+	}
+
+	return 0;
+}
+
 static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 {
-	int i;
+	int i, rc;
 	uint32_t idx, event_id;
 	uint64_t request_id;
 	struct cam_icp_hw_mgr *hw_mgr = NULL;
@@ -2394,6 +2413,7 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 				cam_icp_error_handle_id_to_type(ioconfig_ack->err_type),
 				request_id);
 			event_id = CAM_CTX_EVT_ID_ERROR;
+			rc = cam_icp_mgr_dump_clk(ctx_data);
 		}
 		buf_data.evt_param = cam_icp_handle_err_type_to_evt_param(ioconfig_ack->err_type);
 	} else {
