@@ -116,6 +116,28 @@ static void __cam_isp_ctx_update_event_record(
 	ctx_isp->event_record[event][iterator].timestamp  = cur_time;
 }
 
+static int __cam_isp_ctx_handle_sof_freeze_evt(
+	struct cam_context *ctx)
+{
+	int rc = 0;
+	struct cam_isp_context      *ctx_isp;
+	struct cam_hw_cmd_args       hw_cmd_args;
+	struct cam_isp_hw_cmd_args   isp_hw_cmd_args;
+
+	ctx_isp = (struct cam_isp_context *)ctx->ctx_priv;
+	hw_cmd_args.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
+	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+	isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_CMD_SOF_DEBUG;
+	isp_hw_cmd_args.u.sof_irq_enable = 1;
+	hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+
+	rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
+		&hw_cmd_args);
+
+	ctx_isp->sof_dbg_irq_en = true;
+	return rc;
+}
+
 static void *cam_isp_ctx_user_dump_events(
 	void *dump_struct, uint8_t *addr_ptr)
 {
@@ -1369,10 +1391,11 @@ end:
 }
 
 static void __cam_isp_ctx_handle_buf_done_fail_log(
-	uint64_t request_id, struct cam_isp_ctx_req *req_isp,
-	uint32_t isp_device_type)
+	struct cam_isp_context *ctx_isp, uint64_t request_id,
+	struct cam_isp_ctx_req *req_isp)
 {
 	int i;
+	struct cam_context *ctx = ctx_isp->base;
 	const char *handle_type;
 
 	if (req_isp->num_fence_map_out >= CAM_ISP_CTX_RES_MAX) {
@@ -1391,7 +1414,8 @@ static void __cam_isp_ctx_handle_buf_done_fail_log(
 	for (i = 0; i < req_isp->num_fence_map_out; i++) {
 		if (req_isp->fence_map_out[i].sync_id != -1) {
 			handle_type = __cam_isp_resource_handle_id_to_type(
-				isp_device_type, req_isp->fence_map_out[i].resource_handle);
+				ctx_isp->isp_device_type,
+				req_isp->fence_map_out[i].resource_handle);
 
 			trace_cam_log_event("Buf_done Congestion",
 				handle_type, request_id, req_isp->fence_map_out[i].sync_id);
@@ -1403,6 +1427,9 @@ static void __cam_isp_ctx_handle_buf_done_fail_log(
 				req_isp->fence_map_out[i].sync_id);
 		}
 	}
+
+	if (!ctx_isp->sof_dbg_irq_en)
+		__cam_isp_ctx_handle_sof_freeze_evt(ctx);
 }
 
 static void __cam_isp_context_reset_internal_recovery_params(
@@ -1413,6 +1440,7 @@ static void __cam_isp_context_reset_internal_recovery_params(
 	ctx_isp->recovery_req_id = 0;
 	ctx_isp->aeb_error_cnt = 0;
 	ctx_isp->bubble_frame_cnt = 0;
+	ctx_isp->sof_dbg_irq_en = false;
 }
 
 static int __cam_isp_context_try_internal_recovery(
@@ -4430,9 +4458,8 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 		if (active_req) {
 			active_req_isp =
 				(struct cam_isp_ctx_req *) active_req->req_priv;
-			__cam_isp_ctx_handle_buf_done_fail_log(
-				active_req->request_id, active_req_isp,
-				ctx_isp->isp_device_type);
+			__cam_isp_ctx_handle_buf_done_fail_log(ctx_isp,
+				active_req->request_id, active_req_isp);
 		}
 
 		rc = -EFAULT;
@@ -5134,6 +5161,7 @@ static int __cam_isp_ctx_flush_req_in_top_state(
 
 end:
 	ctx_isp->bubble_frame_cnt = 0;
+	ctx_isp->sof_dbg_irq_en = false;
 	atomic_set(&ctx_isp->process_bubble, 0);
 	atomic_set(&ctx_isp->rxd_epoch, 0);
 	atomic_set(&ctx_isp->internal_recovery_set, 0);
@@ -7048,6 +7076,7 @@ static inline void __cam_isp_context_reset_ctx_params(
 	ctx_isp->bubble_frame_cnt = 0;
 	ctx_isp->recovery_req_id = 0;
 	ctx_isp->aeb_error_cnt = 0;
+	ctx_isp->sof_dbg_irq_en = false;
 }
 
 static int __cam_isp_ctx_start_dev_in_ready(struct cam_context *ctx,
@@ -7286,6 +7315,7 @@ static int __cam_isp_ctx_stop_dev_in_activated_unlock(
 	ctx_isp->last_applied_req_id = 0;
 	ctx_isp->req_info.last_bufdone_req_id = 0;
 	ctx_isp->bubble_frame_cnt = 0;
+	ctx_isp->sof_dbg_irq_en = false;
 	atomic_set(&ctx_isp->process_bubble, 0);
 	atomic_set(&ctx_isp->internal_recovery_set, 0);
 	atomic_set(&ctx_isp->rxd_epoch, 0);
@@ -7377,25 +7407,6 @@ static int __cam_isp_ctx_link_resume(struct cam_context *ctx)
 	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
 	isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_CMD_RESUME_HW;
 	hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
-	rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
-		&hw_cmd_args);
-
-	return rc;
-}
-
-static int __cam_isp_ctx_handle_sof_freeze_evt(
-	struct cam_context *ctx)
-{
-	int rc = 0;
-	struct cam_hw_cmd_args       hw_cmd_args;
-	struct cam_isp_hw_cmd_args   isp_hw_cmd_args;
-
-	hw_cmd_args.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
-	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
-	isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_CMD_SOF_DEBUG;
-	isp_hw_cmd_args.u.sof_irq_enable = 1;
-	hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
-
 	rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
 		&hw_cmd_args);
 

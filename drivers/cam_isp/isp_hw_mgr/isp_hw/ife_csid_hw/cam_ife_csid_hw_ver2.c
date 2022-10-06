@@ -265,7 +265,7 @@ static int cam_ife_csid_ver2_sof_irq_debug(
 	struct   cam_ife_csid_ver2_reg_info    *csid_reg;
 	struct   cam_ife_csid_ver2_path_cfg    *path_cfg;
 	struct   cam_isp_resource_node         *res;
-	uint32_t irq_mask[CAM_IFE_CSID_IRQ_REG_MAX] = {0};
+	uint32_t irq_mask = 0;
 	uint32_t data_idx;
 
 	if (*((uint32_t *)cmd_args) == 1)
@@ -293,12 +293,12 @@ static int cam_ife_csid_ver2_sof_irq_debug(
 		if (!path_cfg || !path_cfg->irq_handle)
 			continue;
 
-		irq_mask[path_cfg->irq_reg_idx] =
-			IFE_CSID_VER2_PATH_INFO_INPUT_SOF;
+		/* Assuming controller has only 1 register set */
+		irq_mask = IFE_CSID_VER2_PATH_INFO_INPUT_SOF;
 		cam_irq_controller_update_irq(
 			csid_hw->path_irq_controller[res->res_id],
 			path_cfg->irq_handle,
-			sof_irq_enable, irq_mask);
+			sof_irq_enable, &irq_mask);
 	}
 
 	if (sof_irq_enable) {
@@ -315,11 +315,13 @@ static int cam_ife_csid_ver2_sof_irq_debug(
 		csid_hw->hw_intf->hw_idx,
 		(sof_irq_enable) ? "enabled" : "disabled");
 
-	CAM_INFO(CAM_ISP, "Notify CSIPHY: %d",
+	if (sof_irq_enable) {
+		CAM_INFO(CAM_ISP, "Notify CSIPHY: %d",
 			csid_hw->rx_cfg.phy_sel - 1);
 
-	cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
-		CAM_SUBDEV_MESSAGE_REG_DUMP, (void *)&data_idx);
+		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+			CAM_SUBDEV_MESSAGE_REG_DUMP, (void *)&data_idx);
+	}
 
 	return 0;
 }

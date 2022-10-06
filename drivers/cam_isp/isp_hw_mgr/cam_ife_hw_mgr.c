@@ -11801,27 +11801,30 @@ static int cam_ife_mgr_sof_irq_debug(
 	uint32_t sof_irq_enable)
 {
 	int rc = 0;
-	uint32_t i = 0;
+	uint32_t i = 0, hw_idx;
 	struct cam_isp_hw_mgr_res     *hw_mgr_res = NULL;
-	struct cam_hw_intf            *hw_intf = NULL;
 	struct cam_isp_resource_node  *rsrc_node = NULL;
+	struct cam_ife_hw_mgr *hw_mgr = ctx->hw_mgr;
 
-	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
-		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			if (!hw_mgr_res->hw_res[i])
-				continue;
+	/* Per CSID enablement will enable for all paths */
+	for (i = 0; i < ctx->num_base; i++) {
+		if (ctx->base[i].hw_type != CAM_ISP_HW_TYPE_CSID)
+			continue;
 
-			hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
-			if (hw_intf->hw_ops.process_cmd) {
-				rc |= hw_intf->hw_ops.process_cmd(
-					hw_intf->hw_priv,
-					CAM_IFE_CSID_SOF_IRQ_DEBUG,
-					&sof_irq_enable,
-					sizeof(sof_irq_enable));
-			}
+		hw_idx = ctx->base[i].idx;
+		if (hw_mgr->csid_devices[hw_idx]) {
+			rc |= hw_mgr->csid_devices[hw_idx]->hw_ops.process_cmd(
+				hw_mgr->csid_devices[hw_idx]->hw_priv,
+				CAM_IFE_CSID_SOF_IRQ_DEBUG,
+				&sof_irq_enable, sizeof(sof_irq_enable));
+			if (rc)
+				CAM_DBG(CAM_ISP,
+					"Failed to set CSID_%u sof irq debug cfg rc: %d",
+					hw_idx, rc);
 		}
 	}
 
+	/* legacy IFE CAMIF */
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_src, list) {
 		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
 			if (!hw_mgr_res->hw_res[i])
