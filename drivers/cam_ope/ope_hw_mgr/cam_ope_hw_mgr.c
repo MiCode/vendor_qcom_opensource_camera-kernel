@@ -1480,7 +1480,6 @@ static bool cam_ope_update_bw_v2(struct cam_ope_hw_mgr *hw_mgr,
 				CAM_OPE_MAX_PER_PATH_VOTES);
 			continue;
 		}
-
 		hw_mgr_clk_info->axi_path[path_index].path_data_type =
 			ctx_data->clk_info.axi_path[i].path_data_type;
 		hw_mgr_clk_info->axi_path[path_index].transac_type =
