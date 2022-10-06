@@ -412,6 +412,7 @@ struct cam_cmd_buf_desc {
  * @framedrop_pattern:          Framedrop pattern
  * @framedrop_period:           Framedrop period
  * @flag:                       Flags for extra information
+ *                              for acquired version 3--> corresponds to context_id
  * @direction:                  Buffer direction: input or output
  * @padding:                    Padding for the structure
  *
@@ -828,6 +829,7 @@ struct cam_dmi_read_desc {
  *                            or DMI read
  *
  * @type                 : Whether Register range read or DMI read
+ * @reserved             : For acquired version 3, this corresponds to context_id
  * @reg_read             : Range of registers to read
  * @dmi_read             : DMI data to read
  */
