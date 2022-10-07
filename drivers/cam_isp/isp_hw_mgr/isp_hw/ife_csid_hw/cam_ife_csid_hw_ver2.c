@@ -4409,7 +4409,7 @@ static int cam_ife_csid_ver2_enable_hw(
 		if (csid_hw->top_info_irq_handle < 1) {
 			CAM_ERR(CAM_ISP, "CSID[%d] Subscribe Top Info Irq fail",
 				csid_hw->hw_intf->hw_idx);
-			return -EINVAL;
+			rc = -EINVAL;
 			goto unsubscribe_top_err;
 		}
 	}

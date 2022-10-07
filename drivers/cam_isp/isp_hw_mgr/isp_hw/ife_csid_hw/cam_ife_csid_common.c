@@ -487,13 +487,13 @@ int cam_ife_csid_cid_reserve(struct cam_ife_csid_cid_data *cid_data,
 	}
 
 	if (i == CAM_IFE_CSID_CID_MAX) {
-		for (j = 0; j < reserve->in_port->num_valid_vc_dt; j++) {
+		for (j = 0; j < reserve->in_port->num_valid_vc_dt; j++)
 			CAM_ERR(CAM_ISP,
 				"CSID[%d] reserve fail vc[%d] dt[%d]",
 				hw_idx, reserve->in_port->vc[j],
 				reserve->in_port->dt[j]);
-			return -EINVAL;
-		}
+
+		return -EINVAL;
 	}
 
 	cid_data[i].cid_cnt++;
