@@ -150,9 +150,19 @@
 #define CAM_SYNC_EVENT_MAX         8
 #define CAM_SYNC_EVENT_REASON_CODE_INDEX  0
 
-/* Fence types supported by the driver */
+/* Fence types supported by the driver, when used in the fence mask it
+ * represents bit position, for masks it needs to be set as
+ * BIT(fence_type) on other occasions use as is.
+ */
 #define CAM_GENERIC_FENCE_TYPE_SYNC_OBJ     0x1
 #define CAM_GENERIC_FENCE_TYPE_DMA_FENCE    0x2
+#define CAM_GENERIC_FENCE_TYPE_SYNX_OBJ     0x3
+
+/* Additional param index for cam_generic_fence_config */
+#define CAM_GENERIC_FENCE_CONFIG_FLAG_PARAM_INDEX BIT(0)
+
+/* Flag fields for cam_generic_fence_config */
+#define CAM_GENERIC_FENCE_FLAG_IS_GLOBAL_SYNX_OBJ BIT(0)
 
 /**
  * struct cam_sync_ev_header - Event header for sync event notification
@@ -251,7 +261,8 @@ struct cam_sync_wait {
  * @fence_sel_mask:   Fence select mask, if set for fence types other than the type
  *                    this input is processed for, the corresponding types would be
  *                    processed as well. For example if one wants to import a sync
- *                    object for an existing dma fence, set mask |= CAM_GENERIC_FENCE_TYPE_SYNC_OBJ,
+ *                    object for an existing dma fence, set bit with index
+ *                    CAM_GENERIC_FENCE_TYPE_SYNC_OBJ in mask,
  *                    a new sync object would be returned in sync_obj linked to an
  *                    existing dma_fence_fd.
  * @sync_obj:         Sync object
@@ -279,6 +290,34 @@ struct cam_generic_fence_config {
 };
 
 /**
+ * struct cam_generic_fence_signal_info - Fence signaling info
+ *
+ * @version:                Struct version
+ * @num_fences_requested:   Number of fences to process
+ * @num_fences_processed:   Number of fences processed by the driver
+ * @fence_handle_type:      Type of the fence signal handle [user handle is expected]
+ * @fence_data_size:        Size of the data pointed to by fence_info_hdl,
+ *                          it should be the consolidated size of
+ *                          total fences to process * size of the corresponding signaling
+ *                          input structure
+ * @fence_info_hdl:         Handle to the fence signal data (synx/dma)
+ * @num_valid_params:       Valid number of params being used
+ * @valid_param_mask:       Mask to indicate the field types in params
+ * @params:                 Additional params
+ */
+struct cam_generic_fence_signal_info {
+	__u32 version;
+	__u32 num_fences_requested;
+	__u32 num_fences_processed;
+	__u32 fence_handle_type;
+	__u32 fence_data_size;
+	__u64 fence_info_hdl;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__s32 params[3];
+};
+
+/**
  * struct cam_dma_fence_signal - DMA fence signaling info
  *
  * @version:          Struct version
@@ -295,6 +334,27 @@ struct cam_dma_fence_signal {
 	__u32 num_valid_params;
 	__u32 valid_param_mask;
 	__s32 params[3];
+};
+
+/**
+ * struct cam_synx_obj_signal - Synx object signaling info
+ *
+ * @version:          Struct version
+ * @synx_obj:         Synx object to be signaled
+ * @status:           Fence status
+ * @reason_code:      Indicates if the operation was successful or not
+ * @num_valid_params: Valid number of params being used
+ * @valid_param_mask: Mask to indicate the field types in params
+ * @params:           Additional params
+ */
+struct cam_synx_obj_signal {
+	__u32 version;
+	__u32 synx_obj;
+	__u32 status;
+	__s32 reason_code;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__s32 params[4];
 };
 
 /**
