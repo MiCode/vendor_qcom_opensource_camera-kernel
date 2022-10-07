@@ -20,7 +20,11 @@
 #include "cam_sync_api.h"
 #include "cam_sync_dma_fence.h"
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#include "cam_sync_synx.h"
+#endif
+
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX) || IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
 #include <synx_api.h>
 #endif
 
@@ -142,6 +146,20 @@ struct sync_dma_fence_info {
 };
 
 /**
+ * struct sync_synx_obj_info - Synx object info associated with this sync obj
+ *
+ * @synx_obj               : Synx object handle
+ * @synx_obj_row_idx       : Index of the row corresponding to this synx obj
+ *                           in the synx obj table
+ * @sync_created_with_synx : If sync obj and synx obj are created together
+ */
+struct sync_synx_obj_info {
+	uint32_t synx_obj;
+	int32_t  synx_obj_row_idx;
+	bool     sync_created_with_synx;
+};
+
+/**
  * struct sync_table_row - Single row of information about a sync object, used
  * for internal book keeping in the sync driver
  *
@@ -159,6 +177,7 @@ struct sync_dma_fence_info {
  * @ref_cnt            : ref count of the number of usage of the fence.
  * @ext_fence_mask     : Mask to indicate associated external fence types
  * @dma_fence_info     : dma fence info if associated
+ * @synx_obj_info      : synx obj info if associated
  */
 struct sync_table_row {
 	char name[CAM_SYNC_OBJ_NAME_LEN];
@@ -176,6 +195,7 @@ struct sync_table_row {
 	atomic_t ref_cnt;
 	unsigned long ext_fence_mask;
 	struct sync_dma_fence_info dma_fence_info;
+	struct sync_synx_obj_info synx_obj_info;
 };
 
 /**

@@ -72,6 +72,7 @@ LINUXINCLUDE +=                                 \
 	-I$(CAMERA_KERNEL_ROOT)/
 # Optional include directories
 ccflags-$(CONFIG_MSM_GLOBAL_SYNX) += -I$(KERNEL_ROOT)/drivers/media/platform/msm/synx
+ccflags-$(CONFIG_MSM_GLOBAL_SYNX_V2) += -I$(KERNEL_ROOT)/drivers/media/platform/msm/synx
 
 # After creating lists, add content of 'ccflags-m' variable to 'ccflags-y' one.
 ccflags-y += ${ccflags-m}
@@ -120,6 +121,7 @@ else
 	ccflags-y += -DCONFIG_CAM_PRESIL=1
 endif
 
+camera-$(CONFIG_MSM_GLOBAL_SYNX_V2) += drivers/cam_sync/cam_sync_synx.o
 camera-$(CONFIG_QCOM_CX_IPEAK) += drivers/cam_utils/cam_cx_ipeak.o
 camera-$(CONFIG_QCOM_BUS_SCALING) += drivers/cam_utils/cam_soc_bus.o
 camera-$(CONFIG_INTERCONNECT_QCOM) += drivers/cam_utils/cam_soc_icc.o

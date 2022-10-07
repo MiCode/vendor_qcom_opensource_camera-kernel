@@ -32,6 +32,24 @@ struct cam_sync_check_for_dma_release {
 };
 
 /**
+ * struct cam_sync_check_for_synx_release -
+ *                          Checks if the synx obj being released
+ *                          was created with the sync obj
+ *
+ * @synx_obj               : Check if synx obj is associated with
+ *                           sync obj
+ * @synx_obj_row_idx       : Get synx obj row idx that is associated with
+ *                           the sync obj
+ * @sync_created_with_synx : Set if the dma fence fd was created
+ *                           with sync obj
+ */
+struct cam_sync_check_for_synx_release {
+	int32_t synx_obj;
+	int32_t synx_obj_row_idx;
+	bool sync_created_with_synx;
+};
+
+/**
  * @brief: Finds an empty row in the sync table and sets its corresponding bit
  * in the bit array
  *
@@ -61,14 +79,16 @@ int cam_sync_init_row(struct sync_table_row *table,
 /**
  * @brief: Function to uninitialize a row in the sync table
  *
- * @param table                          : Pointer to the sync objects table
- * @param idx                            : Index of row to initialize
- * @optional param check_for_dma_release : checks for dma fence release
+ * @param table                           : Pointer to the sync objects table
+ * @param idx                             : Index of row to initialize
+ * @optional param check_for_dma_release  : checks for dma fence release
+ * @optional param check_for_synx_release : checks for synx obj release
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx,
-	struct cam_sync_check_for_dma_release *check_for_dma_release);
+	struct cam_sync_check_for_dma_release *check_for_dma_release,
+	struct cam_sync_check_for_synx_release *check_for_synx_release);
 
 /**
  * @brief: Function to initialize a row in the sync table when the object is a

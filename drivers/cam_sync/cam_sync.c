@@ -10,7 +10,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/debugfs.h>
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX) || IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
 #include <synx_api.h>
 #endif
 #include "cam_sync_util.h"
@@ -49,7 +49,8 @@ static void cam_sync_print_fence_table(void)
 
 static int cam_sync_create_util(
 	int32_t *sync_obj, const char *name,
-	struct cam_dma_fence_create_sync_obj_payload *dma_sync_create_info)
+	struct cam_dma_fence_create_sync_obj_payload *dma_sync_create_info,
+	struct sync_synx_obj_info *synx_obj_sync_create_info)
 {
 	int rc;
 	long idx;
@@ -83,6 +84,21 @@ static int cam_sync_create_util(
 	}
 
 	*sync_obj = idx;
+
+	/* Associate sync obj with synx if any holding sync lock */
+	if (synx_obj_sync_create_info) {
+		row = sync_dev->sync_table + idx;
+		row->synx_obj_info.synx_obj_row_idx =
+			synx_obj_sync_create_info->synx_obj_row_idx;
+		row->synx_obj_info.sync_created_with_synx =
+			synx_obj_sync_create_info->sync_created_with_synx;
+		row->synx_obj_info.synx_obj = synx_obj_sync_create_info->synx_obj;
+
+		set_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask);
+
+		CAM_DBG(CAM_SYNC, "sync_obj: %s[%d] associated with synx_obj: %d",
+			name, *sync_obj, row->synx_obj_info.synx_obj);
+	}
 
 	/* Associate sync obj with dma fence if any holding sync lock */
 	if (dma_sync_create_info) {
@@ -119,7 +135,7 @@ end:
 
 int cam_sync_create(int32_t *sync_obj, const char *name)
 {
-	return cam_sync_create_util(sync_obj, name, NULL);
+	return cam_sync_create_util(sync_obj, name, NULL, NULL);
 }
 
 int cam_sync_register_callback(sync_callback cb_func,
@@ -341,6 +357,9 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 	struct sync_table_row *row = NULL;
 	struct list_head parents_list;
 	int rc = 0;
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+	struct cam_synx_obj_signal signal_synx_obj;
+#endif
 
 	if (sync_obj >= CAM_SYNC_MAX_OBJS || sync_obj <= 0) {
 		CAM_ERR(CAM_SYNC, "Error: Out of range sync obj (0 <= %d < %d)",
@@ -377,6 +396,22 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 				"Error: Failed to signal associated dma fencefd = %d for sync_obj = %s[%d]",
 				row->dma_fence_info.dma_fence_fd, row->name, sync_obj);
 	}
+
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+	/*
+	 * Signal associated synx obj
+	 */
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask)) {
+		signal_synx_obj.status = status;
+		signal_synx_obj.synx_obj = row->synx_obj_info.synx_obj;
+		rc = cam_synx_obj_internal_signal(
+			row->synx_obj_info.synx_obj_row_idx, &signal_synx_obj);
+		if (rc)
+			CAM_ERR(CAM_SYNC,
+				"Error: Failed to signal associated synx obj = %d for sync_obj = %s[%d]",
+				row->synx_obj_info.synx_obj, row->name, sync_obj);
+	}
+#endif
 
 	cam_sync_util_dispatch_signaled_cb(sync_obj, status, event_cause);
 
@@ -492,7 +527,7 @@ int cam_sync_put_obj_ref(int32_t sync_obj)
 
 int cam_sync_destroy(int32_t sync_obj)
 {
-	return cam_sync_deinit_object(sync_dev->sync_table, sync_obj, NULL);
+	return cam_sync_deinit_object(sync_dev->sync_table, sync_obj, NULL, NULL);
 }
 
 int cam_sync_check_valid(int32_t sync_obj)
@@ -939,6 +974,87 @@ end:
 	return rc;
 }
 
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+static int cam_sync_synx_obj_cb(int32_t sync_obj,
+	struct cam_synx_obj_signal_sync_obj *signal_sync_obj)
+{
+	int32_t rc = 0;
+	struct sync_table_row *row = NULL;
+	struct list_head parents_list;
+
+	if (!signal_sync_obj) {
+		CAM_ERR(CAM_SYNC, "Invalid signal info args");
+		return -EINVAL;
+	}
+
+	/* Validate sync object range */
+	if (!(sync_obj > 0 && sync_obj < CAM_SYNC_MAX_OBJS)) {
+		CAM_ERR(CAM_SYNC, "Invalid sync obj: %d", sync_obj);
+		return -EINVAL;
+	}
+
+	spin_lock_bh(&sync_dev->row_spinlocks[sync_obj]);
+	row = sync_dev->sync_table + sync_obj;
+
+	/* Validate if sync obj has a synx obj association */
+	if (!test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask)) {
+		CAM_ERR(CAM_SYNC,
+			"sync obj = %d[%s] has no associated synx obj ext_fence_mask = 0x%x",
+			sync_obj, row->name, row->ext_fence_mask);
+		rc = -EINVAL;
+		goto end;
+	}
+
+	/* Validate if we are signaling the right sync obj based on synx handle */
+	if (row->synx_obj_info.synx_obj != signal_sync_obj->synx_obj) {
+		CAM_ERR(CAM_SYNC,
+			"sync obj: %d[%s] is associated with a different synx obj: %d, signaling for synx obj: %d",
+			sync_obj, row->name, row->synx_obj_info.synx_obj,
+			signal_sync_obj->synx_obj);
+		rc = -EINVAL;
+		goto end;
+	}
+
+	rc = cam_sync_signal_validate_util(sync_obj, signal_sync_obj->status);
+	if (rc) {
+		CAM_ERR(CAM_SYNC,
+			"Error: Failed to validate signal info for sync_obj = %d[%s] with status = %d rc = %d",
+			sync_obj, row->name, signal_sync_obj->status, rc);
+		goto end;
+	}
+
+	/* Adding synx reference on sync */
+	atomic_inc(&row->ref_cnt);
+	if (!atomic_dec_and_test(&row->ref_cnt)) {
+		CAM_DBG(CAM_SYNC, "Sync = %d[%s] fence still has references, synx_hdl = %d",
+			sync_obj, row->name, signal_sync_obj->synx_obj);
+		goto end;
+	}
+
+	row->state = signal_sync_obj->status;
+
+	cam_sync_util_dispatch_signaled_cb(sync_obj, signal_sync_obj->status, 0);
+
+	INIT_LIST_HEAD(&parents_list);
+	list_splice_init(&row->parents_list, &parents_list);
+	spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
+
+	if (list_empty(&parents_list))
+		return 0;
+
+	cam_sync_signal_parent_util(signal_sync_obj->status, 0x0, &parents_list);
+	CAM_DBG(CAM_SYNC,
+		"Successfully signaled sync obj = %d with status = %d via synx obj = %d signal callback",
+		sync_obj, signal_sync_obj->status, signal_sync_obj->synx_obj);
+
+	return 0;
+
+end:
+	spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
+	return rc;
+}
+#endif
+
 static int cam_generic_fence_alloc_validate_input_info_util(
 	struct cam_generic_fence_cmd_args    *fence_cmd_args,
 	struct cam_generic_fence_input_info **fence_input_info)
@@ -1148,7 +1264,7 @@ static int cam_generic_fence_handle_dma_import(
 
 		/* Create new sync object and associate dma fence */
 		rc = cam_sync_create_util(&fence_cfg->sync_obj, fence_cfg->name,
-			&dma_sync_create);
+			&dma_sync_create, NULL);
 		if (rc) {
 			fence_cfg->reason_code = rc;
 
@@ -1164,7 +1280,8 @@ static int cam_generic_fence_handle_dma_import(
 			CAM_ERR(CAM_DMA_FENCE,
 				"Failed to register cb for dma fence fd: %d sync_obj: %d rc: %d",
 				fence_cfg->dma_fence_fd, fence_cfg->sync_obj, rc);
-			cam_sync_deinit_object(sync_dev->sync_table, fence_cfg->sync_obj, NULL);
+			cam_sync_deinit_object(sync_dev->sync_table, fence_cfg->sync_obj,
+				NULL, NULL);
 			fence_cfg->reason_code = rc;
 			goto out_copy;
 		}
@@ -1234,6 +1351,472 @@ static int cam_generic_fence_process_dma_fence_cmd(
 	return rc;
 }
 
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+static int cam_generic_fence_validate_signal_input_info_util(
+	int32_t fence_type,
+	struct cam_generic_fence_cmd_args *fence_cmd_args,
+	struct cam_generic_fence_signal_info **fence_signal_info,
+	void **fence_signal_data)
+{
+	int rc = 0;
+	struct cam_generic_fence_signal_info *signal_info = NULL;
+	void *signal_data;
+	uint32_t num_fences;
+	size_t expected_size;
+
+	*fence_signal_info = NULL;
+	*fence_signal_data = NULL;
+
+	if (fence_cmd_args->input_data_size <
+		sizeof(struct cam_generic_fence_signal_info)) {
+		CAM_ERR(CAM_SYNC, "Size is invalid expected: 0x%llx actual: 0x%llx",
+			sizeof(struct cam_generic_fence_signal_info),
+			fence_cmd_args->input_data_size);
+		return -EINVAL;
+	}
+
+	signal_info = memdup_user(u64_to_user_ptr(fence_cmd_args->input_handle),
+		fence_cmd_args->input_data_size);
+	if (IS_ERR_OR_NULL(signal_info)) {
+		CAM_ERR(CAM_SYNC, "memdup failed for hdl: %d size: 0x%x",
+			fence_cmd_args->input_handle, fence_cmd_args->input_data_size);
+		return -ENOMEM;
+	}
+
+	/* Validate num fences */
+	num_fences = signal_info->num_fences_requested;
+	if ((num_fences == 0) || (num_fences > CAM_GENERIC_FENCE_BATCH_MAX)) {
+		CAM_ERR(CAM_SYNC, "Invalid number of fences: %u for batching",
+			num_fences);
+		rc = -EINVAL;
+		goto free_mem;
+	}
+
+	if (signal_info->fence_handle_type != CAM_HANDLE_USER_POINTER) {
+		CAM_ERR(CAM_SYNC, "Invalid signal handle type: %d",
+			signal_info->fence_handle_type);
+		rc = -EINVAL;
+		goto free_mem;
+	}
+
+	/* Validate sizes */
+	switch (fence_type) {
+	case CAM_GENERIC_FENCE_TYPE_SYNC_OBJ:
+		expected_size = sizeof(struct cam_sync_signal);
+		break;
+	case CAM_GENERIC_FENCE_TYPE_SYNX_OBJ:
+		expected_size = sizeof(struct cam_synx_obj_signal);
+		break;
+	case CAM_GENERIC_FENCE_TYPE_DMA_FENCE:
+		expected_size = sizeof(struct cam_dma_fence_signal);
+		break;
+	default:
+		CAM_ERR(CAM_SYNC, "Unsupported fence type: %u", fence_type);
+		rc = -EINVAL;
+		goto free_mem;
+	}
+
+	if ((signal_info->fence_data_size) < (expected_size * num_fences)) {
+		CAM_ERR(CAM_SYNC, "Invalid input size expected: 0x%x actual: 0x%x for fences: %u",
+			(expected_size * num_fences), signal_info->fence_data_size, num_fences);
+		rc = -EINVAL;
+		goto free_mem;
+	}
+
+	signal_data = memdup_user(u64_to_user_ptr(signal_info->fence_info_hdl),
+		signal_info->fence_data_size);
+	if (IS_ERR_OR_NULL(signal_data)) {
+		CAM_ERR(CAM_SYNC, "memdup failed for hdl: %d size: 0x%x",
+			signal_info->fence_info_hdl, signal_info->fence_data_size);
+		rc = -ENOMEM;
+		goto free_mem;
+	}
+
+	*fence_signal_info = signal_info;
+	*fence_signal_data = signal_data;
+	return rc;
+
+free_mem:
+	kfree(signal_info);
+	return rc;
+}
+
+static void cam_generic_fence_free_signal_input_info_util(
+	struct cam_generic_fence_signal_info **fence_signal_info,
+	void **fence_signal_data)
+{
+	void *signal_data = *fence_signal_data;
+	struct cam_generic_fence_signal_info *fence_input = *fence_signal_info;
+
+	kfree(signal_data);
+	kfree(fence_input);
+
+	*fence_signal_info = NULL;
+	*fence_signal_data = NULL;
+}
+
+static int cam_generic_fence_config_parse_params(
+	struct cam_generic_fence_config *fence_cfg,
+	int32_t requested_param_mask, int32_t *result)
+{
+	uint32_t index = 0, num_entries;
+
+	if (!result) {
+		CAM_ERR(CAM_SYNC, "Invalid result hdl : %p", result);
+		return -EINVAL;
+	}
+
+	/* Assign to 0 by default */
+	*result = 0;
+
+	if (!fence_cfg->num_valid_params || !requested_param_mask) {
+		CAM_DBG(CAM_SYNC,
+			"No params configured num_valid = %d requested_mask = 0x%x",
+			fence_cfg->num_valid_params, requested_param_mask);
+		return 0;
+	}
+
+	if (!(fence_cfg->valid_param_mask & requested_param_mask)) {
+		CAM_DBG(CAM_SYNC,
+			"Requested parameter not set in additional param mask expecting: 0x%x actual: 0x%x",
+			requested_param_mask, fence_cfg->valid_param_mask);
+		return 0;
+	}
+
+	index = ffs(requested_param_mask) - 1;
+	num_entries = ARRAY_SIZE(fence_cfg->params);
+	if (index >= num_entries) {
+		CAM_DBG(CAM_SYNC,
+			"Obtained index %u from mask: 0x%x num_param_entries: %u, index exceeding max",
+			index, requested_param_mask, num_entries);
+		return 0;
+	}
+
+	*result = fence_cfg->params[index];
+	return 0;
+}
+
+static int cam_generic_fence_handle_synx_create(
+	struct cam_generic_fence_cmd_args *fence_cmd_args)
+{
+	int rc = 0, i;
+	int32_t row_idx, fence_flag;
+	struct cam_generic_fence_input_info *fence_input_info = NULL;
+	struct cam_generic_fence_config *fence_cfg = NULL;
+
+	rc = cam_generic_fence_alloc_validate_input_info_util(fence_cmd_args, &fence_input_info);
+	if (rc || !fence_input_info) {
+		CAM_ERR(CAM_SYNX,
+			"Fence input info validation failed rc: %d fence_input_info: %pK",
+			rc, fence_input_info);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
+		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_input_info->num_fences_processed++;
+		fence_cfg->reason_code = 0;
+		fence_flag = 0;
+
+		cam_generic_fence_config_parse_params(fence_cfg,
+			CAM_GENERIC_FENCE_CONFIG_FLAG_PARAM_INDEX, &fence_flag);
+
+		rc = cam_synx_obj_create(fence_cfg->name,
+			fence_flag, &fence_cfg->synx_obj, &row_idx);
+		if (rc) {
+			CAM_ERR(CAM_SYNX,
+				"Failed to create synx fence at index: %d rc: %d num fences [requested: %u processed: %u]",
+				i, rc, fence_input_info->num_fences_requested,
+				fence_input_info->num_fences_processed);
+			fence_cfg->reason_code = rc;
+			goto out_copy;
+		}
+
+		CAM_DBG(CAM_SYNX,
+			"Created synx fence @ i: %d synx_obj: %d[%s] num fences [requested: %u processed: %u] ",
+			i, fence_cfg->synx_obj, fence_cfg->name,
+			fence_input_info->num_fences_requested,
+			fence_input_info->num_fences_processed);
+	}
+
+out_copy:
+	if (copy_to_user(u64_to_user_ptr(fence_cmd_args->input_handle),
+		fence_input_info, fence_cmd_args->input_data_size)) {
+		CAM_ERR(CAM_SYNX, "copy to user failed hdl: %d size: 0x%x",
+			fence_cmd_args->input_handle, fence_cmd_args->input_data_size);
+		rc = -EFAULT;
+	}
+
+	cam_generic_fence_free_input_info_util(&fence_input_info);
+	return rc;
+}
+
+static int cam_generic_fence_handle_synx_release(
+	struct cam_generic_fence_cmd_args *fence_cmd_args)
+{
+	int rc = 0, i;
+	bool failed = false;
+	struct cam_generic_fence_input_info *fence_input_info = NULL;
+	struct cam_generic_fence_config *fence_cfg = NULL;
+	struct cam_synx_obj_release_params synx_release_params;
+
+	rc = cam_generic_fence_alloc_validate_input_info_util(fence_cmd_args, &fence_input_info);
+	if (rc || !fence_input_info) {
+		CAM_ERR(CAM_SYNX,
+			"Fence input info validation failed rc: %d fence_input_info: %pK",
+			rc, fence_input_info);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
+		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_input_info->num_fences_processed++;
+		fence_cfg->reason_code = 0;
+
+		synx_release_params.use_row_idx = false;
+		synx_release_params.u.synx_obj = fence_cfg->synx_obj;
+
+		rc = cam_synx_obj_release(&synx_release_params);
+		if (rc) {
+			CAM_ERR(CAM_SYNX,
+				"Failed to release synx object at index: %d rc: %d num fences [requested: %u processed: %u]",
+				i, rc, fence_input_info->num_fences_requested,
+				fence_input_info->num_fences_processed);
+			fence_cfg->reason_code = rc;
+			/* Continue to release other fences, but mark the call as failed */
+			failed = true;
+			continue;
+		}
+
+		CAM_DBG(CAM_SYNX,
+			"Released synx object @ i: %d handle: %d num fences [requested: %u processed: %u]",
+			i, fence_cfg->synx_obj,
+			fence_input_info->num_fences_requested,
+			fence_input_info->num_fences_processed);
+	}
+
+	if (failed)
+		rc = -ENOMSG;
+
+	if (copy_to_user(u64_to_user_ptr(fence_cmd_args->input_handle),
+		fence_input_info, fence_cmd_args->input_data_size)) {
+		CAM_ERR(CAM_SYNX, "copy to user failed hdl: %d size: 0x%x",
+			fence_cmd_args->input_handle, fence_cmd_args->input_data_size);
+		rc = -EFAULT;
+	}
+
+	cam_generic_fence_free_input_info_util(&fence_input_info);
+	return rc;
+}
+
+static int cam_sync_synx_associate_obj(int32_t sync_obj, uint32_t synx_obj,
+	int32_t synx_obj_row_idx, bool *is_sync_obj_signaled)
+{
+	int rc = 0;
+	struct sync_table_row *row = NULL;
+	struct cam_synx_obj_signal signal_synx_obj;
+
+	rc = cam_sync_check_valid(sync_obj);
+	if (rc)
+		return rc;
+
+	row = sync_dev->sync_table + sync_obj;
+	spin_lock(&sync_dev->row_spinlocks[sync_obj]);
+	if (row->state != CAM_SYNC_STATE_ACTIVE) {
+		signal_synx_obj.status = row->state;
+		signal_synx_obj.synx_obj = synx_obj;
+		*is_sync_obj_signaled = true;
+		rc = cam_synx_obj_signal_obj(&signal_synx_obj);
+	} else {
+		row->synx_obj_info.synx_obj_row_idx = synx_obj_row_idx;
+		row->synx_obj_info.sync_created_with_synx = false;
+		row->synx_obj_info.synx_obj = synx_obj;
+		set_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask);
+		CAM_DBG(CAM_SYNX, "sync_obj: %s[%d] associated with synx_obj: %d",
+			row->name, sync_obj, row->synx_obj_info.synx_obj);
+	}
+
+	spin_unlock(&sync_dev->row_spinlocks[sync_obj]);
+
+	return rc;
+}
+
+static int cam_generic_fence_handle_synx_import(
+	struct cam_generic_fence_cmd_args *fence_cmd_args)
+{
+	int32_t rc = 0, i, synx_obj_row_idx;
+	struct sync_synx_obj_info synx_sync_create;
+	struct cam_generic_fence_input_info *fence_input_info = NULL;
+	struct cam_generic_fence_config *fence_cfg = NULL;
+	bool is_sync_obj_signaled = false;
+	bool is_sync_obj_created = false;
+
+	rc = cam_generic_fence_alloc_validate_input_info_util(fence_cmd_args, &fence_input_info);
+	if (rc || !fence_input_info) {
+		CAM_ERR(CAM_SYNX,
+			"Fence input info validation failed rc: %d fence_input_info: %pK",
+			rc, fence_input_info);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
+		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_input_info->num_fences_processed++;
+		fence_cfg->reason_code = 0;
+		is_sync_obj_signaled = false;
+		is_sync_obj_created = false;
+
+		/* Check if synx handle is for a valid synx obj */
+		rc = cam_synx_obj_find_obj_in_table(fence_cfg->synx_obj,
+			&synx_obj_row_idx);
+		if (rc) {
+			CAM_ERR(CAM_SYNX,
+				"Invalid synx obj for handle: %d", fence_cfg->synx_obj);
+			fence_cfg->reason_code = -EINVAL;
+			goto out_copy;
+		}
+
+
+		if ((fence_cfg->sync_obj > 0) && (fence_cfg->sync_obj < CAM_SYNC_MAX_OBJS)) {
+			/* Associate synx object with existing sync object */
+			rc = cam_sync_synx_associate_obj(fence_cfg->sync_obj,
+				fence_cfg->synx_obj, synx_obj_row_idx,
+				&is_sync_obj_signaled);
+		} else {
+			/* Create new sync object and associate synx object */
+			synx_sync_create.sync_created_with_synx = false;
+			synx_sync_create.synx_obj = fence_cfg->synx_obj;
+			synx_sync_create.synx_obj_row_idx = synx_obj_row_idx;
+
+			rc = cam_sync_create_util(&fence_cfg->sync_obj, fence_cfg->name,
+				NULL, &synx_sync_create);
+			is_sync_obj_created = true;
+		}
+
+		if (rc) {
+			fence_cfg->reason_code = rc;
+			goto out_copy;
+		}
+
+		if (!is_sync_obj_signaled) {
+			/* Register a cb for synx_obj */
+			rc = cam_synx_obj_register_cb(&fence_cfg->sync_obj,
+				synx_obj_row_idx, cam_sync_synx_obj_cb);
+			if (rc) {
+				CAM_ERR(CAM_SYNX,
+					"Failed to register cb for synx_obj: %d sync_obj: %d rc: %d",
+					fence_cfg->synx_obj, fence_cfg->sync_obj, rc);
+				if (is_sync_obj_created)
+					cam_sync_deinit_object(sync_dev->sync_table,
+						fence_cfg->sync_obj, NULL, NULL);
+				fence_cfg->reason_code = rc;
+				goto out_copy;
+			}
+		}
+
+		CAM_DBG(CAM_SYNX,
+			"synx_obj handle = %d imported for dma fence fd: %d sync_obj = %d[%s] num fences [requested: %u processed: %u]",
+			fence_cfg->synx_obj, fence_cfg->dma_fence_fd,
+			fence_cfg->sync_obj, fence_cfg->name,
+			fence_input_info->num_fences_requested,
+			fence_input_info->num_fences_processed);
+	}
+
+out_copy:
+	if (copy_to_user(u64_to_user_ptr(fence_cmd_args->input_handle),
+		fence_input_info, fence_cmd_args->input_data_size)) {
+		rc = -EFAULT;
+		CAM_ERR(CAM_SYNX, "copy to user failed hdl: %d size: 0x%x",
+			fence_cmd_args->input_handle, fence_cmd_args->input_data_size);
+	}
+
+	cam_generic_fence_free_input_info_util(&fence_input_info);
+	return rc;
+}
+
+static int cam_generic_fence_handle_synx_signal(
+	struct cam_generic_fence_cmd_args *fence_cmd_args)
+{
+	int32_t rc = 0, i;
+	struct cam_generic_fence_signal_info *fence_signal_info;
+	struct cam_synx_obj_signal *synx_signal_info;
+
+	rc = cam_generic_fence_validate_signal_input_info_util(
+		CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, fence_cmd_args,
+		&fence_signal_info, (void **)&synx_signal_info);
+	if (rc || !fence_signal_info || !synx_signal_info) {
+		CAM_ERR(CAM_SYNX,
+			"Fence input signal info validation failed rc: %d fence_input_info: %pK synx_signal_info: %pK",
+			rc, fence_signal_info, synx_signal_info);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < fence_signal_info->num_fences_requested; i++) {
+		fence_signal_info->num_fences_processed++;
+
+		rc = cam_synx_obj_signal_obj(&synx_signal_info[i]);
+		if (rc) {
+			CAM_ERR(CAM_SYNX,
+				"Failed to signal for synx_obj: %d, rc: %d, status : %d",
+				synx_signal_info[i].synx_obj, rc,
+				synx_signal_info[i].status);
+		}
+
+		synx_signal_info[i].reason_code = rc;
+	}
+
+	if (copy_to_user(u64_to_user_ptr(fence_signal_info->fence_info_hdl), synx_signal_info,
+		fence_signal_info->fence_data_size)) {
+		rc = -EFAULT;
+		CAM_ERR(CAM_SYNX, "copy to user for signal data failed hdl: %d size: 0x%x",
+			fence_cmd_args->input_handle,
+			(sizeof(struct cam_synx_obj_signal) *
+			fence_signal_info->num_fences_requested));
+		goto end;
+	}
+
+	if (copy_to_user(u64_to_user_ptr(fence_cmd_args->input_handle),
+		fence_signal_info, sizeof(struct cam_generic_fence_signal_info))) {
+		rc = -EFAULT;
+		CAM_ERR(CAM_SYNX, "copy to user failed hdl: %d size: 0x%x",
+			fence_cmd_args->input_handle,
+			sizeof(struct cam_generic_fence_signal_info));
+}
+
+end:
+	cam_generic_fence_free_signal_input_info_util(&fence_signal_info,
+		(void **)&synx_signal_info);
+	return rc;
+}
+
+static int cam_generic_fence_process_synx_obj_cmd(
+	uint32_t id,
+	struct cam_generic_fence_cmd_args *fence_cmd_args)
+{
+	int rc = -EINVAL;
+
+	switch (id) {
+	case CAM_GENERIC_FENCE_CREATE:
+		rc = cam_generic_fence_handle_synx_create(fence_cmd_args);
+		break;
+	case CAM_GENERIC_FENCE_RELEASE:
+		rc = cam_generic_fence_handle_synx_release(fence_cmd_args);
+		break;
+	case CAM_GENERIC_FENCE_IMPORT:
+		rc = cam_generic_fence_handle_synx_import(fence_cmd_args);
+		break;
+	case CAM_GENERIC_FENCE_SIGNAL:
+		rc = cam_generic_fence_handle_synx_signal(fence_cmd_args);
+		break;
+	default:
+		CAM_ERR(CAM_SYNX, "IOCTL cmd: %u not supported for synx object", id);
+		break;
+	}
+
+	return rc;
+}
+#endif
+
 static int cam_generic_fence_handle_sync_create(
 	struct cam_generic_fence_cmd_args *fence_cmd_args)
 {
@@ -1244,6 +1827,14 @@ static int cam_generic_fence_handle_sync_create(
 	struct cam_dma_fence_create_sync_obj_payload dma_sync_create;
 	struct cam_generic_fence_input_info *fence_input_info = NULL;
 	struct cam_generic_fence_config *fence_cfg = NULL;
+	bool synx_obj_created;
+	struct sync_synx_obj_info synx_obj_create;
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+	int32_t fence_flag;
+	int32_t synx_obj_row_idx;
+	struct cam_synx_obj_release_params synx_release_params;
+	struct dma_fence *dma_fence_ptr;
+#endif
 
 	rc = cam_generic_fence_alloc_validate_input_info_util(fence_cmd_args, &fence_input_info);
 	if (rc || !fence_input_info) {
@@ -1260,6 +1851,7 @@ static int cam_generic_fence_handle_sync_create(
 
 		/* Reset flag */
 		dma_fence_created = false;
+		synx_obj_created = false;
 
 		fence_sel_mask = fence_cfg->fence_sel_mask;
 		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &fence_sel_mask)) {
@@ -1279,20 +1871,76 @@ static int cam_generic_fence_handle_sync_create(
 			dma_fence_created = true;
 		}
 
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+		/* Create a synx object */
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &fence_sel_mask)) {
+			if (dma_fence_created) {
+				dma_fence_ptr = cam_dma_fence_get_fence_from_fd(
+					dma_sync_create.fd, &dma_fence_row_idx);
+				rc = cam_synx_obj_import_dma_fence(fence_cfg->name,
+					fence_cfg->params[0], dma_fence_ptr,
+					&fence_cfg->synx_obj, &synx_obj_row_idx);
+			} else {
+				cam_generic_fence_config_parse_params(fence_cfg,
+					CAM_GENERIC_FENCE_CONFIG_FLAG_PARAM_INDEX, &fence_flag);
+				rc = cam_synx_obj_create(fence_cfg->name,
+					fence_flag, &fence_cfg->synx_obj,
+					&synx_obj_row_idx);
+			}
+
+			if (rc) {
+				CAM_ERR(CAM_SYNC,
+					"Failed to create/import synx obj at index: %d rc: %d num_fences: %u",
+					i, rc, fence_input_info->num_fences_requested);
+
+				/* Release dma fence */
+				if (dma_fence_created) {
+					release_params.use_row_idx = true;
+					release_params.u.dma_row_idx = dma_fence_row_idx;
+
+					cam_dma_fence_release(&release_params);
+				}
+				/* Release synx obj */
+				if (synx_obj_created) {
+					synx_release_params.use_row_idx = true;
+					synx_release_params.u.synx_row_idx = synx_obj_row_idx;
+
+					cam_synx_obj_release(&synx_release_params);
+				}
+				goto out_copy;
+			}
+
+			synx_obj_create.sync_created_with_synx = true;
+			synx_obj_create.synx_obj = fence_cfg->synx_obj;
+			synx_obj_create.synx_obj_row_idx = synx_obj_row_idx;
+			synx_obj_created = true;
+		}
+#endif
 		rc = cam_sync_create_util(&fence_cfg->sync_obj, fence_cfg->name,
-			(dma_fence_created ? &dma_sync_create : NULL));
+			(dma_fence_created ? &dma_sync_create : NULL),
+			(synx_obj_created ? &synx_obj_create : NULL));
 		if (rc) {
 			fence_cfg->reason_code = rc;
+
+			CAM_ERR(CAM_SYNC,
+				"Failed to create sync obj at index: %d rc: %d num_fences: %u",
+				i, rc, fence_input_info->num_fences_requested);
+			/* Release dma fence */
 			if (dma_fence_created) {
 				release_params.use_row_idx = true;
 				release_params.u.dma_row_idx = dma_fence_row_idx;
 
 				cam_dma_fence_release(&release_params);
 			}
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+			/* Release synx obj */
+			if (synx_obj_created) {
+				synx_release_params.use_row_idx = true;
+				synx_release_params.u.synx_row_idx = synx_obj_row_idx;
 
-			CAM_ERR(CAM_SYNC,
-				"Failed to create sync obj at index: %d rc: %d num_fences: %u",
-				i, rc, fence_input_info->num_fences_requested);
+				cam_synx_obj_release(&synx_release_params);
+			}
+#endif
 			goto out_copy;
 		}
 
@@ -1305,19 +1953,61 @@ static int cam_generic_fence_handle_sync_create(
 					"Failed to register cb for dma fence fd: %d sync_obj: %d rc: %d",
 					fence_cfg->dma_fence_fd, fence_cfg->sync_obj, rc);
 
-				/* Destroy sync obj */
-				cam_sync_deinit_object(
-					sync_dev->sync_table, fence_cfg->sync_obj, NULL);
-
-				/* Release dma fence */
-				release_params.use_row_idx = true;
-				release_params.u.dma_row_idx = dma_fence_row_idx;
-				cam_dma_fence_release(&release_params);
-
 				fence_cfg->reason_code = rc;
+				/* Destroy sync obj */
+				cam_sync_deinit_object(sync_dev->sync_table, fence_cfg->sync_obj,
+					NULL, NULL);
+				/* Release dma fence */
+				if (dma_fence_created) {
+					release_params.use_row_idx = true;
+					release_params.u.dma_row_idx = dma_fence_row_idx;
+
+					cam_dma_fence_release(&release_params);
+				}
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+				/* Release synx obj */
+				if (synx_obj_created) {
+					synx_release_params.use_row_idx = true;
+					synx_release_params.u.synx_row_idx = synx_obj_row_idx;
+
+					cam_synx_obj_release(&synx_release_params);
+				}
+#endif
 				goto out_copy;
 			}
 		}
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+		/* Register synx object callback */
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &fence_sel_mask)) {
+			rc = cam_synx_obj_register_cb(&fence_cfg->sync_obj,
+				synx_obj_row_idx, cam_sync_synx_obj_cb);
+			if (rc) {
+				CAM_ERR(CAM_SYNC,
+					"Failed to register cb for synx_obj: %d sync_obj: %d rc: %d",
+					fence_cfg->synx_obj, fence_cfg->sync_obj, rc);
+
+				fence_cfg->reason_code = rc;
+				/* Destroy sync obj */
+				cam_sync_deinit_object(sync_dev->sync_table, fence_cfg->sync_obj,
+					NULL, NULL);
+				/* Release dma fence */
+				if (dma_fence_created) {
+					release_params.use_row_idx = true;
+					release_params.u.dma_row_idx = dma_fence_row_idx;
+
+					cam_dma_fence_release(&release_params);
+				}
+				/* Release synx obj */
+				if (synx_obj_created) {
+					synx_release_params.use_row_idx = true;
+					synx_release_params.u.synx_row_idx = synx_obj_row_idx;
+
+					cam_synx_obj_release(&synx_release_params);
+				}
+				goto out_copy;
+			}
+		}
+#endif
 
 		CAM_DBG(CAM_SYNC,
 			"Created sync_obj = %d[%s] with fence_sel_mask: 0x%x dma_fence_fd: %d num fences [requested: %u processed: %u]",
@@ -1349,6 +2039,10 @@ static int cam_generic_fence_handle_sync_release(
 	struct cam_dma_fence_release_params release_params;
 	struct cam_generic_fence_input_info *fence_input_info = NULL;
 	struct cam_generic_fence_config *fence_cfg = NULL;
+	struct cam_sync_check_for_synx_release check_for_synx_release;
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+	struct cam_synx_obj_release_params synx_release_params;
+#endif
 
 	rc = cam_generic_fence_alloc_validate_input_info_util(fence_cmd_args, &fence_input_info);
 	if (rc || !fence_input_info) {
@@ -1365,9 +2059,11 @@ static int cam_generic_fence_handle_sync_release(
 		fence_cfg->reason_code = 0;
 		check_for_dma_release.sync_created_with_dma = false;
 		check_for_dma_release.dma_fence_fd = fence_cfg->dma_fence_fd;
+		check_for_synx_release.sync_created_with_synx = false;
+		check_for_synx_release.synx_obj = fence_cfg->synx_obj;
 
 		rc = cam_sync_deinit_object(sync_dev->sync_table, fence_cfg->sync_obj,
-			&check_for_dma_release);
+			&check_for_dma_release, &check_for_synx_release);
 		if (rc) {
 			fence_cfg->reason_code = rc;
 			failed = true;
@@ -1402,10 +2098,38 @@ static int cam_generic_fence_handle_sync_release(
 			}
 		}
 
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+		/* Release associated synx obj */
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &fence_sel_mask)) {
+			if (!check_for_synx_release.sync_created_with_synx) {
+				CAM_ERR(CAM_SYNC,
+					"Failed to release synx_obj: %d with sync_obj: %d, not created together",
+					fence_cfg->synx_obj, fence_cfg->sync_obj);
+				failed = true;
+				fence_cfg->reason_code = -EPERM;
+				continue;
+			}
+
+			synx_release_params.use_row_idx = true;
+			synx_release_params.u.synx_row_idx =
+				check_for_synx_release.synx_obj_row_idx;
+			rc = cam_synx_obj_release(&synx_release_params);
+			if (rc) {
+				CAM_ERR(CAM_SYNC,
+					"Failed to destroy synx_obj at index: %d rc: %d num fences [requested: %u processed: %u]",
+					i, rc, fence_input_info->num_fences_requested,
+					fence_input_info->num_fences_processed);
+				fence_cfg->reason_code = rc;
+				failed = true;
+				continue;
+			}
+		}
+#endif
+
 		CAM_DBG(CAM_SYNC,
-			"Released sync_obj = %d[%s] with fence_sel_mask: 0x%x dma_fence_fd: %d  num fences [requested: %u processed: %u]",
+			"Released sync_obj = %d[%s] with fence_sel_mask: 0x%x dma_fence_fd: %d synx_obj: %d num fences [requested: %u processed: %u]",
 			fence_cfg->sync_obj, fence_cfg->name,
-			fence_cfg->fence_sel_mask, fence_cfg->dma_fence_fd,
+			fence_cfg->fence_sel_mask, fence_cfg->dma_fence_fd, fence_cfg->synx_obj,
 			fence_input_info->num_fences_requested,
 			fence_input_info->num_fences_processed);
 	}
@@ -1483,6 +2207,11 @@ static int cam_generic_fence_parser(
 	case CAM_GENERIC_FENCE_TYPE_DMA_FENCE:
 		rc = cam_generic_fence_process_dma_fence_cmd(k_ioctl->id, &fence_cmd_args);
 		break;
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+	case CAM_GENERIC_FENCE_TYPE_SYNX_OBJ:
+		rc = cam_generic_fence_process_synx_obj_cmd(k_ioctl->id, &fence_cmd_args);
+		break;
+#endif
 	default:
 		rc = -EINVAL;
 		CAM_ERR(CAM_SYNC, "fence type: 0x%x handling not supported",
@@ -1658,6 +2387,10 @@ static int cam_sync_close(struct file *filep)
 
 	/* Clean dma fence table */
 	cam_dma_fence_close();
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+	/* Clean synx obj table */
+	cam_synx_obj_close();
+#endif
 	mutex_unlock(&sync_dev->table_lock);
 
 	spin_lock_bh(&sync_dev->cam_sync_eventq_lock);
@@ -1976,7 +2709,15 @@ static int cam_sync_component_bind(struct device *dev,
 
 	trigger_cb_without_switch = false;
 	cam_sync_create_debugfs();
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+	/* Initialize synx obj driver */
+	rc = cam_synx_obj_driver_init();
+	if (rc) {
+		CAM_ERR(CAM_SYNC,
+		"Synx obj driver initialization failed rc: %d", rc);
+		goto dma_driver_deinit;
+	}
+#elif IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
 	CAM_DBG(CAM_SYNC, "Registering with synx driver");
 	cam_sync_configure_synx_obj(&sync_dev->params);
 	rc = cam_sync_register_synx_bind_ops(&sync_dev->params);
@@ -1986,7 +2727,7 @@ static int cam_sync_component_bind(struct device *dev,
 	CAM_DBG(CAM_SYNC, "Component bound successfully");
 	return rc;
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX) || IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
 dma_driver_deinit:
 	cam_dma_fence_driver_deinit();
 #endif
@@ -2012,7 +2753,9 @@ static void cam_sync_component_unbind(struct device *dev,
 
 	v4l2_device_unregister(sync_dev->vdev->v4l2_dev);
 	cam_sync_media_controller_cleanup(sync_dev);
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+	cam_synx_obj_driver_deinit();
+#elif IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
 	cam_sync_unregister_synx_bind_ops(&sync_dev->params);
 #endif
 	video_unregister_device(sync_dev->vdev);
