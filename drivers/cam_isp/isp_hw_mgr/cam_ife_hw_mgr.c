@@ -12403,6 +12403,41 @@ end:
 	return rc;
 }
 
+static int cam_hw_mgr_reset_out_of_sync_cnt(
+	struct cam_ife_hw_mgr_ctx *ife_ctx)
+{
+	int                                           rc = -EINVAL;
+	uint32_t                                      i;
+	struct cam_isp_hw_mgr_res                    *hw_mgr_res;
+	struct cam_hw_intf                           *hw_intf;
+	struct cam_csid_reset_out_of_sync_count_args  args;
+
+	list_for_each_entry(hw_mgr_res,
+		&ife_ctx->res_list_ife_csid, list) {
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			if (!hw_mgr_res->hw_res[i])
+				continue;
+
+			hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
+			if (hw_intf->hw_ops.process_cmd) {
+				args.node_res =
+					hw_mgr_res->hw_res[i];
+
+				rc = hw_intf->hw_ops.process_cmd(
+					hw_intf->hw_priv,
+					CAM_IFE_CSID_RESET_OUT_OF_SYNC_CNT,
+					&args,
+					sizeof(args));
+				if (rc)
+					CAM_ERR(CAM_ISP,
+						"Failed to reset out of sync cnt");
+			}
+		}
+	}
+
+	return rc;
+}
+
 static void *cam_ife_mgr_user_dump_stream_info(
 	void *dump_struct, uint8_t *addr_ptr)
 {
@@ -13672,6 +13707,8 @@ static int cam_ife_hw_mgr_handle_hw_sof(
 				&sof_done_event_data.boot_time, NULL);
 		}
 
+		cam_hw_mgr_reset_out_of_sync_cnt(ife_hw_mgr_ctx);
+
 		if (atomic_read(&ife_hw_mgr_ctx->overflow_pending))
 			break;
 
@@ -13686,11 +13723,16 @@ static int cam_ife_hw_mgr_handle_hw_sof(
 	case CAM_ISP_HW_VFE_IN_RDI3:
 		if (!cam_isp_is_ctx_primary_rdi(ife_hw_mgr_ctx))
 			break;
+
 		cam_ife_mgr_cmd_get_sof_timestamp(ife_hw_mgr_ctx,
 			&sof_done_event_data.timestamp,
 			&sof_done_event_data.boot_time, NULL);
+
+		cam_hw_mgr_reset_out_of_sync_cnt(ife_hw_mgr_ctx);
+
 		if (atomic_read(&ife_hw_mgr_ctx->overflow_pending))
 			break;
+
 		ife_hw_irq_sof_cb(ife_hw_mgr_ctx->common.cb_priv,
 			CAM_ISP_HW_EVENT_SOF, (void *)&sof_done_event_data);
 		break;

@@ -5734,6 +5734,29 @@ end:
 	return 0;
 }
 
+static int cam_ife_csid_ver2_reset_out_of_sync_cnt(
+	struct cam_ife_csid_ver2_hw  *csid_hw, void *args)
+{
+	struct cam_ife_csid_ver2_path_cfg  *path_cfg = NULL;
+	struct cam_isp_resource_node       *res = NULL;
+
+	res = ((struct cam_csid_reset_out_of_sync_count_args *)args)->node_res;
+	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+
+	if (!path_cfg) {
+		CAM_ERR(CAM_ISP, "Invalid res %s", res->res_name);
+		return -EINVAL;
+	}
+
+	atomic_set(&path_cfg->switch_out_of_sync_cnt, 0);
+
+	CAM_DBG(CAM_ISP,
+		"Reset out of sync cnt for res:%s",
+		res->res_name);
+
+	return 0;
+}
+
 static int cam_ife_csid_ver2_drv_config(
 	struct cam_ife_csid_ver2_hw  *csid_hw, void *cmd_args)
 {
@@ -5898,6 +5921,9 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_DRV_CONFIG:
 		rc = cam_ife_csid_ver2_drv_config(csid_hw, cmd_args);
+		break;
+	case CAM_IFE_CSID_RESET_OUT_OF_SYNC_CNT:
+		rc = cam_ife_csid_ver2_reset_out_of_sync_cnt(csid_hw, cmd_args);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",

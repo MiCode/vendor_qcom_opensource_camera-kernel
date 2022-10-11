@@ -335,6 +335,15 @@ struct cam_csid_reset_cfg_args {
 };
 
 /**
+ * struct cam_csid_reset_out_of_sync_count_args
+ * @res_node :   resource need to be reset
+ *
+ */
+struct cam_csid_reset_out_of_sync_count_args {
+	struct cam_isp_resource_node  *node_res;
+};
+
+/**
  * struct cam_csid_get_time_stamp_args-  time stamp capture arguments
  * @node_res            : resource to get the time stamp
  * @time_stamp_val      : captured time stamp
