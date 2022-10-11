@@ -1239,6 +1239,7 @@ static int cam_generic_fence_handle_sync_create(
 {
 	int rc = 0, i, dma_fence_row_idx;
 	bool dma_fence_created;
+	unsigned long fence_sel_mask;
 	struct cam_dma_fence_release_params release_params;
 	struct cam_dma_fence_create_sync_obj_payload dma_sync_create;
 	struct cam_generic_fence_input_info *fence_input_info = NULL;
@@ -1260,8 +1261,8 @@ static int cam_generic_fence_handle_sync_create(
 		/* Reset flag */
 		dma_fence_created = false;
 
-		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
-			(unsigned long *)&fence_cfg->fence_sel_mask)) {
+		fence_sel_mask = fence_cfg->fence_sel_mask;
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &fence_sel_mask)) {
 			rc = cam_dma_fence_create_fd(&fence_cfg->dma_fence_fd,
 				&dma_fence_row_idx, fence_cfg->name);
 			if (rc) {
@@ -1296,8 +1297,7 @@ static int cam_generic_fence_handle_sync_create(
 		}
 
 		/* Register dma fence cb */
-		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
-			(unsigned long *)&fence_cfg->fence_sel_mask)) {
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &fence_sel_mask)) {
 			rc = cam_dma_fence_register_cb(&fence_cfg->sync_obj,
 				&dma_fence_row_idx, cam_sync_dma_fence_cb);
 			if (rc) {
@@ -1344,6 +1344,7 @@ static int cam_generic_fence_handle_sync_release(
 {
 	bool failed = false;
 	int rc = 0, i;
+	unsigned long fence_sel_mask;
 	struct cam_sync_check_for_dma_release check_for_dma_release;
 	struct cam_dma_fence_release_params release_params;
 	struct cam_generic_fence_input_info *fence_input_info = NULL;
@@ -1376,8 +1377,8 @@ static int cam_generic_fence_handle_sync_release(
 				fence_input_info->num_fences_processed);
 		}
 
-		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
-			(unsigned long *)&fence_cfg->fence_sel_mask)) {
+		fence_sel_mask = fence_cfg->fence_sel_mask;
+		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &fence_sel_mask)) {
 			if (!check_for_dma_release.sync_created_with_dma) {
 				CAM_ERR(CAM_SYNC,
 					"Failed to release dma fence fd: %d with sync_obj: %d, not created together",
