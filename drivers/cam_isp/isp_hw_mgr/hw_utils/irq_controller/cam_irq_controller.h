@@ -328,7 +328,7 @@ int cam_irq_controller_register_dependent(void *primary_controller, void *second
 	uint32_t *mask);
 
 /**
- * cam_irq_controller_register_dependent
+ * cam_irq_controller_unregister_dependent
  * @brief:                 Unregister previously registered dependent IRQ controller
  *
  * @primary_controller:    Controller whose top half will invoke handle_irq function of secondary
