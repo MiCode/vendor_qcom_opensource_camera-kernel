@@ -5929,7 +5929,7 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	struct cam_icp_dump_header      *hdr;
 	struct cam_icp_hw_dump_args      icp_dump_args;
 	struct hfi_frame_process_info   *frm_process;
-	bool                             frame_found = false;
+	int                              frm_idx = -1;
 
 	if ((!hw_priv) || (!hw_dump_args)) {
 		CAM_ERR(CAM_ICP, "Invalid params %pK %pK",
@@ -5947,14 +5947,16 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	for (i = 0; i < CAM_FRAME_CMD_MAX; i++) {
 		if ((frm_process->request_id[i] ==
 			dump_args->request_id) &&
-			frm_process->fw_process_flag[i])
-			frame_found = true;
+			frm_process->fw_process_flag[i]) {
+			frm_idx = i;
+			break;
+		}
 	}
 
 	cur_time = ktime_get();
 	cur_ts = ktime_to_timespec64(cur_time);
-	if (frame_found) {
-		req_ts = ktime_to_timespec64(frm_process->submit_timestamp[i]);
+	if (frm_idx >= 0) {
+		req_ts = ktime_to_timespec64(frm_process->submit_timestamp[frm_idx]);
 	}
 
 	CAM_INFO(CAM_ICP, "Error req %lld req timestamp:[%lld.%06lld] curr timestamp:[%lld.%06lld]",
