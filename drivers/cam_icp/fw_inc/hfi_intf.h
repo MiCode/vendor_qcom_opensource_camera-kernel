@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _HFI_INTF_H_
@@ -14,6 +14,8 @@
 
 #define HFI_NUM_MAX                            2
 #define HFI_HANDLE_INIT_VALUE                  HFI_NUM_MAX
+
+#define HFI_CLIENT_NAME_LEN                    32
 
 /**
  * struct hfi_mem
@@ -122,10 +124,11 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 /**
  * cam_hfi_register() - function to register user as hfi client and retrieve handle
  * @client_handle: client handle to be retrieved
+ * @client_name: Name of the client to be registered
  *
  * Returns success(zero)/failure(non zero)
  */
-int cam_hfi_register(int *client_handle);
+int cam_hfi_register(int *client_handle, const char *client_name);
 
 /**
  * cam_hfi_unregister() - function to unregister hfi client

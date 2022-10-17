@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -37,18 +37,18 @@ static int cam_icp_context_dump_active_request(void *data, void *args)
 		return -EINVAL;
 	}
 
-	CAM_INFO(CAM_ICP, "iommu fault for icp ctx %d state %d",
-		ctx->ctx_id, ctx->state);
+	CAM_INFO(CAM_ICP, "[%s] iommu fault for icp ctx %d state %d",
+		ctx->dev_name, ctx->ctx_id, ctx->state);
 
 	list_for_each_entry_safe(req, req_temp,
 			&ctx->active_req_list, list) {
-		CAM_INFO(CAM_ICP, "Active req_id: %llu ctx_id: %u",
-			req->request_id, ctx->ctx_id);
+		CAM_INFO(CAM_ICP, "[%s] ctx[%u]: Active req_id: %llu",
+			ctx->dev_name, ctx->ctx_id, req->request_id);
 
 		rc = cam_context_dump_pf_info_to_hw(ctx, pf_args, &req->pf_data);
 		if (rc)
-			CAM_ERR(CAM_ICP, "Failed to dump pf info ctx_id: %u state: %d",
-				ctx->ctx_id, ctx->state);
+			CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Failed to dump pf info.ctx->state: %d",
+				ctx->dev_name, ctx->ctx_id, ctx->state);
 	}
 
 	/*
@@ -61,7 +61,8 @@ static int cam_icp_context_dump_active_request(void *data, void *args)
 		rc = cam_context_send_pf_evt(ctx, pf_args);
 		if (rc)
 			CAM_ERR(CAM_ICP,
-				"Failed to notify PF event to userspace rc: %d", rc);
+				"[%s] ctx[%u]: Failed to notify PF event to userspace rc: %d",
+				ctx->dev_name, ctx->ctx_id, rc);
 	}
 
 	return rc;
@@ -80,8 +81,8 @@ static int cam_icp_context_mini_dump(void *priv, void *args)
 	ctx = (struct cam_context *)priv;
 	rc = cam_context_mini_dump(ctx, args);
 	if (rc)
-		CAM_ERR(CAM_ICP, "ctx [id: %u name: %s] Mini Dump failed rc %d", ctx->dev_name,
-			ctx->ctx_id, rc);
+		CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Mini Dump failed rc %d",
+			ctx->dev_name, ctx->ctx_id, rc);
 
 	return rc;
 }
@@ -94,7 +95,7 @@ static int __cam_icp_acquire_dev_in_available(struct cam_context *ctx,
 	rc = cam_context_acquire_dev_to_hw(ctx, cmd);
 	if (!rc) {
 		ctx->state = CAM_CTX_ACQUIRED;
-		trace_cam_context_state("ICP", ctx);
+		trace_cam_context_state(ctx->dev_name, ctx);
 	}
 
 	return rc;
@@ -109,10 +110,11 @@ static int __cam_icp_release_dev_in_acquired(struct cam_context *ctx,
 
 	rc = cam_context_release_dev_to_hw(ctx, cmd);
 	if (rc)
-		CAM_ERR(CAM_ICP, "Unable to release device");
+		CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Unable to release device",
+			ctx->dev_name, ctx->ctx_id);
 
 	ctx->state = CAM_CTX_AVAILABLE;
-	trace_cam_context_state("ICP", ctx);
+	trace_cam_context_state(ctx->dev_name, ctx);
 	return rc;
 }
 
@@ -124,7 +126,7 @@ static int __cam_icp_start_dev_in_acquired(struct cam_context *ctx,
 	rc = cam_context_start_dev_to_hw(ctx, cmd);
 	if (!rc) {
 		ctx->state = CAM_CTX_READY;
-		trace_cam_context_state("ICP", ctx);
+		trace_cam_context_state(ctx->dev_name, ctx);
 	}
 
 	return rc;
@@ -138,7 +140,8 @@ static int __cam_icp_dump_dev_in_ready(
 
 	rc = cam_context_dump_dev_to_hw(ctx, cmd);
 	if (rc)
-		CAM_ERR(CAM_ICP, "Failed to dump device");
+		CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Failed to dump device",
+			ctx->dev_name, ctx->ctx_id);
 
 	return rc;
 }
@@ -150,7 +153,8 @@ static int __cam_icp_flush_dev_in_ready(struct cam_context *ctx,
 
 	rc = cam_context_flush_dev_to_hw(ctx, cmd);
 	if (rc)
-		CAM_ERR(CAM_ICP, "Failed to flush device");
+		CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Failed to flush device",
+			ctx->dev_name, ctx->ctx_id);
 
 	return rc;
 }
@@ -177,7 +181,8 @@ static int __cam_icp_config_dev_in_ready(struct cam_context *ctx,
 	if ((len < sizeof(struct cam_packet)) ||
 		(cmd->offset >= (len - sizeof(struct cam_packet)))) {
 		CAM_ERR(CAM_CTXT,
-			"Invalid offset, len: %zu cmd offset: %llu sizeof packet: %zu",
+			"[%s] ctx[%u]: Invalid offset, len: %zu cmd offset: %llu sizeof packet: %zu",
+			ctx->dev_name, ctx->ctx_id,
 			len, cmd->offset, sizeof(struct cam_packet));
 		return -EINVAL;
 	}
@@ -188,7 +193,8 @@ static int __cam_icp_config_dev_in_ready(struct cam_context *ctx,
 
 	rc = cam_packet_util_validate_packet(packet, remain_len);
 	if (rc) {
-		CAM_ERR(CAM_CTXT, "Invalid packet params, remain length: %zu",
+		CAM_ERR(CAM_CTXT, "[%s] ctx[%u]: Invalid packet params, remain length: %zu",
+			ctx->dev_name, ctx->ctx_id,
 			remain_len);
 		return rc;
 	}
@@ -204,7 +210,8 @@ static int __cam_icp_config_dev_in_ready(struct cam_context *ctx,
 		rc = cam_context_prepare_dev_to_hw(ctx, cmd);
 
 	if (rc)
-		CAM_ERR(CAM_ICP, "Failed to prepare device");
+		CAM_ERR(CAM_ICP, "[%s] ctx[%u]:Failed to prepare device",
+			ctx->dev_name, ctx->ctx_id);
 
 	return rc;
 }
@@ -216,10 +223,11 @@ static int __cam_icp_stop_dev_in_ready(struct cam_context *ctx,
 
 	rc = cam_context_stop_dev_to_hw(ctx);
 	if (rc)
-		CAM_ERR(CAM_ICP, "Failed to stop device");
+		CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Failed to stop device",
+			ctx->dev_name, ctx->ctx_id);
 
 	ctx->state = CAM_CTX_ACQUIRED;
-	trace_cam_context_state("ICP", ctx);
+	trace_cam_context_state(ctx->dev_name, ctx);
 	return rc;
 }
 
@@ -230,7 +238,8 @@ static int __cam_icp_release_dev_in_ready(struct cam_context *ctx,
 
 	rc = __cam_icp_stop_dev_in_ready(ctx, NULL);
 	if (rc)
-		CAM_ERR(CAM_ICP, "Failed to stop device");
+		CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Failed to stop device",
+			ctx->dev_name, ctx->ctx_id);
 
 	rc = __cam_icp_release_dev_in_acquired(ctx, cmd);
 	if (rc)
@@ -239,7 +248,7 @@ static int __cam_icp_release_dev_in_ready(struct cam_context *ctx,
 	return rc;
 }
 
-static uint32_t get_error_code(uint32_t err_type)
+static uint32_t cam_icp_context_get_error_code(uint32_t err_type)
 {
 	switch (err_type) {
 	case CAM_ICP_HW_ERROR_NO_MEM:
@@ -269,12 +278,11 @@ static int __cam_icp_notify_v4l2_err_evt(struct cam_context *ctx,
 		V4L_EVENT_CAM_REQ_MGR_EVENT);
 	if (rc)
 		CAM_ERR(CAM_ICP,
-			"Error in notifying the error time for req id:%lld ctx %u",
-			request_id,
-			ctx->ctx_id);
+			"[%s] ctx[%u]: Error in notifying the error time for req id:%lld",
+			ctx->dev_name, ctx->ctx_id, request_id);
 
 	CAM_INFO(CAM_ICP,
-		"CTX: [%s][%d] notifying error to userspace err type: %d, err code: %u, req id: %llu",
+		"[%s] ctx[%u]: notifying error to userspace err type: %d, err code: %u, req id: %llu",
 		ctx->dev_name, ctx->ctx_id, err_type, err_code, request_id);
 
 	return rc;
@@ -287,7 +295,7 @@ static int cam_icp_ctx_handle_fatal_error(void *ctx, void *err_evt_data)
 	int rc;
 
 	err_evt = (struct cam_icp_hw_error_evt_data *)err_evt_data;
-	err_code = get_error_code(err_evt->err_type);
+	err_code = cam_icp_context_get_error_code(err_evt->err_type);
 
 	rc = __cam_icp_notify_v4l2_err_evt(ctx, CAM_REQ_MGR_ERROR_TYPE_RECOVERY,
 		err_code, err_evt->req_id);
@@ -358,16 +366,16 @@ static int cam_icp_context_validate_event_notify_injection(struct cam_context *c
 			break;
 		default:
 			CAM_ERR(CAM_ICP,
-				"Invalid error type: %u for error event injection err code: %u req id: %llu ctx id: %u dev hdl: %d",
-				err_evt_params->err_type, err_evt_params->err_code,
-				req_id, ctx->ctx_id, ctx->dev_hdl);
+				"[%s] ctx[%u]: Invalid error type: %u for error event injection err code: %u req id: %llu dev hdl: %d",
+				ctx->dev_name, ctx->ctx_id, err_evt_params->err_type,
+				err_evt_params->err_code, ctx->dev_hdl);
 			return -EINVAL;
 		}
 
 		CAM_INFO(CAM_ICP,
-			"Inject ERR evt: err code: %u err type: %u req id: %llu ctx id: %u dev hdl: %d",
-			err_evt_params->err_code, err_evt_params->err_type,
-			req_id, ctx->ctx_id, ctx->dev_hdl);
+			"[%s] ctx[%u]: Inject ERR evt: err code: %u err type: %u req id: %llu dev hdl: %d",
+			ctx->dev_name, ctx->ctx_id, err_evt_params->err_code,
+			err_evt_params->err_type, req_id, ctx->dev_hdl);
 		break;
 	}
 	case V4L_EVENT_CAM_REQ_MGR_PF_ERROR: {
@@ -378,24 +386,27 @@ static int cam_icp_context_validate_event_notify_injection(struct cam_context *c
 		rc = cam_smmu_is_cb_non_fatal_fault_en(ctx->img_iommu_hdl, &non_fatal_en);
 		if (rc) {
 			CAM_ERR(CAM_ICP,
-				"Fail to query whether device's cb has non-fatal enabled rc: %d",
-				rc);
+				"[%s] ctx[%u]: Fail to query whether device's cb has non-fatal enabled rc: %d",
+				ctx->dev_name, ctx->ctx_id, rc);
 			return rc;
 		}
 
 		if (!non_fatal_en) {
 			CAM_ERR(CAM_ICP,
-				"Fail to inject page fault event notification. Page fault is fatal for ICP");
+				"[%s] ctx[%u]: Fail to inject page fault event notification. Page fault is fatal for ICP",
+				ctx->dev_name, ctx->ctx_id);
 			return -EINVAL;
 		}
 
 		CAM_INFO(CAM_ICP,
-			"Inject PF evt: req_id: %llu ctx id: %u dev hdl: %d ctx found: %hhu",
-			req_id, ctx->ctx_id, ctx->dev_hdl, pf_evt_params->ctx_found);
+			"[%s] ctx[%u]: Inject PF evt: req_id: %llu dev hdl: %d ctx found: %hhu",
+			ctx->dev_name, ctx->ctx_id,
+			req_id, ctx->dev_hdl, pf_evt_params->ctx_found);
 		break;
 	}
 	default:
-		CAM_ERR(CAM_ICP, "Event notification type not supported: %u", evt_type);
+		CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Event notification type not supported: %u",
+			ctx->dev_name, ctx->ctx_id, evt_type);
 		rc = -EINVAL;
 	}
 
@@ -422,18 +433,21 @@ static int cam_icp_context_inject_evt(void *context, void *evt_args)
 		buf_err_params = &evt_params->u.buf_err_evt;
 		if (buf_err_params->sync_error > CAM_SYNC_ICP_EVENT_START ||
 			buf_err_params->sync_error < CAM_SYNC_ICP_EVENT_END) {
-			CAM_INFO(CAM_ICP, "Inject buffer sync error %u ctx id: %u req id %llu",
-				buf_err_params->sync_error, ctx->ctx_id, evt_params->req_id);
+			CAM_INFO(CAM_ICP, "[%s] ctx[%u]: Inject buffer sync error %u req id %llu",
+				ctx->dev_name, ctx->ctx_id, buf_err_params->sync_error,
+				evt_params->req_id);
 		} else {
-			CAM_ERR(CAM_ICP, "Invalid buffer sync error %u ctx id: %u req id %llu",
-				buf_err_params->sync_error, ctx->ctx_id, evt_params->req_id);
+			CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Invalid buffer sync error %u req id %llu",
+				ctx->dev_name, ctx->ctx_id, buf_err_params->sync_error,
+				evt_params->req_id);
 			return -EINVAL;
 		}
 	} else {
 		rc = cam_icp_context_validate_event_notify_injection(ctx, evt_params);
 		if (rc) {
 			CAM_ERR(CAM_ICP,
-				"Event notification injection failed validation rc: %d", rc);
+				"[%s] ctx[%u]: Event notification injection failed validation rc: %d",
+				ctx->dev_name, ctx->ctx_id, rc);
 			return -EINVAL;
 		}
 	}
@@ -523,7 +537,7 @@ int cam_icp_context_init(struct cam_icp_context *ctx, struct cam_hw_mgr_intf *hw
 	rc = cam_context_init(ctx->base, icp_dev_name, CAM_ICP, ctx_id,
 		NULL, hw_intf, ctx->req_base, CAM_CTX_ICP_REQ_MAX, img_iommu_hdl);
 	if (rc) {
-		CAM_ERR(CAM_ICP, "Camera Context Base init failed");
+		CAM_ERR(CAM_ICP, "[%s] Camera Context Base init failed", icp_dev_name);
 		goto err;
 	}
 
