@@ -3508,9 +3508,9 @@ static int __cam_isp_ctx_validate_for_req_reapply_util(
 
 		if (list_empty(&ctx->wait_req_list)) {
 			CAM_WARN(CAM_ISP,
-				"No active/wait req for ctx: %u on link: 0x%x",
+				"No active/wait req for ctx: %u on link: 0x%x start from pending",
 				ctx->ctx_id, ctx->link_hdl);
-			rc = -EINVAL;
+			rc = 0;
 			goto end;
 		}
 	}
@@ -3568,6 +3568,12 @@ static int __cam_isp_ctx_handle_recovery_req_util(
 	struct cam_context *ctx = ctx_isp->base;
 	struct cam_ctx_request *req_to_reapply = NULL;
 	struct cam_isp_ctx_req *req_isp = NULL;
+
+	if (list_empty(&ctx->pending_req_list)) {
+		CAM_WARN(CAM_ISP,
+			"No pending request to recover from on ctx: %u", ctx->ctx_id);
+		return -EINVAL;
+	}
 
 	req_to_reapply = list_first_entry(&ctx->pending_req_list,
 		struct cam_ctx_request, list);
@@ -7902,9 +7908,6 @@ static int __cam_isp_ctx_apply_default_settings(
 	struct cam_isp_context *ctx_isp =
 		(struct cam_isp_context *) ctx->ctx_priv;
 
-	if ((!ctx_isp->use_default_apply) && !(atomic_read(&ctx_isp->internal_recovery_set)))
-		return 0;
-
 	if (!(apply->trigger_point & ctx_isp->subscribe_event)) {
 		CAM_WARN(CAM_ISP,
 			"Trigger: %u not subscribed for: %u",
@@ -7919,26 +7922,29 @@ static int __cam_isp_ctx_apply_default_settings(
 	if (atomic_read(&ctx_isp->internal_recovery_set))
 		return __cam_isp_ctx_reset_and_recover(false, ctx);
 
-	CAM_DBG(CAM_ISP,
-		"Enter: apply req in Substate:%d request _id:%lld ctx:%u on link:0x%x",
-		 ctx_isp->substate_activated, apply->request_id,
-		 ctx->ctx_id, ctx->link_hdl);
+	if (ctx_isp->use_default_apply) {
+		CAM_DBG(CAM_ISP,
+			"Enter: apply req in Substate:%d request _id:%lld ctx:%u on link:0x%x",
+			 ctx_isp->substate_activated, apply->request_id,
+			 ctx->ctx_id, ctx->link_hdl);
 
-	ctx_ops = &ctx_isp->substate_machine[
-		ctx_isp->substate_activated];
-	if (ctx_ops->crm_ops.notify_frame_skip) {
-		rc = ctx_ops->crm_ops.notify_frame_skip(ctx, apply);
-	} else {
-		CAM_WARN_RATE_LIMIT(CAM_ISP,
-			"No handle function in activated substate %d",
-			ctx_isp->substate_activated);
-		rc = -EFAULT;
+		ctx_ops = &ctx_isp->substate_machine[
+			ctx_isp->substate_activated];
+		if (ctx_ops->crm_ops.notify_frame_skip) {
+			rc = ctx_ops->crm_ops.notify_frame_skip(ctx, apply);
+		} else {
+			CAM_WARN_RATE_LIMIT(CAM_ISP,
+				"No handle function in activated substate %d",
+				ctx_isp->substate_activated);
+			rc = -EFAULT;
+		}
+
+		if (rc)
+			CAM_WARN_RATE_LIMIT(CAM_ISP,
+				"Apply default failed in active substate %d rc %d",
+				ctx_isp->substate_activated, rc);
 	}
 
-	if (rc)
-		CAM_WARN_RATE_LIMIT(CAM_ISP,
-			"Apply default failed in active substate %d rc %d",
-			ctx_isp->substate_activated, rc);
 	return rc;
 }
 
