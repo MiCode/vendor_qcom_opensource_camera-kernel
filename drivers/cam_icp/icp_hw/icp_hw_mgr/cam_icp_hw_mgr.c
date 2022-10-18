@@ -5086,10 +5086,10 @@ static int cam_icp_mgr_process_io_cfg(struct cam_icp_hw_mgr *hw_mgr,
 		prepare_args->num_in_map_entries = 1;
 		ctx_data->hfi_frame_process.in_resource[index] = 0;
 	} else {
-		CAM_ERR(CAM_ICP, "No input fences");
+		CAM_DBG(CAM_ICP, "No input fences for req: %llu on  ctx_id: %u",
+			packet->header.request_id, ctx_data->ctx_id);
 		prepare_args->num_in_map_entries = 0;
 		ctx_data->hfi_frame_process.in_resource[index] = 0;
-		rc = -EINVAL;
 	}
 
 	return rc;
