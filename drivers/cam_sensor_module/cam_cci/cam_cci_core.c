@@ -1964,7 +1964,7 @@ int32_t cam_cci_core_cfg(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	if (cci_dev->cci_master_info[master].status < 0) {
+	if ((cci_dev->cci_master_info[master].status < 0) && (cci_ctrl->cmd != MSM_CCI_RELEASE)) {
 		CAM_WARN(CAM_CCI, "CCI hardware is resetting");
 		return -EAGAIN;
 	}
