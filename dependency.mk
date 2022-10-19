@@ -9,7 +9,7 @@ ifeq ($(call is-board-platform-in-list, $(MMRM_BOARDS)),true)
 CAM_MMRM_EXTRA_SYMBOLS ?= $(realpath $(TOP))/$(call intermediates-dir-for,DLKM,mmrm-module-symvers)/Module.symvers
 $(info camera-kernel: Found msm-mmrm driver, adding symbol dependency! $(CAM_MMRM_EXTRA_SYMBOLS))
 ifneq ($(TARGET_BOARD_PLATFORM), pineapple)
-LOCAL_REQUIRED_MODULES    := mmrm-module-symvers
+LOCAL_REQUIRED_MODULES  := mmrm-module-symvers
 endif # End of check lanai
 CAM_MMRM_EXTRA_CONFIGS ?= $(realpath $(TOP))/vendor/qcom/opensource/mmrm-driver/config/waipiommrm.conf
 LOCAL_ADDITIONAL_DEPENDENCIES := $(call intermediates-dir-for,DLKM,mmrm-module-symvers)/Module.symvers
@@ -34,5 +34,18 @@ endif # End of check for board platform SYNX_VENDOR_BOARDS
 
 endif # End of find synx driver
 
-KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(CAM_MMRM_EXTRA_SYMBOLS) KBUILD_EXTRA_SYMBOLS+=$(CAM_SYNX_EXTRA_SYMBOLS)
+# Check if this board's product.mk finds smcinvoke_dlkm.ko driver
+ifeq ($(findstring smcinvoke_dlkm.ko, $(BOARD_VENDOR_KERNEL_MODULES)), smcinvoke_dlkm.ko)
+
+ifeq ($(call is-board-platform-in-list, $(SMCINVOKE_DLKM_BOARDS)),true)
+SMCINVOKE_EXTRA_SYMBOLS ?= $(realpath $(TOP))/$(call intermediates-dir-for,DLKM,smcinvoke_dlkm.ko)/Module.symvers
+$(info camera-kernel: Found smcinvoke driver, adding symbol dependency! $(SMCINVOKE_EXTRA_SYMBOLS))
+LOCAL_REQUIRED_MODULES  += smcinvoke_dlkm.ko
+LOCAL_ADDITIONAL_DEPENDENCIES += $(call intermediates-dir-for,DLKM,smcinvoke_dlkm.ko)/Module.symvers
+
+endif # End of check for board platform SMCINVOKE_DLKM_BOARDS
+
+endif # End of find smcinvoke_dlkm driver
+
+KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(CAM_MMRM_EXTRA_SYMBOLS) KBUILD_EXTRA_SYMBOLS+=$(CAM_SYNX_EXTRA_SYMBOLS) $(SMCINVOKE_EXTRA_SYMBOLS)
 KBUILD_OPTIONS += KBUILD_EXTRA_CONFIGS=$(CAM_MMRM_EXTRA_CONFIGS) KBUILD_EXTRA_CONFIGS+=$(CAM_SYNX_EXTRA_CONFIGS)

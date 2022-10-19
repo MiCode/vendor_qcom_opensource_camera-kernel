@@ -124,28 +124,6 @@ struct cam_csiphy_secure_info {
 };
 
 /**
- * struct cam_csiphy_tz_secure_info
- *
- * This is the struct containing all the necessary values
- * for scm programming of domain id
- *
- * @phy_lane_sel_mask: This value to be filled completely by csiphy
- * @csid_hw_idx_mask:  Bit position denoting CSID(s) in use for secure
- *                     session
- * @cdm_hw_idx_mask:   Bit position denoting CDM in use for secure
- *                     session
- * @vc_mask:           VC mask (unused in mobile case)
- * @protect:           To protect or reset previously protected lanes
- */
-struct cam_csiphy_tz_secure_info {
-	uint64_t phy_lane_sel_mask;
-	uint32_t csid_hw_idx_mask;
-	uint32_t cdm_hw_idx_mask;
-	uint32_t vc_mask;
-	uint32_t protect;
-};
-
-/**
  * struct cam_csiphy_aon_sel_params_t
  * @aon_cam_sel_offset : AON Cam Select Register offset in cpas top
  * @cam_sel_mask       : Camera select mask.
@@ -329,9 +307,10 @@ struct csiphy_ctrl_t {
  * @csiphy_3phase              :  To identify DPHY or CPHY
  * @mipi_flags                 :  MIPI phy flags
  * @csiphy_cpas_cp_reg_mask    :  CP reg mask for phy instance
+ * @csiphy_phy_lane_sel_mask   :  Generic format for CP information for PHY and lane
  * @hdl_data                   :  CSIPHY handle table
  * @secure_info                :  All domain-id security related information packed in proper
- *                                format for scm call
+ *                                format for mink call
  * @secure_info_updated        :  If all information in the secure_info struct above
  *                                is passed and formatted properly from CSID driver
  * @conn_csid_idx              : Connected CSID core idx (Primary csid in case of dual ife)
@@ -348,8 +327,9 @@ struct cam_csiphy_param {
 	int                              csiphy_3phase;
 	uint16_t                         mipi_flags;
 	uint64_t                         csiphy_cpas_cp_reg_mask;
+	uint64_t                         csiphy_phy_lane_sel_mask;
 	struct csiphy_hdl_tbl            hdl_data;
-	struct cam_csiphy_tz_secure_info secure_info;
+	struct cam_csiphy_secure_info    secure_info;
 	bool                             secure_info_updated;
 	int32_t                          conn_csid_idx;
 	bool                             use_hw_client_voting;
