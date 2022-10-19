@@ -623,7 +623,7 @@ static int tpg_hw_v_1_4_reset(
 			tpg_reg->irq_cmd);
 
 	cam_io_w_mb(1, soc_info->reg_map[0].mem_base +
-			tpg_reg->top_irq_clear);
+			tpg_reg->tpg_ctrl_cmd);
 
 	/* Read the version */
 	val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
