@@ -334,6 +334,9 @@ struct csiphy_ctrl_t {
  *                                format for scm call
  * @secure_info_updated        :  If all information in the secure_info struct above
  *                                is passed and formatted properly from CSID driver
+ * @conn_csid_idx              : Connected CSID core idx (Primary csid in case of dual ife)
+ * @use_hw_client_voting       : Whether to use hw client voting for clk on chipsets with cesta
+ * @is_drv_config_en           : If drv is configured in CSID
  */
 struct cam_csiphy_param {
 	uint16_t                         lane_assign;
@@ -348,6 +351,9 @@ struct cam_csiphy_param {
 	struct csiphy_hdl_tbl            hdl_data;
 	struct cam_csiphy_tz_secure_info secure_info;
 	bool                             secure_info_updated;
+	int32_t                          conn_csid_idx;
+	bool                             use_hw_client_voting;
+	bool                             is_drv_config_en;
 };
 
 struct csiphy_work_queue {

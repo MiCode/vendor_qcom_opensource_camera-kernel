@@ -615,6 +615,7 @@ struct cam_ife_csid_ver2_reg_info {
  * @mup:                      MUP for incoming VC of next frame
  * @discard_frame_per_path:   Count of paths dropping initial frames
  * @drv_init_done:            Indicates if drv init config is done
+ * @is_drv_config_en:         If drv config is enabled
  *
  */
 struct cam_ife_csid_ver2_hw {
@@ -659,6 +660,7 @@ struct cam_ife_csid_ver2_hw {
 	uint32_t                               mup;
 	atomic_t                               discard_frame_per_path;
 	bool                                   drv_init_done;
+	bool                                   is_drv_config_en;
 };
 
 /*

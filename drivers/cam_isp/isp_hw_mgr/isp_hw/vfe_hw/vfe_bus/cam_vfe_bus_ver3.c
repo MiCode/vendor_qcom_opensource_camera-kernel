@@ -2709,7 +2709,7 @@ static int cam_vfe_bus_ver3_mini_dump(
 	}
 
 	md = (struct cam_vfe_bus_ver3_mini_dump_data *)md_args->start_addr;
-	md->clk_rate = hw_info->soc_info.applied_src_clk_rate;
+	md->clk_rate = cam_soc_util_get_applied_src_clk(&hw_info->soc_info, true);
 	md->hw_idx = bus_priv->common_data.hw_intf->hw_idx;
 	md->hw_state = hw_info->hw_state;
 	bytes_written += sizeof(*md);

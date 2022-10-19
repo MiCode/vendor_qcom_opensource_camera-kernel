@@ -48,11 +48,10 @@ struct cam_sfe_top_priv {
 	struct cam_axi_vote                 req_axi_vote[CAM_SFE_TOP_IN_PORT_MAX];
 	struct cam_axi_vote                 last_bw_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
 	uint64_t                            last_total_bw_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
-	uint64_t                            last_clk_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
+	unsigned long                       last_clk_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
 	enum cam_clk_bw_state               clk_state;
 	enum cam_clk_bw_state               bw_state;
-	enum cam_isp_bw_control_action      axi_vote_control[
-		CAM_SFE_TOP_IN_PORT_MAX];
+	enum cam_isp_bw_control_action      axi_vote_control[CAM_SFE_TOP_IN_PORT_MAX];
 	struct cam_axi_vote                 applied_axi_vote;
 	struct cam_sfe_core_cfg             core_cfg;
 	uint32_t                            sfe_debug_cfg;
@@ -170,31 +169,47 @@ static int cam_sfe_top_set_axi_bw_vote(
 
 }
 
-static int cam_sfe_top_set_hw_clk_rate(
-	struct cam_sfe_top_priv *top_priv, uint64_t final_clk_rate, bool start_stop,
-	uint64_t request_id)
+static int cam_sfe_top_set_hw_clk_rate(struct cam_sfe_top_priv *top_priv,
+	unsigned long final_clk_rate, bool start_stop, uint64_t request_id, bool is_drv_config_en)
 {
 	struct cam_hw_soc_info        *soc_info = NULL;
 	struct cam_sfe_soc_private    *soc_private = NULL;
 	struct cam_ahb_vote            ahb_vote;
 	int rc = 0, clk_lvl = -1;
+	unsigned long cesta_clk_rate_high, cesta_clk_rate_low;
+	int cesta_client_idx = -1;
 
 	soc_info = top_priv->common_data.soc_info;
 	soc_private = (struct cam_sfe_soc_private *)soc_info->soc_private;
 
-	CAM_DBG(CAM_PERF, "Applying SFE:%d Clock name=%s idx=%d clk=%llu req_id=%ld",
-		top_priv->common_data.hw_intf->hw_idx, soc_info->clk_name[soc_info->src_clk_idx],
-		soc_info->src_clk_idx, final_clk_rate, (start_stop ? -1 : request_id));
+	cesta_clk_rate_high = final_clk_rate;
+	cesta_clk_rate_low = final_clk_rate;
 
-	rc = cam_soc_util_set_src_clk_rate(soc_info, final_clk_rate);
+	if (soc_info->is_clk_drv_en) {
+		cesta_client_idx = top_priv->common_data.hw_intf->hw_idx;
+		if (is_drv_config_en)
+			cesta_clk_rate_low =
+				soc_info->clk_rate[CAM_LOWSVS_VOTE][soc_info->src_clk_idx];
+		else
+			cesta_clk_rate_low = final_clk_rate;
+	}
+
+	CAM_DBG(CAM_PERF,
+		"Applying SFE:%d Clock name=%s idx=%d cesta_client_idx:%d req clk[high low]=[%lu %lu] req_id=%ld",
+		top_priv->common_data.hw_intf->hw_idx, soc_info->clk_name[soc_info->src_clk_idx],
+		soc_info->src_clk_idx, cesta_client_idx, cesta_clk_rate_high, cesta_clk_rate_low,
+		(start_stop ? -1 : request_id));
+
+	rc = cam_soc_util_set_src_clk_rate(soc_info, cesta_client_idx, cesta_clk_rate_high,
+		cesta_clk_rate_low);
 	if (!rc) {
-		top_priv->applied_clk_rate = final_clk_rate;
-		rc = cam_soc_util_get_clk_level(soc_info, final_clk_rate,
+		top_priv->applied_clk_rate = cesta_clk_rate_high;
+		rc = cam_soc_util_get_clk_level(soc_info, cesta_clk_rate_low,
 			soc_info->src_clk_idx, &clk_lvl);
 		if (rc) {
-			CAM_WARN(CAM_SFE,
-				"Failed to get clk level for %s with clk_rate %llu src_idx %d rc %d",
-				soc_info->dev_name, final_clk_rate,
+			CAM_WARN(CAM_ISP,
+				"Failed to get clk level for %s with clk_rate %lu src_idx %d rc %d",
+				soc_info->dev_name, cesta_clk_rate_high,
 				soc_info->src_clk_idx, rc);
 			rc = 0;
 			goto end;
@@ -204,8 +219,10 @@ static int cam_sfe_top_set_hw_clk_rate(
 		ahb_vote.vote.level = clk_lvl;
 		cam_cpas_update_ahb_vote(soc_private->cpas_handle, &ahb_vote);
 	} else {
-		CAM_ERR(CAM_PERF, "SFE:%d Set Clock rate failed, rc=%d",
-			top_priv->common_data.hw_intf->hw_idx, rc);
+		CAM_ERR(CAM_ISP,
+			"SFE:%d cesta_client_idx:%d Failed to set the req clk rate[high low]: [%llu %llu] rc:%d",
+			top_priv->common_data.hw_intf->hw_idx, cesta_client_idx,
+			cesta_clk_rate_high, cesta_clk_rate_low, rc);
 	}
 
 end:
@@ -402,6 +419,13 @@ int cam_sfe_top_calc_axi_bw_vote(struct cam_sfe_top_priv *top_priv,
 	bool bw_unchanged = true;
 	struct cam_axi_vote *final_bw_vote = NULL;
 
+	if (top_priv->num_in_ports > CAM_SFE_TOP_IN_PORT_MAX) {
+		CAM_ERR(CAM_SFE, "Invalid number of ports %d, max %d",
+			top_priv->num_in_ports, CAM_SFE_TOP_IN_PORT_MAX);
+		rc = -EINVAL;
+		goto end;
+	}
+
 	memset(&top_priv->agg_incoming_vote, 0, sizeof(struct cam_axi_vote));
 	for (i = 0; i < top_priv->num_in_ports; i++) {
 		if (top_priv->axi_vote_control[i] ==
@@ -562,6 +586,12 @@ int cam_sfe_top_bw_update(struct cam_sfe_soc_private *soc_private,
 		return -EINVAL;
 	}
 
+	if (top_priv->num_in_ports > CAM_SFE_TOP_IN_PORT_MAX) {
+		CAM_ERR(CAM_SFE, "Invalid number of ports %d, max %d",
+			top_priv->num_in_ports, CAM_SFE_TOP_IN_PORT_MAX);
+		return -EINVAL;
+	}
+
 	for (i = 0; i < top_priv->num_in_ports; i++) {
 		if (top_priv->in_rsrc[i].res_id == res->res_id) {
 			memcpy(&top_priv->req_axi_vote[i],
@@ -599,6 +629,12 @@ int cam_sfe_top_bw_control(struct cam_sfe_soc_private *soc_private,
 		CAM_ERR(CAM_SFE, "SFE:%d Invalid res_type:%d res id%d",
 			res->hw_intf->hw_idx, res->res_type,
 			res->res_id);
+		return -EINVAL;
+	}
+
+	if (top_priv->num_in_ports > CAM_SFE_TOP_IN_PORT_MAX) {
+		CAM_ERR(CAM_SFE, "Invalid number of ports %d, max %d",
+			top_priv->num_in_ports, CAM_SFE_TOP_IN_PORT_MAX);
 		return -EINVAL;
 	}
 
@@ -646,7 +682,7 @@ static int cam_sfe_top_core_cfg(
 
 static inline void cam_sfe_top_delay_clk_reduction(
 	struct cam_sfe_top_priv *top_priv,
-	uint64_t *max_clk)
+	unsigned long *max_clk)
 {
 	int i;
 
@@ -658,10 +694,10 @@ static inline void cam_sfe_top_delay_clk_reduction(
 
 int cam_sfe_top_calc_hw_clk_rate(
 	struct cam_sfe_top_priv *top_priv, bool start_stop,
-	uint64_t                       *final_clk_rate, uint64_t request_id)
+	unsigned long *final_clk_rate, uint64_t request_id)
 {
 	int                            i, rc = 0;
-	uint64_t                       max_req_clk_rate = 0;
+	unsigned long                  max_req_clk_rate = 0;
 
 	for (i = 0; i < top_priv->num_in_ports; i++) {
 		if (top_priv->req_clk_rate[i] > max_req_clk_rate)
@@ -675,15 +711,13 @@ int cam_sfe_top_calc_hw_clk_rate(
 		memset(top_priv->last_clk_vote, 0, sizeof(uint64_t) *
 			CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ);
 		top_priv->last_clk_counter = 0;
-		top_priv->last_clk_vote[top_priv->last_clk_counter] =
-			max_req_clk_rate;
+		top_priv->last_clk_vote[top_priv->last_clk_counter] = max_req_clk_rate;
 		top_priv->last_clk_counter = (top_priv->last_clk_counter + 1) %
 			CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ;
 	} else {
-		top_priv->last_clk_vote[top_priv->last_clk_counter] =
-			max_req_clk_rate;
+		top_priv->last_clk_vote[top_priv->last_clk_counter] = max_req_clk_rate;
 		top_priv->last_clk_counter = (top_priv->last_clk_counter + 1) %
-			CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ;
+				CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ;
 
 		/* Find max clk request in last few requests */
 		cam_sfe_top_delay_clk_reduction(top_priv, final_clk_rate);
@@ -701,7 +735,7 @@ int cam_sfe_top_calc_hw_clk_rate(
 		top_priv->clk_state = CAM_CLK_BW_STATE_DECREASE;
 
 	CAM_DBG(CAM_PERF, "SFE:%d Clock state:%s hw_clk_rate:%llu req_id:%ld",
-		top_priv->common_data.hw_intf->hw_idx,
+			top_priv->common_data.hw_intf->hw_idx,
 		cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state),
 		top_priv->applied_clk_rate, (start_stop ? -1 : request_id));
 
@@ -864,8 +898,10 @@ static int cam_sfe_top_handle_overflow(
 		top_priv->common_data.common_reg->ipp_violation_status);
 
 	CAM_ERR(CAM_ISP,
-		"SFE%d src_clk_rate:%luHz bus_overflow_status:%s violation: %s",
-		soc_info->index, soc_info->applied_src_clk_rate,
+		"SFE%d src_clk_rate sw_client:%lu hw_client:[%lu %lu] bus_overflow_status:%s violation: %s",
+		soc_info->index, soc_info->applied_src_clk_rates.sw_client,
+		soc_info->applied_src_clk_rates.hw_client[soc_info->index].high,
+		soc_info->applied_src_clk_rates.hw_client[soc_info->index].low,
 		CAM_BOOL_TO_YESNO(bus_overflow_status), CAM_BOOL_TO_YESNO(violation_status));
 
 	tmp = bus_overflow_status;
@@ -896,7 +932,7 @@ static int cam_sfe_top_apply_clk_bw_update(struct cam_sfe_top_priv *top_priv,
 	struct cam_hw_intf                   *hw_intf = NULL;
 	struct cam_axi_vote *to_be_applied_axi_vote = NULL;
 	struct cam_isp_apply_clk_bw_args *clk_bw_args = NULL;
-	uint64_t                              final_clk_rate = 0;
+	unsigned long                         final_clk_rate = 0;
 	uint64_t                              total_bw_new_vote = 0;
 	uint64_t                              request_id;
 	int rc = 0;
@@ -952,10 +988,12 @@ static int cam_sfe_top_apply_clk_bw_update(struct cam_sfe_top_priv *top_priv,
 		goto end;
 	}
 
-	CAM_DBG(CAM_PERF, "SFE:%d APPLY CLK/BW req_id:%ld clk_state:%s bw_state:%s ",
+	CAM_DBG(CAM_PERF,
+		"SFE:%d APPLY CLK/BW req_id:%ld clk_state:%s bw_state:%s is_drv_config_en:%s",
 		hw_intf->hw_idx, request_id,
 		cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state),
-		cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+		cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state),
+		CAM_BOOL_TO_YESNO(clk_bw_args->is_drv_config_en));
 
 	/* Determine BW and clock voting sequence according to state */
 	if ((top_priv->clk_state == CAM_CLK_BW_STATE_UNCHANGED) &&
@@ -966,20 +1004,23 @@ static int cam_sfe_top_apply_clk_bw_update(struct cam_sfe_top_priv *top_priv,
 			total_bw_new_vote, false, request_id);
 		if (rc) {
 			CAM_ERR(CAM_SFE,
-				"SFE:%d Failed in voting final bw:%llu clk_state:%s bw_state:%s",
+				"SFE:%d Failed in voting final bw:%llu clk_state:%s bw_state:%s is_drv_config_en:%s",
 				hw_intf->hw_idx, total_bw_new_vote,
 				cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state),
-				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state),
+				CAM_BOOL_TO_YESNO(clk_bw_args->is_drv_config_en));
 			goto end;
 		}
 	} else if (top_priv->bw_state == CAM_CLK_BW_STATE_UNCHANGED) {
-		rc = cam_sfe_top_set_hw_clk_rate(top_priv, final_clk_rate, false, request_id);
+		rc = cam_sfe_top_set_hw_clk_rate(top_priv, final_clk_rate, false, request_id,
+			clk_bw_args->is_drv_config_en);
 		if (rc) {
 			CAM_ERR(CAM_SFE,
-				"SFE:%d Failed in voting final clk:%llu clk_state:%s bw_state:%s",
+				"SFE:%d Failed in voting final clk:%lu clk_state:%s bw_state:%s is_drv_config_en:%s",
 				hw_intf->hw_idx, final_clk_rate,
 				cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state),
-				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state),
+				CAM_BOOL_TO_YESNO(clk_bw_args->is_drv_config_en));
 			goto end;
 		}
 	} else if (top_priv->clk_state == CAM_CLK_BW_STATE_INCREASE) {
@@ -988,31 +1029,36 @@ static int cam_sfe_top_apply_clk_bw_update(struct cam_sfe_top_priv *top_priv,
 			total_bw_new_vote, false, request_id);
 		if (rc) {
 			CAM_ERR(CAM_SFE,
-				"SFE:%d Failed in voting final bw:%llu clk_state:%s bw_state:%s",
+				"SFE:%d Failed in voting final bw:%llu clk_state:%s bw_state:%s is_drv_config_en:%s",
 				hw_intf->hw_idx, total_bw_new_vote,
 				cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state),
-				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state),
+				CAM_BOOL_TO_YESNO(clk_bw_args->is_drv_config_en));
 			goto end;
 		}
 
-		rc = cam_sfe_top_set_hw_clk_rate(top_priv, final_clk_rate, false, request_id);
+		rc = cam_sfe_top_set_hw_clk_rate(top_priv, final_clk_rate, false, request_id,
+			clk_bw_args->is_drv_config_en);
 		if (rc) {
 			CAM_ERR(CAM_SFE,
-				"SFE:%d Failed in voting final clk:%llu clk_state:%s bw_state:%s",
+				"SFE:%d Failed in voting final clk:%lu clk_state:%s bw_state:%s is_drv_config_en:%s",
 				hw_intf->hw_idx, final_clk_rate,
 				cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state),
-				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state),
+				CAM_BOOL_TO_YESNO(clk_bw_args->is_drv_config_en));
 			goto end;
 		}
 	} else if (top_priv->clk_state == CAM_CLK_BW_STATE_DECREASE) {
 		/* Set Clock first, followed by BW */
-		rc = cam_sfe_top_set_hw_clk_rate(top_priv, final_clk_rate, false, request_id);
+		rc = cam_sfe_top_set_hw_clk_rate(top_priv, final_clk_rate, false, request_id,
+			clk_bw_args->is_drv_config_en);
 		if (rc) {
 			CAM_ERR(CAM_SFE,
-				"SFE:%d Failed in voting final clk:%llu clk_state:%s bw_state:%s",
+				"SFE:%d Failed in voting final clk:%lu clk_state:%s bw_state:%s is_drv_config_en:%s",
 				hw_intf->hw_idx, final_clk_rate,
 				cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state),
-				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state),
+				CAM_BOOL_TO_YESNO(clk_bw_args->is_drv_config_en));
 			goto end;
 		}
 
@@ -1020,19 +1066,25 @@ static int cam_sfe_top_apply_clk_bw_update(struct cam_sfe_top_priv *top_priv,
 			total_bw_new_vote, false, request_id);
 		if (rc) {
 			CAM_ERR(CAM_SFE,
-				"SFE:%d Failed in voting final bw:%llu clk_state:%s bw_state:%s",
+				"SFE:%d Failed in voting final bw:%llu clk_state:%s bw_state:%s is_drv_config_en:%s",
 				hw_intf->hw_idx, total_bw_new_vote,
 				cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state),
-				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+				cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state),
+				CAM_BOOL_TO_YESNO(clk_bw_args->is_drv_config_en));
 			goto end;
 		}
 	} else {
-		CAM_ERR(CAM_SFE, "Invalid state to apply CLK/BW clk_state:%s bw_state:%s",
+		CAM_ERR(CAM_SFE,
+			"Invalid state to apply CLK/BW clk_state:%s bw_state:%s is_drv_config_en:%s",
 			cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state),
-			cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state));
+			cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state),
+			CAM_BOOL_TO_YESNO(clk_bw_args->is_drv_config_en));
 		rc = -EINVAL;
 		goto end;
 	}
+
+	if (top_priv->clk_state != CAM_CLK_BW_STATE_UNCHANGED)
+		clk_bw_args->clock_updated = true;
 
 end:
 	top_priv->clk_state = CAM_CLK_BW_STATE_INIT;
@@ -1043,7 +1095,7 @@ end:
 static int cam_sfe_top_apply_clock_start_stop(struct cam_sfe_top_priv *top_priv)
 {
 	int rc = 0;
-	uint64_t final_clk_rate = 0;
+	unsigned long final_clk_rate = 0;
 
 	rc = cam_sfe_top_calc_hw_clk_rate(top_priv, true, &final_clk_rate, 0);
 	if (rc) {
@@ -1056,9 +1108,9 @@ static int cam_sfe_top_apply_clock_start_stop(struct cam_sfe_top_priv *top_priv)
 	if (top_priv->clk_state == CAM_CLK_BW_STATE_UNCHANGED)
 		goto end;
 
-	rc = cam_sfe_top_set_hw_clk_rate(top_priv, final_clk_rate, true, 0);
+	rc = cam_sfe_top_set_hw_clk_rate(top_priv, final_clk_rate, true, 0, false);
 	if (rc) {
-		CAM_ERR(CAM_SFE, "SFE:%d Failed in voting final clk:%llu clk_state:%s",
+		CAM_ERR(CAM_SFE, "SFE:%d Failed in voting final clk:%lu clk_state:%s",
 			top_priv->common_data.hw_intf->hw_idx, final_clk_rate,
 			cam_sfe_top_clk_bw_state_to_string(top_priv->clk_state));
 		goto end;

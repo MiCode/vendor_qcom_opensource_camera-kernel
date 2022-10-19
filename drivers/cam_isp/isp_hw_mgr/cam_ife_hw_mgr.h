@@ -289,6 +289,7 @@ struct cam_ife_cdm_user_data {
  * @curr_num_exp:           Current num of exposures
  * @try_recovery_cnt:       Retry count for overflow recovery
  * @recovery_req_id:        The request id on which overflow recovery happens
+ * @drv_path_idle_en:       Path idle enable value for DRV
  *
  */
 struct cam_ife_hw_mgr_ctx {
@@ -348,6 +349,7 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                   curr_num_exp;
 	uint32_t                                   try_recovery_cnt;
 	uint64_t                                   recovery_req_id;
+	uint32_t                                   drv_path_idle_en;
 };
 
 /**
@@ -427,6 +429,7 @@ struct cam_isp_sfe_cache_info {
  * @csid_global_reset_en   CSID global reset enable
  * @csid_camif_irq_support CSID camif IRQ support
  * @cam_ddr_drv_support    DDR DRV support
+ * @cam_clk_drv_support    CLK DRV support
  * @isp_caps               Capability of underlying SFE/IFE HW
  * @path_port_map          Mapping of outport to IFE mux
  * @num_caches_found       Number of caches supported
@@ -457,6 +460,7 @@ struct cam_ife_hw_mgr {
 	bool                             csid_global_reset_en;
 	bool                             csid_camif_irq_support;
 	bool                             cam_ddr_drv_support;
+	bool                             cam_clk_drv_support;
 	struct cam_isp_ife_sfe_hw_caps   isp_caps;
 	struct cam_isp_hw_path_port_map  path_port_map;
 

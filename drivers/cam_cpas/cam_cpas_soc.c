@@ -24,27 +24,147 @@ module_param(cpas_dump, uint, 0644);
 
 #define CAM_ICP_CLK_NAME "cam_icp_clk"
 
-void cam_cpas_dump_tree_vote_info(const struct cam_cpas_tree_node *tree_node,
-	const char *identifier, int drv_voting_idx)
+void cam_cpas_dump_tree_vote_info(struct cam_hw_info *cpas_hw,
+	const struct cam_cpas_tree_node *tree_node,
+	const char *identifier, int ddr_drv_idx, int cesta_drv_idx)
 {
-	if (!cpas_dump)
+	struct cam_cpas_private_soc *soc_private =
+		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
+
+	if ((cpas_dump & BIT(0)) == 0)
 		return;
 
-	if (tree_node->bw_info[drv_voting_idx].vote_type == CAM_CPAS_VOTE_TYPE_DRV)
+	if (cesta_drv_idx > CAM_CPAS_PORT_HLOS_DRV)
 		CAM_INFO(CAM_PERF,
-			"%s node:%s lvl:%d drv_idx:%d DRV BW camnoc[%llu] ab[%llu %llu] ib[%llu %llu]",
-			identifier, tree_node->node_name, tree_node->level_idx, drv_voting_idx,
-			tree_node->camnoc_bw, tree_node->bw_info[drv_voting_idx].drv_vote.high.ab,
-			tree_node->bw_info[drv_voting_idx].drv_vote.low.ab,
-			tree_node->bw_info[drv_voting_idx].drv_vote.high.ib,
-			tree_node->bw_info[drv_voting_idx].drv_vote.low.ib);
+			"%s node:%s lvl:%d cesta_drv_idx:%d DRV BW camnoc[%llu %llu]",
+			identifier, tree_node->node_name, tree_node->level_idx, cesta_drv_idx,
+			tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc,
+			tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc);
 	else
 		CAM_INFO(CAM_PERF,
-			"%s node:%s lvl:%d drv_idx:%d HLOS BW camnoc[%llu] ab[%llu] ib[%llu]",
-			identifier, tree_node->node_name, tree_node->level_idx, drv_voting_idx,
-			tree_node->camnoc_bw, tree_node->bw_info[drv_voting_idx].hlos_vote.ab,
-			tree_node->bw_info[drv_voting_idx].hlos_vote.ib);
+			"%s node:%s lvl:%d cesta_drv_idx:%d HLOS BW camnoc[%llu]",
+			identifier, tree_node->node_name, tree_node->level_idx, cesta_drv_idx,
+			tree_node->bw_info[cesta_drv_idx].hlos_vote.camnoc);
 
+	if (ddr_drv_idx > CAM_CPAS_PORT_HLOS_DRV)
+		CAM_INFO(CAM_PERF,
+			"%s node:%s lvl:%d ddr_drv_idx:%d DRV BW ab[%llu %llu] ib[%llu %llu]",
+			identifier, tree_node->node_name, tree_node->level_idx, ddr_drv_idx,
+			tree_node->bw_info[ddr_drv_idx].drv_vote.high.ab,
+			tree_node->bw_info[ddr_drv_idx].drv_vote.low.ab,
+			tree_node->bw_info[ddr_drv_idx].drv_vote.high.ib,
+			tree_node->bw_info[ddr_drv_idx].drv_vote.low.ib);
+	else
+		CAM_INFO(CAM_PERF,
+			"%s node:%s lvl:%d ddr_drv_idx:%d HLOS BW ab[%llu] ib[%llu]",
+			identifier, tree_node->node_name, tree_node->level_idx, ddr_drv_idx,
+			tree_node->bw_info[ddr_drv_idx].hlos_vote.ab,
+			tree_node->bw_info[ddr_drv_idx].hlos_vote.ib);
+
+	if (soc_private->enable_cam_ddr_drv) {
+		int i;
+
+		CAM_INFO(CAM_PERF,
+			"%s node:%s lvl:%d drv_idx:%d cesta_drv_idx:%d ==== printing full node state",
+			identifier, tree_node->node_name, tree_node->level_idx,
+			ddr_drv_idx, cesta_drv_idx);
+
+		for (i = 0; i < CAM_CPAS_MAX_DRV_PORTS; i++) {
+
+			if (i == CAM_CPAS_PORT_HLOS_DRV)
+				CAM_INFO(CAM_PERF,
+					"idx[%d] HLOS camnoc[%llu], DDR ab[%llu] ib[%llu]",
+					i,
+					tree_node->bw_info[i].hlos_vote.camnoc,
+					tree_node->bw_info[i].hlos_vote.ab,
+					tree_node->bw_info[i].hlos_vote.ib);
+			else
+				CAM_INFO(CAM_PERF,
+					"idx[%d] DRV camnoc[%llu %llu], DDR ab[%llu %llu] ib[%llu %llu]",
+					i,
+					tree_node->bw_info[i].drv_vote.high.camnoc,
+					tree_node->bw_info[i].drv_vote.low.camnoc,
+					tree_node->bw_info[i].drv_vote.high.ab,
+					tree_node->bw_info[i].drv_vote.low.ab,
+					tree_node->bw_info[i].drv_vote.high.ib,
+					tree_node->bw_info[i].drv_vote.low.ib);
+		}
+	}
+
+}
+
+void cam_cpas_dump_full_tree_state(struct cam_hw_info *cpas_hw, const char *identifier)
+{
+	int j;
+	struct cam_cpas_private_soc *soc_private =
+		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
+	struct cam_cpas_tree_node *curr_node;
+
+	if ((cpas_dump & BIT(1)) == 0)
+		return;
+
+	CAM_INFO(CAM_CPAS, "Dumping cpas tree full state start ============== %s", identifier);
+
+	/* This will traverse through all nodes in the tree and print stats*/
+	for (j = 0; j < CAM_CPAS_MAX_TREE_NODES; j++) {
+		if (!soc_private->tree_node[j])
+			continue;
+
+		curr_node = soc_private->tree_node[j];
+
+		if (soc_private->enable_cam_ddr_drv) {
+			int i;
+
+			CAM_INFO(CAM_PERF,
+				"Identifier[%s] node:[%s] cell:%d lvl:%d PortIdx mnoc[%d %d %d %d] camnoc[%d] camnoc_max %d, bus_width:%d, drv_idx:%d",
+				identifier, curr_node->node_name, curr_node->cell_idx,
+				curr_node->level_idx,
+				curr_node->axi_port_idx_arr[CAM_CPAS_PORT_HLOS_DRV],
+				curr_node->axi_port_idx_arr[CAM_CPAS_PORT_DRV_0],
+				curr_node->axi_port_idx_arr[CAM_CPAS_PORT_DRV_1],
+				curr_node->axi_port_idx_arr[CAM_CPAS_PORT_DRV_2],
+				curr_node->camnoc_axi_port_idx,
+				curr_node->camnoc_max_needed,
+				curr_node->bus_width_factor,
+				curr_node->drv_voting_idx);
+
+			for (i = 0; i < CAM_CPAS_MAX_DRV_PORTS; i++) {
+				if (i == CAM_CPAS_PORT_HLOS_DRV)
+					CAM_INFO(CAM_PERF,
+						"    idx[%d] HLOS camnoc[%llu], DDR ab[%llu] ib[%llu]",
+						i,
+						curr_node->bw_info[i].hlos_vote.camnoc,
+						curr_node->bw_info[i].hlos_vote.ab,
+						curr_node->bw_info[i].hlos_vote.ib);
+				else
+					CAM_INFO(CAM_PERF,
+						"    idx[%d] DRV camnoc[%llu %llu], DDR ab[%llu %llu] ib[%llu %llu]",
+						i,
+						curr_node->bw_info[i].drv_vote.high.camnoc,
+						curr_node->bw_info[i].drv_vote.low.camnoc,
+						curr_node->bw_info[i].drv_vote.high.ab,
+						curr_node->bw_info[i].drv_vote.low.ab,
+						curr_node->bw_info[i].drv_vote.high.ib,
+						curr_node->bw_info[i].drv_vote.low.ib);
+			}
+		} else {
+			CAM_INFO(CAM_CPAS,
+				"[%s] Cell[%d] level[%d] PortIdx[%d][%d] camnoc_bw[%d %d %lld %lld] mnoc_bw[%lld %lld]",
+				curr_node->node_name, curr_node->cell_idx,
+				curr_node->level_idx,
+				curr_node->axi_port_idx_arr[CAM_CPAS_PORT_HLOS_DRV],
+				curr_node->camnoc_axi_port_idx,
+				curr_node->camnoc_max_needed,
+				curr_node->bus_width_factor,
+				curr_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.camnoc,
+				curr_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.camnoc *
+				curr_node->bus_width_factor,
+				curr_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.ab,
+				curr_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.ib);
+		}
+	}
+
+	CAM_INFO(CAM_CPAS, "Dumping cpas tree full state end ============== %s", identifier);
 }
 
 void cam_cpas_dump_axi_vote_info(
@@ -54,7 +174,7 @@ void cam_cpas_dump_axi_vote_info(
 {
 	int i;
 
-	if (!cpas_dump)
+	if ((cpas_dump & BIT(0)) == 0)
 		return;
 
 	if (!axi_vote || (axi_vote->num_paths >
@@ -85,7 +205,7 @@ void cam_cpas_util_debug_parse_data(
 	int i, j;
 	struct cam_cpas_tree_node *curr_node = NULL;
 
-	if (!cpas_dump)
+	if ((cpas_dump & BIT(0)) == 0)
 		return;
 
 	for (i = 0; i < CAM_CPAS_MAX_TREE_NODES; i++) {
@@ -110,8 +230,8 @@ void cam_cpas_util_debug_parse_data(
 			curr_node->path_trans_type), curr_node->drv_voting_idx);
 
 		for (j = 0; j < CAM_CPAS_PATH_DATA_MAX; j++) {
-			CAM_INFO(CAM_CPAS, "Constituent path: %d",
-				curr_node->constituent_paths[j] ? j : -1);
+			if (curr_node->constituent_paths[j])
+				CAM_INFO(CAM_CPAS, "Constituent path: %d", j);
 		}
 	}
 
@@ -609,9 +729,11 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 							client_name, curr_node_ptr->drv_voting_idx);
 				}
 
-				CAM_DBG(CAM_CPAS, "Client Node Added: %d %d %s %d",
+				CAM_DBG(CAM_CPAS,
+					"Node Added: Client[%s] DataType[%d] TransType[%d] DRV idx[%d]",
+					client_name,
 					curr_node_ptr->path_data_type,
-					curr_node_ptr->path_trans_type, client_name,
+					curr_node_ptr->path_trans_type,
 					curr_node_ptr->drv_voting_idx);
 			}
 
@@ -1462,6 +1584,25 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	if (cam_drv_en_mask_val & CAM_DDR_DRV)
 		soc_private->enable_cam_ddr_drv = true;
 
+	if (cam_drv_en_mask_val & CAM_CLK_DRV) {
+		if (!soc_private->enable_cam_ddr_drv) {
+			CAM_ERR(CAM_CPAS, "DDR DRV needs to be enabled for Clock DRV");
+			rc = -EPERM;
+			goto cleanup_clients;
+		}
+
+		soc_private->enable_cam_clk_drv = true;
+		rc = cam_soc_util_cesta_populate_crm_device();
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Failed to populate camera cesta crm device rc: %d", rc);
+			goto cleanup_clients;
+		}
+	}
+
+	CAM_DBG(CAM_CPAS, "enable_cam_ddr_drv %d enable_cam_clk_drv %d cam_drv_en_mask_val %d",
+		soc_private->enable_cam_ddr_drv, soc_private->enable_cam_clk_drv,
+		cam_drv_en_mask_val);
+
 	rc = cam_cpas_parse_node_tree(cpas_core, of_node, soc_private);
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "Node tree parsing failed rc: %d", rc);
@@ -1593,6 +1734,8 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 
 	soc_private = (struct cam_cpas_private_soc *)soc_info->soc_private;
 
+	soc_info->is_clk_drv_en = soc_private->enable_cam_clk_drv;
+
 	rc = cam_soc_util_get_option_clk_by_name(soc_info, CAM_ICP_CLK_NAME,
 		&soc_private->icp_clk_index);
 	if (rc) {
@@ -1653,9 +1796,13 @@ int cam_cpas_soc_deinit_resources(struct cam_hw_soc_info *soc_info)
 int cam_cpas_soc_enable_resources(struct cam_hw_soc_info *soc_info,
 	enum cam_vote_level default_level)
 {
+	struct cam_cpas_private_soc *soc_private = soc_info->soc_private;
 	int rc = 0;
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	/* set this everytime in order to support debugfs to disable clk drv between runs */
+	soc_info->is_clk_drv_en = soc_private->enable_cam_clk_drv;
+
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 		default_level, true);
 	if (rc)
 		CAM_ERR(CAM_CPAS, "enable platform resource failed, rc=%d", rc);
@@ -1668,7 +1815,7 @@ int cam_cpas_soc_disable_resources(struct cam_hw_soc_info *soc_info,
 {
 	int rc = 0;
 
-	rc = cam_soc_util_disable_platform_resource(soc_info,
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX,
 		disable_clocks, disable_irq);
 	if (rc)
 		CAM_ERR(CAM_CPAS, "disable platform failed, rc=%d", rc);

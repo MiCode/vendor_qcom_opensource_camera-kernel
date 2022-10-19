@@ -181,7 +181,7 @@ int cam_icp_soc_resources_enable(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 		CAM_SVS_VOTE, true);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to enable soc resources rc=%d", rc);
@@ -193,7 +193,7 @@ int cam_icp_soc_resources_disable(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to disable soc resources rc=%d", rc);
 
@@ -242,7 +242,7 @@ int cam_icp_soc_update_clk_rate(struct cam_hw_soc_info *soc_info,
 		clk_rate = soc_info->clk_rate[CAM_TURBO_VOTE][src_clk_idx];
 	}
 
-	rc = cam_soc_util_set_src_clk_rate(soc_info, clk_rate);
+	rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX, clk_rate, 0);
 	if (rc)
 		return rc;
 

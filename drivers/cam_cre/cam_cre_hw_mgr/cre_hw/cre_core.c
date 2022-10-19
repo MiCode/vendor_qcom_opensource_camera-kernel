@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -478,7 +479,7 @@ int cam_cre_process_cmd(void *device_priv, uint32_t cmd_type,
 			(struct cam_cre_dev_clk_update *)cmd_args;
 
 		if (!core_info->clk_enable) {
-			rc = cam_soc_util_clk_enable_default(soc_info,
+			rc = cam_soc_util_clk_enable_default(soc_info, CAM_CLK_SW_CLIENT_IDX,
 				CAM_SVS_VOTE);
 			if (rc) {
 				CAM_ERR(CAM_CRE, "Clock enable is failed");
@@ -494,7 +495,7 @@ int cam_cre_process_cmd(void *device_priv, uint32_t cmd_type,
 		break;
 	case CRE_HW_CLK_DISABLE: {
 		if (core_info->clk_enable)
-			cam_soc_util_clk_disable_default(soc_info);
+			cam_soc_util_clk_disable_default(soc_info, CAM_CLK_SW_CLIENT_IDX);
 
 		core_info->clk_enable = false;
 		}

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -43,8 +44,8 @@ int cam_lrme_soc_enable_resources(struct cam_hw_info *lrme_hw)
 		return -EFAULT;
 	}
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true, CAM_SVS_VOTE,
-		true);
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+		CAM_SVS_VOTE, true);
 	if (rc) {
 		CAM_ERR(CAM_LRME,
 			"Failed to enable platform resource, rc %d", rc);
@@ -72,7 +73,7 @@ int cam_lrme_soc_disable_resources(struct cam_hw_info *lrme_hw)
 
 	cam_lrme_set_irq(lrme_hw, CAM_LRME_IRQ_DISABLE);
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 	if (rc) {
 		CAM_ERR(CAM_LRME, "Failed to disable platform resource");
 		return rc;

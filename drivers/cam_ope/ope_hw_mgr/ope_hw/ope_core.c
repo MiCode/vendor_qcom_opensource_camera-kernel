@@ -1688,7 +1688,7 @@ int cam_ope_process_cmd(void *device_priv, uint32_t cmd_type,
 			(struct cam_ope_dev_clk_update *)cmd_args;
 
 		if (core_info->clk_enable == false) {
-			rc = cam_soc_util_clk_enable_default(soc_info,
+			rc = cam_soc_util_clk_enable_default(soc_info, CAM_CLK_SW_CLIENT_IDX,
 				CAM_SVS_VOTE);
 			if (rc) {
 				CAM_ERR(CAM_OPE, "Clock enable is failed");
@@ -1704,7 +1704,7 @@ int cam_ope_process_cmd(void *device_priv, uint32_t cmd_type,
 		break;
 	case OPE_HW_CLK_DISABLE: {
 		if (core_info->clk_enable == true)
-			cam_soc_util_clk_disable_default(soc_info);
+			cam_soc_util_clk_disable_default(soc_info, CAM_CLK_SW_CLIENT_IDX);
 
 		core_info->clk_enable = false;
 		}

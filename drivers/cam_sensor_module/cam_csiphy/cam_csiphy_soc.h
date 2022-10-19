@@ -65,7 +65,7 @@ int cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index);
  *
  * This API disables SOC related parameters
  */
-int cam_csiphy_disable_hw(struct csiphy_device *csiphy_dev);
+int cam_csiphy_disable_hw(struct csiphy_device *csiphy_dev, int32_t index);
 
 /**
  * @soc_info: Soc info of cam hw driver module

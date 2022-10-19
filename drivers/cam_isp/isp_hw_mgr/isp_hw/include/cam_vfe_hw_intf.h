@@ -222,10 +222,12 @@ struct cam_vfe_acquire_args {
  *
  * @node_res:                Resource to get the time stamp
  * @clk_rate:                Clock rate requested
+ * @vote_level:              DRV vote level corresponding to requested rate
  */
 struct cam_vfe_clock_update_args {
 	struct cam_isp_resource_node      *node_res;
 	uint64_t                           clk_rate;
+	uint32_t                           vote_level;
 };
 
 /*

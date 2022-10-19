@@ -283,7 +283,8 @@ void *cam_common_user_dump_clock(
 	}
 
 	addr = (uint64_t *)addr_ptr;
-	*addr++ = hw_info->soc_info.applied_src_clk_rate;
+	*addr++ = cam_soc_util_get_applied_src_clk(&hw_info->soc_info, true);
+
 	return addr;
 }
 

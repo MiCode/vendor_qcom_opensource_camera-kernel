@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE_TOP_COMMON_H_
@@ -26,7 +27,7 @@ struct cam_vfe_top_priv_common {
 	struct cam_axi_vote             last_bw_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
 	uint64_t                        last_total_bw_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
 	uint32_t                        last_bw_counter;
-	uint64_t                        last_clk_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
+	unsigned long                   last_clk_vote[CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ];
 	uint32_t                        last_clk_counter;
 	uint64_t                        total_bw_applied;
 	enum cam_clk_bw_state           clk_state;

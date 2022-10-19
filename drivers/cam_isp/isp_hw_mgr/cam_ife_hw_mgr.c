@@ -167,6 +167,10 @@ static int cam_isp_blob_drv_config(struct cam_ife_hw_mgr_ctx         *ctx,
 	drv_config_args.drv_en = drv_config->drv_en;
 	drv_config_args.path_idle_en = drv_config->path_idle_en;
 	drv_config_args.timeout_val = drv_config->timeout_val;
+
+	if (drv_config->drv_en)
+		ctx->drv_path_idle_en = drv_config->path_idle_en;
+
 	for (i = 0; i < ctx->num_base; i++) {
 		if (ctx->base[i].hw_type != CAM_ISP_HW_TYPE_CSID)
 			continue;
@@ -207,11 +211,15 @@ static int cam_ife_mgr_finish_clk_bw_update(
 {
 	int i, rc = 0;
 	struct cam_isp_apply_clk_bw_args clk_bw_args;
+	bool cesta_idx_updated[CAM_CESTA_MAX_CLIENTS] = {0};
 
 	clk_bw_args.request_id = request_id;
 	clk_bw_args.skip_clk_data_rst = skip_clk_data_rst;
+	clk_bw_args.is_drv_config_en = (bool) (ctx->drv_path_idle_en & CAM_ISP_PXL_PATH);
+
 	for (i = 0; i < ctx->num_base; i++) {
 		clk_bw_args.hw_intf = NULL;
+		clk_bw_args.clock_updated = false;
 		CAM_DBG(CAM_PERF,
 			"Clock/BW Update for req_id:%d i:%d num_vfe_out:%d num_sfe_out:%d in_rd:%d",
 			request_id, i, ctx->num_acq_vfe_out, ctx->num_acq_sfe_out,
@@ -226,8 +234,9 @@ static int cam_ife_mgr_finish_clk_bw_update(
 			continue;
 
 		CAM_DBG(CAM_PERF,
-			"Apply Clock/BW for req_id:%d i:%d hw_idx=%d hw_type:%d num_vfe_out:%d num_sfe_out:%d in_rd:%d",
+			"Apply Clock/BW for req_id:%d i:%d hw_idx=%d hw_type:%d inline:%s num_vfe_out:%d num_sfe_out:%d in_rd:%d",
 			request_id, i, clk_bw_args.hw_intf->hw_idx, clk_bw_args.hw_intf->hw_type,
+			CAM_BOOL_TO_YESNO(clk_bw_args.is_drv_config_en),
 			ctx->num_acq_vfe_out, ctx->num_acq_sfe_out,
 			!list_empty(&ctx->res_list_ife_in_rd));
 		rc = clk_bw_args.hw_intf->hw_ops.process_cmd(clk_bw_args.hw_intf->hw_priv,
@@ -239,7 +248,37 @@ static int cam_ife_mgr_finish_clk_bw_update(
 				request_id, i, ctx->base[i].idx, ctx->base[i].hw_type, rc);
 			break;
 		}
+
+		CAM_DBG(CAM_ISP, "clock_updated=%d, hw_idx=%d",
+			clk_bw_args.clock_updated, clk_bw_args.hw_intf->hw_idx);
+
+		if ((clk_bw_args.clock_updated) &&
+			(clk_bw_args.hw_intf->hw_idx < CAM_CESTA_MAX_CLIENTS))
+			cesta_idx_updated[clk_bw_args.hw_intf->hw_idx] = true;
 	}
+
+	if (g_ife_hw_mgr.cam_clk_drv_support) {
+		CAM_DBG(CAM_ISP, "Channel switch for [0]=%s, [1]=%s, [2]=%s",
+			CAM_BOOL_TO_YESNO(cesta_idx_updated[0]),
+			CAM_BOOL_TO_YESNO(cesta_idx_updated[1]),
+			CAM_BOOL_TO_YESNO(cesta_idx_updated[2]));
+
+		for (i = 0; i < CAM_CESTA_MAX_CLIENTS; i++) {
+			if (!cesta_idx_updated[i])
+				continue;
+
+			rc = cam_soc_util_cesta_channel_switch(i, "ife_hw_mgr_update");
+			if (rc) {
+				CAM_ERR(CAM_CSIPHY,
+					"Failed to apply power states for cesta client:%d rc:%d",
+					i, rc);
+				return rc;
+			}
+		}
+	}
+
+	CAM_DBG(CAM_ISP, "Clk, BW update done for Req=%lld, skip_clk_data_rst=%d",
+		request_id, skip_clk_data_rst);
 
 	return rc;
 }
@@ -901,7 +940,8 @@ err:
 static int cam_ife_mgr_csid_start_hw(
 	struct   cam_ife_hw_mgr_ctx *ctx,
 	uint32_t primary_rdi_csid_res,
-	bool     is_internal_start)
+	bool     is_internal_start,
+	bool     start_only)
 {
 	struct cam_isp_hw_mgr_res      *hw_mgr_res;
 	struct cam_isp_resource_node   *isp_res;
@@ -963,6 +1003,8 @@ static int cam_ife_mgr_csid_start_hw(
 			start_args.cdm_hw_idx = ctx->cdm_hw_idx;
 			start_args.is_secure = is_secure;
 			start_args.is_internal_start = is_internal_start;
+			start_args.start_only = start_only;
+			start_args.is_drv_config_en = (bool) ctx->drv_path_idle_en;
 			hw_intf->hw_ops.start(hw_intf->hw_priv, &start_args,
 			    sizeof(start_args));
 		}
@@ -5197,6 +5239,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->common.sec_pf_evt_cb = acquire_args->sec_pf_evt_cb;
 	ife_ctx->try_recovery_cnt = 0;
 	ife_ctx->recovery_req_id = 0;
+	ife_ctx->drv_path_idle_en = 0;
 
 	acquire_hw_info =
 		(struct cam_isp_acquire_hw_info *)acquire_args->acquire_info;
@@ -6945,7 +6988,7 @@ static int cam_ife_mgr_restart_hw(void *start_hw_args)
 
 	CAM_DBG(CAM_ISP, "START CSID HW ... in ctx id:%d", ctx->ctx_index);
 	/* Start the IFE CSID HW devices */
-	rc = cam_ife_mgr_csid_start_hw(ctx, CAM_IFE_PIX_PATH_RES_MAX, false);
+	rc = cam_ife_mgr_csid_start_hw(ctx, CAM_IFE_PIX_PATH_RES_MAX, false, false);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Error in starting CSID HW in ctx id:%d", ctx->ctx_index);
 		goto err;
@@ -7110,6 +7153,13 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 	CAM_DBG(CAM_ISP, "Enter... ctx id:%d",
 		ctx->ctx_index);
 
+	rc = cam_cpas_query_drv_enable(&g_ife_hw_mgr.cam_ddr_drv_support,
+		&g_ife_hw_mgr.cam_clk_drv_support);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed to query DRV enable rc: %d", rc);
+		return -EINVAL;
+	}
+
 	/* update Bandwidth should be done at the hw layer */
 
 	cam_tasklet_start(ctx->common.tasklet_info);
@@ -7217,12 +7267,6 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Can not start cdm (%d)", ctx->cdm_handle);
 		goto safe_disable;
-	}
-
-	rc = cam_cpas_query_drv_enable(&g_ife_hw_mgr.cam_ddr_drv_support);
-	if (rc) {
-		CAM_ERR(CAM_ISP, "Failed to query DRV enable rc: %d", rc);
-		goto cdm_streamoff;
 	}
 
 start_only:
@@ -7343,7 +7387,7 @@ start_only:
 		ctx->ctx_index);
 	/* Start the IFE CSID HW devices */
 	rc = cam_ife_mgr_csid_start_hw(ctx, primary_rdi_csid_res,
-		start_isp->is_internal_start);
+		start_isp->is_internal_start, start_isp->start_only);
 	if (rc)
 		goto err;
 
@@ -7497,6 +7541,7 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	ctx->scratch_buf_info.ife_scratch_config = NULL;
 	ctx->try_recovery_cnt = 0;
 	ctx->recovery_req_id = 0;
+	ctx->drv_path_idle_en = 0;
 
 	memset(&ctx->flags, 0, sizeof(struct cam_ife_hw_mgr_ctx_flags));
 	atomic_set(&ctx->overflow_pending, 0);
@@ -8800,13 +8845,11 @@ static int cam_isp_blob_ife_clock_update(
 
 					camif_r_clk_updated = true;
 				}
-			} else if ((hw_mgr_res->res_id >=
-				CAM_ISP_HW_VFE_IN_RD) && (hw_mgr_res->res_id
-				<= CAM_ISP_HW_VFE_IN_RDI3))
+			} else if ((hw_mgr_res->res_id >= CAM_ISP_HW_VFE_IN_RD) &&
+				(hw_mgr_res->res_id <= CAM_ISP_HW_VFE_IN_RDI3)) {
 				for (j = 0; j < clock_config->num_rdi; j++)
-					clk_rate = max(clock_config->rdi_hz[j],
-						clk_rate);
-			else
+					clk_rate = max(clock_config->rdi_hz[j], clk_rate);
+			} else {
 				if (hw_mgr_res->res_id != CAM_ISP_HW_VFE_IN_LCR
 					&& hw_mgr_res->hw_res[i]) {
 					CAM_ERR(CAM_ISP, "Invalid res_id %u",
@@ -8814,6 +8857,7 @@ static int cam_isp_blob_ife_clock_update(
 					rc = -EINVAL;
 					return rc;
 				}
+			}
 
 			hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
 			if (hw_intf && hw_intf->hw_ops.process_cmd) {

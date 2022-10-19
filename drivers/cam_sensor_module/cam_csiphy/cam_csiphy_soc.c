@@ -179,53 +179,80 @@ int32_t cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 {
 	int32_t rc = 0;
 	struct cam_hw_soc_info   *soc_info;
-	enum cam_vote_level vote_level = CAM_SVS_VOTE;
+	enum cam_vote_level vote_level;
+	struct cam_csiphy_param *param = &csiphy_dev->csiphy_info[index];
 
 	soc_info = &csiphy_dev->soc_info;
 
 	if (csiphy_dev->ref_count++) {
 		CAM_ERR(CAM_CSIPHY, "csiphy refcount = %d",
 			csiphy_dev->ref_count);
-		return rc;
+		goto end;
 	}
 
 	vote_level = csiphy_dev->ctrl_reg->getclockvoting(csiphy_dev, index);
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
-		vote_level, true);
-	if (rc < 0) {
-		CAM_ERR(CAM_CSIPHY, "failed to enable platform resources %d",
-			rc);
-		return rc;
+
+	rc = cam_soc_util_enable_platform_resource(soc_info,
+		(soc_info->is_clk_drv_en && param->use_hw_client_voting) ?
+		param->conn_csid_idx : CAM_CLK_SW_CLIENT_IDX, true, vote_level, true);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY,
+			"[%s] failed to enable platform resources, clk_drv_en=%d, use_hw_client=%d conn_csid_idx=%d, rc=%d",
+			soc_info->dev_name, soc_info->is_clk_drv_en, param->use_hw_client_voting,
+			param->conn_csid_idx, rc);
+		goto end;
 	}
 
-	rc = cam_soc_util_set_src_clk_rate(soc_info,
-		soc_info->clk_rate[0][soc_info->src_clk_idx]);
+	if (soc_info->is_clk_drv_en && param->use_hw_client_voting && param->is_drv_config_en) {
+		int clk_vote_level_high = vote_level;
+		int clk_vote_level_low = CAM_LOWSVS_VOTE;
 
-	if (rc < 0) {
-		CAM_ERR(CAM_CSIPHY, "csiphy_clk_set_rate failed rc: %d", rc);
-		goto csiphy_disable_platform_resource;
+		rc = cam_soc_util_set_clk_rate_level(soc_info, param->conn_csid_idx,
+			clk_vote_level_high, clk_vote_level_low, false);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY,
+				"Failed to set the req clk_rate level[high low]: [%s %s] cesta_client_idx: %d rc: %d",
+				cam_soc_util_get_string_from_level(clk_vote_level_high),
+				cam_soc_util_get_string_from_level(clk_vote_level_low),
+				param->conn_csid_idx, rc);
+			rc = -EINVAL;
+			goto disable_platform_resource;
+		}
+
+		rc = cam_soc_util_cesta_channel_switch(param->conn_csid_idx, "csiphy_start");
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY,
+				"[%s] Failed to apply power states for crm client:%d rc:%d",
+				soc_info->dev_name, param->conn_csid_idx, rc);
+			goto disable_platform_resource;
+		}
+
 	}
 
 	cam_csiphy_reset(csiphy_dev);
 
 	return rc;
 
-
-csiphy_disable_platform_resource:
-	cam_soc_util_disable_platform_resource(soc_info, true, true);
-
+disable_platform_resource:
+	cam_soc_util_disable_platform_resource(soc_info,
+		(soc_info->is_clk_drv_en && param->use_hw_client_voting) ?
+		param->conn_csid_idx : CAM_CLK_SW_CLIENT_IDX,
+		true, true);
+end:
 	return rc;
 }
 
-int32_t cam_csiphy_disable_hw(struct csiphy_device *csiphy_dev)
+int32_t cam_csiphy_disable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 {
 	struct cam_hw_soc_info   *soc_info;
+	struct cam_csiphy_param *param;
 
 	if (!csiphy_dev || !csiphy_dev->ref_count) {
 		CAM_ERR(CAM_CSIPHY, "csiphy dev NULL / ref_count ZERO");
 		return 0;
 	}
 	soc_info = &csiphy_dev->soc_info;
+	param = &csiphy_dev->csiphy_info[index];
 
 	if (--csiphy_dev->ref_count) {
 		CAM_ERR(CAM_CSIPHY, "csiphy refcount = %d",
@@ -235,7 +262,10 @@ int32_t cam_csiphy_disable_hw(struct csiphy_device *csiphy_dev)
 
 	cam_csiphy_reset(csiphy_dev);
 
-	cam_soc_util_disable_platform_resource(soc_info, true, true);
+	cam_soc_util_disable_platform_resource(soc_info,
+		(soc_info->is_clk_drv_en && param->use_hw_client_voting) ?
+		param->conn_csid_idx : CAM_CLK_SW_CLIENT_IDX,
+		true, true);
 
 	return 0;
 }

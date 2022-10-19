@@ -120,10 +120,12 @@ struct cam_sfe_fe_update_args {
  *
  * @node_res:                ISP Resource
  * @clk_rate:                Clock rate requested
+ * @vote_level:              DRV vote level corresponding to requested rate
  */
 struct cam_sfe_clock_update_args {
 	struct cam_isp_resource_node      *node_res;
 	uint64_t                           clk_rate;
+	uint32_t                           vote_level;
 };
 
 /*

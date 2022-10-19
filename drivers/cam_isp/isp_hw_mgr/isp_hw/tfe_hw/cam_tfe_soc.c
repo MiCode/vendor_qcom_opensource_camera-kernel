@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -171,7 +172,7 @@ int cam_tfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 		goto end;
 	}
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDXs, true,
 		CAM_LOWSVS_VOTE, true);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Error! enable platform failed rc=%d", rc);
@@ -200,8 +201,8 @@ int cam_tfe_soc_enable_clk(struct cam_hw_soc_info *soc_info,
 	soc_private = soc_info->soc_private;
 
 	if (strcmp(clk_name, CAM_TFE_DSP_CLK_NAME) == 0) {
-		rc = cam_soc_util_clk_enable(soc_info, true,
-			soc_private->dsp_clk_index, 0, NULL);
+		rc = cam_soc_util_clk_enable(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+			soc_private->dsp_clk_index, 0);
 		if (rc)
 			CAM_ERR(CAM_ISP,
 			"Error enable dsp clk failed rc=%d", rc);
@@ -224,7 +225,7 @@ int cam_tfe_soc_disable_clk(struct cam_hw_soc_info *soc_info,
 	soc_private = soc_info->soc_private;
 
 	if (strcmp(clk_name, CAM_TFE_DSP_CLK_NAME) == 0) {
-		rc = cam_soc_util_clk_disable(soc_info, true,
+		rc = cam_soc_util_clk_disable(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 			soc_private->dsp_clk_index);
 		if (rc)
 			CAM_ERR(CAM_ISP,
@@ -247,7 +248,7 @@ int cam_tfe_disable_soc_resources(struct cam_hw_soc_info *soc_info)
 	}
 	soc_private = soc_info->soc_private;
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Disable platform failed rc=%d", rc);
 		return rc;

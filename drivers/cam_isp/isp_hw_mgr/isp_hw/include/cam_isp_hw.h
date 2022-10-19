@@ -67,11 +67,15 @@ struct cam_isp_bw_control_args {
  * @hw_intf:             Isp hw intf pointer
  * @request_id:          Request Id
  * @skip_clk_data_rst:   Skip resetting any clk info
+ * @is_drv_config_en:    Enable clk DRV while setting this clk rate
+ * @clock_updated:       If clock is updated for any of the cores
  */
 struct cam_isp_apply_clk_bw_args {
 	struct cam_hw_intf                *hw_intf;
 	uint64_t                           request_id;
 	bool                               skip_clk_data_rst;
+	bool                               is_drv_config_en;
+	bool                               clock_updated;
 };
 
 /*

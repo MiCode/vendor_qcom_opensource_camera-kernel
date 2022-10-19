@@ -2640,7 +2640,7 @@ static int cam_ife_csid_ver1_enable_hw(struct cam_ife_csid_ver1_hw *csid_hw)
 	CAM_DBG(CAM_ISP,
 		"CSID[%d] clk lvl %u received clk_rate %u applied clk_rate %lu",
 		csid_hw->hw_intf->hw_idx, clk_lvl, csid_hw->clk_rate,
-		soc_info->applied_src_clk_rate);
+		soc_info->applied_src_clk_rates.sw_client);
 
 	rc = cam_ife_csid_enable_soc_resources(soc_info, clk_lvl);
 
@@ -3987,28 +3987,28 @@ static int cam_ife_csid_ver1_rx_bottom_half_handler(
 			event_type |= CAM_ISP_HW_ERROR_CSID_LANE_FIFO_OVERFLOW;
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"RX_ERROR_LANE0_FIFO_OVERFLOW: Skew/Less Data on lanes/ Slow csid clock:%luHz\n",
-				soc_info->applied_src_clk_rate);
+				soc_info->applied_src_clk_rates.sw_client);
 		}
 
 		if (irq_status & IFE_CSID_VER1_RX_LANE1_FIFO_OVERFLOW) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_LANE_FIFO_OVERFLOW;
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"RX_ERROR_LANE1_FIFO_OVERFLOW: Skew/Less Data on lanes/ Slow csid clock:%luHz\n",
-				soc_info->applied_src_clk_rate);
+				soc_info->applied_src_clk_rates.sw_client);
 		}
 
 		if (irq_status & IFE_CSID_VER1_RX_LANE2_FIFO_OVERFLOW) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_LANE_FIFO_OVERFLOW;
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"RX_ERROR_LANE2_FIFO_OVERFLOW: Skew/Less Data on lanes/ Slow csid clock:%luHz\n",
-				soc_info->applied_src_clk_rate);
+				soc_info->applied_src_clk_rates.sw_client);
 		}
 
 		if (irq_status & IFE_CSID_VER1_RX_LANE3_FIFO_OVERFLOW) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_LANE_FIFO_OVERFLOW;
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"RX_ERROR_LANE3_FIFO_OVERFLOW: Skew/Less Data on lanes/ Slow csid clock:%luHz\n",
-				soc_info->applied_src_clk_rate);
+				soc_info->applied_src_clk_rates.sw_client);
 		}
 
 		if (irq_status & IFE_CSID_VER1_RX_TG_FIFO_OVERFLOW) {

@@ -24,9 +24,21 @@
 #define CAM_CPAS_MAX_PATHS_PER_CLIENT 15
 #define CAM_CPAS_API_PATH_DATA_STD_START 512
 
+#define CAM_CPAS_VOTE_LEVEL_NONE 0
+#define CAM_CPAS_VOTE_LEVEL_MAX 3
+
 /* Qos Selection mask */
 #define CAM_CPAS_QOS_DEFAULT_SETTINGS_MASK 0x1
 #define CAM_CPAS_QOS_CUSTOM_SETTINGS_MASK  0x2
+
+/**
+ * enum cam_cpas_vote_type - Enum for cpas vote type
+ */
+enum cam_cpas_vote_type {
+	CAM_CPAS_VOTE_TYPE_HLOS,
+	CAM_CPAS_VOTE_TYPE_DRV,
+	CAM_CPAS_VOTE_TYPE_MAX,
+};
 
 /**
  * enum cam_cpas_reg_base - Enum for register base identifier. These
@@ -774,6 +786,18 @@ const char *cam_cpas_axi_util_drv_vote_lvl_to_string(
 	uint32_t vote_lvl);
 
 /**
+ * cam_cpas_util_vote_type_to_string()
+ *
+ * @brief: API to get string for given vote type
+ *
+ * @vote_type  : DRV vote level
+ *
+ * @return string.
+ *
+ */
+const char *cam_cpas_util_vote_type_to_string(enum cam_cpas_vote_type vote_type);
+
+/**
  * cam_cpas_log_votes()
  *
  * @brief: API to print the all bw votes of axi client. It also print the
@@ -892,12 +916,13 @@ int cam_cpas_csid_process_resume(uint32_t csid_idx);
  * cam_cpas_query_drv_enable()
  *
  * @brief: API to indicate DRV enabled on hw or not
- * @is_drv_enabled: Indication to be set by the API
+ * @is_ddr_drv_enabled: If DDR DRV enabled
+ * @is_clk_drv_enabled: If Clock Cesta DRV enabled
  *
  * @return 0 on success
  *
  */
-int cam_cpas_query_drv_enable(bool *is_drv_enabled);
+int cam_cpas_query_drv_enable(bool *is_ddr_drv_enabled, bool *is_clk_drv_enabled);
 
 /**
  * cam_cpas_query_domain_id_security_support()

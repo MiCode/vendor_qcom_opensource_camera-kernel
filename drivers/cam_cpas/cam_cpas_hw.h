@@ -69,14 +69,6 @@ enum cam_cpas_access_type {
 };
 
 /**
- * enum cam_cpas_vote_type - Enum for cpas vote type
- */
-enum cam_cpas_vote_type {
-	CAM_CPAS_VOTE_TYPE_HLOS,
-	CAM_CPAS_VOTE_TYPE_DRV,
-};
-
-/**
  * struct cam_cpas_vdd_ahb_mapping : Voltage to ahb level mapping
  *
  * @vdd_corner : Voltage corner value
@@ -91,13 +83,15 @@ struct cam_cpas_vdd_ahb_mapping {
 /**
  * struct cam_cpas_bw_vote : AXI bw vote
  *
- * @ab: AB bw value
- * @ib: IB bw value
+ * @ab:     AB bw value
+ * @ib:     IB bw value
+ * @camnoc: CAMNOC bw value
  *
  */
 struct cam_cpas_bw_vote {
 	uint64_t ab;
 	uint64_t ib;
+	uint64_t camnoc;
 };
 
 /**
@@ -237,7 +231,6 @@ struct cam_cpas_bus_client {
  * @cam_rsc_dev: Cam RSC device for DRV
  * @is_drv_started: Indicates if DRV started for RSC device corresponding to port
  * @curr_bw: Current voted bw after cpas consolidation
- * @camnoc_bw: CAMNOC bw value for this port
  * @additional_bw: Additional bandwidth to cover non-hw cpas clients
  * @applied_bw: Actual applied bw to port
  */
@@ -251,7 +244,6 @@ struct cam_cpas_axi_port {
 	const struct device *cam_rsc_dev;
 	bool is_drv_started;
 	struct cam_cpas_axi_bw_info curr_bw;
-	uint64_t camnoc_bw;
 	uint64_t additional_bw;
 	struct cam_cpas_axi_bw_info applied_bw;
 };
@@ -277,10 +269,10 @@ struct cam_cpas_axi_port_debug_info {
  * struct cam_cpas_monitor : CPAS monitor array
  *
  * @timestamp: Timestamp at which this monitor entry is saved
- * @axi_info: AXI port information
  * @identifier_string: String passed by caller
  * @identifier_value: Identifier value passed by caller
- * @applied_camnoc_clk: Applied camnoc axi clock rate
+ * @axi_info: AXI port information
+ * @applied_camnoc_clk: Applied camnoc axi clock rate with sw, hw clients
  * @applied_ahb_level: Applied camcc ahb level
  * @fe_ddr: RPMH DDR BCM FE (front-end) status register value.
  *          This indicates requested clock plan
@@ -304,7 +296,7 @@ struct cam_cpas_monitor {
 	char                identifier_string[128];
 	int32_t             identifier_value;
 	struct cam_cpas_axi_port_debug_info axi_info[CAM_CPAS_MAX_AXI_PORTS];
-	uint64_t            applied_camnoc_clk;
+	struct cam_soc_util_clk_rates       applied_camnoc_clk;
 	unsigned int        applied_ahb_level;
 	uint32_t            fe_ddr;
 	uint32_t            be_ddr;
@@ -343,7 +335,7 @@ struct cam_cpas_monitor {
  * @irq_count_wq: wait variable to ensure all irq's are handled
  * @dentry: debugfs file entry
  * @ahb_bus_scaling_disable: ahb scaling based on src clk corner for bus
- * @applied_camnoc_axi_rate: applied camnoc axi clock rate
+ * @applied_camnoc_axi_rate: applied camnoc axi clock rate through sw, hw clients
  * @monitor_head: Monitor array head
  * @monitor_entries: cpas monitor array
  * @camnoc_info: Pointer to camnoc header info
@@ -353,6 +345,7 @@ struct cam_cpas_monitor {
  *                    config issues
  * @smmu_fault_handled: Handled address decode error, on fault at SMMU
  * @force_hlos_drv: Whether to force disable DRV voting
+ * @force_cesta_sw_client: Whether to force voting through cesta sw client
  */
 struct cam_cpas {
 	struct cam_cpas_hw_caps hw_caps;
@@ -375,7 +368,7 @@ struct cam_cpas {
 	wait_queue_head_t irq_count_wq;
 	struct dentry *dentry;
 	bool ahb_bus_scaling_disable;
-	uint64_t applied_camnoc_axi_rate;
+	struct cam_soc_util_clk_rates applied_camnoc_axi_rate;
 	atomic64_t  monitor_head;
 	struct cam_cpas_monitor monitor_entries[CAM_CPAS_MONITOR_MAX_ENTRIES];
 	void *camnoc_info;
@@ -384,6 +377,7 @@ struct cam_cpas {
 	bool slave_err_irq_en;
 	bool smmu_fault_handled;
 	bool force_hlos_drv;
+	bool force_cesta_sw_client;
 };
 
 int cam_camsstop_get_internal_ops(struct cam_cpas_internal_ops *internal_ops);

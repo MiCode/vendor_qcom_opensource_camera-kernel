@@ -28,7 +28,6 @@
  * @path_trans_type: Transaction type info from device tree (rd, wr)
  * @merge_type: Traffic merge type (calculation info) from device tree
  * @bus_width_factor: Factor for accounting bus width in CAMNOC bw calculation
- * @camnoc_bw: CAMNOC bw value at current node
  * @bw_info: AXI BW info for all drv ports
  * @camnoc_max_needed: If node is needed for CAMNOC BW calculation then true
  * @constituent_paths: Constituent paths presence info from device tree
@@ -60,7 +59,6 @@ struct cam_cpas_tree_node {
 	uint32_t path_trans_type;
 	uint32_t merge_type;
 	uint32_t bus_width_factor;
-	uint64_t camnoc_bw;
 	struct cam_cpas_axi_bw_info *bw_info;
 	bool camnoc_max_needed;
 	bool constituent_paths[CAM_CPAS_PATH_DATA_MAX];
@@ -210,6 +208,7 @@ struct cam_cpas_domain_id_support_clks {
  * @llcc_info: Cache info
  * @enable_smart_qos: Whether to enable Smart QoS mechanism on current chipset
  * @enable_cam_ddr_drv: Whether to enable Camera DDR DRV on current chipset
+ * @enable_cam_clk_drv: Whether to enable Camera Clk DRV on current chipset
  * @smart_qos_info: Pointer to smart qos info
  * @icp_clk_index: Index of optional icp clk
  * @domain_id_info: Stores all information related to domain id support
@@ -238,14 +237,17 @@ struct cam_cpas_private_soc {
 	struct cam_sys_cache_info *llcc_info;
 	bool enable_smart_qos;
 	bool enable_cam_ddr_drv;
+	bool enable_cam_clk_drv;
 	struct cam_cpas_smart_qos_info *smart_qos_info;
 	int32_t icp_clk_index;
 	struct cam_cpas_domain_id_info domain_id_info;
 	struct cam_cpas_domain_id_support_clks *domain_id_clks;
 };
 
-void cam_cpas_dump_tree_vote_info(const struct cam_cpas_tree_node *tree_node,
-	const char *identifier, int drv_voting_idx);
+void cam_cpas_dump_tree_vote_info(struct cam_hw_info *cpas_hw,
+	const struct cam_cpas_tree_node *tree_node,
+	const char *identifier, int ddr_drv_idx, int cesta_drv_idx);
+void cam_cpas_dump_full_tree_state(struct cam_hw_info *cpas_hw, const char *identifier);
 
 void cam_cpas_util_debug_parse_data(struct cam_cpas_private_soc *soc_private);
 void cam_cpas_dump_axi_vote_info(

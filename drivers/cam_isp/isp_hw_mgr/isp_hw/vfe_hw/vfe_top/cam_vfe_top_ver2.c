@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -99,7 +100,7 @@ static int cam_vfe_top_dump_info(
 	switch (cmd_type) {
 	case CAM_ISP_HW_NOTIFY_OVERFLOW:
 		CAM_INFO_RATE_LIMIT(CAM_ISP, "VFE%d src_clk_rate:%luHz",
-			soc_info->index, soc_info->applied_src_clk_rate);
+			soc_info->index, soc_info->applied_src_clk_rates.sw_client);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "cmd_type: %u not supported", cmd_type);
