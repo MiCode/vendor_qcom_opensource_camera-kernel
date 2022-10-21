@@ -1700,7 +1700,7 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 
 	status = irq_status & err_mask;
 	while (status) {
-		if (status & 0x1 ) {
+		if ((csid_reg->path_irq_desc[bit_pos].bitmask != 0) && (status & 0x1)) {
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len, "%s",
 				csid_reg->path_irq_desc[bit_pos].desc);
 			if (csid_reg->path_irq_desc[bit_pos].err_type)
@@ -1720,7 +1720,7 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	status = irq_status & csid_hw->debug_info.path_mask;
 	bit_pos = 0;
 	while (status) {
-		if (status & 0x1)
+		if ((csid_reg->path_irq_desc[bit_pos].bitmask != 0) && (status & 0x1))
 			CAM_INFO(CAM_ISP, "CSID[%u] IRQ %s %s timestamp:[%lld.%09lld]",
 				csid_hw->hw_intf->hw_idx, irq_reg_tag[index],
 				csid_reg->path_irq_desc[bit_pos].desc,

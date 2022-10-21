@@ -360,6 +360,20 @@ struct cam_ife_csid_ver2_top_reg_info {
 	bool     sfe_pipeline_bypassed;
 };
 
+struct cam_ife_csid_ver2_mc_ctxt_reg_info {
+	uint32_t epoch_irq_cfg_addr;
+};
+
+struct cam_ife_csid_ver2_mc_bcast_reg_info {
+	uint32_t  pix_store_cfg_addr;
+};
+
+struct cam_ife_csid_ver2_mc_reg_info {
+	uint32_t           irq_comp_cfg0_addr;
+	uint32_t           ipp_src_ctxt_mask_shift;
+	uint32_t           ipp_dst_ctxt_mask_shift;
+};
+
 struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t irq_status_addr;
 	uint32_t irq_mask_addr;
@@ -370,6 +384,8 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t debug_clr_cmd_addr;
 	uint32_t multi_vcdt_cfg0_addr;
 	uint32_t cfg1_addr;
+	uint32_t bin_cfg0_addr;
+	uint32_t pix_store_cfg0_addr;
 	uint32_t sparse_pd_extractor_cfg_addr;
 	uint32_t err_recovery_cfg0_addr;
 	uint32_t err_recovery_cfg1_addr;
@@ -383,6 +399,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t epoch_irq_cfg_addr;
 	uint32_t epoch0_subsample_ptrn_addr;
 	uint32_t epoch1_subsample_ptrn_addr;
+	uint32_t debug_rup_aup_status;
 	uint32_t debug_camif_1_addr;
 	uint32_t debug_camif_0_addr;
 	uint32_t frm_drop_pattern_addr;
@@ -402,6 +419,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t debug_misr_val3_addr;
 	uint32_t format_measure_cfg0_addr;
 	uint32_t format_measure_cfg1_addr;
+	uint32_t format_measure_cfg2_addr;
 	uint32_t format_measure0_addr;
 	uint32_t format_measure1_addr;
 	uint32_t format_measure2_addr;
@@ -433,6 +451,8 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t secure_mask_cfg0;
 	uint32_t path_batch_status;
 	uint32_t path_frame_id;
+	uint32_t cfg2_addr;
+	uint32_t debug_sim_monitor;
 
 	/*Shift Bit Configurations*/
 	uint32_t start_mode_master;
@@ -518,6 +538,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t top_irq_mask_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
 	uint32_t top_irq_clear_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
 	uint32_t top_irq_set_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	uint32_t multi_sensor_mode_addr;
 	uint32_t irq_cmd_addr;
 	uint32_t buf_done_irq_status_addr;
 	uint32_t buf_done_irq_mask_addr;
@@ -530,6 +551,9 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t drv_cfg2_addr;
 	uint32_t debug_drv_0_addr;
 	uint32_t debug_drv_1_addr;
+	uint32_t debug_sensor_hbi_irq_vcdt_addr;
+	uint32_t debug_violation_addr;
+	uint32_t debug_cfg_addr;
 
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;
@@ -695,6 +719,7 @@ struct cam_ife_csid_ver2_reg_info {
 	const struct cam_ife_csid_ver2_path_reg_info     *path_reg[
 						    CAM_IFE_PIX_PATH_RES_MAX];
 	const struct cam_ife_csid_ver2_top_reg_info      *top_reg;
+	const struct cam_ife_csid_ver2_mc_reg_info       *ipp_mc_reg;
 	const uint32_t                                    need_top_cfg;
 	const uint32_t                                    csid_cust_node_map[
 		    CAM_IFE_CSID_HW_NUM_MAX];

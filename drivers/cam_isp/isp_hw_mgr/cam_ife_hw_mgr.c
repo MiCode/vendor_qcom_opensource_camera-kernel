@@ -13662,7 +13662,8 @@ static int cam_ife_hw_mgr_handle_csid_error(
 	/* Notify IFE/SFE devices, determine bus overflow */
 	if (err_type & (CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW |
 		CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW |
-		CAM_ISP_HW_ERROR_CSID_FRAME_SIZE))
+		CAM_ISP_HW_ERROR_CSID_FRAME_SIZE |
+		CAM_ISP_HW_ERROR_CSID_CAMIF_FRAME_DROP))
 		cam_ife_hw_mgr_check_and_notify_overflow(event_info,
 			ctx, &is_bus_overflow);
 
