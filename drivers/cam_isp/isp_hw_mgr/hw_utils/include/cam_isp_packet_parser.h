@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_PARSER_H_
@@ -129,11 +129,13 @@ struct cam_isp_cmd_buf_count {
  * @res_list_ife_in_rd:    IFE/SFE in rd resource list
  * @base:                  Base info for IFE/SFE
  * @out_map:               Outport map
+ * @hw_intf:               HW intf
  * @iommu_hdl:             Iommu handle to get the IO buf from memory manager
  * @sec_iommu_hdl:         Secure iommu handle to get the IO buf from
  *                         memory manager
  * @out_base:              Base value of ISP resource (IFE/SFE)
  * @out_max:               Max of supported ISP resources(IFE/SFE)
+ * @major_version:         Major version
  * @fill_fence:            If true, Fence map table will be filled
  * @return:                0 for success
  *                         -EINVAL for Fail
@@ -148,10 +150,12 @@ struct cam_isp_io_buf_info {
 	struct list_head                        *res_list_in_rd;
 	struct cam_isp_ctx_base_info            *base;
 	uint8_t                                 *out_map;
+	struct cam_hw_intf                      *hw_intf;
 	int                                      iommu_hdl;
 	int                                      sec_iommu_hdl;
 	uint32_t                                 out_base;
 	uint32_t                                 out_max;
+	uint32_t                                 major_version;
 	bool                                     fill_fence;
 };
 

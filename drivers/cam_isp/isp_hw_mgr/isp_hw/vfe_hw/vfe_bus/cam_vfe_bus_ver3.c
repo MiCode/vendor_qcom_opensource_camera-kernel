@@ -89,6 +89,7 @@ struct cam_vfe_bus_ver3_common_data {
 	void                                       *buf_done_controller;
 	void                                       *priv;
 	struct cam_vfe_bus_ver3_reg_offset_common  *common_reg;
+	struct cam_cdm_utils_ops                   *cdm_util_ops;
 	uint32_t                                    io_buf_update[
 		MAX_REG_VAL_PAIR_SIZE];
 
@@ -197,7 +198,6 @@ struct cam_vfe_bus_ver3_vfe_out_data {
 	uint32_t                         format;
 	uint32_t                         max_width;
 	uint32_t                         max_height;
-	struct cam_cdm_utils_ops        *cdm_util_ops;
 	uint32_t                         secure_mode;
 	void                            *priv;
 	uint32_t                        *mid;
@@ -1912,7 +1912,7 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	rsrc_node->res_id = out_acquire_args->out_port_info->res_type;
 	rsrc_node->tasklet_info = acq_args->tasklet;
 	rsrc_node->cdm_ops = out_acquire_args->cdm_ops;
-	rsrc_data->cdm_util_ops = out_acquire_args->cdm_ops;
+	rsrc_data->common_data->cdm_util_ops = out_acquire_args->cdm_ops;
 	rsrc_data->format = out_acquire_args->out_port_info->format;
 
 	if ((rsrc_data->out_type == CAM_VFE_BUS_VER3_VFE_OUT_FD) &&
@@ -2009,7 +2009,6 @@ static int cam_vfe_bus_ver3_release_vfe_out(void *bus_priv, void *release_args,
 
 	vfe_out->tasklet_info = NULL;
 	vfe_out->cdm_ops = NULL;
-	rsrc_data->cdm_util_ops = NULL;
 
 	secure_caps = cam_vfe_bus_ver3_can_be_secure(rsrc_data->out_type);
 	mutex_lock(&rsrc_data->common_data->bus_mutex);
@@ -3301,12 +3300,12 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_buf->res->res_priv;
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		return -EINVAL;
 	}
 
-	cdm_util_ops = vfe_out_data->cdm_util_ops;
+	cdm_util_ops = vfe_out_data->common_data->cdm_util_ops;
 	if ((update_buf->wm_update->num_buf != vfe_out_data->num_wm) &&
 		(!(update_buf->use_scratch_cfg))) {
 		CAM_ERR(CAM_ISP,
@@ -3587,12 +3586,12 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_hfr->res->res_priv;
 
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		return -EINVAL;
 	}
 
-	cdm_util_ops = vfe_out_data->cdm_util_ops;
+	cdm_util_ops = vfe_out_data->common_data->cdm_util_ops;
 	reg_val_pair = &vfe_out_data->common_data->io_buf_update[0];
 	hfr_cfg = (struct cam_isp_port_hfr_config *)update_hfr->data;
 
@@ -3712,7 +3711,7 @@ static int cam_vfe_bus_ver3_update_ubwc_config_v2(void *cmd_args)
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_ubwc->res->res_priv;
 
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		rc = -EINVAL;
 		goto end;
@@ -3894,7 +3893,7 @@ static int cam_vfe_bus_ver3_update_wm_config(
 	wm_config = (struct cam_isp_vfe_wm_config  *)
 		wm_config_update->data;
 
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops || !wm_config) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops || !wm_config) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		return -EINVAL;
 	}
@@ -3990,12 +3989,12 @@ static int cam_vfe_bus_update_bw_limiter(
 
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		wm_config_update->res->res_priv;
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		return -EINVAL;
 	}
 
-	cdm_util_ops = vfe_out_data->cdm_util_ops;
+	cdm_util_ops = vfe_out_data->common_data->cdm_util_ops;
 	reg_val_pair = &vfe_out_data->common_data->io_buf_update[0];
 	for (i = 0, j = 0; i < vfe_out_data->num_wm; i++) {
 		if (j >= (MAX_REG_VAL_PAIR_SIZE - (MAX_BUF_UPDATE_REG_NUM * 2))) {
@@ -4085,6 +4084,51 @@ add_reg_pair:
 	}
 
 	vfe_out_data->limiter_enabled = limiter_enabled;
+	return 0;
+}
+
+static int cam_vfe_bus_ver3_mc_ctxt_sel(
+	void *priv, void *cmd_args, uint32_t arg_size)
+
+{
+	struct cam_vfe_bus_ver3_priv              *bus_priv;
+	struct cam_isp_hw_get_cmd_update          *mc_config;
+	struct cam_cdm_utils_ops                  *cdm_util_ops = NULL;
+	struct cam_vfe_bus_ver3_reg_offset_common *common_reg;
+	uint32_t                                   reg_val[2], ctxt_id = 0;
+	uint32_t                                   size = 0;
+
+	if (!priv || !cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid args priv %x cmd_args %x",
+			priv, cmd_args);
+		return -EINVAL;
+	}
+
+	bus_priv = (struct cam_vfe_bus_ver3_priv  *)priv;
+	mc_config = (struct cam_isp_hw_get_cmd_update *)cmd_args;
+	ctxt_id  = *((uint32_t *)mc_config->data);
+
+	common_reg = bus_priv->common_data.common_reg;
+	reg_val[0] = common_reg->ctxt_sel;
+	reg_val[1] = ctxt_id << common_reg->mc_write_sel_shift;
+
+	cdm_util_ops = bus_priv->common_data.cdm_util_ops;
+	size = cdm_util_ops->cdm_required_size_reg_random(1);
+
+	/* cdm util returns dwords, need to convert to bytes */
+	if ((size * 4) > mc_config->cmd.size) {
+		CAM_ERR(CAM_ISP,
+			"Failed! Buf size:%d insufficient, expected size:%d",
+			mc_config->cmd.size, size);
+		return -ENOMEM;
+	}
+
+	cdm_util_ops->cdm_write_regrandom(
+		mc_config->cmd.cmd_buf_addr, 1, reg_val);
+
+	/* cdm util returns dwords, need to convert to bytes */
+	mc_config->cmd.used_bytes = size * 4;
+
 	return 0;
 }
 
@@ -4317,6 +4361,10 @@ static int cam_vfe_bus_ver3_process_cmd(
 	case CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG:
 		rc = cam_vfe_bus_update_bw_limiter(priv, cmd_args, arg_size);
 		break;
+	case CAM_ISP_HW_CMD_MC_CTXT_SEL:
+		rc = cam_vfe_bus_ver3_mc_ctxt_sel(priv, cmd_args, arg_size);
+		break;
+
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "VFE:%u Invalid camif process command:%d",
 			priv->hw_intf->hw_idx, cmd_type);

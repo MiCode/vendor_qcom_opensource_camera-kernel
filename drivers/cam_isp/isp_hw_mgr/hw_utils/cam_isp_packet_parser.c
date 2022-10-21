@@ -1031,6 +1031,81 @@ static int cam_isp_add_io_buffers_util(
 	return rc;
 }
 
+static int cam_isp_add_io_buffers_mc(
+	uint64_t                   *mc_io_cfg,
+	struct cam_isp_io_buf_info *io_info,
+	uint8_t                     num_ports,
+	uint32_t                    ctxt_id)
+{
+	uint32_t                        bytes_used;
+	uint32_t                        kmd_buf_remain_size;
+	uint32_t                       *cmd_buf_addr;
+	struct cam_isp_hw_mgr_res      *hw_mgr_res = NULL;
+	struct cam_isp_resource_node   *res = NULL;
+	uint8_t                         max_out = 0;
+	int                             rc = 0;
+	int                             i;
+
+	if (io_info->kmd_buf_info->used_bytes < io_info->kmd_buf_info->size) {
+		kmd_buf_remain_size = io_info->kmd_buf_info->size -
+			io_info->kmd_buf_info->used_bytes;
+	} else {
+		CAM_ERR(CAM_ISP,
+			"no free kmd memory for base=%d bytes_used=%u buf_size=%u",
+			io_info->base->idx, io_info->kmd_buf_info->used_bytes,
+			io_info->kmd_buf_info->size);
+		rc = -ENOMEM;
+		return rc;
+	}
+
+	cmd_buf_addr = io_info->kmd_buf_info->cpu_addr +
+		io_info->kmd_buf_info->used_bytes/4;
+	rc = cam_isp_add_cmd_buf_update(
+		NULL, io_info->hw_intf,
+		CAM_ISP_HW_CMD_MC_CTXT_SEL,
+		CAM_ISP_HW_CMD_MC_CTXT_SEL,
+		(void *)cmd_buf_addr,
+		kmd_buf_remain_size,
+		(void *)(&ctxt_id),
+		&bytes_used);
+
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Adding MC context[%u] failed for base[%d]",
+			ctxt_id, io_info->base->idx);
+		return rc;
+	}
+
+	io_info->kmd_buf_info->used_bytes += bytes_used;
+	io_info->kmd_buf_info->offset += bytes_used;
+
+	max_out = io_info->out_max;
+	for (i = 0; i < num_ports; i++) {
+		rc = cam_isp_io_buf_get_entries_util(io_info,
+			(struct cam_buf_io_cfg *)mc_io_cfg[(max_out * ctxt_id) + i], &hw_mgr_res);
+
+		if (!hw_mgr_res) {
+			CAM_ERR(CAM_ISP, "hw_mgr res is NULL");
+			return -EINVAL;
+		}
+
+		res = hw_mgr_res->hw_res[io_info->base->split_id];
+
+		if (!res)
+			continue;
+
+		rc = cam_isp_add_io_buffers_util(io_info,
+			(struct cam_buf_io_cfg *)mc_io_cfg[(max_out * ctxt_id) + i], res);
+
+		if (rc) {
+			CAM_ERR(CAM_ISP, "ctxt[%d] io_cfg[%d] add buf failed rc %d",
+				ctxt_id, i, rc);
+			return rc;
+		}
+	}
+
+	return rc;
+}
+
 int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 {
 	int                                 rc = 0;
@@ -1041,6 +1116,11 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 	uint32_t                            bytes_updated = 0;
 	uint32_t                            curr_offset = 0;
 	struct cam_isp_resource_node       *res = NULL;
+	int                                 ctxt_id = 0;
+	uint8_t                             num_ports[CAM_ISP_MULTI_CTXT_MAX] = {0};
+	uint8_t                             max_out_res = 0;
+	uint64_t                           *mc_cfg = NULL;
+	uint32_t                            major_version = 0;
 
 	io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
 			&io_info->prepare->packet->payload +
@@ -1057,32 +1137,71 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 		return -EINVAL;
 	}
 
+	max_out_res = io_info->out_max & 0xFF;
+	major_version = io_info->major_version;
+
+	if (major_version == 3) {
+		mc_cfg = vzalloc(sizeof(uint64_t) * CAM_ISP_MULTI_CTXT_MAX * (max_out_res));
+		if (!mc_cfg) {
+			CAM_ERR(CAM_ISP, "Memory allocation failed for MC cases");
+			return -ENOMEM;
+		}
+	}
+
 	for (i = 0; i < io_info->prepare->packet->num_io_configs; i++) {
 
-		rc = cam_isp_io_buf_get_entries_util(io_info, &io_cfg[i], &hw_mgr_res);
+		if (major_version == 3) {
+			ctxt_id = ffs(io_cfg[i].flag) - 1;
+			if (ctxt_id < 0) {
+				CAM_ERR(CAM_ISP,
+					"Invalid ctxt_id %d req_id %llu resource_type:%d",
+					ctxt_id, io_info->prepare->packet->header.request_id,
+					io_cfg[i].resource_type);
+				rc = -EINVAL;
+				goto err;
+			}
 
-		if (rc == -ENOMSG) {
-			rc = 0;
-			continue;
-		} else if (rc) {
-			CAM_ERR(CAM_ISP, "io_cfg[%d] failed rc %d", i, rc);
-			return rc;
+			mc_cfg[(max_out_res * ctxt_id) + num_ports[ctxt_id]] = (uint64_t)&io_cfg[i];
+			num_ports[ctxt_id]++;
+		} else {
+			rc = cam_isp_io_buf_get_entries_util(io_info, &io_cfg[i], &hw_mgr_res);
+			if (rc == -ENOMSG) {
+				rc = 0;
+				continue;
+			} else if (rc) {
+				CAM_ERR(CAM_ISP, "io_cfg[%d] failed rc %d", i, rc);
+				return rc;
+			}
+
+			if (!hw_mgr_res) {
+				CAM_ERR(CAM_ISP, "hw_mgr res is NULL");
+				return -EINVAL;
+			}
+
+			res = hw_mgr_res->hw_res[io_info->base->split_id];
+			if (!res)
+				continue;
+
+			rc = cam_isp_add_io_buffers_util(io_info, &io_cfg[i], res);
+			if (rc) {
+				CAM_ERR(CAM_ISP, "io_cfg[%d] add buf failed rc %d", i, rc);
+				return rc;
+			}
 		}
+	}
 
-		if (!hw_mgr_res) {
-			CAM_ERR(CAM_ISP, "hw_mgr_res is NULL i:%d", i);
-			return -EINVAL;
+	if (major_version == 3) {
+		for (i = 0; i < CAM_ISP_MULTI_CTXT_MAX; i++) {
+			if (!num_ports[i])
+				continue;
+			rc = cam_isp_add_io_buffers_mc(mc_cfg, io_info, num_ports[i], i);
+			if (rc) {
+				CAM_ERR(CAM_ISP, "MC context[%u] failed for base[%d]",
+					i, io_info->base->idx);
+				goto err;
+			}
 		}
-
-		res = hw_mgr_res->hw_res[io_info->base->split_id];
-		if (!res)
-			continue;
-		rc = cam_isp_add_io_buffers_util(io_info, &io_cfg[i], res);
-
-		if (rc) {
-			CAM_ERR(CAM_ISP, "io_cfg[%d] failed rc %d", i, rc);
-			return rc;
-		}
+		vfree(mc_cfg);
 	}
 
 	bytes_updated = io_info->kmd_buf_info->used_bytes - curr_used_bytes;
@@ -1102,6 +1221,9 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 			io_info->kmd_buf_info, bytes_updated, false);
 	}
 
+	return rc;
+err:
+	vfree(mc_cfg);
 	return rc;
 }
 

@@ -4197,6 +4197,7 @@ static int cam_ife_mgr_check_and_update_fe(
 
 	major_ver = (acquire_hw_info->common_info_version >> 12) & 0xF;
 	minor_ver = (acquire_hw_info->common_info_version) & 0xFFF;
+	ife_ctx->major_version = major_ver;
 
 	switch (major_ver) {
 	case 1:
@@ -12189,6 +12190,8 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 		io_buf_info.iommu_hdl = hw_mgr->mgr_common.img_iommu_hdl;
 		io_buf_info.sec_iommu_hdl = hw_mgr->mgr_common.img_iommu_hdl_secure;
 		io_buf_info.base = &ctx->base[i];
+		io_buf_info.hw_intf = cam_ife_hw_mgr_get_hw_intf(&ctx->base[i]);
+		io_buf_info.major_version  = ctx->major_version;
 
 		if (ctx->base[i].hw_type == CAM_ISP_HW_TYPE_VFE) {
 			io_buf_info.fill_fence = fill_ife_fence;
