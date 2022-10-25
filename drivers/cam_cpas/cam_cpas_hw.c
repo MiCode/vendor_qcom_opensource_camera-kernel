@@ -1027,7 +1027,6 @@ static int cam_cpas_axi_consolidate_path_votes(
 		curr_tree_node =
 			cpas_client->tree_node[path_data_type][transac_type];
 		if (curr_tree_node) {
-			path_found = true;
 			memcpy(axi_path, &axi_vote->axi_path[i],
 				sizeof(struct cam_cpas_axi_per_path_bw_vote));
 			con_axi_vote->num_paths++;
