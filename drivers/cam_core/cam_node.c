@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -68,19 +68,37 @@ void cam_node_put_ctxt_to_free_list(struct kref *ref)
 	mutex_unlock(&node->list_mutex);
 }
 
-static int __cam_node_handle_query_cap(struct cam_node *node,
-	struct cam_query_cap_cmd *query)
+static int __cam_node_handle_query_cap(uint32_t version,
+	struct cam_node *node, struct cam_query_cap_cmd *query)
 {
-	int rc = -EFAULT;
+	struct cam_hw_mgr_intf *hw_mgr_intf = &node->hw_mgr_intf;
+	int rc = 0;
 
 	if (!query) {
 		CAM_ERR(CAM_CORE, "Invalid params");
 		return -EINVAL;
 	}
 
-	if (node->hw_mgr_intf.hw_get_caps) {
-		rc = node->hw_mgr_intf.hw_get_caps(
-			node->hw_mgr_intf.hw_mgr_priv, query);
+	switch (version) {
+	case CAM_QUERY_CAP:
+		if (!hw_mgr_intf->hw_get_caps) {
+			CAM_ERR(CAM_CORE, "Node %s query cap version: %u get hw cap intf is NULL",
+				node->name, version);
+			return -EINVAL;
+		}
+		rc = hw_mgr_intf->hw_get_caps(hw_mgr_intf->hw_mgr_priv, query);
+		break;
+	case CAM_QUERY_CAP_V2:
+		if (!hw_mgr_intf->hw_get_caps_v2) {
+			CAM_ERR(CAM_CORE, "Node %s query cap version: %u get hw cap intf is NULL",
+				node->name, version);
+			return -EINVAL;
+		}
+		rc = hw_mgr_intf->hw_get_caps_v2(hw_mgr_intf->hw_mgr_priv, query);
+		break;
+	default:
+		CAM_ERR(CAM_CORE, "Invalid version number %u", version);
+		return -EINVAL;
 	}
 
 	return rc;
@@ -752,7 +770,9 @@ int cam_node_handle_ioctl(struct cam_node *node, struct cam_control *cmd)
 	CAM_DBG(CAM_CORE, "handle cmd %d", cmd->op_code);
 
 	switch (cmd->op_code) {
-	case CAM_QUERY_CAP: {
+	case CAM_QUERY_CAP:
+		fallthrough;
+	case CAM_QUERY_CAP_V2: {
 		struct cam_query_cap_cmd query;
 
 		if (copy_from_user(&query, u64_to_user_ptr(cmd->handle),
@@ -761,15 +781,14 @@ int cam_node_handle_ioctl(struct cam_node *node, struct cam_control *cmd)
 			break;
 		}
 
-		rc = __cam_node_handle_query_cap(node, &query);
+		rc = __cam_node_handle_query_cap(cmd->op_code, node, &query);
 		if (rc) {
 			CAM_ERR(CAM_CORE, "querycap is failed(rc = %d)",
 				rc);
 			break;
 		}
 
-		if (copy_to_user(u64_to_user_ptr(cmd->handle), &query,
-			sizeof(query)))
+		if (copy_to_user(u64_to_user_ptr(cmd->handle), &query, sizeof(query)))
 			rc = -EFAULT;
 
 		break;

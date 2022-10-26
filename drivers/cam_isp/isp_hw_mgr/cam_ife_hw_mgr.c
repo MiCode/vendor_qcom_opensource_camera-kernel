@@ -537,8 +537,7 @@ static inline void cam_ife_mgr_free_cdm_cmd(
 	*cdm_cmd = NULL;
 }
 
-static int cam_ife_mgr_get_hw_caps(void *hw_mgr_priv,
-	void *hw_caps_args)
+static int cam_ife_mgr_get_hw_caps(void *hw_mgr_priv, void *hw_caps_args)
 {
 	int rc = 0;
 	int i;
@@ -552,6 +551,13 @@ static int cam_ife_mgr_get_hw_caps(void *hw_mgr_priv,
 	struct cam_ife_csid_hw_caps       *ife_csid_caps = {0};
 
 	CAM_DBG(CAM_ISP, "enter");
+
+	if (sizeof(struct cam_isp_query_cap_cmd) != query->size) {
+		CAM_ERR(CAM_ISP,
+			"Input query cap size:%u does not match expected query cap size: %u",
+			query->size, sizeof(struct cam_isp_query_cap_cmd));
+		return -EFAULT;
+	}
 
 	if (copy_from_user(&query_isp,
 		u64_to_user_ptr(query->caps_handle),

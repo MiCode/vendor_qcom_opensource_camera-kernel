@@ -7146,6 +7146,13 @@ static int cam_icp_mgr_get_hw_caps(void *hw_mgr_priv, void *hw_caps_args)
 		return -EINVAL;
 	}
 
+	if (sizeof(struct cam_icp_query_cap_cmd) != query_cap->size) {
+		CAM_ERR(CAM_ICP,
+			"Input query cap size:%u does not match expected query cap size: %u",
+			query_cap->size, sizeof(struct cam_icp_query_cap_cmd));
+		return -EFAULT;
+	}
+
 	mutex_lock(&hw_mgr->hw_mgr_mutex);
 	if (copy_from_user(&hw_mgr->icp_caps,
 		u64_to_user_ptr(query_cap->caps_handle),
@@ -7689,6 +7696,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 			of_node, hw_mgr_intf);
 		return -EINVAL;
 	}
+	memset(hw_mgr_intf, 0, sizeof(struct cam_hw_mgr_intf));
 
 	hw_mgr = &icp_hw_mgr[device_idx];
 	hw_mgr->hw_mgr_id = device_idx;
