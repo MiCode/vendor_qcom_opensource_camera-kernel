@@ -759,12 +759,38 @@ int hfi_get_hw_caps(void *query_buf)
 	return 0;
 }
 
+int hfi_get_hw_caps_v2(int client_handle, void *query_buf)
+{
+	struct cam_icp_query_cap_cmd_v2 *query_cmd = NULL;
+	struct hfi_info *hfi;
+	int rc = 0;
+
+	rc = hfi_get_client_info(client_handle, &hfi);
+	if (rc) {
+		CAM_ERR(CAM_HFI, "Failed to get hfi info rc: %d for hdl: %d",
+			rc, client_handle);
+		return rc;
+	}
+
+	if (!query_buf) {
+		CAM_ERR(CAM_HFI, "[%s] query cap buf is NULL", hfi->client_name);
+		return -EINVAL;
+	}
+
+	query_cmd = (struct cam_icp_query_cap_cmd_v2 *)query_buf;
+	query_cmd->fw_version.major = (hfi->fw_version & 0xFF000000) >> 24;
+	query_cmd->fw_version.minor = (hfi->fw_version & 0x00FF0000) >> 16;
+	query_cmd->fw_version.revision = (hfi->fw_version & 0xFFFF);
+
+	return 0;
+}
+
 int cam_hfi_resume(int client_handle)
 {
 	int rc = 0;
 	struct hfi_info *hfi;
 	struct hfi_mem_info *hfi_mem;
-	uint32_t fw_version, status = 0;
+	uint32_t status = 0;
 	void __iomem *icp_base = NULL;
 
 	rc = hfi_get_client_info(client_handle, &hfi);
@@ -793,9 +819,8 @@ int cam_hfi_resume(int client_handle)
 
 	hfi_irq_enable(hfi);
 
-	fw_version = cam_io_r(icp_base + HFI_REG_FW_VERSION);
-	CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d fw version : [%x]",
-		hfi->client_name, client_handle, fw_version);
+	CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d fw version : [0x%x]",
+		hfi->client_name, client_handle, hfi->fw_version);
 
 	hfi_mem = &hfi->map;
 	cam_io_w_mb((uint32_t)hfi_mem->qtbl.iova, icp_base + HFI_REG_QTBL_PTR);
@@ -1098,8 +1123,9 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 		goto regions_fail;
 	}
 
-	CAM_DBG(CAM_HFI, "ICP fw version: 0x%x",
-		cam_io_r(icp_base + HFI_REG_FW_VERSION));
+	hfi->fw_version = cam_io_r(icp_base + HFI_REG_FW_VERSION);
+	CAM_DBG(CAM_HFI, "[%s] ICP fw version: 0x%x",
+		hfi->client_name, hfi->fw_version);
 
 	hfi->cmd_q_state = true;
 	hfi->msg_q_state = true;

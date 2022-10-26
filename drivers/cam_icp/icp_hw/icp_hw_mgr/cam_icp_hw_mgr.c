@@ -7140,6 +7140,7 @@ static int cam_icp_mgr_get_hw_caps(void *hw_mgr_priv, void *hw_caps_args)
 	int rc = 0;
 	struct cam_icp_hw_mgr *hw_mgr = hw_mgr_priv;
 	struct cam_query_cap_cmd *query_cap = hw_caps_args;
+	struct cam_icp_query_cap_cmd icp_caps;
 
 	if ((!hw_mgr_priv) || (!hw_caps_args)) {
 		CAM_ERR(CAM_ICP, "Invalid params: %pK %pK", hw_mgr_priv, hw_caps_args);
@@ -7148,31 +7149,128 @@ static int cam_icp_mgr_get_hw_caps(void *hw_mgr_priv, void *hw_caps_args)
 
 	if (sizeof(struct cam_icp_query_cap_cmd) != query_cap->size) {
 		CAM_ERR(CAM_ICP,
-			"Input query cap size:%u does not match expected query cap size: %u",
-			query_cap->size, sizeof(struct cam_icp_query_cap_cmd));
+			"[%s] Input query cap size:%u does not match expected query cap size: %u",
+			hw_mgr->hw_mgr_name, query_cap->size,
+			sizeof(struct cam_icp_query_cap_cmd));
 		return -EFAULT;
 	}
 
 	mutex_lock(&hw_mgr->hw_mgr_mutex);
-	if (copy_from_user(&hw_mgr->icp_caps,
+	if (copy_from_user(&icp_caps,
 		u64_to_user_ptr(query_cap->caps_handle),
 		sizeof(struct cam_icp_query_cap_cmd))) {
-		CAM_ERR(CAM_ICP, "[%s] copy_from_user failed", hw_mgr->hw_mgr_name);
+		CAM_ERR(CAM_ICP, "[%s] copy from_user failed", hw_mgr->hw_mgr_name);
 		rc = -EFAULT;
 		goto end;
 	}
 
-	rc = hfi_get_hw_caps(&hw_mgr->icp_caps);
+	rc = hfi_get_hw_caps(&icp_caps);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "[%s] Fail to get hfi caps", hw_mgr->hw_mgr_name);
 		goto end;
 	}
 
-	hw_mgr->icp_caps.dev_iommu_handle.non_secure = hw_mgr->iommu_hdl;
-	hw_mgr->icp_caps.dev_iommu_handle.secure = hw_mgr->iommu_sec_hdl;
+	icp_caps.dev_iommu_handle.non_secure = hw_mgr->iommu_hdl;
+	icp_caps.dev_iommu_handle.secure = hw_mgr->iommu_sec_hdl;
 
 	if (copy_to_user(u64_to_user_ptr(query_cap->caps_handle),
-		&hw_mgr->icp_caps, sizeof(struct cam_icp_query_cap_cmd))) {
+		&icp_caps, sizeof(struct cam_icp_query_cap_cmd))) {
+		CAM_ERR(CAM_ICP, "[%s] copy_to_user failed", hw_mgr->hw_mgr_name);
+		rc = -EFAULT;
+	}
+end:
+	mutex_unlock(&hw_mgr->hw_mgr_mutex);
+	return rc;
+}
+
+static int cam_icp_mgr_get_hw_caps_v2(void *hw_mgr_priv, void *hw_caps_args)
+{
+	int rc = 0;
+	struct cam_icp_hw_mgr *hw_mgr = hw_mgr_priv;
+	struct cam_query_cap_cmd *query_cap = hw_caps_args;
+	struct cam_icp_query_cap_cmd_v2 query_cmd;
+	uint32_t supported_hw_dev, num_supported_device = 0;
+	int i;
+
+	if ((!hw_mgr_priv) || (!hw_caps_args)) {
+		CAM_ERR(CAM_ICP, "Invalid params: %pK %pK",
+			hw_mgr_priv, hw_caps_args);
+		return -EINVAL;
+	}
+
+	if (sizeof(struct cam_icp_query_cap_cmd_v2) != query_cap->size) {
+		CAM_ERR(CAM_ICP,
+			"[%s] Input query cap size:%u does not match expected query cap size: %ud",
+			hw_mgr->hw_mgr_name, query_cap->size,
+			sizeof(struct cam_icp_query_cap_cmd_v2));
+		return -EFAULT;
+	}
+
+	mutex_lock(&hw_mgr->hw_mgr_mutex);
+	if (copy_from_user(&query_cmd, u64_to_user_ptr(query_cap->caps_handle),
+		sizeof(struct cam_icp_query_cap_cmd_v2))) {
+		CAM_ERR(CAM_ICP, "[%s] copy from user failed", hw_mgr->hw_mgr_name);
+		rc = -EFAULT;
+		goto end;
+	}
+	memset(&query_cmd.dev_info, 0,
+		(CAM_ICP_MAX_NUM_OF_DEV_TYPES * sizeof(struct cam_icp_device_info)));
+
+	for (i = 0; i < CAM_ICP_HW_MAX; i++) {
+		if (!CAM_ICP_IS_DEV_HW_EXIST(hw_mgr->hw_cap_mask, i))
+			continue;
+
+		switch (i) {
+		case CAM_ICP_HW_ICP_V1:
+			fallthrough;
+		case CAM_ICP_HW_ICP_V2:
+			supported_hw_dev = CAM_ICP_DEV_TYPE_ICP;
+			break;
+		case CAM_ICP_DEV_IPE:
+			supported_hw_dev = CAM_ICP_DEV_TYPE_IPE;
+			break;
+		case CAM_ICP_DEV_BPS:
+			supported_hw_dev = CAM_ICP_DEV_TYPE_BPS;
+			break;
+		case CAM_ICP_DEV_OFE:
+			supported_hw_dev = CAM_ICP_DEV_TYPE_OFE;
+			break;
+		default:
+			CAM_ERR(CAM_ICP, "[%s] Invalid icp hw type: %u",
+				hw_mgr->hw_mgr_name, i);
+			rc = -EBADSLT;
+			goto end;
+		}
+
+		if (num_supported_device >= CAM_ICP_MAX_NUM_OF_DEV_TYPES) {
+			CAM_ERR(CAM_ICP,
+				"[%s] number of supported hw devices:%u exceeds maximum number of devices supported by query cap struct: %u",
+				hw_mgr->hw_mgr_name, num_supported_device,
+				CAM_ICP_MAX_NUM_OF_DEV_TYPES);
+			rc = -EFAULT;
+			goto end;
+		}
+
+		query_cmd.dev_info[num_supported_device].dev_type = supported_hw_dev;
+		query_cmd.dev_info[num_supported_device].num_devices = hw_mgr->hw_dev_cnt[i];
+
+		num_supported_device++;
+	}
+
+	query_cmd.num_dev_info = num_supported_device;
+
+	rc = hfi_get_hw_caps_v2(hw_mgr->hfi_handle, &query_cmd);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "[%s] Fail to get hfi caps rc:%d",
+			hw_mgr->hw_mgr_name, rc);
+		goto end;
+	}
+
+	query_cmd.dev_iommu_handle.non_secure = hw_mgr->iommu_hdl;
+	query_cmd.dev_iommu_handle.secure = hw_mgr->iommu_sec_hdl;
+
+	if (copy_to_user(u64_to_user_ptr(query_cap->caps_handle),
+		&query_cmd, sizeof(struct cam_icp_query_cap_cmd_v2))) {
 		CAM_ERR(CAM_ICP, "[%s] copy_to_user failed", hw_mgr->hw_mgr_name);
 		rc = -EFAULT;
 	}
@@ -7713,6 +7811,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 
 	hw_mgr_intf->hw_mgr_priv = hw_mgr;
 	hw_mgr_intf->hw_get_caps = cam_icp_mgr_get_hw_caps;
+	hw_mgr_intf->hw_get_caps_v2 = cam_icp_mgr_get_hw_caps_v2;
 	hw_mgr_intf->hw_acquire = cam_icp_mgr_acquire_hw;
 	hw_mgr_intf->hw_release = cam_icp_mgr_release_hw;
 	hw_mgr_intf->hw_prepare_update = cam_icp_mgr_prepare_hw_update;

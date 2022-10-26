@@ -147,6 +147,15 @@ int cam_hfi_unregister(int *client_handle);
 int hfi_get_hw_caps(void *query_caps);
 
 /**
+ * hfi_get_hw_caps_v2() - hardware capabilities from firmware, used for v2 query cap
+ * @client_handle: client handle
+ * @query_caps: holds query information from hfi
+ *
+ * Returns success(zero)/failure(non zero)
+ */
+int hfi_get_hw_caps_v2(int client_handle, void *query_caps);
+
+/**
  * hfi_send_system_cmd() - send hfi system command to firmware
  * @client_handle: client handle
  * @type: type of system command

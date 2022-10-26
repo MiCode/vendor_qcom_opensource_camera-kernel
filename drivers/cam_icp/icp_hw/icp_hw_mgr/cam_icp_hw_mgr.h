@@ -408,7 +408,6 @@ struct cam_icp_clk_info {
  * @icp_dev_intf: ICP device interface
  * @hw_dev_cnt: count number of each hw type
  * @ctx_data: Context data
- * @icp_caps: ICP capabilities
  * @mini_dump_cb: Mini dump cb
  * @hw_mgr_name: name of the hw mgr
  * @hw_mgr_id: ID of the hw mgr, equivalent to hw mgr index
@@ -462,7 +461,6 @@ struct cam_icp_hw_mgr {
 	struct cam_hw_intf *icp_dev_intf;
 	uint32_t hw_dev_cnt[CAM_ICP_HW_MAX];
 	struct cam_icp_hw_ctx_data ctx_data[CAM_ICP_CTX_MAX];
-	struct cam_icp_query_cap_cmd icp_caps;
 	cam_icp_mini_dump_cb mini_dump_cb;
 	char hw_mgr_name[CAM_ICP_HW_MGR_NAME_SIZE];
 	uint32_t hw_mgr_id;
