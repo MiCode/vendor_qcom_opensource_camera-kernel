@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_CONTEXT_H_
@@ -300,6 +300,8 @@ struct cam_isp_context_event_record {
  * @aeb_enabled:               Indicate if stream is for AEB
  * @last_sof_jiffies:          Record the jiffies of last sof
  * @last_applied_jiffies:      Record the jiffiest of last applied req
+ * @vfe_bus_comp_grp:          Vfe bus comp group record
+ * @sfe_bus_comp_grp:          Sfe bus comp group record
  *
  */
 struct cam_isp_context {
@@ -360,6 +362,8 @@ struct cam_isp_context {
 	bool                                  aeb_enabled;
 	uint64_t                              last_sof_jiffies;
 	uint64_t                              last_applied_jiffies;
+	struct cam_isp_context_comp_record   *vfe_bus_comp_grp;
+	struct cam_isp_context_comp_record   *sfe_bus_comp_grp;
 };
 
 /**

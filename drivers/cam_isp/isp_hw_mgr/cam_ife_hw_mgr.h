@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_HW_MGR_H_
@@ -234,6 +234,35 @@ struct cam_ife_cdm_user_data {
 };
 
 /**
+ * struct cam_isp_context_comp_record:
+ *
+ * @brief:              Structure record the res id reserved on a comp group
+ *
+ * @num_res:            Number of valid resource IDs in this record
+ * @res_id:             Resource IDs to report buf dones
+ * @last_consumed_addr: Last consumed addr for resource ID at that index
+ *
+ */
+struct cam_isp_context_comp_record {
+	uint32_t num_res;
+	uint32_t res_id[CAM_NUM_OUT_PER_COMP_IRQ_MAX];
+};
+
+/**
+ * struct cam_isp_comp_record_query:
+ *
+ * @brief:              Structure record the bus comp group pointer information
+ *
+ * @vfe_bus_comp_grp:   Vfe bus comp group pointer
+ * @vfe_bus_comp_grp:   Sfe bus comp group pointer
+ *
+ */
+struct cam_isp_comp_record_query {
+	struct cam_isp_context_comp_record        *vfe_bus_comp_grp;
+	struct cam_isp_context_comp_record        *sfe_bus_comp_grp;
+};
+
+/**
  * struct cam_ife_hw_mgr_ctx - IFE HW manager Context object
  *
  * @list:                   used by the ctx list.
@@ -350,6 +379,8 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                   try_recovery_cnt;
 	uint64_t                                   recovery_req_id;
 	uint32_t                                   drv_path_idle_en;
+	struct cam_isp_context_comp_record        *vfe_bus_comp_grp;
+	struct cam_isp_context_comp_record        *sfe_bus_comp_grp;
 };
 
 /**
