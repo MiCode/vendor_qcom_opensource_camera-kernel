@@ -273,7 +273,7 @@ static void cam_eeprom_i2c_component_unbind(struct device *dev,
 {
 	int                             i;
 	struct i2c_client              *client = NULL;
-	struct v4l2_subdev             *sd = i2c_get_clientdata(client);
+	struct v4l2_subdev             *sd = NULL;
 	struct cam_eeprom_ctrl_t       *e_ctrl;
 	struct cam_eeprom_soc_private  *soc_private;
 	struct cam_hw_soc_info         *soc_info;
