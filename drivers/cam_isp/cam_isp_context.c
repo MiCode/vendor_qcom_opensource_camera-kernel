@@ -5097,7 +5097,7 @@ static int __cam_isp_ctx_flush_req_in_top_state(
 
 	CAM_DBG(CAM_ISP, "Flush pending list");
 	spin_lock_bh(&ctx->lock);
-	rc = __cam_isp_ctx_flush_req(ctx, &ctx->pending_req_list, flush_req);
+	__cam_isp_ctx_flush_req(ctx, &ctx->pending_req_list, flush_req);
 	spin_unlock_bh(&ctx->lock);
 
 	if (flush_req->type == CAM_REQ_MGR_FLUSH_TYPE_ALL) {
@@ -5140,11 +5140,11 @@ static int __cam_isp_ctx_flush_req_in_top_state(
 
 		spin_lock_bh(&ctx->lock);
 		if (!list_empty(&ctx->wait_req_list))
-			rc = __cam_isp_ctx_flush_req(ctx, &ctx->wait_req_list,
+			__cam_isp_ctx_flush_req(ctx, &ctx->wait_req_list,
 				flush_req);
 
 		if (!list_empty(&ctx->active_req_list))
-			rc = __cam_isp_ctx_flush_req(ctx, &ctx->active_req_list,
+			__cam_isp_ctx_flush_req(ctx, &ctx->active_req_list,
 				flush_req);
 
 		ctx_isp->active_req_cnt = 0;
