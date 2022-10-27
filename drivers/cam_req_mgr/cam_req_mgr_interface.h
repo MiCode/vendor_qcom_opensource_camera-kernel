@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_REQ_MGR_INTERFACE_H
@@ -114,6 +114,23 @@ enum cam_pipeline_delay {
 	CAM_PIPELINE_DELAY_2,
 	CAM_PIPELINE_DELAY_MAX,
 };
+
+/**
+ * enum cam_modeswitch_delay
+ * @brief     : enumerator for different modeswitch delays in camera
+ *
+ * @DELAY_0   : device processed mode switch settings after 0 frame
+ * @DELAY_1   : device processed mode switch settings after 1 frame
+ * @DELAY_2   : device processed mode switch settings after 2 frames
+ * @DELAY_MAX : maximum supported mode switch delay
+ */
+enum cam_modeswitch_delay {
+	CAM_MODESWITCH_DELAY_0,
+	CAM_MODESWITCH_DELAY_1,
+	CAM_MODESWITCH_DELAY_2,
+	CAM_MODESWITCH_DELAY_MAX,
+};
+
 
 /**
  * @CAM_TRIGGER_POINT_SOF   : Trigger point for Start Of Frame
@@ -314,6 +331,7 @@ struct cam_req_mgr_notify_stop {
  * @name    : link link or unlink
  * @dev_id  : device id info
  * @p_delay : delay between time settings applied and take effect
+ * @m_delay : delay between time modeswitch settings applied and take effect
  * @trigger : Trigger point for the client
  * @trigger_on : This device provides trigger
  */
@@ -322,6 +340,7 @@ struct cam_req_mgr_device_info {
 	char                        name[256];
 	enum cam_req_mgr_device_id  dev_id;
 	enum cam_pipeline_delay     p_delay;
+	enum cam_modeswitch_delay   m_delay;
 	uint32_t                    trigger;
 	bool                        trigger_on;
 };
@@ -332,6 +351,7 @@ struct cam_req_mgr_device_info {
  * @link_hdl        : link identifier
  * @dev_hdl         : device handle for reference
  * @max_delay       : max pipeline delay on this link
+ * @mode_switch_max_delay : max modeswitch delay on this link
  * @crm_cb          : callback funcs to communicate with req mgr
  * @trigger_id      : Unique ID provided to the triggering device
  */
@@ -340,25 +360,29 @@ struct cam_req_mgr_core_dev_link_setup {
 	int32_t                    link_hdl;
 	int32_t                    dev_hdl;
 	enum cam_pipeline_delay    max_delay;
+	enum cam_modeswitch_delay  mode_switch_max_delay;
 	struct cam_req_mgr_crm_cb *crm_cb;
 	int32_t                    trigger_id;
 };
 
 /**
  * struct cam_req_mgr_apply_request
- * @link_hdl         : link identifier
- * @dev_hdl          : device handle for cross check
- * @request_id       : request id settings to apply
- * @report_if_bubble : report to crm if failure in applying
- * @trigger_point    : the trigger point of this apply
- * @re_apply         : to skip re_apply for buf_done request
- * @recovery         : Indicate if it is recovery req
+ * @link_hdl                 : link identifier
+ * @dev_hdl                  : device handle for cross check
+ * @request_id               : request id settings to apply
+ * @last_applied_max_pd_req  : Last applied request on highest pd device
+ *                             -1 is considered invalid
+ * @report_if_bubble         : report to crm if failure in applying
+ * @trigger_point            : the trigger point of this apply
+ * @re_apply                 : to skip re_apply for buf_done request
+ * @recovery                 : Indicate if it is recovery req
  *
  */
 struct cam_req_mgr_apply_request {
 	int32_t    link_hdl;
 	int32_t    dev_hdl;
-	int64_t    request_id;
+	uint64_t   request_id;
+	int64_t    last_applied_max_pd_req;
 	int32_t    report_if_bubble;
 	uint32_t   trigger_point;
 	bool       re_apply;

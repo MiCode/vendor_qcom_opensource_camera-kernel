@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _CAM_REQ_MGR_CORE_H_
 #define _CAM_REQ_MGR_CORE_H_
@@ -370,6 +370,8 @@ struct cam_req_mgr_connected_device {
  * @num_devs             : num of connected devices to this link
  * @max_delay            : Max of pipeline delay of all connected devs
  * @min_delay            : Min of pipeline delay of all connected devs
+ * @max_mswitch_delay    : Max of modeswitch delay of all connected devs
+ * @min_mswitch_delay    : Min of modeswitch delay of all connected devs
  * @workq                : Pointer to handle workq related jobs
  * @pd_mask              : each set bit indicates the device with pd equal to
  *                          bit position is available.
@@ -425,6 +427,8 @@ struct cam_req_mgr_core_link {
 	int32_t                              num_devs;
 	enum cam_pipeline_delay              max_delay;
 	enum cam_pipeline_delay              min_delay;
+	enum cam_modeswitch_delay            max_mswitch_delay;
+	enum cam_modeswitch_delay            min_mswitch_delay;
 	struct cam_req_mgr_core_workq       *workq;
 	int32_t                              pd_mask;
 	struct cam_req_mgr_connected_device *l_dev;

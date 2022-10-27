@@ -5517,10 +5517,13 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_CUSTOM)
 		acquire_args->op_flags |= CAM_IFE_CTX_CUSTOM_EN;
 
-	if (ife_ctx->ctx_config &
-		CAM_IFE_CTX_CFG_FRAME_HEADER_TS)
+	if (ife_ctx->ctx_config & CAM_IFE_CTX_CFG_FRAME_HEADER_TS)
 		acquire_args->op_flags |=
 			CAM_IFE_CTX_FRAME_HEADER_EN;
+
+	if (ife_ctx->ctx_config & CAM_IFE_CTX_CFG_DYNAMIC_SWITCH_ON)
+		acquire_args->op_flags |=
+			CAM_IFE_CTX_DYNAMIC_SWITCH_EN;
 
 	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE)
 		acquire_args->op_flags |=
@@ -12793,9 +12796,19 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 			isp_hw_cmd_args->u.last_cdm_done =
 				ctx->last_cdm_done_req;
 			break;
-		case CAM_ISP_HW_MGR_CMD_PROG_DEFAULT_CFG:
-			rc = cam_ife_mgr_prog_default_settings(false, ctx);
-			break;
+		case CAM_ISP_HW_MGR_CMD_PROG_DEFAULT_CFG: {
+			bool skip_rup_aup = false;
+
+			if (!isp_hw_cmd_args->cmd_data) {
+				CAM_ERR(CAM_ISP, "Invalid cmd data");
+				rc = -EINVAL;
+				break;
+			}
+
+			skip_rup_aup = *((bool *)isp_hw_cmd_args->cmd_data);
+			rc = cam_ife_mgr_prog_default_settings((false || skip_rup_aup), ctx);
+		}
+		break;
 		case CAM_ISP_HW_MGR_GET_SOF_TS:
 			rc = cam_ife_mgr_cmd_get_sof_timestamp(ctx,
 				&isp_hw_cmd_args->u.sof_ts.curr,

@@ -4511,6 +4511,10 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 
 	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
 
+	/* Reset mswitch ref cnt */
+	atomic_set(&ctx_isp->mswitch_default_apply_delay_ref_cnt,
+		ctx_isp->mswitch_default_apply_delay_max_cnt);
+
 	if (apply->re_apply)
 		if (apply->request_id <= ctx_isp->last_applied_req_id) {
 			CAM_INFO_RATE_LIMIT(CAM_ISP,
@@ -4676,6 +4680,7 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 			"ctx_id:%d ,Can not apply (req %lld) the configuration, rc %d",
 			ctx->ctx_id, apply->request_id, rc);
 	}
+
 	atomic_set(&ctx_isp->apply_in_progress, 0);
 end:
 	return rc;
@@ -4753,29 +4758,100 @@ static int __cam_isp_ctx_apply_req_in_bubble(
 	return rc;
 }
 
+static void __cam_isp_ctx_find_mup_for_default_settings(
+	int64_t req_id, struct cam_context *ctx,
+	struct cam_ctx_request **switch_req)
+{
+	struct cam_ctx_request *req, *temp_req;
+
+	if (list_empty(&ctx->pending_req_list)) {
+		CAM_DBG(CAM_ISP,
+			"Pending list empty, unable to find mup for req: %lld ctx: %u",
+			req_id, ctx->ctx_id);
+		return;
+	}
+
+	list_for_each_entry_safe(
+		req, temp_req, &ctx->pending_req_list, list) {
+		if (req->request_id == req_id) {
+			struct cam_isp_ctx_req *req_isp = (struct cam_isp_ctx_req *)req->req_priv;
+
+			if (req_isp->hw_update_data.mup_en) {
+				*switch_req = req;
+				CAM_DBG(CAM_ISP,
+					"Found mup for last applied max pd req: %lld in ctx: %u",
+					req_id, ctx->ctx_id);
+			}
+		}
+	}
+}
+
 static int __cam_isp_ctx_apply_default_req_settings(
 	struct cam_context *ctx, struct cam_req_mgr_apply_request *apply)
 {
 	int rc = 0;
+	bool skip_rup_aup = false;
+	struct cam_ctx_request *req = NULL;
+	struct cam_isp_ctx_req *req_isp = NULL;
 	struct cam_isp_context *isp_ctx =
 		(struct cam_isp_context *) ctx->ctx_priv;
-	struct cam_hw_cmd_args        hw_cmd_args;
-	struct cam_isp_hw_cmd_args    isp_hw_cmd_args;
+	struct cam_hw_cmd_args hw_cmd_args;
+	struct cam_isp_hw_cmd_args isp_hw_cmd_args;
+	struct cam_hw_config_args cfg = {0};
 
-	hw_cmd_args.ctxt_to_hw_map = isp_ctx->hw_ctx;
-	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
-	isp_hw_cmd_args.cmd_type =
-		CAM_ISP_HW_MGR_CMD_PROG_DEFAULT_CFG;
-	hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+	if (isp_ctx->mode_switch_en && isp_ctx->handle_mswitch) {
+		if ((apply->last_applied_max_pd_req > 0) &&
+			(atomic_dec_and_test(&isp_ctx->mswitch_default_apply_delay_ref_cnt))) {
+			__cam_isp_ctx_find_mup_for_default_settings(
+				apply->last_applied_max_pd_req, ctx, &req);
+		}
 
-	rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
+		if (req) {
+			req_isp = (struct cam_isp_ctx_req *)req->req_priv;
+
+			CAM_DBG(CAM_ISP,
+				"Applying IQ for mode switch req: %lld ctx: %u",
+				req->request_id, ctx->ctx_id);
+			cfg.ctxt_to_hw_map = isp_ctx->hw_ctx;
+			cfg.request_id = req->request_id;
+			cfg.hw_update_entries = req_isp->cfg;
+			cfg.num_hw_update_entries = req_isp->num_cfg;
+			cfg.priv  = &req_isp->hw_update_data;
+			cfg.init_packet = 0;
+			cfg.reapply_type = CAM_CONFIG_REAPPLY_IQ;
+			cfg.cdm_reset_before_apply = req_isp->cdm_reset_before_apply;
+
+			rc = ctx->hw_mgr_intf->hw_config(ctx->hw_mgr_intf->hw_mgr_priv, &cfg);
+			if (rc) {
+				CAM_ERR(CAM_ISP,
+					"Failed to apply req: %lld IQ settings in ctx: %u",
+					req->request_id, ctx->ctx_id);
+				goto end;
+			}
+			skip_rup_aup = true;
+		}
+	}
+
+	if (isp_ctx->use_default_apply) {
+		hw_cmd_args.ctxt_to_hw_map = isp_ctx->hw_ctx;
+		hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+		isp_hw_cmd_args.cmd_type =
+			CAM_ISP_HW_MGR_CMD_PROG_DEFAULT_CFG;
+
+		isp_hw_cmd_args.cmd_data = (void *)&skip_rup_aup;
+		hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+
+		rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
 			&hw_cmd_args);
-	if (rc)
-		CAM_ERR(CAM_ISP,
-			"Failed to apply default settings rc %d", rc);
-	else
-		CAM_DBG(CAM_ISP, "Applied default settings rc %d", rc);
+		if (rc)
+			CAM_ERR(CAM_ISP,
+				"Failed to apply default settings rc %d", rc);
+		else
+			CAM_DBG(CAM_ISP, "Applied default settings rc %d ctx: %u",
+				rc, ctx->ctx_id);
+	}
 
+end:
 	return rc;
 }
 
@@ -6939,6 +7015,8 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 		(param.op_flags & CAM_IFE_CTX_CONSUME_ADDR_EN);
 	ctx_isp->aeb_enabled =
 		(param.op_flags & CAM_IFE_CTX_AEB_EN);
+	ctx_isp->mode_switch_en =
+		(param.op_flags & CAM_IFE_CTX_DYNAMIC_SWITCH_EN);
 
 	/* Query the context bus comp group information */
 	ctx_isp->vfe_bus_comp_grp = kcalloc(CAM_IFE_BUS_COMP_NUM_MAX,
@@ -7206,6 +7284,19 @@ static int __cam_isp_ctx_link_in_acquired(struct cam_context *ctx,
 	ctx_isp->subscribe_event =
 		CAM_TRIGGER_POINT_SOF | CAM_TRIGGER_POINT_EOF;
 	ctx_isp->trigger_id = link->trigger_id;
+	ctx_isp->mswitch_default_apply_delay_max_cnt = 0;
+	atomic_set(&ctx_isp->mswitch_default_apply_delay_ref_cnt, 0);
+
+	if ((link->mode_switch_max_delay - CAM_MODESWITCH_DELAY_1) > 0) {
+		ctx_isp->handle_mswitch = true;
+		ctx_isp->mswitch_default_apply_delay_max_cnt =
+			link->mode_switch_max_delay - CAM_MODESWITCH_DELAY_1;
+		CAM_DBG(CAM_ISP,
+			"Enabled mode switch handling on ctx: %u max delay cnt: %u",
+			ctx->ctx_id, ctx_isp->mswitch_default_apply_delay_max_cnt);
+		atomic_set(&ctx_isp->mswitch_default_apply_delay_ref_cnt,
+			ctx_isp->mswitch_default_apply_delay_max_cnt);
+	}
 
 	/* change state only if we had the init config */
 	if (ctx_isp->init_received) {
@@ -7228,6 +7319,8 @@ static int __cam_isp_ctx_unlink_in_acquired(struct cam_context *ctx,
 	ctx->link_hdl = -1;
 	ctx->ctx_crm_intf = NULL;
 	ctx_isp->trigger_id = -1;
+	ctx_isp->mswitch_default_apply_delay_max_cnt = 0;
+	atomic_set(&ctx_isp->mswitch_default_apply_delay_ref_cnt, 0);
 
 	return rc;
 }
@@ -7240,7 +7333,8 @@ static int __cam_isp_ctx_get_dev_info_in_acquired(struct cam_context *ctx,
 	dev_info->dev_hdl = ctx->dev_hdl;
 	strlcpy(dev_info->name, CAM_ISP_DEV_NAME, sizeof(dev_info->name));
 	dev_info->dev_id = CAM_REQ_MGR_DEVICE_IFE;
-	dev_info->p_delay = 1;
+	dev_info->p_delay = CAM_PIPELINE_DELAY_1;
+	dev_info->m_delay = CAM_MODESWITCH_DELAY_1;
 	dev_info->trigger = CAM_TRIGGER_POINT_SOF;
 	dev_info->trigger_on = true;
 
@@ -7934,11 +8028,17 @@ static int __cam_isp_ctx_apply_default_settings(
 	if (atomic_read(&ctx_isp->internal_recovery_set))
 		return __cam_isp_ctx_reset_and_recover(false, ctx);
 
-	if (ctx_isp->use_default_apply) {
+	/*
+	 * Call notify frame skip for static offline cases or
+	 * mode switch cases where IFE mode switch delay differs
+	 * from other devices on the link
+	 */
+	if ((ctx_isp->use_default_apply) ||
+		(ctx_isp->mode_switch_en && ctx_isp->handle_mswitch)) {
 		CAM_DBG(CAM_ISP,
 			"Enter: apply req in Substate:%d request _id:%lld ctx:%u on link:0x%x",
-			 ctx_isp->substate_activated, apply->request_id,
-			 ctx->ctx_id, ctx->link_hdl);
+			ctx_isp->substate_activated, apply->request_id,
+			ctx->ctx_id, ctx->link_hdl);
 
 		ctx_ops = &ctx_isp->substate_machine[
 			ctx_isp->substate_activated];
