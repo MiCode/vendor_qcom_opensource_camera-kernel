@@ -3998,6 +3998,7 @@ static int cam_ife_csid_ver2_csi2_irq_subscribe(struct cam_ife_csid_ver2_hw *csi
 		CAM_ERR(CAM_ISP, "CSID[%d] RX Subscribe Top Irq fail",
 			csid_hw->hw_intf->hw_idx);
 		rc = -EINVAL;
+		goto err;
 	}
 
 	rc = cam_irq_controller_register_dependent(csid_hw->top_irq_controller,
@@ -4058,7 +4059,7 @@ unsub_top:
 	cam_irq_controller_unsubscribe_irq(csid_hw->top_irq_controller,
 			csid_hw->rx_cfg.top_irq_handle);
 	csid_hw->rx_cfg.top_irq_handle = 0;
-
+err:
 	return rc;
 }
 
@@ -4508,6 +4509,10 @@ static int cam_ife_csid_ver2_disable_core(
 		rc = cam_irq_controller_unsubscribe_irq(
 			csid_hw->top_irq_controller,
 			csid_hw->reset_irq_handle);
+		if (rc)
+			CAM_WARN(CAM_ISP,
+				"CSID:%d Failed to unsubscribe reset irq",
+				csid_hw->hw_intf->hw_idx);
 		csid_hw->reset_irq_handle = 0;
 	}
 
