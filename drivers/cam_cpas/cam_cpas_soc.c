@@ -24,6 +24,29 @@ module_param(cpas_dump, uint, 0644);
 
 #define CAM_ICP_CLK_NAME "cam_icp_clk"
 
+void cam_cpas_dump_tree_vote_info(const struct cam_cpas_tree_node *tree_node,
+	const char *identifier, int drv_voting_idx)
+{
+	if (!cpas_dump)
+		return;
+
+	if (tree_node->bw_info[drv_voting_idx].vote_type == CAM_CPAS_VOTE_TYPE_DRV)
+		CAM_INFO(CAM_PERF,
+			"%s node:%s lvl:%d drv_idx:%d DRV BW camnoc[%llu] ab[%llu %llu] ib[%llu %llu]",
+			identifier, tree_node->node_name, tree_node->level_idx, drv_voting_idx,
+			tree_node->camnoc_bw, tree_node->bw_info[drv_voting_idx].drv_vote.high.ab,
+			tree_node->bw_info[drv_voting_idx].drv_vote.low.ab,
+			tree_node->bw_info[drv_voting_idx].drv_vote.high.ib,
+			tree_node->bw_info[drv_voting_idx].drv_vote.low.ib);
+	else
+		CAM_INFO(CAM_PERF,
+			"%s node:%s lvl:%d drv_idx:%d HLOS BW camnoc[%llu] ab[%llu] ib[%llu]",
+			identifier, tree_node->node_name, tree_node->level_idx, drv_voting_idx,
+			tree_node->camnoc_bw, tree_node->bw_info[drv_voting_idx].hlos_vote.ab,
+			tree_node->bw_info[drv_voting_idx].hlos_vote.ib);
+
+}
+
 void cam_cpas_dump_axi_vote_info(
 	const struct cam_cpas_client *cpas_client,
 	const char *identifier,

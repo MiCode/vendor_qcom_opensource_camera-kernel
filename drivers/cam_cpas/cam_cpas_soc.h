@@ -244,6 +244,9 @@ struct cam_cpas_private_soc {
 	struct cam_cpas_domain_id_support_clks *domain_id_clks;
 };
 
+void cam_cpas_dump_tree_vote_info(const struct cam_cpas_tree_node *tree_node,
+	const char *identifier, int drv_voting_idx);
+
 void cam_cpas_util_debug_parse_data(struct cam_cpas_private_soc *soc_private);
 void cam_cpas_dump_axi_vote_info(
 	const struct cam_cpas_client *cpas_client,

@@ -1310,7 +1310,7 @@ static int cam_cpas_util_apply_client_axi_vote(
 	int rc = 0, i = 0, drv_voting_idx;
 	bool apply_smart_qos = false;
 	bool rt_bw_updated = false;
-	bool camnoc_unchanged = false;
+	bool camnoc_unchanged;
 
 	mutex_lock(&cpas_core->tree_lock);
 	if (!cpas_client->tree_node_valid) {
@@ -1365,6 +1365,7 @@ static int cam_cpas_util_apply_client_axi_vote(
 
 	/* Traverse through node tree and update bw vote values */
 	for (i = 0; i < con_axi_vote->num_paths; i++) {
+		camnoc_unchanged = false;
 		path_data_type = con_axi_vote->axi_path[i].path_data_type;
 		transac_type = con_axi_vote->axi_path[i].transac_type;
 		curr_tree_node = cpas_client->tree_node[path_data_type][transac_type];
@@ -1377,13 +1378,15 @@ static int cam_cpas_util_apply_client_axi_vote(
 			camnoc_unchanged = true;
 
 		curr_camnoc_old = curr_tree_node->camnoc_bw;
-		curr_tree_node->camnoc_bw = con_axi_vote->axi_path[i].camnoc_bw;
 		memcpy(&curr_mnoc_old, &curr_tree_node->bw_info[drv_voting_idx],
 			sizeof(struct cam_cpas_axi_bw_info));
 
+		cam_cpas_dump_tree_vote_info(curr_tree_node, "Level0 before update",
+			drv_voting_idx);
+
 		if (soc_private->enable_cam_ddr_drv && (con_axi_vote->axi_path[i].vote_level ==
 			CAM_CPAS_VOTE_LEVEL_HIGH)) {
-			if (camnoc_unchanged &&
+			if ((apply_type != CAM_CPAS_APPLY_TYPE_STOP) && camnoc_unchanged &&
 				(curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ab ==
 				con_axi_vote->axi_path[i].mnoc_ab_bw) &&
 				(curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ib ==
@@ -1399,7 +1402,7 @@ static int cam_cpas_util_apply_client_axi_vote(
 		} else {
 			if ((drv_voting_idx > CAM_CPAS_PORT_HLOS_DRV) &&
 				!cpas_core->force_hlos_drv) {
-				if (camnoc_unchanged &&
+				if ((apply_type != CAM_CPAS_APPLY_TYPE_STOP) && camnoc_unchanged &&
 					(curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ab ==
 					con_axi_vote->axi_path[i].mnoc_ab_bw) &&
 					(curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ib ==
@@ -1427,11 +1430,16 @@ static int cam_cpas_util_apply_client_axi_vote(
 			}
 		}
 
+		curr_tree_node->camnoc_bw = con_axi_vote->axi_path[i].camnoc_bw;
+		cam_cpas_dump_tree_vote_info(curr_tree_node, "Level0 after update", drv_voting_idx);
+
 		while (curr_tree_node->parent_node) {
 			par_tree_node = curr_tree_node->parent_node;
 			par_camnoc_old = par_tree_node->camnoc_bw;
 			memcpy(&par_mnoc_old, &par_tree_node->bw_info[drv_voting_idx],
 				sizeof(struct cam_cpas_axi_bw_info));
+			cam_cpas_dump_tree_vote_info(par_tree_node, "Parent before update",
+				drv_voting_idx);
 
 			/*
 			 * Remove contribution of current node old bw from parent,
@@ -1479,6 +1487,9 @@ static int cam_cpas_util_apply_client_axi_vote(
 				rc = -EINVAL;
 				goto unlock_tree;
 			}
+
+			cam_cpas_dump_tree_vote_info(par_tree_node, "Parent after update",
+				drv_voting_idx);
 
 			if (!par_tree_node->parent_node) {
 				rc = cam_cpas_update_axi_vote_bw(cpas_hw, par_tree_node,
@@ -1981,8 +1992,7 @@ static int cam_cpas_util_create_vote_all_paths(
 	for (i = 0; i < CAM_CPAS_TRANSACTION_MAX; i++) {
 		for (j = 0; j < CAM_CPAS_PATH_DATA_MAX; j++) {
 			if (cpas_client->tree_node[j][i]) {
-				axi_path =
-				&axi_vote->axi_path[axi_vote->num_paths];
+				axi_path = &axi_vote->axi_path[axi_vote->num_paths];
 
 				axi_path->path_data_type = j;
 				axi_path->transac_type = i;
@@ -2118,11 +2128,6 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 
 	cam_cpas_dump_axi_vote_info(cpas_client, "CPAS Start Translated Vote", &axi_vote);
 
-	rc = cam_cpas_util_apply_client_axi_vote(cpas_hw, cpas_client, &axi_vote,
-		CAM_CPAS_APPLY_TYPE_START);
-	if (rc)
-		goto remove_ahb_vote;
-
 	if (cpas_core->streamon_clients == 0) {
 		if (cpas_core->force_hlos_drv)
 			soc_private->enable_cam_ddr_drv = false;
@@ -2146,7 +2151,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 		if (rc) {
 			atomic_set(&cpas_core->irq_count, 0);
 			CAM_ERR(CAM_CPAS, "enable_resorce failed, rc=%d", rc);
-			goto remove_axi_vote;
+			goto remove_ahb_vote;
 		}
 
 		if (cpas_core->internal_ops.qchannel_handshake) {
@@ -2176,7 +2181,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 				CAM_ERR(CAM_CPAS,
 					"failed in power_on settings rc=%d",
 					rc);
-				goto remove_axi_vote;
+				goto remove_ahb_vote;
 			}
 		}
 		CAM_DBG(CAM_CPAS, "irq_count=%d\n",
@@ -2189,6 +2194,15 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 		cpas_hw->hw_state = CAM_HW_STATE_POWER_UP;
 	}
 
+	/*
+	 * Need to apply axi vote after we enable clocks, since we need certain clocks enabled for
+	 * drv channel switch
+	 */
+	rc = cam_cpas_util_apply_client_axi_vote(cpas_hw, cpas_client, &axi_vote,
+		CAM_CPAS_APPLY_TYPE_START);
+	if (rc)
+		goto remove_ahb_vote;
+
 	cpas_client->started = true;
 	cpas_core->streamon_clients++;
 
@@ -2199,20 +2213,6 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 	mutex_unlock(&cpas_core->client_mutex[client_indx]);
 	mutex_unlock(&cpas_hw->hw_mutex);
 	return rc;
-
-remove_axi_vote:
-	memset(&axi_vote, 0x0, sizeof(struct cam_axi_vote));
-	rc = cam_cpas_util_create_vote_all_paths(cpas_client, &axi_vote);
-	if (rc)
-		CAM_ERR(CAM_CPAS, "Unable to create per path votes rc: %d", rc);
-
-	cam_cpas_dump_axi_vote_info(cpas_client, "CPAS Start fail Vote",
-		&axi_vote);
-
-	rc = cam_cpas_util_apply_client_axi_vote(cpas_hw, cpas_client, &axi_vote,
-		CAM_CPAS_APPLY_TYPE_STOP);
-	if (rc)
-		CAM_ERR(CAM_CPAS, "Unable remove votes rc: %d", rc);
 
 remove_ahb_vote:
 	remove_ahb.type = CAM_VOTE_ABSOLUTE;
@@ -2231,6 +2231,47 @@ error:
 static int _check_irq_count(struct cam_cpas *cpas_core)
 {
 	return (atomic_read(&cpas_core->irq_count) > 0) ? 0 : 1;
+}
+
+static int cam_cpas_util_validate_stop_bw(struct cam_cpas_private_soc *soc_private,
+	struct cam_cpas *cpas_core)
+{
+	int i;
+
+	for (i = 0; i < cpas_core->num_axi_ports; i++) {
+		if (soc_private->enable_cam_ddr_drv &&
+			(cpas_core->axi_port[i].bus_client.common_data.is_drv_port)) {
+
+			if ((cpas_core->axi_port[i].applied_bw.drv_vote.high.ab) ||
+				(cpas_core->axi_port[i].applied_bw.drv_vote.high.ib) ||
+				(cpas_core->axi_port[i].applied_bw.drv_vote.low.ab) ||
+				(cpas_core->axi_port[i].applied_bw.drv_vote.low.ib)) {
+				CAM_ERR(CAM_CPAS,
+					"port:%s Non zero DRV applied BW high[%llu %llu] low[%llu %llu]",
+					cpas_core->axi_port[i].axi_port_name,
+					cpas_core->axi_port[i].applied_bw.drv_vote.high.ab,
+					cpas_core->axi_port[i].applied_bw.drv_vote.high.ib,
+					cpas_core->axi_port[i].applied_bw.drv_vote.low.ab,
+					cpas_core->axi_port[i].applied_bw.drv_vote.low.ib);
+				return -EINVAL;
+			}
+		} else {
+			if (cpas_core->axi_port[i].bus_client.common_data.is_drv_port)
+				continue;
+
+			if ((cpas_core->axi_port[i].applied_bw.hlos_vote.ab) ||
+				(cpas_core->axi_port[i].applied_bw.hlos_vote.ib)) {
+				CAM_ERR(CAM_CPAS,
+					"port:%s Non zero HLOS applied BW [%llu %llu]",
+					cpas_core->axi_port[i].axi_port_name,
+					cpas_core->axi_port[i].applied_bw.hlos_vote.ab,
+					cpas_core->axi_port[i].applied_bw.hlos_vote.ib);
+				return -EINVAL;
+			}
+		}
+	}
+
+	return 0;
 }
 
 static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
@@ -2285,6 +2326,19 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		rc = -EPERM;
 		goto done;
 	}
+
+	rc = cam_cpas_util_create_vote_all_paths(cpas_client, &axi_vote);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Unable to create per path votes rc: %d", rc);
+		goto done;
+	}
+
+	cam_cpas_dump_axi_vote_info(cpas_client, "CPAS Stop Vote", &axi_vote);
+
+	rc = cam_cpas_util_apply_client_axi_vote(cpas_hw, cpas_client, &axi_vote,
+		CAM_CPAS_APPLY_TYPE_STOP);
+	if (rc)
+		goto done;
 
 	cpas_client->started = false;
 	cpas_core->streamon_clients--;
@@ -2350,6 +2404,14 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 				client_indx, cpas_client->data.identifier,
 				cpas_client->data.cell_index, count);
 
+		rc = cam_cpas_util_apply_default_axi_vote(cpas_hw, false);
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Failed in power off default vote rc: %d", rc);
+
+		rc = cam_cpas_util_validate_stop_bw(soc_private, cpas_core);
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Invalid applied bw at stop rc: %d", rc);
+
 		cpas_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
 	}
 
@@ -2359,22 +2421,6 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		&ahb_vote, NULL);
 	if (rc)
 		goto done;
-
-	rc = cam_cpas_util_create_vote_all_paths(cpas_client, &axi_vote);
-	if (rc) {
-		CAM_ERR(CAM_CPAS, "Unable to create per path votes rc: %d", rc);
-		goto done;
-	}
-
-	cam_cpas_dump_axi_vote_info(cpas_client, "CPAS Stop Vote", &axi_vote);
-
-	rc = cam_cpas_util_apply_client_axi_vote(cpas_hw, cpas_client, &axi_vote,
-		CAM_CPAS_APPLY_TYPE_STOP);
-	if (rc)
-		goto done;
-
-	if (cpas_core->streamon_clients == 0)
-		rc = cam_cpas_util_apply_default_axi_vote(cpas_hw, false);
 
 done:
 	mutex_unlock(&cpas_core->client_mutex[client_indx]);
