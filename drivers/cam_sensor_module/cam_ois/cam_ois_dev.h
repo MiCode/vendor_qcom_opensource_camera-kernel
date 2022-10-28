@@ -121,6 +121,9 @@ struct cam_ois_ctrl_t {
 	uint8_t ois_fw_flag;
 	uint8_t is_ois_calib;
 	struct cam_ois_opcode opcode;
+	struct cam_cmd_ois_fw_info fw_info;
+	struct i2c_settings_array i2c_fw_init_data[MAX_OIS_FW_COUNT];
+	struct i2c_settings_array i2c_fw_finalize_data[MAX_OIS_FW_COUNT];
 };
 
 /**

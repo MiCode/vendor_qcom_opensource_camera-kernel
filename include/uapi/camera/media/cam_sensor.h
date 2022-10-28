@@ -14,6 +14,7 @@
 #define CAM_SENSOR_PROBE_CMD      (CAM_COMMON_OPCODE_MAX + 1)
 #define CAM_FLASH_MAX_LED_TRIGGERS 2
 #define MAX_OIS_NAME_SIZE 32
+#define MAX_OIS_FW_COUNT  2
 #define CAM_CSIPHY_SECURE_MODE_ENABLED 1
 #define CAM_SENSOR_NAME_MAX_SIZE 32
 
@@ -57,6 +58,7 @@ enum camera_sensor_cmd_type {
 	CAMERA_SENSOR_FLASH_CMD_TYPE_WIDGET,
 	CAMERA_SENSOR_CMD_TYPE_RD_DATA,
 	CAMERA_SENSOR_FLASH_CMD_TYPE_INIT_FIRE,
+	CAMERA_SENSOR_OIS_CMD_TYPE_FW_INFO,
 	CAMERA_SENSOR_CMD_TYPE_MAX,
 };
 
@@ -87,6 +89,8 @@ enum camera_sensor_i2c_op_code {
 	CAMERA_SENSOR_I2C_OP_CONT_WR_BRST_VERF,
 	CAMERA_SENSOR_I2C_OP_CONT_WR_SEQN,
 	CAMERA_SENSOR_I2C_OP_CONT_WR_SEQN_VERF,
+	CAMERA_SENSOR_I2C_OP_RNDM_RD,
+	CAMERA_SENSOR_I2C_OP_CONT_RD,
 	CAMERA_SENSOR_I2C_OP_MAX,
 };
 
@@ -118,6 +122,11 @@ enum cam_sensor_packet_opcodes {
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_UNLOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_LOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_NOP = 127,
+};
+
+enum cam_endianness_type {
+	CAM_ENDIANNESS_BIG,
+	CAM_ENDIANNESS_LITTLE,
 };
 
 enum tpg_command_type_t {
@@ -392,6 +401,68 @@ struct cam_cmd_ois_info {
 	__u8                  is_ois_calib;
 	char                  ois_name[MAX_OIS_NAME_SIZE];
 	struct cam_ois_opcode opcode;
+} __attribute__((packed));
+
+
+/**
+ * struct cam_cmd_ois_fw_param - Contains OIS firmware param
+ *
+ * NOTE: if this struct is updated,
+ * please also update version in struct cam_cmd_ois_fw_info
+ *
+ * @fw_name         :       firmware file name
+ * @fw_start_pos    :       data start position in file
+ * @fw_size         :       firmware size
+ * @fw_len_per_write:       data length per write in bytes
+ * @fw_addr_type    :       addr type
+ * @fw_data_type    :       data type
+ * @fw_operation    :       type of operation
+ * @reserved        :       reserved for 32-bit alignment
+ * @fw_delayUs      :       delay in cci write
+ * @fw_reg_addr     :       start register addr to write
+ * @fw_init_size    :       size of fw download init settings
+ * @fw_finalize_size:       size of fw download finalize settings
+ */
+struct cam_cmd_ois_fw_param {
+	char        fw_name[MAX_OIS_NAME_SIZE];
+	__u32       fw_start_pos;
+	__u32       fw_size;
+	__u32       fw_len_per_write;
+	__u8        fw_addr_type;
+	__u8        fw_data_type;
+	__u8        fw_operation;
+	__u8        reserved;
+	__u32       fw_delayUs;
+	__u32       fw_reg_addr;
+	__u32       fw_init_size;
+	__u32       fw_finalize_size;
+} __attribute__((packed));
+
+/**
+ * struct cam_cmd_ois_fw_info - Contains OIS firmware info
+ *
+ * @version         :       version info
+ *                          NOTE: if struct cam_cmd_ois_fw_param is updated,
+ *                          version here needs to be updated too.
+ * @reserved        :       reserved
+ * @cmd_type        :       Explains type of command
+ * @fw_count        :       firmware count
+ * @endianness      :       firmware data's endianness
+ * @fw_param        :       includes firmware parameters
+ * @num_valid_params:       Number of valid params
+ * @param_mask      :       Mask to indicate fields in params
+ * @params          :       Additional Params
+ */
+struct cam_cmd_ois_fw_info {
+	__u32                           version;
+	__u8                            reserved;
+	__u8                            cmd_type;
+	__u8                            fw_count;
+	__u8                            endianness;
+	struct cam_cmd_ois_fw_param     fw_param[MAX_OIS_FW_COUNT];
+	__u32                           num_valid_params;
+	__u32                           param_mask;
+	__u32                           params[4];
 } __attribute__((packed));
 
 /**

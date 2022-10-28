@@ -52,6 +52,40 @@ int32_t cam_sensor_util_get_current_qtimer_ns(uint64_t *qtime_ns);
 int32_t cam_sensor_util_write_qtimer_to_io_buffer(
 	uint64_t qtime_ns, struct cam_buf_io_cfg *io_cfg);
 
+int32_t cam_sensor_handle_random_write(
+	struct cam_cmd_i2c_random_wr *cam_cmd_i2c_random_wr,
+	struct i2c_settings_array *i2c_reg_settings,
+	uint32_t *cmd_length_in_bytes, int32_t *offset,
+	struct list_head **list);
+
+int32_t cam_sensor_handle_continuous_write(
+	struct cam_cmd_i2c_continuous_wr *cam_cmd_i2c_continuous_wr,
+	struct i2c_settings_array *i2c_reg_settings,
+	uint32_t *cmd_length_in_bytes, int32_t *offset,
+	struct list_head **list);
+
+int32_t cam_sensor_handle_delay(
+	uint32_t **cmd_buf,
+	uint16_t generic_op_code,
+	struct i2c_settings_array *i2c_reg_settings,
+	uint32_t offset, uint32_t *byte_cnt,
+	struct list_head *list_ptr);
+
+int32_t cam_sensor_handle_random_read(
+	struct cam_cmd_i2c_random_rd *cmd_i2c_random_rd,
+	struct i2c_settings_array *i2c_reg_settings,
+	uint16_t *cmd_length_in_bytes,
+	int32_t *offset,
+	struct list_head **list,
+	struct cam_buf_io_cfg *io_cfg);
+
+int32_t cam_sensor_handle_continuous_read(
+	struct cam_cmd_i2c_continuous_rd *cmd_i2c_continuous_rd,
+	struct i2c_settings_array *i2c_reg_settings,
+	uint16_t *cmd_length_in_bytes, int32_t *offset,
+	struct list_head **list,
+	struct cam_buf_io_cfg *io_cfg);
+
 int cam_sensor_i2c_command_parser(struct camera_io_master *io_master,
 	struct i2c_settings_array *i2c_reg_settings,
 	struct cam_cmd_buf_desc *cmd_desc, int32_t num_cmd_buffers,

@@ -334,7 +334,7 @@ static int cam_ois_i2c_driver_remove(struct i2c_client *client)
 static int cam_ois_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
 {
-	int32_t                         rc = 0;
+	int32_t                         rc = 0, i = 0;
 	struct cam_ois_ctrl_t          *o_ctrl = NULL;
 	struct cam_ois_soc_private     *soc_private = NULL;
 	bool                            i3c_i2c_target;
@@ -370,9 +370,15 @@ static int cam_ois_component_bind(struct device *dev,
 	o_ctrl->soc_info.soc_private = soc_private;
 	soc_private->power_info.dev  = &pdev->dev;
 
+	memset(&o_ctrl->fw_info, 0, sizeof(struct cam_cmd_ois_fw_info));
+
 	INIT_LIST_HEAD(&(o_ctrl->i2c_init_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->i2c_calib_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->i2c_fwinit_data.list_head));
+	for (i = 0; i < MAX_OIS_FW_COUNT; i++) {
+		INIT_LIST_HEAD(&(o_ctrl->i2c_fw_init_data[i].list_head));
+		INIT_LIST_HEAD(&(o_ctrl->i2c_fw_finalize_data[i].list_head));
+	}
 	INIT_LIST_HEAD(&(o_ctrl->i2c_mode_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->i2c_time_data.list_head));
 	mutex_init(&(o_ctrl->ois_mutex));

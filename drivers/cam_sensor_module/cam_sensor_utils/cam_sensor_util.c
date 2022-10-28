@@ -304,7 +304,7 @@ int32_t cam_sensor_handle_random_write(
 	return rc;
 }
 
-static int32_t cam_sensor_handle_continuous_write(
+int32_t cam_sensor_handle_continuous_write(
 	struct cam_cmd_i2c_continuous_wr *cam_cmd_i2c_continuous_wr,
 	struct i2c_settings_array *i2c_reg_settings,
 	uint32_t *cmd_length_in_bytes, int32_t *offset,
@@ -450,7 +450,7 @@ int32_t cam_sensor_util_write_qtimer_to_io_buffer(
 	return rc;
 }
 
-static int32_t cam_sensor_handle_random_read(
+int32_t cam_sensor_handle_random_read(
 	struct cam_cmd_i2c_random_rd *cmd_i2c_random_rd,
 	struct i2c_settings_array *i2c_reg_settings,
 	uint16_t *cmd_length_in_bytes,
@@ -498,7 +498,7 @@ static int32_t cam_sensor_handle_random_read(
 	return rc;
 }
 
-static int32_t cam_sensor_handle_continuous_read(
+int32_t cam_sensor_handle_continuous_read(
 	struct cam_cmd_i2c_continuous_rd *cmd_i2c_continuous_rd,
 	struct i2c_settings_array *i2c_reg_settings,
 	uint16_t *cmd_length_in_bytes, int32_t *offset,
