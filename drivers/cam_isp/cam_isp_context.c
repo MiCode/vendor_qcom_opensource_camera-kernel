@@ -2826,6 +2826,8 @@ static int __cam_isp_ctx_sof_in_activated_state(
 	struct cam_context *ctx = ctx_isp->base;
 	uint64_t request_id = 0;
 
+	ctx_isp->last_sof_jiffies = jiffies;
+
 	/* First check if there is a valid request in active list */
 	list_for_each_entry(req, &ctx->active_req_list, list) {
 		if (req->request_id > ctx_isp->reported_req_id) {
@@ -2903,6 +2905,7 @@ static int __cam_isp_ctx_epoch_in_applied(struct cam_isp_context *ctx_isp,
 	void *evt_data)
 {
 	uint64_t request_id = 0;
+	uint32_t wait_req_cnt = 0;
 	uint32_t sof_event_status = CAM_REQ_MGR_SOF_EVENT_SUCCESS;
 	struct cam_ctx_request             *req;
 	struct cam_isp_ctx_req             *req_isp;
@@ -2930,6 +2933,26 @@ static int __cam_isp_ctx_epoch_in_applied(struct cam_isp_context *ctx_isp,
 		__cam_isp_ctx_update_event_record(ctx_isp,
 			CAM_ISP_CTX_EVENT_EPOCH, NULL);
 		goto end;
+	}
+
+	if (ctx_isp->last_applied_jiffies >= ctx_isp->last_sof_jiffies) {
+		list_for_each_entry(req, &ctx->wait_req_list, list) {
+			wait_req_cnt++;
+		}
+
+		/*
+		 * The previous req is applied after SOF and there is only
+		 * one applied req, we don't need to report bubble for this case.
+		 */
+		if (wait_req_cnt == 1) {
+			req = list_first_entry(&ctx->wait_req_list,
+				struct cam_ctx_request, list);
+			request_id = req->request_id;
+			CAM_INFO(CAM_ISP,
+				"ctx:%d Don't report the bubble for req:%lld",
+				ctx->ctx_id, request_id);
+			goto end;
+		}
 	}
 
 	/* Update state prior to notifying CRM */
@@ -3064,6 +3087,8 @@ static int __cam_isp_ctx_sof_in_epoch(struct cam_isp_context *ctx_isp,
 		CAM_ERR(CAM_ISP, "in valid sof event data");
 		return -EINVAL;
 	}
+
+	ctx_isp->last_sof_jiffies = jiffies;
 
 	if (atomic_read(&ctx_isp->apply_in_progress))
 		CAM_INFO(CAM_ISP, "Apply is in progress at the time of SOF");
@@ -4500,6 +4525,7 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 		spin_lock_bh(&ctx->lock);
 		ctx_isp->substate_activated = next_state;
 		ctx_isp->last_applied_req_id = apply->request_id;
+		ctx_isp->last_applied_jiffies = jiffies;
 		list_del_init(&req->list);
 		if (atomic_read(&ctx_isp->internal_recovery_set))
 			__cam_isp_ctx_enqueue_request_in_order(ctx, req, false);
@@ -7077,6 +7103,8 @@ static inline void __cam_isp_context_reset_ctx_params(
 	ctx_isp->recovery_req_id = 0;
 	ctx_isp->aeb_error_cnt = 0;
 	ctx_isp->sof_dbg_irq_en = false;
+	ctx_isp->last_sof_jiffies = 0;
+	ctx_isp->last_applied_jiffies = 0;
 }
 
 static int __cam_isp_ctx_start_dev_in_ready(struct cam_context *ctx,
