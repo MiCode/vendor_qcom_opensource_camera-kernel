@@ -348,6 +348,70 @@ struct cam_cpas_test_irq_info {
 };
 
 /**
+ * struct cam_cpas_cesta_crm_type : CESTA crm type information
+ *
+ * @CAM_CESTA_CRMB: CRM for bandwidth
+ * @CAM_CESTA_CRMC: CRM for clocks
+ *
+ */
+enum cam_cpas_cesta_crm_type {
+	CAM_CESTA_CRMB = 0,
+	CAM_CESTA_CRMC,
+};
+
+/**
+ * struct cam_vcd_info : cpas vcd(virtual clk domain) information
+ *
+ * @vcd_index: vcd number of each clk
+ * @type: type of clk domain CESTA_CRMB, CESTA_CRMC
+ * @clk_name: name of each vcd clk, exmp: cam_cc_ife_0_clk_src
+ *
+ */
+struct cam_cpas_vcd_info {
+	uint8_t index;
+	enum cam_cpas_cesta_crm_type type;
+	const char *clk;
+};
+
+/**
+ * struct cam_cpas_cesta_vcd_curr_lvl : cesta vcd operating level information
+ *
+ * @reg_offset: register offset
+ * @vcd_base_inc: each vcd base addr offset
+ * @num_vcds: number of vcds
+ *
+ */
+struct cam_cpas_cesta_vcd_curr_lvl {
+	uint32_t reg_offset;
+	uint32_t vcd_base_inc;
+	uint8_t num_vcds;
+};
+
+/**
+ * struct cam_cpas_cesta_vcd_reg_info : to hold all cesta register information
+ *
+ * @vcd_currol: vcd current perf level reg info
+ *
+ */
+struct cam_cpas_cesta_vcd_reg_info {
+	struct cam_cpas_cesta_vcd_curr_lvl vcd_currol;
+};
+
+/**
+ * struct cam_cpas_cesta_info : to hold all cesta register information
+ *
+ * @vcd_info: vcd info
+ * @num_vcds: number of vcds
+ * @cesta_reg_info: cesta vcds reg info
+ *
+ */
+struct cam_cpas_cesta_info {
+	struct cam_cpas_vcd_info *vcd_info;
+	int num_vcds;
+	struct cam_cpas_cesta_vcd_reg_info *cesta_reg_info;
+};
+
+/**
  * struct cam_camnoc_info : Overall CAMNOC settings info
  *
  * @specific: Pointer to CAMNOC SPECIFICTONTTPTR settings
@@ -358,6 +422,7 @@ struct cam_cpas_test_irq_info {
  * @err_logger: Pointer to CAMNOC IRQ Error logger read registers
  * @errata_wa_list: HW Errata workaround info
  * @test_irq_info: CAMNOC Test IRQ info
+ * @cesta_info: cpas cesta reg info
  *
  */
 struct cam_camnoc_info {
@@ -369,6 +434,7 @@ struct cam_camnoc_info {
 	struct cam_camnoc_err_logger_info *err_logger;
 	struct cam_cpas_hw_errata_wa_list *errata_wa_list;
 	struct cam_cpas_test_irq_info test_irq_info;
+	struct cam_cpas_cesta_info *cesta_info;
 };
 
 /**

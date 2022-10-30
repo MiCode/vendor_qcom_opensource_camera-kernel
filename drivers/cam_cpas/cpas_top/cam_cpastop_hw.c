@@ -402,6 +402,19 @@ static int cam_cpastop_setup_regbase_indices(struct cam_hw_soc_info *soc_info,
 		regbase_index[CAM_CPAS_REG_RPMH] = -1;
 	}
 
+	/* optional - cesta register map */
+	rc = cam_common_util_get_string_index(soc_info->mem_block_name,
+		soc_info->num_mem_block, "cam_cesta", &index);
+	if ((rc == 0) && (index < num_reg_map)) {
+		regbase_index[CAM_CPAS_REG_CESTA] = index;
+		CAM_DBG(CAM_CPAS, "regbase found for cesta, rc=%d, %d %d",
+			rc, index, num_reg_map);
+	} else {
+		CAM_DBG(CAM_CPAS, "regbase not found for cesta, rc=%d, %d %d",
+			rc, index, num_reg_map);
+		regbase_index[CAM_CPAS_REG_CESTA] = -1;
+	}
+
 	return 0;
 }
 
@@ -672,7 +685,7 @@ static void cam_cpastop_work(struct work_struct *work)
 	cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	soc_info = &cpas_hw->soc_info;
 
-	if (!atomic_inc_not_zero(&cpas_core->irq_count)) {
+	if (!atomic_inc_not_zero(&cpas_core->soc_access_count)) {
 		CAM_ERR(CAM_CPAS, "CPAS off");
 		return;
 	}
@@ -725,9 +738,9 @@ static void cam_cpastop_work(struct work_struct *work)
 				~camnoc_info->irq_err[i].sbm_port;
 		}
 	}
-	atomic_dec(&cpas_core->irq_count);
-	wake_up(&cpas_core->irq_count_wq);
-	CAM_DBG(CAM_CPAS, "irq_count=%d\n", atomic_read(&cpas_core->irq_count));
+	atomic_dec(&cpas_core->soc_access_count);
+	wake_up(&cpas_core->soc_access_count_wq);
+	CAM_DBG(CAM_CPAS, "soc_access_count=%d\n", atomic_read(&cpas_core->soc_access_count));
 
 	if (payload->irq_status)
 		CAM_ERR(CAM_CPAS, "IRQ not handled irq_status=0x%x",
@@ -745,7 +758,7 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 	struct cam_cpas_work_payload *payload;
 	struct cam_cpas_irq_data irq_data;
 
-	if (!atomic_inc_not_zero(&cpas_core->irq_count)) {
+	if (!atomic_inc_not_zero(&cpas_core->soc_access_count)) {
 		CAM_ERR(CAM_CPAS, "CPAS off");
 		return IRQ_HANDLED;
 	}
@@ -805,8 +818,8 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 	queue_work(cpas_core->work_queue, &payload->work);
 
 done:
-	atomic_dec(&cpas_core->irq_count);
-	wake_up(&cpas_core->irq_count_wq);
+	atomic_dec(&cpas_core->soc_access_count);
+	wake_up(&cpas_core->soc_access_count_wq);
 
 	return IRQ_HANDLED;
 }
