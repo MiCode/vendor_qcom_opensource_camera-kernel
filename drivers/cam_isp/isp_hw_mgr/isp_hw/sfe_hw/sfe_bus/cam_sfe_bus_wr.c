@@ -3593,8 +3593,6 @@ int cam_sfe_bus_wr_init(
 	return rc;
 
 deinit_sfe_out:
-	if (i < 0)
-		i = CAM_SFE_BUS_SFE_OUT_MAX;
 	for (--i; i >= 0; i--)
 		cam_sfe_bus_deinit_sfe_out_resource(&bus_priv->sfe_out[i]);
 

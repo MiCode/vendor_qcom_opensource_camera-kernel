@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/ratelimit.h>
@@ -1272,7 +1273,8 @@ int cam_vfe_bus_rd_ver1_init(
 		rc = cam_vfe_bus_init_rm_resource(i, bus_priv, bus_hw_info,
 			&bus_priv->bus_client[i]);
 		if (rc < 0) {
-			CAM_ERR(CAM_ISP, "Init RM failed rc=%d", rc);
+			CAM_ERR(CAM_ISP, "Init RM failed for client:%d, rc=%d",
+				i, rc);
 			goto deinit_rm;
 		}
 	}
@@ -1281,7 +1283,8 @@ int cam_vfe_bus_rd_ver1_init(
 		rc = cam_vfe_bus_init_vfe_bus_read_resource(i, bus_priv,
 			bus_rd_hw_info);
 		if (rc < 0) {
-			CAM_ERR(CAM_ISP, "Init VFE Out failed rc=%d", rc);
+			CAM_ERR(CAM_ISP, "Init VFE Out failed for client:%d, rc=%d",
+				i, rc);
 			goto deinit_vfe_bus_rd;
 		}
 	}
@@ -1303,8 +1306,6 @@ int cam_vfe_bus_rd_ver1_init(
 	return rc;
 
 deinit_vfe_bus_rd:
-	if (i < 0)
-		i = CAM_VFE_BUS_RD_VER1_VFE_BUSRD_MAX;
 	for (--i; i >= 0; i--)
 		cam_vfe_bus_deinit_vfe_bus_rd_resource(
 			&bus_priv->vfe_bus_rd[i]);

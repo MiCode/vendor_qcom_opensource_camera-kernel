@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_spi.h"
@@ -449,7 +450,7 @@ int cam_spi_write(struct camera_io_master *client,
 	if ((addr_type <= CAMERA_SENSOR_I2C_TYPE_INVALID)
 		|| (addr_type >= CAMERA_SENSOR_I2C_TYPE_MAX)
 		|| (data_type <= CAMERA_SENSOR_I2C_TYPE_INVALID)
-		|| (data_type != CAMERA_SENSOR_I2C_TYPE_MAX))
+		|| (data_type >= CAMERA_SENSOR_I2C_TYPE_MAX))
 		return rc;
 
 	CAM_DBG(CAM_EEPROM, "Data: 0x%x", data);

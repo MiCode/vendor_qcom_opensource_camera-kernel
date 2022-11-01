@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -420,10 +421,6 @@ static int cam_custom_mgr_start_hw(void *hw_mgr_priv,
 	/* Apply init config */
 
 start_only:
-
-	/* Start custom HW first */
-	if (rc < 0)
-		goto err;
 
 	/* Start custom csid */
 	list_for_each_entry(hw_mgr_res,

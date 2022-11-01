@@ -701,14 +701,12 @@ static int cam_mem_util_get_dma_buf(size_t len,
 			cam_flags, tbl.force_cache_allocs);
 	} else {
 		use_cached_heap = false;
-		CAM_ERR(CAM_MEM,
-			"Using UNCACHED heap not supported, cam_flags=0x%x, force_cache_allocs=%d",
-			cam_flags, tbl.force_cache_allocs);
-		/*
-		 * Need a better handling based on whether dma-buf-heaps support
-		 * uncached heaps or not. For now, assume not supported.
-		 */
-		return -EINVAL;
+		if (!tbl.system_uncached_heap) {
+			CAM_ERR(CAM_MEM,
+				"Using UNCACHED heap not supported, cam_flags=0x%x, force_cache_allocs=%d",
+				cam_flags, tbl.force_cache_allocs);
+			return -EINVAL;
+		}
 	}
 
 	if (cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) {
