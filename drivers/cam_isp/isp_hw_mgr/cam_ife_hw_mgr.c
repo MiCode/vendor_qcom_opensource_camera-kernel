@@ -7184,6 +7184,11 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 					CAM_ISP_HW_CMD_SET_CAMIF_DEBUG,
 					&camif_debug,
 					sizeof(camif_debug));
+				if (rc) {
+					CAM_ERR(CAM_ISP,
+						"VFE process cmd failed for rsrc_id:%d, rc:%d",
+						rsrc_node->res_id, rc);
+				}
 			}
 		}
 	}
