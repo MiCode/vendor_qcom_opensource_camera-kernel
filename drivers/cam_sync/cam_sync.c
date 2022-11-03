@@ -952,6 +952,9 @@ static int cam_sync_dma_fence_cb(
 		goto end;
 	}
 
+	/* Adding dma fence reference on sync */
+	atomic_inc(&row->ref_cnt);
+
 	if (!atomic_dec_and_test(&row->ref_cnt))
 		goto end;
 
@@ -1066,7 +1069,7 @@ static int cam_generic_fence_alloc_validate_input_info_util(
 
 	*fence_input_info = NULL;
 
-	if (fence_cmd_args->input_data_size <
+	if (fence_cmd_args->input_data_size !=
 		sizeof(struct cam_generic_fence_input_info)) {
 		CAM_ERR(CAM_SYNC, "Size is invalid expected: 0x%llx actual: 0x%llx",
 			sizeof(struct cam_generic_fence_input_info),
@@ -1310,7 +1313,7 @@ static int cam_generic_fence_handle_dma_signal(
 {
 	struct cam_dma_fence_signal signal_dma_fence;
 
-	if (fence_cmd_args->input_data_size < sizeof(struct cam_dma_fence_signal)) {
+	if (fence_cmd_args->input_data_size != sizeof(struct cam_dma_fence_signal)) {
 		CAM_ERR(CAM_DMA_FENCE, "Size is invalid expected: 0x%llx actual: 0x%llx",
 			sizeof(struct cam_dma_fence_signal),
 			fence_cmd_args->input_data_size);
@@ -1367,7 +1370,7 @@ static int cam_generic_fence_validate_signal_input_info_util(
 	*fence_signal_info = NULL;
 	*fence_signal_data = NULL;
 
-	if (fence_cmd_args->input_data_size <
+	if (fence_cmd_args->input_data_size !=
 		sizeof(struct cam_generic_fence_signal_info)) {
 		CAM_ERR(CAM_SYNC, "Size is invalid expected: 0x%llx actual: 0x%llx",
 			sizeof(struct cam_generic_fence_signal_info),
@@ -1416,7 +1419,7 @@ static int cam_generic_fence_validate_signal_input_info_util(
 		goto free_mem;
 	}
 
-	if ((signal_info->fence_data_size) < (expected_size * num_fences)) {
+	if ((signal_info->fence_data_size) != (expected_size * num_fences)) {
 		CAM_ERR(CAM_SYNC, "Invalid input size expected: 0x%x actual: 0x%x for fences: %u",
 			(expected_size * num_fences), signal_info->fence_data_size, num_fences);
 		rc = -EINVAL;
