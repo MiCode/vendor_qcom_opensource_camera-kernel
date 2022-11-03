@@ -47,6 +47,14 @@ enum cam_smmu_region_id {
 	CAM_SMMU_REGION_SECHEAP,
 	CAM_SMMU_REGION_QDSS,
 	CAM_SMMU_REGION_FWUNCACHED,
+	CAM_SMMU_REGION_DEVICE,
+};
+
+enum cam_smmu_subregion_id {
+	CAM_SMMU_SUBREGION_GENERIC,
+	CAM_SMMU_SUBREGION_HWMUTEX,
+	CAM_SMMU_SUBREGION_GLOBAL_SYNC_MEM,
+	CAM_SMMU_SUBREGION_MAX,
 };
 
 /**
@@ -80,18 +88,34 @@ struct cam_smmu_pf_info {
 };
 
 /**
+ * @brief            : Structure to store dma buf information
+ *
+ * @param buf    : dma buffer
+ * @param attach : attachment info between dma buf and device
+ * @param table  : scattered list
+ */
+struct region_buf_info {
+	struct dma_buf *buf;
+	struct dma_buf_attachment *attach;
+	struct sg_table *table;
+};
+
+/**
  * @brief            : Structure to store region information
  *
  * @param iova_start         : Start address of region
  * @param iova_len           : length of region
  * @param discard_iova_start : iova addr start from where should not be used
  * @param discard_iova_len   : length of discard iova region
+ * @param phy_addr           : pa to which this va is mapped to
  */
 struct cam_smmu_region_info {
 	dma_addr_t iova_start;
 	size_t iova_len;
 	dma_addr_t discard_iova_start;
 	size_t discard_iova_len;
+	dma_addr_t phy_addr;
+	struct region_buf_info buf_info;
 };
 
 /**
@@ -399,26 +423,31 @@ int cam_smmu_release_buf_region(enum cam_smmu_region_id region,
 	int32_t smmu_hdl);
 
 /**
- * @brief Allocates qdss for context bank
+ * @brief Map va for phy addr range for a given context bank
  *
  * @param smmu_hdl: SMMU handle identifying context bank
+ * @param region_id: Region ID
+ * @optional param subregion_id: Subregion ID
  * @param iova: IOVA address of allocated qdss
  * @param len: Length of allocated qdss memory
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-int cam_smmu_alloc_qdss(int32_t smmu_hdl,
-	dma_addr_t *iova,
-	size_t *len);
+int cam_smmu_map_phy_mem_region(int32_t smmu_hdl,
+	uint32_t region_id, uint32_t subregion_id,
+	dma_addr_t *iova, size_t *len);
 
 /**
- * @brief Deallocates qdss memory for context bank
+ * @brief Unmap call for map_phy_mem for given context bank
  *
  * @param smmu_hdl: SMMU handle identifying the context bank
+ * @param region_id: Region ID
+ * @optional param subregion_id: Subregion ID
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-int cam_smmu_dealloc_qdss(int32_t smmu_hdl);
+int cam_smmu_unmap_phy_mem_region(int32_t smmu_hdl,
+	uint32_t region_id, uint32_t subregion_id);
 
 /**
  * @brief Get start addr & len of I/O region for a given cb

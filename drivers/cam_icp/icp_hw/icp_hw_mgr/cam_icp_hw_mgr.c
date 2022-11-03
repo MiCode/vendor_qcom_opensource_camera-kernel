@@ -3103,7 +3103,7 @@ static void cam_icp_free_hfi_mem(void)
 		cam_mem_mgr_release_mem(&icp_hw_mgr.hfi_mem.sfr_buf);
 	}
 
-	cam_smmu_dealloc_qdss(icp_hw_mgr.iommu_hdl);
+	cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_QDSS, 0);
 }
 
 static int cam_icp_alloc_secheap_mem(struct cam_mem_mgr_memory_desc *secheap)
@@ -3221,8 +3221,8 @@ static int cam_icp_allocate_qdss_mem(void)
 	size_t len;
 	dma_addr_t iova;
 
-	rc = cam_smmu_alloc_qdss(icp_hw_mgr.iommu_hdl,
-		&iova, &len);
+	rc = cam_smmu_map_phy_mem_region(icp_hw_mgr.iommu_hdl,
+		CAM_SMMU_REGION_QDSS, 0, &iova, &len);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "Failed in alloc qdss mem rc %d", rc);
 		return rc;
@@ -3472,7 +3472,7 @@ msg_q_alloc_failed:
 cmd_q_alloc_failed:
 	cam_mem_mgr_release_mem(&icp_hw_mgr.hfi_mem.qtbl);
 qtbl_alloc_failed:
-	cam_smmu_dealloc_qdss(icp_hw_mgr.iommu_hdl);
+	cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_QDSS, 0);
 fw_alloc_failed:
 	cam_icp_free_fw_mem();
 	return rc;
