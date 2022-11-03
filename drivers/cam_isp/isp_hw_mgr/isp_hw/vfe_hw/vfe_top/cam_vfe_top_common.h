@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE_TOP_COMMON_H_
 #define _CAM_VFE_TOP_COMMON_H_
 
-#define CAM_VFE_TOP_MUX_MAX 6
+#define CAM_VFE_TOP_MUX_MAX 7
 
 #include "cam_cpas_api.h"
 #include "cam_vfe_hw_intf.h"

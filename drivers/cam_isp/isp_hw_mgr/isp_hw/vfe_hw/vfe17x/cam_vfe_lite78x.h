@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -82,6 +82,14 @@ static struct cam_irq_controller_reg_info vfe_lite78x_top_irq_reg_info = {
 	.clear_all_bitmask     = 0xFFFFFFFF,
 };
 
+static uint32_t vfe_lite78x_top_debug_reg[] = {
+	0x0000105C,
+	0x00001060,
+	0x00001064,
+	0x00001068,
+	0x0000106C,
+};
+
 static struct cam_vfe_top_ver4_reg_offset_common vfe_lite78x_top_common_reg = {
 	.hw_version               = 0x00001000,
 	.hw_capability            = 0x00001004,
@@ -96,13 +104,7 @@ static struct cam_vfe_top_ver4_reg_offset_common vfe_lite78x_top_common_reg = {
 	.bus_overflow_status      = 0x00001268,
 	.top_debug_cfg            = 0x00001074,
 	.num_top_debug_reg        = CAM_VFE_78X_NUM_DBG_REG,
-	.top_debug                = {
-		0x0000105C,
-		0x00001060,
-		0x00001064,
-		0x00001068,
-		0x0000106C,
-	},
+	.top_debug                = vfe_lite78x_top_debug_reg,
 };
 
 static struct cam_vfe_ver4_path_reg_data vfe_lite78x_ipp_reg_data =
@@ -148,7 +150,7 @@ static struct cam_vfe_ver4_path_reg_data vfe_lite78x_rdi_reg_data[4] = {
 };
 
 static struct cam_vfe_ver4_path_hw_info
-	vfe_lite78x_rdi_hw_info[CAM_VFE_RDI_VER2_MAX] = {
+	vfe_lite78x_rdi_hw_info[] = {
 	{
 		.common_reg     = &vfe_lite78x_top_common_reg,
 		.reg_data       = &vfe_lite78x_rdi_reg_data[0],
@@ -222,10 +224,7 @@ static struct cam_vfe_top_ver4_debug_reg_info vfe78x_dbg_reg_info[CAM_VFE_78X_NU
 
 static struct cam_vfe_top_ver4_hw_info vfe_lite78x_top_hw_info = {
 	.common_reg = &vfe_lite78x_top_common_reg,
-	.rdi_hw_info[0] = &vfe_lite78x_rdi_hw_info[0],
-	.rdi_hw_info[1] = &vfe_lite78x_rdi_hw_info[1],
-	.rdi_hw_info[2] = &vfe_lite78x_rdi_hw_info[2],
-	.rdi_hw_info[3] = &vfe_lite78x_rdi_hw_info[3],
+	.rdi_hw_info = vfe_lite78x_rdi_hw_info,
 	.vfe_full_hw_info = {
 		.common_reg     = &vfe_lite78x_top_common_reg,
 		.reg_data       = &vfe_lite78x_ipp_reg_data,
@@ -241,6 +240,7 @@ static struct cam_vfe_top_ver4_hw_info vfe_lite78x_top_hw_info = {
 		CAM_VFE_RDI_VER_1_0,
 	},
 	.debug_reg_info = &vfe78x_dbg_reg_info,
+	.num_rdi        = ARRAY_SIZE(vfe_lite78x_rdi_hw_info),
 };
 
 static struct cam_irq_register_set vfe_lite78x_bus_irq_reg[1] = {
@@ -249,6 +249,15 @@ static struct cam_irq_register_set vfe_lite78x_bus_irq_reg[1] = {
 		.clear_reg_offset  = 0x00001220,
 		.status_reg_offset = 0x00001228,
 	},
+};
+
+static uint32_t vfe_lite78x_out_port_mid[][4] = {
+	{8, 0, 0, 0},
+	{9, 0, 0, 0},
+	{10, 0, 0, 0},
+	{11, 0, 0, 0},
+	{12, 0, 0, 0},
+	{13, 0, 0, 0},
 };
 
 static struct cam_vfe_bus_ver3_hw_info vfe_lite78x_bus_hw_info = {
@@ -463,7 +472,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite78x_bus_hw_info = {
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_1,
 			.num_wm        = 1,
 			.line_based    = 1,
-			.mid[0]        = 8,
+			.mid           = vfe_lite78x_out_port_mid[0],
+			.num_mid       = 1,
 			.wm_idx        = {
 				0,
 			},
@@ -478,7 +488,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite78x_bus_hw_info = {
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_2,
 			.num_wm        = 1,
 			.line_based    = 1,
-			.mid[0]        = 9,
+			.mid           = vfe_lite78x_out_port_mid[1],
+			.num_mid       = 1,
 			.wm_idx        = {
 				1,
 			},
@@ -493,7 +504,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite78x_bus_hw_info = {
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_3,
 			.num_wm        = 1,
 			.line_based    = 1,
-			.mid[0]        = 10,
+			.mid           = vfe_lite78x_out_port_mid[2],
+			.num_mid       = 1,
 			.wm_idx        = {
 				2,
 			},
@@ -508,7 +520,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite78x_bus_hw_info = {
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_4,
 			.num_wm        = 1,
 			.line_based    = 1,
-			.mid[0]        = 11,
+			.mid           = vfe_lite78x_out_port_mid[3],
+			.num_mid       = 1,
 			.wm_idx        = {
 				3,
 			},
@@ -523,7 +536,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite78x_bus_hw_info = {
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
 			.num_wm        = 1,
-			.mid[0]        = 12,
+			.mid           = vfe_lite78x_out_port_mid[4],
+			.num_mid       = 1,
 			.wm_idx        = {
 				4,
 			},
@@ -537,7 +551,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite78x_bus_hw_info = {
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
 			.num_wm        = 1,
-			.mid[0]        = 13,
+			.mid           = vfe_lite78x_out_port_mid[5],
+			.num_mid       = 1,
 			.wm_idx        = {
 				5,
 			},

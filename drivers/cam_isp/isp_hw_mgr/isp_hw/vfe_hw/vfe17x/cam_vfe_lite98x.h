@@ -1,12 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
-#ifndef _CAM_VFE_LITE88X_H_
-#define _CAM_VFE_LITE88X_H_
+#ifndef _CAM_VFE_LITE98X_H_
+#define _CAM_VFE_LITE98X_H_
 #include "cam_vfe_camif_ver3.h"
 #include "cam_vfe_top_ver4.h"
 #include "cam_vfe_core.h"
@@ -14,11 +13,11 @@
 #include "cam_irq_controller.h"
 #include "cam_vfe_lite78x.h"
 
-#define CAM_VFE_88X_NUM_DBG_REG 5
+#define CAM_VFE_98X_NUM_DBG_REG 5
 
 /* Offsets might not match due to csid secure regs at beginning of reg space */
 
-static struct cam_irq_register_set vfe_lite88x_top_irq_reg_set[2] = {
+static struct cam_irq_register_set vfe_lite98x_top_irq_reg_set[2] = {
 	{
 		.mask_reg_offset   = 0x00001024,
 		.clear_reg_offset  = 0x0000102C,
@@ -34,16 +33,16 @@ static struct cam_irq_register_set vfe_lite88x_top_irq_reg_set[2] = {
 	},
 };
 
-static struct cam_irq_controller_reg_info vfe_lite88x_top_irq_reg_info = {
+static struct cam_irq_controller_reg_info vfe_lite98x_top_irq_reg_info = {
 	.num_registers = 2,
-	.irq_reg_set = vfe_lite88x_top_irq_reg_set,
+	.irq_reg_set = vfe_lite98x_top_irq_reg_set,
 	.global_irq_cmd_offset = 0x00001038,
 	.global_clear_bitmask  = 0x00000001,
 	.global_set_bitmask    = 0x00000010,
 	.clear_all_bitmask     = 0xFFFFFFFF,
 };
 
-static uint32_t vfe_lite88x_top_debug_reg[] = {
+static uint32_t vfe_lite98x_top_debug_reg[] = {
 	0x0000105C,
 	0x00001060,
 	0x00001064,
@@ -51,7 +50,7 @@ static uint32_t vfe_lite88x_top_debug_reg[] = {
 	0x0000106C,
 };
 
-static struct cam_vfe_top_ver4_reg_offset_common vfe_lite88x_top_common_reg = {
+static struct cam_vfe_top_ver4_reg_offset_common vfe_lite98x_top_common_reg = {
 	.hw_version               = 0x00001000,
 	.hw_capability            = 0x00001004,
 	.core_cgc_ovd_0           = 0x00001014,
@@ -64,11 +63,11 @@ static struct cam_vfe_top_ver4_reg_offset_common vfe_lite88x_top_common_reg = {
 	.bus_violation_status     = 0x00001264,
 	.bus_overflow_status      = 0x00001268,
 	.top_debug_cfg            = 0x00001074,
-	.num_top_debug_reg        = CAM_VFE_88X_NUM_DBG_REG,
-	.top_debug                = vfe_lite88x_top_debug_reg,
+	.num_top_debug_reg        = CAM_VFE_98X_NUM_DBG_REG,
+	.top_debug                = vfe_lite98x_top_debug_reg,
 };
 
-static struct cam_vfe_ver4_path_reg_data vfe_lite88x_ipp_reg_data = {
+static struct cam_vfe_ver4_path_reg_data vfe_lite98x_ipp_reg_data = {
 	.sof_irq_mask                    = 0x1,
 	.eof_irq_mask                    = 0x2,
 	.error_irq_mask                  = 0x2,
@@ -77,7 +76,7 @@ static struct cam_vfe_ver4_path_reg_data vfe_lite88x_ipp_reg_data = {
 	.ipp_violation_mask              = 0x10,
 };
 
-static struct cam_vfe_ver4_path_reg_data vfe_lite88x_rdi_reg_data[4] = {
+static struct cam_vfe_ver4_path_reg_data vfe_lite98x_rdi_reg_data[4] = {
 
 	{
 		.sof_irq_mask                    = 0x4,
@@ -110,31 +109,31 @@ static struct cam_vfe_ver4_path_reg_data vfe_lite88x_rdi_reg_data[4] = {
 };
 
 static struct cam_vfe_ver4_path_hw_info
-	vfe_lite88x_rdi_hw_info[] = {
+	vfe_lite98x_rdi_hw_info[] = {
 	{
-		.common_reg     = &vfe_lite88x_top_common_reg,
-		.reg_data       = &vfe_lite88x_rdi_reg_data[0],
+		.common_reg     = &vfe_lite98x_top_common_reg,
+		.reg_data       = &vfe_lite98x_rdi_reg_data[0],
 	},
 	{
-		.common_reg     = &vfe_lite88x_top_common_reg,
-		.reg_data       = &vfe_lite88x_rdi_reg_data[1],
+		.common_reg     = &vfe_lite98x_top_common_reg,
+		.reg_data       = &vfe_lite98x_rdi_reg_data[1],
 	},
 	{
-		.common_reg     = &vfe_lite88x_top_common_reg,
-		.reg_data       = &vfe_lite88x_rdi_reg_data[2],
+		.common_reg     = &vfe_lite98x_top_common_reg,
+		.reg_data       = &vfe_lite98x_rdi_reg_data[2],
 	},
 	{
-		.common_reg     = &vfe_lite88x_top_common_reg,
-		.reg_data       = &vfe_lite88x_rdi_reg_data[3],
+		.common_reg     = &vfe_lite98x_top_common_reg,
+		.reg_data       = &vfe_lite98x_rdi_reg_data[3],
 	},
 };
 
-static struct cam_vfe_top_ver4_hw_info vfe_lite88x_top_hw_info = {
-	.common_reg = &vfe_lite88x_top_common_reg,
-	.rdi_hw_info = vfe_lite88x_rdi_hw_info,
+static struct cam_vfe_top_ver4_hw_info vfe_lite98x_top_hw_info = {
+	.common_reg = &vfe_lite98x_top_common_reg,
+	.rdi_hw_info = vfe_lite98x_rdi_hw_info,
 	.vfe_full_hw_info = {
-		.common_reg     = &vfe_lite88x_top_common_reg,
-		.reg_data       = &vfe_lite88x_ipp_reg_data,
+		.common_reg     = &vfe_lite98x_top_common_reg,
+		.reg_data       = &vfe_lite98x_ipp_reg_data,
 	},
 	.ipp_module_desc        = vfe_lite78x_ipp_mod_desc,
 	.wr_client_desc         = vfe_lite78x_wr_client_desc,
@@ -147,10 +146,10 @@ static struct cam_vfe_top_ver4_hw_info vfe_lite88x_top_hw_info = {
 		CAM_VFE_RDI_VER_1_0,
 	},
 	.debug_reg_info = &vfe78x_dbg_reg_info,
-	.num_rdi        = ARRAY_SIZE(vfe_lite88x_rdi_hw_info),
+	.num_rdi        = ARRAY_SIZE(vfe_lite98x_rdi_hw_info),
 };
 
-static struct cam_irq_register_set vfe_lite88x_bus_irq_reg[1] = {
+static struct cam_irq_register_set vfe_lite98x_bus_irq_reg[1] = {
 	{
 		.mask_reg_offset   = 0x00001218,
 		.clear_reg_offset  = 0x00001220,
@@ -158,7 +157,7 @@ static struct cam_irq_register_set vfe_lite88x_bus_irq_reg[1] = {
 	},
 };
 
-static uint32_t vfe_lite88x_out_port_mid[][4] = {
+static uint32_t vfe_lite98x_out_port_mid[][4] = {
 	{8, 0, 0, 0},
 	{9, 0, 0, 0},
 	{10, 0, 0, 0},
@@ -167,7 +166,7 @@ static uint32_t vfe_lite88x_out_port_mid[][4] = {
 	{13, 0, 0, 0},
 };
 
-static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
+static struct cam_vfe_bus_ver3_hw_info vfe_lite98x_bus_hw_info = {
 	.common_reg = {
 		.hw_version                       = 0x00001200,
 		.cgc_ovd                          = 0x00001208,
@@ -185,10 +184,10 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 		.image_size_violation_status      = 0x00001270,
 		.debug_status_top_cfg             = 0x000012F0,
 		.debug_status_top                 = 0x000012F4,
-		.test_bus_ctrl                    = 0x00001394,
+		.test_bus_ctrl                    = 0x00001328,
 		.irq_reg_info = {
 			.num_registers            = 1,
-			.irq_reg_set              = vfe_lite88x_bus_irq_reg,
+			.irq_reg_set              = vfe_lite98x_bus_irq_reg,
 			.global_irq_cmd_offset    = 0x00001230,
 			.global_clear_bitmask     = 0x00000001,
 		},
@@ -196,93 +195,6 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 	.num_client = 6,
 	.bus_client_reg = {
 		/* BUS Client 0 RDI0 */
-		{
-			.cfg                      = 0x00001400,
-			.image_addr               = 0x00001404,
-			.frame_incr               = 0x00001408,
-			.image_cfg_0              = 0x0000140C,
-			.image_cfg_1              = 0x00001410,
-			.image_cfg_2              = 0x00001414,
-			.packer_cfg               = 0x00001418,
-			.frame_header_addr        = 0x00001420,
-			.frame_header_incr        = 0x00001424,
-			.frame_header_cfg         = 0x00001428,
-			.line_done_cfg            = 0x0000142C,
-			.irq_subsample_period     = 0x00001430,
-			.irq_subsample_pattern    = 0x00001434,
-			.mmu_prefetch_cfg         = 0x00001460,
-			.mmu_prefetch_max_offset  = 0x00001464,
-			.system_cache_cfg         = 0x00001468,
-			.addr_cfg                 = 0x00001470,
-			.addr_status_0            = 0x00001478,
-			.addr_status_1            = 0x0000147C,
-			.addr_status_2            = 0x00001480,
-			.addr_status_3            = 0x00001484,
-			.debug_status_cfg         = 0x00001488,
-			.debug_status_0           = 0x0000148C,
-			.debug_status_1           = 0x00001490,
-			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
-			.ubwc_regs                = NULL,
-		},
-		/* BUS Client 1 RDI1 */
-		{
-			.cfg                      = 0x00001500,
-			.image_addr               = 0x00001504,
-			.frame_incr               = 0x00001508,
-			.image_cfg_0              = 0x0000150C,
-			.image_cfg_1              = 0x00001510,
-			.image_cfg_2              = 0x00001514,
-			.packer_cfg               = 0x00001518,
-			.frame_header_addr        = 0x00001520,
-			.frame_header_incr        = 0x00001524,
-			.frame_header_cfg         = 0x00001528,
-			.line_done_cfg            = 0x0000152C,
-			.irq_subsample_period     = 0x00001530,
-			.irq_subsample_pattern    = 0x00001534,
-			.mmu_prefetch_cfg         = 0x00001560,
-			.mmu_prefetch_max_offset  = 0x00001564,
-			.system_cache_cfg         = 0x00001568,
-			.addr_cfg                 = 0x00001570,
-			.addr_status_0            = 0x00001578,
-			.addr_status_1            = 0x0000157C,
-			.addr_status_2            = 0x00001580,
-			.addr_status_3            = 0x00001584,
-			.debug_status_cfg         = 0x00001588,
-			.debug_status_0           = 0x0000158C,
-			.debug_status_1           = 0x00001590,
-			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
-			.ubwc_regs                = NULL,
-		},
-		/* BUS Client 2 RDI2 */
-		{
-			.cfg                      = 0x00001600,
-			.image_addr               = 0x00001604,
-			.frame_incr               = 0x00001608,
-			.image_cfg_0              = 0x0000160C,
-			.image_cfg_1              = 0x00001610,
-			.image_cfg_2              = 0x00001614,
-			.packer_cfg               = 0x00001618,
-			.frame_header_addr        = 0x00001620,
-			.frame_header_incr        = 0x00001624,
-			.frame_header_cfg         = 0x00001628,
-			.line_done_cfg            = 0x0000162C,
-			.irq_subsample_period     = 0x00001630,
-			.irq_subsample_pattern    = 0x00001634,
-			.mmu_prefetch_cfg         = 0x00001660,
-			.mmu_prefetch_max_offset  = 0x00001664,
-			.system_cache_cfg         = 0x00001668,
-			.addr_cfg                 = 0x00001670,
-			.addr_status_0            = 0x00001678,
-			.addr_status_1            = 0x0000167C,
-			.addr_status_2            = 0x00001680,
-			.addr_status_3            = 0x00001684,
-			.debug_status_cfg         = 0x00001688,
-			.debug_status_0           = 0x0000168C,
-			.debug_status_1           = 0x00001690,
-			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_3,
-			.ubwc_regs                = NULL,
-		},
-		/* BUS Client 3 RDI3 */
 		{
 			.cfg                      = 0x00001700,
 			.image_addr               = 0x00001704,
@@ -301,17 +213,17 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 			.mmu_prefetch_max_offset  = 0x00001764,
 			.system_cache_cfg         = 0x00001768,
 			.addr_cfg                 = 0x00001770,
-			.addr_status_0            = 0x00001778,
-			.addr_status_1            = 0x0000177C,
-			.addr_status_2            = 0x00001780,
-			.addr_status_3            = 0x00001784,
-			.debug_status_cfg         = 0x00001788,
-			.debug_status_0           = 0x0000178C,
-			.debug_status_1           = 0x00001790,
-			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_4,
+			.addr_status_0            = 0x00001790,
+			.addr_status_1            = 0x00001794,
+			.addr_status_2            = 0x00001798,
+			.addr_status_3            = 0x0000179C,
+			.debug_status_cfg         = 0x0000177C,
+			.debug_status_0           = 0x00001780,
+			.debug_status_1           = 0x00001784,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = NULL,
 		},
-		/* BUS Client 4 Gamma */
+		/* BUS Client 1 RDI1 */
 		{
 			.cfg                      = 0x00001800,
 			.image_addr               = 0x00001804,
@@ -330,17 +242,17 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 			.mmu_prefetch_max_offset  = 0x00001864,
 			.system_cache_cfg         = 0x00001868,
 			.addr_cfg                 = 0x00001870,
-			.addr_status_0            = 0x00001878,
-			.addr_status_1            = 0x0000187C,
-			.addr_status_2            = 0x00001880,
-			.addr_status_3            = 0x00001884,
-			.debug_status_cfg         = 0x00001888,
-			.debug_status_0           = 0x0000188C,
-			.debug_status_1           = 0x00001890,
-			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
+			.addr_status_0            = 0x00001890,
+			.addr_status_1            = 0x00001894,
+			.addr_status_2            = 0x00001898,
+			.addr_status_3            = 0x0000189C,
+			.debug_status_cfg         = 0x0000187C,
+			.debug_status_0           = 0x00001880,
+			.debug_status_1           = 0x00001884,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
 		},
-		/* BUS Client 5 Stats BE */
+		/* BUS Client 2 RDI2 */
 		{
 			.cfg                      = 0x00001900,
 			.image_addr               = 0x00001904,
@@ -359,13 +271,100 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 			.mmu_prefetch_max_offset  = 0x00001964,
 			.system_cache_cfg         = 0x00001968,
 			.addr_cfg                 = 0x00001970,
-			.addr_status_0            = 0x00001978,
-			.addr_status_1            = 0x0000197C,
-			.addr_status_2            = 0x00001980,
-			.addr_status_3            = 0x00001984,
-			.debug_status_cfg         = 0x00001988,
-			.debug_status_0           = 0x0000198C,
-			.debug_status_1           = 0x00001990,
+			.addr_status_0            = 0x00001990,
+			.addr_status_1            = 0x00001994,
+			.addr_status_2            = 0x00001998,
+			.addr_status_3            = 0x0000199C,
+			.debug_status_cfg         = 0x0000197C,
+			.debug_status_0           = 0x00001980,
+			.debug_status_1           = 0x00001984,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_3,
+			.ubwc_regs                = NULL,
+		},
+		/* BUS Client 3 RDI3 */
+		{
+			.cfg                      = 0x00001A00,
+			.image_addr               = 0x00001A04,
+			.frame_incr               = 0x00001A08,
+			.image_cfg_0              = 0x00001A0C,
+			.image_cfg_1              = 0x00001A10,
+			.image_cfg_2              = 0x00001A14,
+			.packer_cfg               = 0x00001A18,
+			.frame_header_addr        = 0x00001A20,
+			.frame_header_incr        = 0x00001A24,
+			.frame_header_cfg         = 0x00001A28,
+			.line_done_cfg            = 0x00001A2C,
+			.irq_subsample_period     = 0x00001A30,
+			.irq_subsample_pattern    = 0x00001A34,
+			.mmu_prefetch_cfg         = 0x00001A60,
+			.mmu_prefetch_max_offset  = 0x00001A64,
+			.system_cache_cfg         = 0x00001A68,
+			.addr_cfg                 = 0x00001A70,
+			.addr_status_0            = 0x00001A90,
+			.addr_status_1            = 0x00001A94,
+			.addr_status_2            = 0x00001A98,
+			.addr_status_3            = 0x00001A9C,
+			.debug_status_cfg         = 0x00001A7C,
+			.debug_status_0           = 0x00001A80,
+			.debug_status_1           = 0x00001A84,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_4,
+			.ubwc_regs                = NULL,
+		},
+		/* BUS Client 4 Gamma */
+		{
+			.cfg                      = 0x00001B00,
+			.image_addr               = 0x00001B04,
+			.frame_incr               = 0x00001B08,
+			.image_cfg_0              = 0x00001B0C,
+			.image_cfg_1              = 0x00001B10,
+			.image_cfg_2              = 0x00001B14,
+			.packer_cfg               = 0x00001B18,
+			.frame_header_addr        = 0x00001B20,
+			.frame_header_incr        = 0x00001B24,
+			.frame_header_cfg         = 0x00001B28,
+			.line_done_cfg            = 0x00001B2C,
+			.irq_subsample_period     = 0x00001B30,
+			.irq_subsample_pattern    = 0x00001B34,
+			.mmu_prefetch_cfg         = 0x00001B60,
+			.mmu_prefetch_max_offset  = 0x00001B64,
+			.system_cache_cfg         = 0x00001B68,
+			.addr_cfg                 = 0x00001B70,
+			.addr_status_0            = 0x00001B90,
+			.addr_status_1            = 0x00001B94,
+			.addr_status_2            = 0x00001B98,
+			.addr_status_3            = 0x00001B9C,
+			.debug_status_cfg         = 0x00001B7C,
+			.debug_status_0           = 0x00001B80,
+			.debug_status_1           = 0x00001B84,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
+			.ubwc_regs                = NULL,
+		},
+		/* BUS Client 5 Stats BE */
+		{
+			.cfg                      = 0x00001C00,
+			.image_addr               = 0x00001C04,
+			.frame_incr               = 0x00001C08,
+			.image_cfg_0              = 0x00001C0C,
+			.image_cfg_1              = 0x00001C10,
+			.image_cfg_2              = 0x00001C14,
+			.packer_cfg               = 0x00001C18,
+			.frame_header_addr        = 0x00001C20,
+			.frame_header_incr        = 0x00001C24,
+			.frame_header_cfg         = 0x00001C28,
+			.line_done_cfg            = 0x00001C2C,
+			.irq_subsample_period     = 0x00001C30,
+			.irq_subsample_pattern    = 0x00001C34,
+			.mmu_prefetch_cfg         = 0x00001C60,
+			.mmu_prefetch_max_offset  = 0x00001C64,
+			.system_cache_cfg         = 0x00001C68,
+			.addr_cfg                 = 0x00001C70,
+			.addr_status_0            = 0x00001C90,
+			.addr_status_1            = 0x00001C94,
+			.addr_status_2            = 0x00001C98,
+			.addr_status_3            = 0x00001C9C,
+			.debug_status_cfg         = 0x00001C7C,
+			.debug_status_0           = 0x00001C80,
+			.debug_status_1           = 0x00001C84,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = NULL,
 		},
@@ -379,7 +378,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_1,
 			.num_wm        = 1,
 			.line_based    = 1,
-			.mid           = vfe_lite88x_out_port_mid[0],
+			.mid           = vfe_lite98x_out_port_mid[0],
 			.num_mid       = 1,
 			.wm_idx        = {
 				0,
@@ -395,7 +394,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_2,
 			.num_wm        = 1,
 			.line_based    = 1,
-			.mid           = vfe_lite88x_out_port_mid[1],
+			.mid           = vfe_lite98x_out_port_mid[1],
 			.num_mid       = 1,
 			.wm_idx        = {
 				1,
@@ -411,7 +410,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_3,
 			.num_wm        = 1,
 			.line_based    = 1,
-			.mid           = vfe_lite88x_out_port_mid[2],
+			.mid           = vfe_lite98x_out_port_mid[2],
 			.num_mid       = 1,
 			.wm_idx        = {
 				2,
@@ -427,7 +426,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_4,
 			.num_wm        = 1,
 			.line_based    = 1,
-			.mid           = vfe_lite88x_out_port_mid[3],
+			.mid           = vfe_lite98x_out_port_mid[3],
 			.num_mid       = 1,
 			.wm_idx        = {
 				3,
@@ -443,7 +442,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
 			.num_wm        = 1,
-			.mid           = vfe_lite88x_out_port_mid[4],
+			.mid           = vfe_lite98x_out_port_mid[4],
 			.num_mid       = 1,
 			.wm_idx        = {
 				4,
@@ -458,7 +457,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
 			.num_wm        = 1,
-			.mid           = vfe_lite88x_out_port_mid[5],
+			.mid           = vfe_lite98x_out_port_mid[5],
 			.num_mid       = 1,
 			.wm_idx        = {
 				5,
@@ -477,20 +476,20 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 	.max_out_res = CAM_ISP_IFE_OUT_RES_BASE + 34,
 };
 
-static struct cam_vfe_irq_hw_info vfe_lite88x_irq_hw_info = {
+static struct cam_vfe_irq_hw_info vfe_lite98x_irq_hw_info = {
 	.reset_mask    = 0,
 	.supported_irq = CAM_VFE_HW_IRQ_CAP_LITE_EXT_CSID,
-	.top_irq_reg   = &vfe_lite88x_top_irq_reg_info,
+	.top_irq_reg   = &vfe_lite98x_top_irq_reg_info,
 };
 
-static struct cam_vfe_hw_info cam_vfe_lite88x_hw_info = {
-	.irq_hw_info                   = &vfe_lite88x_irq_hw_info,
+static struct cam_vfe_hw_info cam_vfe_lite98x_hw_info = {
+	.irq_hw_info                   = &vfe_lite98x_irq_hw_info,
 
 	.bus_version                   = CAM_VFE_BUS_VER_3_0,
-	.bus_hw_info                   = &vfe_lite88x_bus_hw_info,
+	.bus_hw_info                   = &vfe_lite98x_bus_hw_info,
 
 	.top_version                   = CAM_VFE_TOP_VER_4_0,
-	.top_hw_info                   = &vfe_lite88x_top_hw_info,
+	.top_hw_info                   = &vfe_lite98x_top_hw_info,
 };
 
-#endif /* _CAM_VFE_LITE88X_H_ */
+#endif /* _CAM_VFE_LITE98X_H_ */

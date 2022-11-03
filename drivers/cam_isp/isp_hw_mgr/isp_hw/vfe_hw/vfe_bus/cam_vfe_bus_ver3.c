@@ -196,7 +196,8 @@ struct cam_vfe_bus_ver3_vfe_out_data {
 	struct cam_cdm_utils_ops        *cdm_util_ops;
 	uint32_t                         secure_mode;
 	void                            *priv;
-	uint32_t                         mid[CAM_VFE_BUS_VER3_MAX_MID_PER_PORT];
+	uint32_t                        *mid;
+	uint32_t                         num_mid;
 	bool                             limiter_enabled;
 };
 
@@ -2384,9 +2385,8 @@ static int cam_vfe_bus_ver3_init_vfe_out_resource(uint32_t  index,
 	vfe_out->hw_intf = ver3_bus_priv->common_data.hw_intf;
 	vfe_out->irq_handle = 0;
 
-	for (i = 0; i < CAM_VFE_BUS_VER3_MAX_MID_PER_PORT; i++)
-		rsrc_data->mid[i] = ver3_hw_info->vfe_out_hw_info[index].mid[i];
-
+	rsrc_data->num_mid = ver3_hw_info->vfe_out_hw_info->num_mid;
+	rsrc_data->mid = ver3_hw_info->vfe_out_hw_info[index].mid;
 
 	return 0;
 }
@@ -4145,7 +4145,7 @@ static int cam_vfe_bus_get_res_for_mid(
 		if (!out_data)
 			continue;
 
-		for (j = 0; j < CAM_VFE_BUS_VER3_MAX_MID_PER_PORT; j++) {
+		for (j = 0; j < out_data->num_mid; j++) {
 			if (out_data->mid[j] == get_res->mid)
 				goto end;
 		}

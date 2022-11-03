@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE_TOP_VER4_H_
@@ -13,11 +13,11 @@
 
 #define CAM_VFE_RDI_VER2_MAX                           4
 #define CAM_VFE_CAMIF_LITE_EVT_MAX                     256
-#define CAM_VFE_TOP_DBG_REG_MAX                        19
-#define CAM_VFE_PERF_COUNTER_MAX                       2
+#define CAM_VFE_TOP_DBG_REG_MAX                        35
 
 struct cam_vfe_top_ver4_perf_count_reg_offset {
 	uint32_t perf_count_cfg;
+	uint32_t perf_count_cfg_mc;
 	uint32_t perf_pix_count;
 	uint32_t perf_line_count;
 	uint32_t perf_stall_count;
@@ -29,10 +29,13 @@ struct cam_vfe_top_ver4_reg_offset_common {
 	uint32_t hw_version;
 	uint32_t titan_version;
 	uint32_t hw_capability;
+	uint32_t main_feature;
+	uint32_t bayer_feature;
 	uint32_t lens_feature;
 	uint32_t stats_feature;
 	uint32_t color_feature;
 	uint32_t zoom_feature;
+	uint32_t fd_feature;
 	uint32_t global_reset_cmd;
 	uint32_t core_cgc_ovd_0;
 	uint32_t core_cgc_ovd_1;
@@ -46,10 +49,12 @@ struct cam_vfe_top_ver4_reg_offset_common {
 	uint32_t core_cfg_4;
 	uint32_t core_cfg_5;
 	uint32_t core_cfg_6;
+	uint32_t core_mux_cfg;
 	uint32_t period_cfg;
 	uint32_t reg_update_cmd;
 	uint32_t trigger_cdm_events;
 	uint32_t ipp_violation_status;
+	uint32_t bayer_violation_status;
 	uint32_t pdaf_violation_status;
 	uint32_t custom_frame_idx;
 	uint32_t dsp_status;
@@ -58,9 +63,21 @@ struct cam_vfe_top_ver4_reg_offset_common {
 	uint32_t diag_sensor_status_1;
 	uint32_t diag_frm_cnt_status_0;
 	uint32_t diag_frm_cnt_status_1;
+	uint32_t diag_frm_cnt_status_2;
 	uint32_t stats_throttle_cfg_0;
 	uint32_t stats_throttle_cfg_1;
 	uint32_t stats_throttle_cfg_2;
+	uint32_t pdaf_parsed_throttle_cfg;
+	uint32_t wirc_throttle_cfg;
+	uint32_t fd_y_throttle_cfg;
+	uint32_t fd_c_throttle_cfg;
+	uint32_t ds16_g_throttle_cfg;
+	uint32_t ds16_br_throttle_cfg;
+	uint32_t ds4_g_throttle_cfg;
+	uint32_t ds4_br_throttle_cfg;
+	uint32_t ds2_g_throttle_cfg;
+	uint32_t ds2_br_throttle_cfg;
+	uint32_t full_out_throttle_cfg;
 	uint32_t bus_violation_status;
 	uint32_t bus_overflow_status;
 	uint32_t irq_sub_pattern_cfg;
@@ -69,12 +86,13 @@ struct cam_vfe_top_ver4_reg_offset_common {
 	uint32_t epoch_height_cfg;
 	uint32_t num_perf_counters;
 	struct cam_vfe_top_ver4_perf_count_reg_offset
-		perf_count_reg[CAM_VFE_PERF_COUNTER_MAX];
+		perf_count_reg[CAM_VFE_PERF_CNT_MAX];
 	uint32_t top_debug_cfg;
+	uint32_t bayer_debug_cfg;
 	uint32_t pdaf_input_cfg_0;
 	uint32_t pdaf_input_cfg_1;
 	uint32_t num_top_debug_reg;
-	uint32_t top_debug[CAM_VFE_TOP_DBG_REG_MAX];
+	uint32_t *top_debug;
 };
 
 struct cam_vfe_top_common_cfg {
@@ -93,6 +111,11 @@ struct cam_vfe_top_ver4_module_desc {
 	uint8_t *desc;
 };
 
+struct cam_vfe_bayer_ver4_module_desc {
+	uint32_t id;
+	uint8_t *desc;
+};
+
 struct cam_vfe_top_ver4_wr_client_desc {
 	uint32_t  wm_id;
 	uint8_t  *desc;
@@ -106,6 +129,11 @@ struct cam_vfe_top_ver4_top_err_irq_desc {
 
 struct cam_vfe_top_ver4_pdaf_violation_desc {
 	uint32_t  bitmask;
+	char     *desc;
+};
+
+struct cam_vfe_top_ver4_bayer_violation_desc {
+	uint32_t bitmask;
 	char     *desc;
 };
 
@@ -128,16 +156,18 @@ struct cam_vfe_top_ver4_hw_info {
 	struct cam_vfe_top_ver4_reg_offset_common  *common_reg;
 	struct cam_vfe_ver4_path_hw_info            vfe_full_hw_info;
 	struct cam_vfe_ver4_path_hw_info            pdlib_hw_info;
-	struct cam_vfe_ver4_path_hw_info           *rdi_hw_info[CAM_VFE_RDI_VER2_MAX];
+	struct cam_vfe_ver4_path_hw_info           *rdi_hw_info;
 	struct cam_vfe_ver4_path_reg_data          *reg_data;
 	struct cam_vfe_top_ver4_wr_client_desc     *wr_client_desc;
 	struct cam_vfe_top_ver4_module_desc        *ipp_module_desc;
+	struct cam_vfe_bayer_ver4_module_desc      *bayer_module_desc;
 	uint32_t                                    num_reg;
 	struct cam_vfe_top_ver4_debug_reg_info     (*debug_reg_info)[][8];
 	uint32_t                                    num_mux;
 	uint32_t                                    num_path_port_map;
 	uint32_t mux_type[CAM_VFE_TOP_MUX_MAX];
 	uint32_t path_port_map[CAM_ISP_HW_PATH_PORT_MAP_MAX][2];
+	uint32_t                                     num_rdi;
 	uint32_t                                     num_top_errors;
 	struct cam_vfe_top_ver4_top_err_irq_desc    *top_err_desc;
 	uint32_t                                     num_pdaf_violation_errors;
@@ -156,6 +186,7 @@ struct cam_vfe_ver4_path_reg_data {
 	uint32_t                                     enable_diagnostic_hw;
 	uint32_t                                     top_debug_cfg_en;
 	uint32_t                                     ipp_violation_mask;
+	uint32_t                                     bayer_violation_mask;
 	uint32_t                                     pdaf_violation_mask;
 };
 

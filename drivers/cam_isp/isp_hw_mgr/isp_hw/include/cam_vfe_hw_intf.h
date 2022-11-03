@@ -25,7 +25,7 @@
 
 #define CAM_VFE_MAX_UBWC_PORTS        4
 
-#define CAM_VFE_PERF_CNT_MAX          2
+#define CAM_VFE_PERF_CNT_MAX          8
 
 enum cam_isp_hw_vfe_in_mux {
 	CAM_ISP_HW_VFE_IN_CAMIF       = 0,
