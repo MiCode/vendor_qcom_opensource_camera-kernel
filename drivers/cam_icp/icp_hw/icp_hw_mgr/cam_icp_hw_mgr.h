@@ -83,9 +83,13 @@ struct hfi_mini_dump_info;
  * @fw_buf: Memory info of firmware
  * @qdss_buf: Memory info of qdss
  * @sfr_buf: Memory info for sfr buffer
- * @fw_uncached: Memory info for fw uncached region
+ * @fw_uncached_generic: Memory info for fw uncached region
+ * @fw_uncached_global_sync: Memory info for global sync, in fw uncached region
+ * @hwmutex: Memory info for hwmutex region mapped as device memory
  * @shmem: Memory info for shared region
  * @io_mem: Memory info for io region
+ * @fw_uncached: Memory info for fw uncached nested region
+ * @fw_uncached_region: region support for fw uncached
  */
 struct icp_hfi_mem_info {
 	struct cam_mem_mgr_memory_desc qtbl;
@@ -96,9 +100,13 @@ struct icp_hfi_mem_info {
 	struct cam_mem_mgr_memory_desc fw_buf;
 	struct cam_mem_mgr_memory_desc qdss_buf;
 	struct cam_mem_mgr_memory_desc sfr_buf;
-	struct cam_mem_mgr_memory_desc fw_uncached;
+	struct cam_mem_mgr_memory_desc fw_uncached_generic;
+	struct cam_mem_mgr_memory_desc fw_uncached_global_sync;
+	struct cam_mem_mgr_memory_desc hwmutex;
 	struct cam_smmu_region_info shmem;
 	struct cam_smmu_region_info io_mem;
+	struct cam_smmu_region_info fw_uncached;
+	bool fw_uncached_region;
 };
 
 /**
@@ -407,6 +415,8 @@ struct cam_icp_clk_info {
  *            re-downloaded for new camera session.
  * @frame_in_process: Counter for frames in process
  * @frame_in_process_ctx_id: Contxt id processing frame
+ * @synx_signaling_en: core to core fencing is enabled
+ *                     using synx
  */
 struct cam_icp_hw_mgr {
 	struct mutex hw_mgr_mutex;
@@ -461,6 +471,7 @@ struct cam_icp_hw_mgr {
 	uint64_t icp_svs_clk;
 	atomic_t frame_in_process;
 	int frame_in_process_ctx_id;
+	bool synx_signaling_en;
 };
 
 /**

@@ -38,6 +38,8 @@ struct hfi_mem {
  * @io_mem: io memory info
  * @io_mem2: 2nd io memory info
  * @fw_uncached: FW uncached region info
+ * @global_sync: Global sync mem for IPC
+ * @hwmutex: HWMutex memory
  */
 struct hfi_mem_info {
 	struct hfi_mem qtbl;
@@ -51,6 +53,8 @@ struct hfi_mem_info {
 	struct hfi_mem io_mem;
 	struct hfi_mem io_mem2;
 	struct hfi_mem fw_uncached;
+	struct hfi_mem global_sync;
+	struct hfi_mem hwmutex;
 };
 
 /**
