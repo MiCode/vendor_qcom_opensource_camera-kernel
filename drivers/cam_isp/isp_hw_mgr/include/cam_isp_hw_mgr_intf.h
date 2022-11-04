@@ -546,6 +546,21 @@ struct cam_isp_lcr_rdi_cfg_args {
 	bool                           is_init;
 };
 
+
+/**
+ * struct cam_isp_mode_switch_data - isp hardware mode update arguments
+ *
+ * @mup                 Mup value
+ * @num_expoures        Number of exposures
+ * @mup_en              Flag to indicate if mup is enable
+ *
+ */
+struct cam_isp_mode_switch_data {
+	uint32_t                      mup;
+	uint32_t                      num_expoures;
+	bool                          mup_en;
+};
+
 /**
  * cam_isp_hw_mgr_init()
  *

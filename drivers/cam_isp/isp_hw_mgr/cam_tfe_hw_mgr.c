@@ -2923,7 +2923,7 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 		ctx->last_submit_bl_cmd.cmd[i].input_len = cdm_cmd->cmd[i].len;
 	}
 
-	if (!cfg->init_packet)
+	if (!cfg->init_packet && !hw_update_data->mup_en)
 		goto end;
 
 	for (i = 0; i < CAM_TFE_HW_CONFIG_WAIT_MAX_TRY; i++) {
@@ -4380,6 +4380,30 @@ static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 			CAM_ERR(CAM_ISP, "BW limit update failed for TFE rc: %d", rc);
 	}
 		break;
+	case CAM_ISP_TFE_GENERIC_BLOB_TYPE_DYNAMIC_MODE_SWITCH: {
+		struct cam_isp_mode_switch_info         *mup_config;
+		struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+
+		if (blob_size < sizeof(struct cam_isp_mode_switch_info)) {
+			CAM_ERR(CAM_ISP, "Invalid blob size %u expected %lu",
+				blob_size,
+				sizeof(struct cam_isp_mode_switch_info));
+			return -EINVAL;
+		}
+
+		mup_config = (struct cam_isp_mode_switch_info *)blob_data;
+		CAM_DBG(CAM_ISP,
+			"Ctx id %d request id %lld csid mup value=%u num_exposures=%d",
+			tfe_mgr_ctx->ctx_index, prepare->packet->header.request_id,
+			mup_config->mup, mup_config->num_expoures);
+
+		prepare_hw_data = (struct cam_isp_prepare_hw_update_data *)prepare->priv;
+
+		prepare_hw_data->mup_en = true;
+		prepare_hw_data->mup_val = mup_config->mup;
+		prepare_hw_data->num_exp = mup_config->num_expoures;
+	}
+		break;
 	default:
 		CAM_WARN(CAM_ISP, "Invalid blob type %d", blob_type);
 		break;
@@ -4678,6 +4702,7 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 	struct cam_isp_change_base_args          change_base_info = {0};
 	struct cam_isp_check_io_cfg_for_scratch  check_for_scratch = {0};
 	struct cam_isp_io_buf_info               io_buf_info = {0};
+	struct cam_isp_mode_switch_data          mup_config;
 
 	if (!hw_mgr_priv || !prepare_hw_update_args) {
 		CAM_ERR(CAM_ISP, "Invalid args");
@@ -4840,9 +4865,13 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 			goto end;
 		}
 
+		mup_config.mup = prepare_hw_data->mup_val;
+		mup_config.num_expoures = prepare_hw_data->num_exp;
+		mup_config.mup_en = prepare_hw_data->mup_en;
+
 		/*Add reg update */
 		rc = cam_isp_add_reg_update(prepare, &ctx->res_list_tfe_in,
-			ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info, false);
+			ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info, false, &mup_config);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Add Reg_update cmd Failed i=%d, idx=%d, rc=%d",

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -107,9 +108,29 @@ struct cam_tfe_top_reg_offset_common {
 	uint32_t diag_min_hbi_error_shift;
 	uint32_t diag_neq_hbi_shift;
 	uint32_t diag_sensor_hbi_mask;
+	uint32_t mup_shift_val;
+
+	/* error bit data */
+	uint32_t pp_camif_violation_bit;
+	uint32_t pp_violation_bit;
+	uint32_t rdi0_camif_violation_bit;
+	uint32_t rdi1_camif_violation_bit;
+	uint32_t rdi2_camif_violation_bit;
+	uint32_t diag_violation_bit;
+	uint32_t dyamanic_switch_violation_bit;
+	uint32_t pp_frame_drop_bit;
+	uint32_t rdi0_frame_drop_bit;
+	uint32_t rdi1_frame_drop_bit;
+	uint32_t rdi2_frame_drop_bit;
+	uint32_t pp_overflow_bit;
+	uint32_t rdi0_overflow_bit;
+	uint32_t rdi1_overflow_bit;
+	uint32_t rdi2_overflow_bit;
+	uint32_t out_of_sync_frame_drop_bit;
 
 	/* configuration */
 	bool serializer_supported;
+	bool mup_supported;
 };
 
 struct cam_tfe_camif_reg {
