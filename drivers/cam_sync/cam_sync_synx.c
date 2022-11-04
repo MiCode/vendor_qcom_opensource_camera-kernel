@@ -248,10 +248,11 @@ static int __cam_synx_map_generic_flags_to_create(uint32_t generic_flags,
 		return -EINVAL;
 	}
 
-	if (CAM_GENERIC_FENCE_FLAG_IS_GLOBAL_SYNX_OBJ & generic_flags)
-		params->flags |= SYNX_CREATE_GLOBAL_FENCE;
-	else
-		params->flags |= SYNX_CREATE_LOCAL_FENCE;
+	/*
+	 * Create Global Always - remove after userspace optimizes and
+	 * determines when global Vs local is needed
+	 */
+	params->flags |= SYNX_CREATE_GLOBAL_FENCE;
 
 	return 0;
 }
@@ -264,10 +265,11 @@ static int __cam_synx_map_generic_flags_to_import(uint32_t generic_flags,
 		return -EINVAL;
 	}
 
-	if (CAM_GENERIC_FENCE_FLAG_IS_GLOBAL_SYNX_OBJ & generic_flags)
-		params->flags |= SYNX_IMPORT_GLOBAL_FENCE;
-	else
-		params->flags |= SYNX_IMPORT_LOCAL_FENCE;
+	/*
+	 * Create Global Always - remove after userspace optimizes and
+	 * determines when global Vs local is needed
+	 */
+	params->flags |= SYNX_IMPORT_GLOBAL_FENCE;
 
 	return 0;
 }
@@ -292,12 +294,6 @@ int cam_synx_obj_create(const char *name, uint32_t flags, uint32_t *synx_obj,
 		CAM_ERR(CAM_SYNX, "Failed to generate create flags");
 		goto free_idx;
 	}
-
-	/*
-	 * Create Global Always - remove after userspace optimizes and
-	 * determines when global Vs local is needed
-	 */
-	params.flags |= SYNX_CREATE_GLOBAL_FENCE;
 
 	rc = synx_create(g_cam_synx_obj_dev->session_handle, &params);
 	if (rc) {
