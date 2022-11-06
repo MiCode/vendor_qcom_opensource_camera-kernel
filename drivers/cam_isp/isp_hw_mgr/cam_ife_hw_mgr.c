@@ -13882,7 +13882,7 @@ static int cam_ife_hw_mgr_check_ife_scratch_buf_done(
 	return rc;
 }
 
-static int cam_ife_hw_mgr_check_rdi_scratch_buf_done(
+static int cam_ife_hw_mgr_check_sfe_scratch_buf_done(
 	struct cam_sfe_scratch_buf_cfg *scratch_cfg,
 	uint32_t res_id, uint32_t last_consumed_addr)
 {
@@ -13926,7 +13926,7 @@ static int cam_ife_hw_mgr_check_for_scratch_buf_done(
 				res_id, last_consumed_addr);
 		break;
 	case CAM_ISP_HW_TYPE_SFE:
-		rc = cam_ife_hw_mgr_check_rdi_scratch_buf_done(
+		rc = cam_ife_hw_mgr_check_sfe_scratch_buf_done(
 			ife_hw_mgr_ctx->scratch_buf_info.sfe_scratch_config,
 			res_id, last_consumed_addr);
 		break;
