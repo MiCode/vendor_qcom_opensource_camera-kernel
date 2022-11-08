@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/ratelimit.h>
@@ -383,8 +383,10 @@ static int cam_sfe_bus_rd_print_dimensions(
 	for (i = 0; i < rsrc_data->num_rm; i++) {
 		rm_data = rsrc_data->rm_res[i]->res_priv;
 
-		if (!rm_data)
+		if (!rm_data) {
+			CAM_WARN(CAM_SFE, "Unsupported SFE RD %d", bus_rd_res_id);
 			continue;
+		}
 
 		common_data = rm_data->common_data;
 		CAM_INFO(CAM_SFE,

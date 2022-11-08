@@ -2019,9 +2019,8 @@ static int cam_sfe_bus_wr_print_dimensions(
 			wm_res->res_priv;
 		wm_idx = wm_data->index;
 		if (wm_idx < 0 || wm_idx >= bus_priv->num_client) {
-			CAM_ERR(CAM_SFE, "Unsupported SFE out %d",
-				sfe_out_res_id);
-			return -EINVAL;
+			CAM_WARN(CAM_SFE, "Unsupported SFE out %d", sfe_out_res_id);
+			continue;
 		}
 
 		__cam_sfe_bus_wr_print_wm_info(wm_data);

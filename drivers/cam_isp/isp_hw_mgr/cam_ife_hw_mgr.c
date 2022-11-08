@@ -13642,6 +13642,38 @@ end:
 	return rc;
 }
 
+static int cam_ife_hw_mgr_handle_sfe_hw_dump_info(
+	void                                 *ctx,
+	void                                 *evt_info)
+{
+	struct cam_ife_hw_mgr_ctx     *ife_hw_mgr_ctx =
+		(struct cam_ife_hw_mgr_ctx *)ctx;
+	struct cam_isp_hw_event_info  *event_info =
+		(struct cam_isp_hw_event_info *)evt_info;
+	struct cam_isp_hw_mgr_res     *hw_mgr_res = NULL;
+	struct cam_hw_intf            *hw_intf;
+	uint32_t i, out_port_id;
+	int rc = 0;
+
+	out_port_id = event_info->res_id & 0xFF;
+	hw_mgr_res =
+		&ife_hw_mgr_ctx->res_list_sfe_out[out_port_id];
+	for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+		if (!hw_mgr_res->hw_res[i])
+			continue;
+		hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
+		if (hw_intf->hw_ops.process_cmd) {
+			rc = hw_intf->hw_ops.process_cmd(
+				hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_DUMP_BUS_INFO,
+				(void *)event_info,
+				sizeof(struct cam_isp_hw_event_info));
+		}
+	}
+
+	return rc;
+}
+
 static int cam_ife_hw_mgr_handle_hw_dump_info(
 	void                                 *ctx,
 	void                                 *evt_info)
@@ -13721,13 +13753,14 @@ static int cam_ife_hw_mgr_handle_hw_dump_info(
 	return rc;
 }
 
-static int cam_ife_hw_mgr_handle_sfe_hw_error(
+static int cam_ife_hw_mgr_handle_sfe_hw_err(
 	struct cam_ife_hw_mgr_ctx       *ctx,
 	struct cam_isp_hw_event_info    *event_info)
 {
 	struct cam_isp_hw_error_event_info     *err_evt_info;
 	struct cam_isp_hw_error_event_data      error_event_data = {0};
 	struct cam_ife_hw_event_recovery_data   recovery_data = {0};
+	uint32_t i;
 
 	if (!event_info->event_data) {
 		CAM_ERR(CAM_ISP,
@@ -13743,6 +13776,20 @@ static int cam_ife_hw_mgr_handle_sfe_hw_error(
 		event_info->res_type);
 
 	spin_lock(&g_ife_hw_mgr.ctx_lock);
+	/* Dump SFE BUS info */
+	if (event_info->res_type == CAM_ISP_RESOURCE_SFE_RD) {
+		for (i = CAM_ISP_SFE_IN_RD_0; i < CAM_ISP_SFE_IN_RES_MAX; i++) {
+			event_info->res_id = i;
+			cam_ife_hw_mgr_handle_sfe_hw_dump_info(ctx, event_info);
+		}
+	} else if (event_info->res_type == CAM_ISP_RESOURCE_SFE_OUT) {
+		for (i = CAM_ISP_SFE_OUT_RES_RDI_0;
+			i <= CAM_ISP_SFE_OUT_HDR_STATS; i++) {
+			event_info->res_id = i;
+			cam_ife_hw_mgr_handle_sfe_hw_dump_info(ctx, event_info);
+		}
+	}
+
 	/* Only report error to userspace */
 	if (err_evt_info->err_type & CAM_SFE_IRQ_STATUS_VIOLATION) {
 		error_event_data.error_type = CAM_ISP_HW_ERROR_VIOLATION;
@@ -14282,7 +14329,7 @@ static int cam_ife_hw_mgr_handle_sfe_event(
 
 	switch (evt_id) {
 	case CAM_ISP_HW_EVENT_ERROR:
-		rc = cam_ife_hw_mgr_handle_sfe_hw_error(ctx, event_info);
+		rc = cam_ife_hw_mgr_handle_sfe_hw_err(ctx, event_info);
 		break;
 
 	case CAM_ISP_HW_EVENT_DONE:
