@@ -4564,8 +4564,6 @@ int cam_vfe_bus_ver3_init(
 	return rc;
 
 deinit_vfe_out:
-	if (i < 0)
-		i = bus_priv->num_out;
 	for (--i; i >= 0; i--)
 		cam_vfe_bus_ver3_deinit_vfe_out_resource(&bus_priv->vfe_out[i]);
 

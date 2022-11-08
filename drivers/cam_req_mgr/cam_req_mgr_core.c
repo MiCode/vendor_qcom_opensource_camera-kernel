@@ -321,9 +321,6 @@ static int __cam_req_mgr_notify_frame_skip(
 
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-		if (!dev)
-			continue;
-
 		pd = dev->dev_info.p_delay;
 		if (pd >= CAM_PIPELINE_DELAY_MAX) {
 			CAM_WARN(CAM_CRM, "pd %d greater than max",
@@ -1077,8 +1074,6 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 	 */
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-		if (!dev)
-			continue;
 		pd = dev->dev_info.p_delay;
 		if (pd >= CAM_PIPELINE_DELAY_MAX) {
 			CAM_WARN(CAM_CRM, "pd %d greater than max",
@@ -2597,9 +2592,6 @@ static int __cam_req_mgr_disconnect_link(struct cam_req_mgr_core_link *link)
 	/* Using device ops unlink devices */
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-		if (dev == NULL)
-			continue;
-
 		link_data.dev_hdl = dev->dev_hdl;
 		if (dev->ops && dev->ops->link_setup) {
 			rc = dev->ops->link_setup(&link_data);
@@ -3524,9 +3516,6 @@ static void cam_req_mgr_notify_eof_event(struct cam_req_mgr_core_link *link)
 
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-		if (!dev)
-			continue;
-
 		evt_data.dev_hdl = dev->dev_hdl;
 		evt_data.evt_type = CAM_REQ_MGR_LINK_EVT_EOF;
 		evt_data.link_hdl = link->link_hdl;
@@ -5215,10 +5204,6 @@ int cam_req_mgr_link_properties(struct cam_req_mgr_link_properties *properties)
 
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-
-		if (!dev)
-			continue;
-
 		evt_data.dev_hdl = dev->dev_hdl;
 		evt_data.link_hdl = link->link_hdl;
 		evt_data.evt_type = CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES;

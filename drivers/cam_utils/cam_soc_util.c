@@ -2741,8 +2741,6 @@ put_clk:
 		soc_info->mmrm_handle = NULL;
 	}
 
-	if (i == -1)
-		i = soc_info->num_clk;
 	for (i = i - 1; i >= 0; i--) {
 		if (soc_info->clk[i]) {
 			if (CAM_IS_BIT_SET(soc_info->shared_clk_mask, i))
