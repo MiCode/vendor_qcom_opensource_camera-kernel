@@ -2029,6 +2029,75 @@ static int cam_sfe_bus_wr_print_dimensions(
 	return 0;
 }
 
+static int cam_sfe_bus_mini_dump(
+	struct cam_sfe_bus_wr_priv *bus_priv,
+	void *cmd_args)
+{
+	struct cam_isp_resource_node            *rsrc_node = NULL;
+	struct cam_sfe_bus_wr_out_data          *rsrc_data = NULL;
+	struct cam_sfe_bus_wr_wm_resource_data  *wm        = NULL;
+	struct cam_sfe_bus_mini_dump_data       *md;
+	struct cam_sfe_bus_wm_mini_dump         *md_wm;
+	struct cam_hw_mini_dump_args            *md_args;
+	struct cam_hw_info                      *hw_info = NULL;
+	uint32_t                                 bytes_written = 0;
+	uint32_t                                 i, j, k = 0;
+
+	if (!bus_priv || !cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid bus private data");
+		return -EINVAL;
+	}
+
+	hw_info = (struct cam_hw_info *)bus_priv->common_data.hw_intf->hw_priv;
+	md_args = (struct cam_hw_mini_dump_args *)cmd_args;
+
+	if (sizeof(*md) > md_args->len) {
+		md_args->bytes_written = 0;
+		return 0;
+	}
+
+	md = (struct cam_sfe_bus_mini_dump_data *)md_args->start_addr;
+	md->clk_rate = cam_soc_util_get_applied_src_clk(&hw_info->soc_info, true);
+	md->hw_idx = bus_priv->common_data.hw_intf->hw_idx;
+	md->hw_state = hw_info->hw_state;
+	bytes_written += sizeof(*md);
+	md->wm = (struct cam_sfe_bus_wm_mini_dump *)
+			((uint8_t *)md_args->start_addr + bytes_written);
+
+	for (i = 0; i < bus_priv->num_out; i++) {
+		rsrc_node = &bus_priv->sfe_out[i];
+		rsrc_data = rsrc_node->res_priv;
+		if (!rsrc_data)
+			continue;
+
+		for (j = 0; j < rsrc_data->num_wm; j++) {
+			if (bytes_written + sizeof(*md_wm) > md_args->len)
+				goto end;
+
+			md_wm = &md->wm[k];
+			wm = rsrc_data->wm_res[j].res_priv;
+			md_wm->width  = wm->width;
+			md_wm->index  = wm->index;
+			md_wm->height = wm->height;
+			md_wm->stride = wm->stride;
+			md_wm->en_cfg = wm->en_cfg;
+			md_wm->h_init = wm->h_init;
+			md_wm->format = wm->format;
+			md_wm->acquired_width = wm->acquired_width;
+			md_wm->acquired_height = wm->acquired_height;
+			md_wm->state = rsrc_node->res_state;
+			scnprintf(md_wm->name, CAM_ISP_RES_NAME_LEN,
+				"%s", rsrc_data->wm_res[j].res_name);
+			k++;
+			bytes_written += sizeof(*md_wm);
+		}
+	}
+end:
+	md->num_client = k;
+	md_args->bytes_written = bytes_written;
+	return 0;
+}
+
 static void *cam_sfe_bus_wr_user_dump_info(
 	void *dump_struct, uint8_t *addr_ptr)
 {
@@ -3305,6 +3374,12 @@ static int cam_sfe_bus_wr_process_cmd(
 			sfe_out_res_id, (struct cam_sfe_bus_wr_priv  *)priv);
 		break;
 		}
+	case CAM_ISP_HW_SFE_BUS_MINI_DUMP: {
+		bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
+
+		rc = cam_sfe_bus_mini_dump(bus_priv, cmd_args);
+		break;
+	}
 	case CAM_ISP_HW_USER_DUMP: {
 		bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
 

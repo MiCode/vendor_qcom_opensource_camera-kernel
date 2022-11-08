@@ -14907,7 +14907,21 @@ static unsigned long cam_ife_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
 				hw_dump_args.start_addr = ctx_md->vfe_md[hw_idx];
 				hw_dump_args.len = remain_len;
 				hw_intf->hw_ops.process_cmd(hw_intf->hw_priv,
-					CAM_ISP_HW_BUS_MINI_DUMP, &hw_dump_args,
+					CAM_ISP_HW_IFE_BUS_MINI_DUMP, &hw_dump_args,
+					sizeof(hw_dump_args));
+				if (hw_dump_args.bytes_written == 0)
+					goto end;
+				dumped_len += hw_dump_args.bytes_written;
+				remain_len = len - dumped_len;
+			} else if (ctx->base[j].hw_type ==
+				CAM_ISP_HW_TYPE_SFE) {
+				hw_intf = hw_mgr->sfe_devices[hw_idx]->hw_intf;
+				ctx_md->sfe_md[hw_idx] = (void *)((uint8_t *)dst + dumped_len);
+				memset(&hw_dump_args, 0, sizeof(hw_dump_args));
+				hw_dump_args.start_addr = ctx_md->sfe_md[hw_idx];
+				hw_dump_args.len = remain_len;
+				hw_intf->hw_ops.process_cmd(hw_intf->hw_priv,
+					CAM_ISP_HW_SFE_BUS_MINI_DUMP, &hw_dump_args,
 					sizeof(hw_dump_args));
 				if (hw_dump_args.bytes_written == 0)
 					goto end;

@@ -525,6 +525,7 @@ struct cam_ife_hw_event_recovery_data {
  * @pf_info:                Page Fault Info
  * @csid_md:                CSID mini dump data
  * @vfe_md:                 VFE mini dump data
+ * @sfe_md:                 SFE mini dump data
  * @flags:                  Flags pertainting to this ctx
  * @ctx_priv:               Array of the hardware contexts that are affected
  * @last_cdm_done_req:      Last cdm done request
@@ -546,6 +547,7 @@ struct cam_ife_hw_mini_dump_ctx {
 	struct cam_ife_hw_mgr_ctx_pf_info     pf_info;
 	void                                 *csid_md[CAM_IFE_HW_NUM_MAX];
 	void                                 *vfe_md[CAM_IFE_HW_NUM_MAX];
+	void                                 *sfe_md[CAM_SFE_HW_NUM_MAX];
 	struct cam_ife_hw_mgr_ctx_flags       flags;
 	void                                 *ctx_priv;
 	uint64_t                              last_cdm_done_req;

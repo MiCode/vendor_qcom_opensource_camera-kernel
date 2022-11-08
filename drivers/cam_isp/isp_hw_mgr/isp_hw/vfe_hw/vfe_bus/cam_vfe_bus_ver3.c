@@ -2517,6 +2517,55 @@ static void cam_vfe_bus_ver3_print_wm_info(
 		addr_status3);
 }
 
+static int cam_vfe_bus_ver3_print_dimensions(
+	uint32_t                                   res_id,
+	struct cam_vfe_bus_ver3_priv              *bus_priv)
+{
+	struct cam_isp_resource_node              *rsrc_node = NULL;
+	struct cam_vfe_bus_ver3_vfe_out_data      *rsrc_data = NULL;
+	struct cam_vfe_bus_ver3_wm_resource_data  *wm_data   = NULL;
+	struct cam_vfe_bus_ver3_common_data  *common_data = NULL;
+	int                                        i;
+	uint8_t                                *wm_name = NULL;
+	enum cam_vfe_bus_ver3_vfe_out_type  vfe_out_res_id =
+		CAM_VFE_BUS_VER3_VFE_OUT_MAX;
+	uint32_t  outmap_index = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
+
+	if (!bus_priv) {
+		CAM_ERR(CAM_ISP, "Invalid bus private data, res_id: %d",
+			res_id);
+		return -EINVAL;
+	}
+
+	vfe_out_res_id = cam_vfe_bus_ver3_get_out_res_id_and_index(bus_priv,
+				res_id, &outmap_index);
+
+	if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_MAX) ||
+		(outmap_index >= bus_priv->num_out)) {
+		CAM_WARN_RATE_LIMIT(CAM_ISP,
+			"target does not support req res id :0x%x outtype:%d index:%d",
+			res_id,
+			vfe_out_res_id, outmap_index);
+		return -EINVAL;
+	}
+
+	rsrc_node = &bus_priv->vfe_out[outmap_index];
+	rsrc_data = rsrc_node->res_priv;
+	if (!rsrc_data) {
+		CAM_ERR(CAM_ISP, "VFE out data is null, res_id: %d",
+			vfe_out_res_id);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < rsrc_data->num_wm; i++) {
+		wm_data = rsrc_data->wm_res[i].res_priv;
+		wm_name = rsrc_data->wm_res[i].res_name;
+		common_data = rsrc_data->common_data;
+		cam_vfe_bus_ver3_print_wm_info(wm_data, common_data, wm_name);
+	}
+	return 0;
+}
+
 static int cam_vfe_bus_ver3_mini_dump(
 	struct cam_vfe_bus_ver3_priv *bus_priv,
 	void *cmd_args)
@@ -2685,55 +2734,6 @@ static int cam_vfe_bus_ver3_user_dump(
 				return rc;
 			}
 		}
-	}
-	return 0;
-}
-
-static int cam_vfe_bus_ver3_print_dimensions(
-	uint32_t                                   res_id,
-	struct cam_vfe_bus_ver3_priv              *bus_priv)
-{
-	struct cam_isp_resource_node              *rsrc_node = NULL;
-	struct cam_vfe_bus_ver3_vfe_out_data      *rsrc_data = NULL;
-	struct cam_vfe_bus_ver3_wm_resource_data  *wm_data   = NULL;
-	struct cam_vfe_bus_ver3_common_data  *common_data = NULL;
-	int                                        i;
-	uint8_t                                *wm_name = NULL;
-	enum cam_vfe_bus_ver3_vfe_out_type  vfe_out_res_id =
-		CAM_VFE_BUS_VER3_VFE_OUT_MAX;
-	uint32_t  outmap_index = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
-
-	if (!bus_priv) {
-		CAM_ERR(CAM_ISP, "Invalid bus private data, res_id: %d",
-			res_id);
-		return -EINVAL;
-	}
-
-	vfe_out_res_id = cam_vfe_bus_ver3_get_out_res_id_and_index(bus_priv,
-				res_id, &outmap_index);
-
-	if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_MAX) ||
-		(outmap_index >= bus_priv->num_out)) {
-		CAM_WARN_RATE_LIMIT(CAM_ISP,
-			"target does not support req res id :0x%x outtype:%d index:%d",
-			res_id,
-			vfe_out_res_id, outmap_index);
-		return -EINVAL;
-	}
-
-	rsrc_node = &bus_priv->vfe_out[outmap_index];
-	rsrc_data = rsrc_node->res_priv;
-	if (!rsrc_data) {
-		CAM_ERR(CAM_ISP, "VFE out data is null, res_id: %d",
-			vfe_out_res_id);
-		return -EINVAL;
-	}
-
-	for (i = 0; i < rsrc_data->num_wm; i++) {
-		wm_data = rsrc_data->wm_res[i].res_priv;
-		wm_name = rsrc_data->wm_res[i].res_name;
-		common_data = rsrc_data->common_data;
-		cam_vfe_bus_ver3_print_wm_info(wm_data, common_data, wm_name);
 	}
 	return 0;
 }
@@ -4166,7 +4166,7 @@ static int cam_vfe_bus_ver3_process_cmd(
 			event_info->res_id, bus_priv);
 		break;
 		}
-	case CAM_ISP_HW_BUS_MINI_DUMP: {
+	case CAM_ISP_HW_IFE_BUS_MINI_DUMP: {
 		bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 
 		rc = cam_vfe_bus_ver3_mini_dump(bus_priv, cmd_args);

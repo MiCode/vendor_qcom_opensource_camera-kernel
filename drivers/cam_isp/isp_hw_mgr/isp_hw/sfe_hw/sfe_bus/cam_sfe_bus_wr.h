@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -207,6 +207,52 @@ struct cam_sfe_bus_wr_hw_info {
 	uint32_t max_bw_counter_limit;
 	uint32_t sys_cache_default_val;
 	uint32_t irq_err_mask;
+};
+
+/**
+ * struct cam_sfe_bus_wm_mini_dump - SFE WM data
+ *
+ * @width                  Width
+ * @height                 Height
+ * @stride                 stride
+ * @h_init                 init height
+ * @acquired_width         acquired width
+ * @acquired_height        acquired height
+ * @en_cfg                 Enable flag
+ * @format                 format
+ * @index                  Index
+ * @state                  state
+ * @name                   Res name
+ */
+struct cam_sfe_bus_wm_mini_dump {
+	uint32_t   width;
+	uint32_t   height;
+	uint32_t   stride;
+	uint32_t   h_init;
+	uint32_t   acquired_width;
+	uint32_t   acquired_height;
+	uint32_t   en_cfg;
+	uint32_t   format;
+	uint32_t   index;
+	uint32_t   state;
+	uint8_t    name[CAM_ISP_RES_NAME_LEN];
+};
+
+/**
+ * struct cam_sfe_bus_mini_dump_data - SFE bus mini dump data
+ *
+ * @wm:              Write Master client information
+ * @clk_rate:        Clock rate
+ * @num_client:      Num client
+ * @hw_state:        hw statte
+ * @hw_idx:          Hw index
+ */
+struct cam_sfe_bus_mini_dump_data {
+	struct cam_sfe_bus_wm_mini_dump *wm;
+	uint64_t                         clk_rate;
+	uint32_t                         num_client;
+	uint8_t                          hw_state;
+	uint8_t                          hw_idx;
 };
 
 /*
