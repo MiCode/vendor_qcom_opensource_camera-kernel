@@ -558,6 +558,9 @@ int32_t cam_sensor_update_i2c_info(struct cam_cmd_i2c_info *i2c_info,
 		CAM_DBG(CAM_SENSOR, " Master: %d sid: %d freq_mode: %d",
 			cci_client->cci_i2c_master, i2c_info->slave_addr,
 			i2c_info->i2c_freq_mode);
+	} else if (s_ctrl->io_master_info.master_type == I2C_MASTER) {
+		s_ctrl->io_master_info.client->addr = i2c_info->slave_addr;
+		CAM_DBG(CAM_SENSOR, "Slave addr: 0x%x", i2c_info->slave_addr);
 	}
 
 	s_ctrl->sensordata->slave_info.sensor_slave_addr =
