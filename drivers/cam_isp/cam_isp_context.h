@@ -269,6 +269,7 @@ struct cam_isp_context_event_record {
  * @bubble_frame_cnt:          Count of the frame after bubble
  * @aeb_error_cnt:             Count number of times a specific AEB error scenario is
  *                             enountered
+ * @out_of_sync_cnt:           Out of sync error count for AEB
  * @state_monitor_head:        Write index to the state monitoring array
  * @req_info                   Request id information about last buf done
  * @cam_isp_ctx_state_monitor: State monitoring array
@@ -329,6 +330,7 @@ struct cam_isp_context {
 	uint64_t                         last_sof_timestamp;
 	uint32_t                         bubble_frame_cnt;
 	uint32_t                         aeb_error_cnt;
+	uint32_t                         out_of_sync_cnt;
 	atomic64_t                       state_monitor_head;
 	struct cam_isp_context_state_monitor cam_isp_ctx_state_monitor[
 		CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES];

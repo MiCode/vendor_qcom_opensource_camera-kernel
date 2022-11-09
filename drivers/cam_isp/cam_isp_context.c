@@ -1484,7 +1484,6 @@ static void __cam_isp_context_reset_internal_recovery_params(
 {
 	atomic_set(&ctx_isp->internal_recovery_set, 0);
 	atomic_set(&ctx_isp->process_bubble, 0);
-	ctx_isp->recovery_req_id = 0;
 	ctx_isp->aeb_error_cnt = 0;
 	ctx_isp->bubble_frame_cnt = 0;
 	ctx_isp->sof_dbg_irq_en = false;
@@ -4211,6 +4210,7 @@ static int __cam_isp_ctx_handle_secondary_events(
 		__cam_isp_ctx_update_state_monitor_array(ctx_isp,
 			CAM_ISP_STATE_CHANGE_TRIGGER_SEC_EVT_EPOCH,
 			ctx_isp->last_applied_req_id);
+		ctx_isp->out_of_sync_cnt = 0;
 
 		/*
 		 * Master RDI frame dropped in CSID, due to programming delay no RUP/AUP
@@ -4242,11 +4242,22 @@ static int __cam_isp_ctx_handle_secondary_events(
 			break;
 		}
 
+		if (!(ctx_isp->out_of_sync_cnt++) &&
+			(ctx_isp->recovery_req_id == ctx_isp->last_applied_req_id)) {
+			CAM_WARN(CAM_ISP,
+				"Sensor sync [vc mismatch] frame dropped ctx: %u on link: 0x%x last_applied_req: %llu last_recovered_req: %llu out_of_sync_cnt: %u, recovery maybe in progress...",
+				ctx->ctx_id, ctx->link_hdl, ctx_isp->last_applied_req_id,
+				ctx_isp->recovery_req_id, ctx_isp->out_of_sync_cnt);
+			break;
+		}
+
 		recover = true;
 		sync_frame_drop = true;
+		ctx_isp->out_of_sync_cnt = 0;
 		CAM_WARN(CAM_ISP,
-			"Sensor sync [vc mismatch] frame dropped ctx: %u on link: 0x%x last_applied_req: %llu, kicking in internal recovery....",
-			ctx->ctx_id, ctx->link_hdl, ctx_isp->last_applied_req_id);
+			"Sensor sync [vc mismatch] frame dropped ctx: %u on link: 0x%x last_applied_req: %llu last_recovered_req: %llu out_of_sync_cnt: %u, kicking in internal recovery....",
+			ctx->ctx_id, ctx->link_hdl, ctx_isp->last_applied_req_id,
+			ctx_isp->recovery_req_id, ctx_isp->out_of_sync_cnt);
 		break;
 	default:
 		break;
@@ -7251,6 +7262,7 @@ static inline void __cam_isp_context_reset_ctx_params(
 	ctx_isp->bubble_frame_cnt = 0;
 	ctx_isp->recovery_req_id = 0;
 	ctx_isp->aeb_error_cnt = 0;
+	ctx_isp->out_of_sync_cnt = 0;
 	ctx_isp->sof_dbg_irq_en = false;
 	ctx_isp->last_sof_jiffies = 0;
 	ctx_isp->last_applied_jiffies = 0;
