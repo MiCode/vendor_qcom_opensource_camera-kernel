@@ -609,7 +609,9 @@ static int cam_ife_mgr_get_hw_caps(void *hw_mgr_priv, void *hw_caps_args)
 					&query_isp.dev_caps[query_isp.num_dev];
 				query_isp.num_dev++;
 
-				ife_full_hw_info->hw_type = CAM_ISP_HW_IFE;
+				ife_full_hw_info->hw_type = (hw_mgr->isp_device_type
+					== CAM_TFE_MC_DEVICE_TYPE) ?
+					CAM_ISP_HW_MC_TFE : CAM_ISP_HW_IFE;
 				ife_full_hw_info->hw_version.major =
 					hw_mgr->ife_dev_caps[i].major;
 				ife_full_hw_info->hw_version.minor =
@@ -15373,7 +15375,8 @@ static int cam_ife_mgr_populate_sys_cache_id(void)
 
 }
 
-int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
+int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
+	uint32_t isp_device_type)
 {
 	int rc = -EFAULT;
 	int i, j;
@@ -15457,6 +15460,8 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 		g_ife_hw_mgr.path_port_map.entry[i][1] = path_port_map.entry[i][1];
 	}
 	g_ife_hw_mgr.path_port_map.num_entries = path_port_map.num_entries;
+
+	g_ife_hw_mgr.isp_device_type = isp_device_type;
 
 	/* fill csid hw intf information */
 	for (i = 0, j = 0; i < CAM_IFE_CSID_HW_NUM_MAX; i++) {

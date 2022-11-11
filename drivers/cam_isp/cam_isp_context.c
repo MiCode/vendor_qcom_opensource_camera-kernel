@@ -1183,6 +1183,7 @@ static const char *__cam_isp_resource_handle_id_to_type(
 {
 	switch (device_type) {
 	case CAM_IFE_DEVICE_TYPE:
+	case CAM_TFE_MC_DEVICE_TYPE:
 		return __cam_isp_ife_sfe_resource_handle_id_to_type(resource_handle);
 	case CAM_TFE_DEVICE_TYPE:
 		return __cam_isp_tfe_resource_handle_id_to_type(resource_handle);

@@ -473,6 +473,8 @@ struct cam_isp_sfe_cache_info {
  * @num_caches_found       Number of caches supported
  * @sys_cache_info         Sys cache info
  * @sfe_cache_info         SFE Cache Info
+ * @isp_device_type:       If device supports single-context(ife) or multi-
+ *                         context(mc_tfe)
  */
 struct cam_ife_hw_mgr {
 	struct cam_isp_hw_mgr          mgr_common;
@@ -505,6 +507,7 @@ struct cam_ife_hw_mgr {
 	uint32_t                         num_caches_found;
 	struct cam_isp_sys_cache_info    sys_cache_info[CAM_LLCC_MAX];
 	struct cam_isp_sfe_cache_info    sfe_cache_info[CAM_SFE_HW_NUM_MAX];
+	uint32_t                         isp_device_type;
 };
 
 /**
@@ -590,9 +593,12 @@ struct cam_ife_hw_mini_dump_data {
  *
  * @hw_mgr_intf:        IFE hardware manager object returned
  * @iommu_hdl:          Iommu handle to be returned
+ * @isp_device_type:    If device supports single-context(ife) or multi-
+ *                      context(mc_tfe)
  *
  */
-int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl);
+int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
+	uint32_t isp_device_type);
 void cam_ife_hw_mgr_deinit(void);
 
 #endif /* _CAM_IFE_HW_MGR_H_ */

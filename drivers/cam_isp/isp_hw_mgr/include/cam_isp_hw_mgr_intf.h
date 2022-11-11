@@ -453,9 +453,10 @@ struct cam_isp_lcr_rdi_cfg_args {
  * @hw_mgr:             Input/output structure for the ISP hardware manager
  *                          initialization
  * @iommu_hdl:          Iommu handle to be returned
+ * @isp_device_type:    ISP device type
  */
 int cam_isp_hw_mgr_init(const char    *device_name_str,
-	struct cam_hw_mgr_intf *hw_mgr, int *iommu_hdl);
+	struct cam_hw_mgr_intf *hw_mgr, int *iommu_hdl, uint32_t isp_device_type);
 
 void cam_isp_hw_mgr_deinit(const char *device_name_str);
 
