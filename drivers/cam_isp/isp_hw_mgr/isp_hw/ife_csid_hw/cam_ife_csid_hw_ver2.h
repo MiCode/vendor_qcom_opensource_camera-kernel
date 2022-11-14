@@ -134,6 +134,22 @@ struct cam_ife_csid_ver2_camif_data {
 };
 
 /*
+ *struct cam_ife_csid_ver2_rup_aup_mask: place holder for rup/aup mask parameter
+ *
+ * @rup_mask:                This stores value of rup mask  when rup and aup are split,
+ *                           else it store value of unified rup aup mask.
+ * @aup_mask:                This stores value of aup mask if rup and aup is split, else
+ *                           this is to be ignored.
+ * @rup_aup_set_mask:        This is used to store rup_aup_sync register mask when rup
+ *                           and aup are split,else this value is to be ignored.
+ */
+struct cam_ife_csid_ver2_rup_aup_mask {
+	uint32_t rup_mask;
+	uint32_t aup_mask;
+	uint32_t rup_aup_set_mask;
+};
+
+/*
  * struct cam_ife_csid_ver2_path_cfg: place holder for path parameters
  *
  * @error_ts:               Error timestamp
@@ -374,6 +390,9 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t epoch0_irq_mask;
 	uint32_t epoch1_irq_mask;
 	uint32_t rup_aup_mask;
+	uint32_t rup_mask;
+	uint32_t aup_mask;
+	uint32_t rup_aup_set_mask;
 	uint32_t top_irq_mask;
 	uint32_t epoch0_cfg_val;
 	uint32_t epoch1_cfg_val;
@@ -391,6 +410,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t reset_cfg_addr;
 	uint32_t reset_cmd_addr;
 	uint32_t rup_aup_cmd_addr;
+	uint32_t rup_cmd_addr;
+	uint32_t aup_cmd_addr;
 	uint32_t offline_cmd_addr;
 	uint32_t shdr_master_slave_cfg_addr;
 	uint32_t top_irq_status_addr;
@@ -462,6 +483,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t multi_vcdt_ts_combo_en_shift_val;
 	uint32_t multi_vcdt_en_shift_val;
 	uint32_t mup_shift_val;
+	uint32_t rup_aup_set_shift_val;
 	uint32_t shdr_slave_ppp_shift;
 	uint32_t shdr_slave_rdi2_shift;
 	uint32_t shdr_slave_rdi1_shift;
@@ -532,6 +554,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t top_buf_done_irq_mask;
 	uint32_t epoch_factor;
 	uint32_t decode_format_payload_only;
+	uint32_t capabilities;
 };
 
 /**
