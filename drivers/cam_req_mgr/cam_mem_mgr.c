@@ -302,8 +302,7 @@ EXPORT_SYMBOL(cam_mem_get_cpu_buf);
 int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd)
 {
 	int rc = 0, idx;
-	uint32_t cache_dir;
-	unsigned long dmabuf_flag = 0;
+	uint32_t cache_dir = 0;
 
 	if (!atomic_read(&cam_mem_mgr_state)) {
 		CAM_ERR(CAM_MEM, "failed. mem_mgr not initialized");
@@ -329,38 +328,22 @@ int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd)
 		goto end;
 	}
 
-	rc = dma_buf_get_flags(tbl.bufq[idx].dma_buf, &dmabuf_flag);
-	if (rc) {
-		CAM_ERR(CAM_MEM, "cache get flags failed %d", rc);
+	switch (cmd->mem_cache_ops) {
+	case CAM_MEM_CLEAN_CACHE:
+		cache_dir = DMA_TO_DEVICE;
+		break;
+	case CAM_MEM_INV_CACHE:
+		cache_dir = DMA_FROM_DEVICE;
+		break;
+	case CAM_MEM_CLEAN_INV_CACHE:
+		cache_dir = DMA_BIDIRECTIONAL;
+		break;
+	default:
+		CAM_ERR(CAM_MEM,
+			"invalid cache ops :%d", cmd->mem_cache_ops);
+		rc = -EINVAL;
 		goto end;
 	}
-
-#if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
-	CAM_DBG(CAM_MEM, "Calling dmap buf APIs for cache operations");
-	cache_dir = DMA_BIDIRECTIONAL;
-#else
-	if (dmabuf_flag & ION_FLAG_CACHED) {
-		switch (cmd->mem_cache_ops) {
-		case CAM_MEM_CLEAN_CACHE:
-			cache_dir = DMA_TO_DEVICE;
-			break;
-		case CAM_MEM_INV_CACHE:
-			cache_dir = DMA_FROM_DEVICE;
-			break;
-		case CAM_MEM_CLEAN_INV_CACHE:
-			cache_dir = DMA_BIDIRECTIONAL;
-			break;
-		default:
-			CAM_ERR(CAM_MEM,
-				"invalid cache ops :%d", cmd->mem_cache_ops);
-			rc = -EINVAL;
-			goto end;
-		}
-	} else {
-		CAM_DBG(CAM_MEM, "BUF is not cached");
-		goto end;
-	}
-#endif
 	rc = dma_buf_begin_cpu_access(tbl.bufq[idx].dma_buf,
 		(cmd->mem_cache_ops == CAM_MEM_CLEAN_INV_CACHE) ?
 		DMA_BIDIRECTIONAL : DMA_TO_DEVICE);
