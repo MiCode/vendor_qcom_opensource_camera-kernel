@@ -34,11 +34,14 @@
 
 #define CAM_IFE_CSID_LOG_BUF_LEN                          512
 
-#define CAM_IFE_CSID_CAP_INPUT_LCR                        0x1
-#define CAM_IFE_CSID_CAP_RDI_UNPACK_MSB                   0x2
-#define CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI            0x80
-#define CAM_IFE_CSID_CAP_SOF_RETIME_DIS                   0x100
-#define CAM_IFE_CSID_CAP_SPLIT_RUP_AUP                    0x1000
+#define CAM_IFE_CSID_CAP_INPUT_LCR                        BIT(0)
+#define CAM_IFE_CSID_CAP_RDI_UNPACK_MSB                   BIT(1)
+#define CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI            BIT(2)
+#define CAM_IFE_CSID_CAP_SOF_RETIME_DIS                   BIT(3)
+#define CAM_IFE_CSID_CAP_SPLIT_RUP_AUP                    BIT(4)
+#define CAM_IFE_CSID_CAP_SKIP_PATH_CFG1                   BIT(5)
+#define CAM_IFE_CSID_CAP_SKIP_EPOCH_CFG                   BIT(6)
+#define CAM_IFE_CSID_CAP_MULTI_CTXT                       BIT(7)
 
 /*
  * CSID RX debug vc-dt capture

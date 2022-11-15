@@ -120,6 +120,7 @@ struct cam_ife_csid_ver2_evt_payload {
 	struct list_head            list;
 	uint32_t                    irq_reg_val;
 	struct timespec64           timestamp;
+	bool                        is_mc;
 };
 
 /*
@@ -372,6 +373,12 @@ struct cam_ife_csid_ver2_mc_reg_info {
 	uint32_t           irq_comp_cfg0_addr;
 	uint32_t           ipp_src_ctxt_mask_shift;
 	uint32_t           ipp_dst_ctxt_mask_shift;
+	uint32_t           comp_sof_mask;
+	uint32_t           comp_eof_mask;
+	uint32_t           comp_epoch0_mask;
+	uint32_t           comp_rup_mask;
+	uint32_t           comp_subgrp0_mask;
+	uint32_t           comp_subgrp2_mask;
 };
 
 struct cam_ife_csid_ver2_path_reg_info {
@@ -768,6 +775,7 @@ struct cam_ife_csid_ver2_reg_info {
  * @buf_done_irq_handle:      Buf done irq handle
  * @top_err_irq_handle:       Top Err IRQ handle
  * @top_info_irq_handle:      Top Info IRQ handle
+ * @top_mc_irq_handle:        Top multi context irq handle
  * @sync_mode:                Master/Slave modes
  * @mup:                      MUP for incoming VC of next frame
  * @discard_frame_per_path:   Count of paths dropping initial frames
@@ -817,6 +825,7 @@ struct cam_ife_csid_ver2_hw {
 						[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
 	int                                    top_info_irq_handle
 						[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	int                                    top_mc_irq_handle;
 	enum cam_isp_hw_sync_mode              sync_mode;
 	uint32_t                               mup;
 	atomic_t                               discard_frame_per_path;

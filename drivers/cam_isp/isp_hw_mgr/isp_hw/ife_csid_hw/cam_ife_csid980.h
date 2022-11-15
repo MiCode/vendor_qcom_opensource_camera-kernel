@@ -583,7 +583,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		/* configurations */
 		.resume_frame_boundary            = 1,
 		.binning_supported                = 0x7,
-		.capabilities                     = CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
+		.capabilities                     = CAM_IFE_CSID_CAP_SOF_RETIME_DIS |
+							CAM_IFE_CSID_CAP_MULTI_CTXT,
 		.start_mode_internal              = 0x0,
 		.start_mode_global                = 0x1,
 		.start_mode_master                = 0x2,
@@ -711,7 +712,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		/* configurations */
 		.resume_frame_boundary            = 1,
 		.binning_supported                = 0x7,
-		.capabilities                     = CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
+		.capabilities                     = CAM_IFE_CSID_CAP_SOF_RETIME_DIS |
+							CAM_IFE_CSID_CAP_MULTI_CTXT,
 		.start_mode_internal              = 0x0,
 		.start_mode_global                = 0x1,
 		.start_mode_master                = 0x2,
@@ -814,7 +816,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		/* configurations */
 		.resume_frame_boundary            = 1,
 		.binning_supported                = 0x7,
-		.capabilities                     = CAM_IFE_CSID_CAP_SOF_RETIME_DIS,
+		.capabilities                     = CAM_IFE_CSID_CAP_SOF_RETIME_DIS |
+							CAM_IFE_CSID_CAP_MULTI_CTXT,
 		.start_mode_internal              = 0x0,
 		.start_mode_global                = 0x1,
 		.start_mode_master                = 0x2,
@@ -1753,6 +1756,12 @@ struct cam_ife_csid_ver2_mc_reg_info
 	.irq_comp_cfg0_addr                = 0x0178,
 	.ipp_src_ctxt_mask_shift           = 4,
 	.ipp_dst_ctxt_mask_shift           = 0,
+	.comp_rup_mask                     = 0x4000000,
+	.comp_epoch0_mask                  = 0x8000000,
+	.comp_eof_mask                     = 0x20000000,
+	.comp_sof_mask                     = 0x40000000,
+	.comp_subgrp0_mask                 = 0x1000000,
+	.comp_subgrp2_mask                 = 0x2000000,
 };
 
 static struct cam_ife_csid_ver2_reg_info cam_ife_csid_980_reg_info = {
