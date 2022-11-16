@@ -50,6 +50,16 @@
 
 #define CAM_REQ_MGR_HALF_FRAME_DURATION(frame_duration) (frame_duration / 2)
 
+/* Number of words for dumping req state info*/
+#define CAM_CRM_DUMP_EVENT_NUM_WORDS  6
+
+/* Maximum length of tag while dumping */
+#define CAM_CRM_DUMP_TAG_MAX_LEN 64
+
+/* Number of headers in dumping req state info function*/
+#define CAM_CRM_DUMP_EVENT_NUM_HEADERS  2
+
+
 /**
  * enum crm_req_eof_trigger_type
  * @codes: to identify which type of eof trigger for next slot

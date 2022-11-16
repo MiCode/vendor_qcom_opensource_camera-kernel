@@ -18,6 +18,7 @@
 #include "cam_req_mgr_dev.h"
 #include "cam_req_mgr_debug.h"
 #include "cam_common_util.h"
+#include "cam_mem_mgr.h"
 
 static struct cam_req_mgr_core_device *g_crm_core_dev;
 static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_PER_SESSION];
@@ -5488,6 +5489,113 @@ end:
 	return rc;
 }
 
+static void *cam_req_mgr_user_dump_state_monitor_array_info(
+	void *dump_struct, uint8_t *addr_ptr)
+{
+	struct cam_req_mgr_state_monitor  *evt = NULL;
+	uint64_t                          *addr;
+	struct cam_common_hw_dump_header  *hdr;
+	uint8_t                           *dst;
+
+	evt = (struct cam_req_mgr_state_monitor *)dump_struct;
+
+	addr = (uint64_t *)addr_ptr;
+
+	*addr++ = evt->req_id;
+
+	dst = (uint8_t *)addr;
+	hdr = (struct cam_common_hw_dump_header *)dst;
+	scnprintf(hdr->tag, CAM_CRM_DUMP_TAG_MAX_LEN,
+		"%s", evt->name);
+	hdr->word_size = sizeof(uint64_t);
+	addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
+
+	dst = (uint8_t *)addr;
+	hdr = (struct cam_common_hw_dump_header *)dst;
+	scnprintf(hdr->tag, CAM_CRM_DUMP_TAG_MAX_LEN,
+		"%s", __cam_req_mgr_operation_type_to_str(evt->req_state));
+	hdr->word_size = sizeof(uint64_t);
+	addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
+
+	*addr++ = evt->dev_hdl;
+	*addr++ = evt->frame_id;
+	*addr++ = evt->time_stamp.tv_sec;
+	*addr++ = evt->time_stamp.tv_nsec / NSEC_PER_USEC;
+	return addr;
+}
+
+/**
+ * cam_req_mgr_dump_state_monitor_info()
+ *
+ * @brief     : dump the state monitor array, dump from index next_wr_idx
+ *             to save state information in time order.
+ * @link      : link pointer
+ * @dump_info : dump payload
+ */
+static int cam_req_mgr_dump_state_monitor_info(
+	struct cam_req_mgr_core_link *link,
+	struct cam_req_mgr_dump_info *dump_info)
+{
+	int                             rc = 0;
+	int                             i;
+	int                             idx = link->req.next_state_idx;
+	struct cam_common_hw_dump_args  dump_args;
+	size_t                          buf_len;
+	size_t                          remain_len;
+	uint32_t                        min_len;
+	uintptr_t                       cpu_addr;
+
+	rc = cam_mem_get_cpu_buf(dump_info->buf_handle,
+		&cpu_addr, &buf_len);
+	if (rc) {
+		CAM_ERR(CAM_CRM, "Invalid handle %u rc %d",
+			dump_info->buf_handle, rc);
+		return rc;
+	}
+	if (buf_len <= dump_info->offset) {
+		CAM_WARN(CAM_CRM, "Dump buffer overshoot len %zu offset %zu",
+			buf_len, dump_info->offset);
+		return -ENOSPC;
+	}
+
+	remain_len = buf_len - dump_info->offset;
+	min_len = sizeof(struct cam_common_hw_dump_header) +
+		(MAX_REQ_STATE_MONITOR_NUM * (CAM_CRM_DUMP_EVENT_NUM_WORDS * sizeof(uint64_t) +
+		sizeof(struct cam_common_hw_dump_header) * CAM_CRM_DUMP_EVENT_NUM_HEADERS));
+
+	if (remain_len < min_len) {
+		CAM_WARN(CAM_CRM, "Dump buffer exhaust remain %zu min %u",
+			remain_len, min_len);
+		return -ENOSPC;
+	}
+
+	dump_args.req_id = dump_info->req_id;
+	dump_args.cpu_addr = cpu_addr;
+	dump_args.buf_len = buf_len;
+	dump_args.offset = dump_info->offset;
+	dump_args.ctxt_to_hw_map = NULL;
+
+	for (i = 0; i < MAX_REQ_STATE_MONITOR_NUM; i++) {
+		if (link->req.state_monitor[idx].req_state != CAM_CRM_STATE_INVALID) {
+			rc = cam_common_user_dump_helper(&dump_args,
+				cam_req_mgr_user_dump_state_monitor_array_info,
+				&link->req.state_monitor[idx],
+				sizeof(uint64_t), "CRM_STATE_MONITOR.%x:", link->link_hdl);
+			if (rc) {
+				CAM_ERR(CAM_CRM,
+					"Dump state info failed, rc: %d",
+					rc);
+				return rc;
+			}
+		}
+		__cam_req_mgr_inc_idx(&idx, 1, MAX_REQ_STATE_MONITOR_NUM);
+	}
+
+	dump_info->offset = dump_args.offset;
+
+	return rc;
+}
+
 int cam_req_mgr_dump_request(struct cam_dump_req_cmd *dump_req)
 {
 	int                                  rc = 0;
@@ -5528,7 +5636,19 @@ int cam_req_mgr_dump_request(struct cam_dump_req_cmd *dump_req)
 		rc = -EINVAL;
 		goto end;
 	}
+
 	info.offset = dump_req->offset;
+	info.link_hdl = dump_req->link_hdl;
+	info.dev_hdl = 0;
+	info.req_id = dump_req->issue_req_id;
+	info.buf_handle = dump_req->buf_handle;
+	info.error_type = dump_req->error_type;
+	rc =  cam_req_mgr_dump_state_monitor_info(link, &info);
+	if (rc)
+		CAM_ERR(CAM_REQ,
+			"Fail to dump state monitor req %llu rc %d",
+			info.req_id, rc);
+
 	for (i = 0; i < link->num_devs; i++) {
 		device = &link->l_dev[i];
 		info.link_hdl = dump_req->link_hdl;
