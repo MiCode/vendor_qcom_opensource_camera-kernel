@@ -52,8 +52,8 @@ extern struct platform_driver cam_icp_v1_driver;
 extern struct platform_driver cam_icp_v2_driver;
 extern struct platform_driver cam_ipe_driver;
 extern struct platform_driver cam_bps_driver;
-extern struct platform_driver cam_icp_driver;
 extern struct platform_driver cam_ofe_driver;
+extern struct platform_driver cam_icp_driver;
 #endif
 #ifdef CONFIG_SPECTRA_OPE
 extern struct platform_driver cam_ope_driver;
@@ -124,8 +124,8 @@ static struct platform_driver *const cam_component_platform_drivers[] = {
 	&cam_icp_v2_driver,
 	&cam_ipe_driver,
 	&cam_bps_driver,
-	&cam_icp_driver,
 	&cam_ofe_driver,
+	&cam_icp_driver,
 #endif
 #ifdef CONFIG_SPECTRA_OPE
 	&cam_ope_driver,

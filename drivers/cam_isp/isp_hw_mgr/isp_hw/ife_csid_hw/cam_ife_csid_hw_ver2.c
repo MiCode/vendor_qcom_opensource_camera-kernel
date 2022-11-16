@@ -1367,8 +1367,10 @@ void cam_ife_csid_hw_ver2_rdi_line_buffer_conflict_handler(
 		soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg;
 	uint32_t i = 0, rdi_cfg = 0;
-	uint8_t *log_buf = NULL;
+	uint8_t *log_buf = csid_hw->log_buf;
 	size_t len = 0;
+
+	memset(log_buf, 0x0, sizeof(uint8_t) * CAM_IFE_CSID_LOG_BUF_LEN);
 
 	for (i = CAM_IFE_PIX_PATH_RES_RDI_0; i < CAM_IFE_PIX_PATH_RES_RDI_4;
 		i++) {

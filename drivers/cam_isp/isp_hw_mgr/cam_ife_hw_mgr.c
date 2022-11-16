@@ -5853,7 +5853,8 @@ static int cam_isp_classify_vote_info(
 	uint32_t                                hw_type,
 	uint32_t                                split_idx,
 	bool                                   *nrdi_l_bw_updated,
-	bool                                   *nrdi_r_bw_updated)
+	bool                                   *nrdi_r_bw_updated,
+	bool                                    is_sfe_shdr)
 {
 	int                                   rc = 0, i, j = 0;
 
@@ -5925,11 +5926,10 @@ static int cam_isp_classify_vote_info(
 			}
 		}
 	} else {
-		if (hw_mgr_res->res_id == CAM_ISP_HW_SFE_IN_PIX) {
-			if (split_idx == CAM_ISP_HW_SPLIT_LEFT) {
-				if (*nrdi_l_bw_updated)
-					return rc;
-
+		if (is_sfe_shdr ||
+			(hw_mgr_res->res_id == CAM_ISP_HW_SFE_IN_PIX)) {
+			if ((split_idx == CAM_ISP_HW_SPLIT_LEFT) &&
+				(!(*nrdi_l_bw_updated))) {
 				for (i = 0; i < bw_config->num_paths; i++) {
 					if (bw_config->axi_path[i].usage_data ==
 						CAM_ISP_USAGE_SFE_LEFT) {
@@ -5943,10 +5943,7 @@ static int cam_isp_classify_vote_info(
 				isp_vote->num_paths = j;
 
 				*nrdi_l_bw_updated = true;
-			} else {
-				if (*nrdi_r_bw_updated)
-					return rc;
-
+			} else if (!(*nrdi_r_bw_updated)) {
 				for (i = 0; i < bw_config->num_paths; i++) {
 					if (bw_config->axi_path[i].usage_data ==
 						CAM_ISP_USAGE_SFE_RIGHT) {
@@ -5961,7 +5958,9 @@ static int cam_isp_classify_vote_info(
 
 				*nrdi_r_bw_updated = true;
 			}
-		} else if ((hw_mgr_res->res_id >= CAM_ISP_HW_SFE_IN_RDI0)
+		}
+
+		if ((hw_mgr_res->res_id >= CAM_ISP_HW_SFE_IN_RDI0)
 			&& (hw_mgr_res->res_id <=
 			CAM_ISP_HW_SFE_IN_RDI4)) {
 			for (i = 0; i < bw_config->num_paths; i++) {
@@ -5979,14 +5978,6 @@ static int cam_isp_classify_vote_info(
 				}
 			}
 			isp_vote->num_paths = j;
-
-		} else {
-			if (hw_mgr_res->hw_res[split_idx]) {
-				CAM_ERR(CAM_ISP, "Invalid res_id %u, split_idx: %u",
-					hw_mgr_res->res_id, split_idx);
-				rc = -EINVAL;
-				return rc;
-			}
 		}
 	}
 
@@ -6021,6 +6012,7 @@ static int cam_isp_blob_bw_update_v2(
 	uint32_t                               i, split_idx = INT_MIN;
 	bool                                   nrdi_l_bw_updated = false;
 	bool                                   nrdi_r_bw_updated = false;
+	bool                                   is_sfe_shdr = false;
 
 	for (i = 0; i < bw_config->num_paths; i++) {
 		CAM_DBG(CAM_PERF,
@@ -6049,7 +6041,8 @@ static int cam_isp_blob_bw_update_v2(
 				sizeof(struct cam_axi_vote));
 			rc = cam_isp_classify_vote_info(hw_mgr_res, bw_config,
 				&bw_upd_args.isp_vote, CAM_ISP_HW_TYPE_VFE,
-				split_idx, &nrdi_l_bw_updated, &nrdi_r_bw_updated);
+				split_idx, &nrdi_l_bw_updated, &nrdi_r_bw_updated,
+				false);
 			if (rc)
 				return rc;
 
@@ -6082,6 +6075,9 @@ static int cam_isp_blob_bw_update_v2(
 
 	nrdi_l_bw_updated = false;
 	nrdi_r_bw_updated = false;
+	if ((ctx->flags.is_sfe_fs) || (ctx->flags.is_sfe_shdr))
+		is_sfe_shdr = true;
+
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_sfe_src, list) {
 		for (split_idx = 0; split_idx < CAM_ISP_HW_SPLIT_MAX;
 			split_idx++) {
@@ -6092,7 +6088,8 @@ static int cam_isp_blob_bw_update_v2(
 				sizeof(struct cam_axi_vote));
 			rc = cam_isp_classify_vote_info(hw_mgr_res, bw_config,
 				&sfe_bw_update_args.sfe_vote, CAM_ISP_HW_TYPE_SFE,
-				split_idx, &nrdi_l_bw_updated, &nrdi_r_bw_updated);
+				split_idx, &nrdi_l_bw_updated, &nrdi_r_bw_updated,
+				is_sfe_shdr);
 			if (rc)
 				return rc;
 

@@ -114,6 +114,11 @@ static int cam_lrme_mgr_util_packet_validate(struct cam_packet *packet,
 		return -EINVAL;
 	}
 
+	if (!packet->num_cmd_buf) {
+		CAM_ERR(CAM_LRME, "no cmd bufs");
+		return -EINVAL;
+	}
+
 	cmd_desc = (struct cam_cmd_buf_desc *)((uint8_t *)&packet->payload +
 		packet->cmd_buf_offset);
 

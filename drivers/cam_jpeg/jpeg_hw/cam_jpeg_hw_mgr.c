@@ -1024,7 +1024,8 @@ static int cam_jpeg_mgr_prepare_hw_update(void *hw_mgr_priv,
 		return rc;
 	}
 
-	if ((packet->num_cmd_buf > CAM_JPEG_MAX_NUM_CMD_BUFFS) ||
+	if (!packet->num_cmd_buf ||
+		(packet->num_cmd_buf > CAM_JPEG_MAX_NUM_CMD_BUFFS) ||
 		!packet->num_patches || !packet->num_io_configs ||
 		(packet->num_io_configs > CAM_JPEG_IMAGE_MAX)) {
 		CAM_ERR(CAM_JPEG,

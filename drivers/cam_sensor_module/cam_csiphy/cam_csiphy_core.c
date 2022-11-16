@@ -914,9 +914,15 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 		return rc;
 	}
 
-	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *)&csl_packet->payload +
-		csl_packet->cmd_buf_offset / 4);
+	if (csl_packet->num_cmd_buf)
+		cmd_desc = (struct cam_cmd_buf_desc *)
+			((uint32_t *)&csl_packet->payload +
+			csl_packet->cmd_buf_offset / 4);
+	else {
+		CAM_ERR(CAM_CSIPHY, "num_cmd_buffer = %d", csl_packet->num_cmd_buf);
+		rc = -EINVAL;
+		return rc;
+	}
 
 	CAM_DBG(CAM_CSIPHY, "CSIPHY:%u num cmd buffers received: %u",
 		csiphy_dev->soc_info.index, csl_packet->num_cmd_buf);

@@ -43,6 +43,13 @@ enum cam_isp_bw_control_action {
 	CAM_ISP_BW_CONTROL_INCLUDE       = 1
 };
 
+enum cam_isp_multi_ctxt_idx {
+	CAM_ISP_MULTI_CTXT_0,
+	CAM_ISP_MULTI_CTXT_1,
+	CAM_ISP_MULTI_CTXT_2,
+	CAM_ISP_MULTI_CTXT_MAX
+};
+
 /*
  * struct cam_isp_bw_control_args:
  *

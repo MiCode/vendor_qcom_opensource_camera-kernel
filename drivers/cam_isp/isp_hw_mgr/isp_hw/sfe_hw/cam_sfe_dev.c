@@ -162,14 +162,12 @@ static void cam_sfe_component_unbind(struct device *dev,
 	sfe_info = sfe_hw_intf->hw_priv;
 	if (!sfe_info) {
 		CAM_ERR(CAM_SFE, "HW data is NULL");
-		rc = -ENODEV;
 		goto free_sfe_hw_intf;
 	}
 
 	core_info = (struct cam_sfe_hw_core_info *)sfe_info->core_info;
 	if (!core_info) {
 		CAM_ERR(CAM_SFE, "core data NULL");
-		rc = -EINVAL;
 		goto deinit_soc;
 	}
 

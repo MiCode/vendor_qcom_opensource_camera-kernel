@@ -2786,7 +2786,14 @@ int cam_ife_csid_ver1_init_hw(void *hw_priv,
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d Invalid Res id %d",
 			csid_hw->hw_intf->hw_idx, res->res_id);
+		rc = -EINVAL;
 		break;
+	}
+
+	if (rc < 0) {
+		CAM_ERR(CAM_ISP, "CSID:%d res_id:%d path init configuration failed with rc: %d",
+			csid_hw->hw_intf->hw_idx, res->res_id, rc);
+		goto end;
 	}
 
 	rc = cam_ife_csid_ver1_hw_reset(csid_hw);

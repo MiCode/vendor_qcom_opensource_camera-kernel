@@ -1899,7 +1899,7 @@ int cam_hw_cdm_get_cdm_config(struct cam_hw_info *cdm_hw)
 {
 	struct cam_hw_soc_info *soc_info = NULL;
 	struct cam_cdm *core = NULL;
-	int rc = 0;
+	int rc = 0, ret = 0;
 
 	core = (struct cam_cdm *)cdm_hw->core_info;
 	soc_info = &cdm_hw->soc_info;
@@ -1978,9 +1978,9 @@ int cam_hw_cdm_get_cdm_config(struct cam_hw_info *cdm_hw)
 	}
 
 disable_platform_resource:
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	ret = cam_soc_util_disable_platform_resource(soc_info, true, true);
 
-	if (rc) {
+	if (ret) {
 		CAM_ERR(CAM_CDM, "disable platform failed for dev %s",
 				soc_info->dev_name);
 	} else {

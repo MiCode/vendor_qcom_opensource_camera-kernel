@@ -691,16 +691,18 @@ int cam_cpas_reg_read(
  * @cpas_version   : Camera cpas version
  * @cam_caps       : Camera capability
  * @cam_fuse_info  : Camera fuse info
+ * @domain_id_info : Domain id info
  *
  * @return 0 on success.
  *
  */
 int cam_cpas_get_hw_info(
-	uint32_t                  *camera_family,
-	struct cam_hw_version     *camera_version,
-	struct cam_hw_version     *cpas_version,
-	uint32_t                  *cam_caps,
-	struct cam_cpas_fuse_info *cam_fuse_info);
+	uint32_t                       *camera_family,
+	struct cam_hw_version          *camera_version,
+	struct cam_hw_version          *cpas_version,
+	uint32_t                       *cam_caps,
+	struct cam_cpas_fuse_info      *cam_fuse_info,
+	struct cam_cpas_domain_id_caps *domain_id_info);
 
 /**
  * cam_cpas_get_cpas_hw_version()

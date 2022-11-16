@@ -75,8 +75,8 @@
 #define LANE_1_SEL                   BIT(1)
 #define LANE_2_SEL                   BIT(2)
 #define LANE_3_SEL                   BIT(3)
-#define CPHY_LANE_SELECTION_SHIFT    8
-#define DPHY_LANE_SELECTION_SHIFT    16
+#define CPHY_LANE_SELECTION_SHIFT    16
+#define DPHY_LANE_SELECTION_SHIFT    24
 #define MAX_SUPPORTED_PHY_IDX        7
 
 /* PRBS Pattern Macros */
@@ -118,7 +118,7 @@ enum cam_csiphy_common_reg_program {
 struct cam_csiphy_secure_info {
 	uint32_t phy_lane_sel_mask;
 	uint32_t lane_assign;
-	uint64_t vc_mask;
+	uint32_t vc_mask;
 	uint32_t csid_hw_idx_mask;
 	uint32_t cdm_hw_idx_mask;
 };
@@ -141,8 +141,8 @@ struct cam_csiphy_tz_secure_info {
 	uint64_t phy_lane_sel_mask;
 	uint32_t csid_hw_idx_mask;
 	uint32_t cdm_hw_idx_mask;
-	uint64_t vc_mask;
-	bool     protect;
+	uint32_t vc_mask;
+	uint32_t protect;
 };
 
 /**

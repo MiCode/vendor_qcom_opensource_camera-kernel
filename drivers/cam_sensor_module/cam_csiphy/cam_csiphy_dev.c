@@ -33,6 +33,7 @@ int cam_csiphy_format_secure_phy_lane_info(
 {
 	struct cam_csiphy_tz_secure_info *tz_secure_info;
 	struct cam_csiphy_param *param;
+	uint64_t phy_lane_sel_mask = 0;
 
 	if (!csiphy_dev) {
 		CAM_ERR(CAM_CSIPHY, "Invalid param, csiphy_dev: %s",
@@ -51,29 +52,30 @@ int cam_csiphy_format_secure_phy_lane_info(
 
 	if (param->csiphy_3phase) {
 		if (param->lane_enable & CPHY_LANE_0)
-			tz_secure_info->phy_lane_sel_mask |= LANE_0_SEL;
+			phy_lane_sel_mask |= LANE_0_SEL;
 		if (param->lane_enable & CPHY_LANE_1)
-			tz_secure_info->phy_lane_sel_mask |= LANE_1_SEL;
+			phy_lane_sel_mask |= LANE_1_SEL;
 		if (param->lane_enable & CPHY_LANE_2)
-			tz_secure_info->phy_lane_sel_mask |= LANE_2_SEL;
-		tz_secure_info->phy_lane_sel_mask <<= CPHY_LANE_SELECTION_SHIFT;
+			phy_lane_sel_mask |= LANE_2_SEL;
+		phy_lane_sel_mask <<= CPHY_LANE_SELECTION_SHIFT;
 	} else {
 		if (param->lane_enable & DPHY_LANE_0)
-			tz_secure_info->phy_lane_sel_mask |= LANE_0_SEL;
+			phy_lane_sel_mask |= LANE_0_SEL;
 		if (param->lane_enable & DPHY_LANE_1)
-			tz_secure_info->phy_lane_sel_mask |= LANE_1_SEL;
+			phy_lane_sel_mask |= LANE_1_SEL;
 		if (param->lane_enable & DPHY_LANE_2)
-			tz_secure_info->phy_lane_sel_mask |= LANE_2_SEL;
+			phy_lane_sel_mask |= LANE_2_SEL;
 		if (param->lane_enable & DPHY_LANE_3)
-			tz_secure_info->phy_lane_sel_mask |= LANE_3_SEL;
-		tz_secure_info->phy_lane_sel_mask <<= DPHY_LANE_SELECTION_SHIFT;
+			phy_lane_sel_mask |= LANE_3_SEL;
+		phy_lane_sel_mask <<= DPHY_LANE_SELECTION_SHIFT;
 	}
 	if (csiphy_dev->soc_info.index > MAX_SUPPORTED_PHY_IDX) {
 		CAM_ERR(CAM_CSIPHY, "Invalid PHY index: %u",
 			csiphy_dev->soc_info.index);
 			return -EINVAL;
 	}
-	tz_secure_info->phy_lane_sel_mask |= BIT(csiphy_dev->soc_info.index);
+	phy_lane_sel_mask |= BIT(csiphy_dev->soc_info.index);
+	tz_secure_info->phy_lane_sel_mask  |= phy_lane_sel_mask;
 
 	CAM_DBG(CAM_CSIPHY, "Formatted PHY[%u] phy_lane_sel_mask: 0x%llx",
 		csiphy_dev->soc_info.index,

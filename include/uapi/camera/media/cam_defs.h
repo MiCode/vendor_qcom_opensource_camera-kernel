@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_DEFS_H__
@@ -28,6 +29,7 @@
 #define CAM_ACQUIRE_HW                      (CAM_COMMON_OPCODE_BASE_v2 + 0x1)
 #define CAM_RELEASE_HW                      (CAM_COMMON_OPCODE_BASE_v2 + 0x2)
 #define CAM_DUMP_REQ                        (CAM_COMMON_OPCODE_BASE_v2 + 0x3)
+#define CAM_QUERY_CAP_V3                    (CAM_COMMON_OPCODE_BASE_v2 + 0x4)
 
 #define CAM_EXT_OPCODE_BASE                     0x200
 #define CAM_CONFIG_DEV_EXTERNAL                 (CAM_EXT_OPCODE_BASE + 0x1)

@@ -72,6 +72,7 @@ void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 	link->is_sending_req = false;
 	atomic_set(&link->eof_event_cnt, 0);
 	link->properties_mask = CAM_LINK_PROPERTY_NONE;
+	link->cont_empty_slots = 0;
 	__cam_req_mgr_reset_apply_data(link);
 
 	for (i = 0; i < MAXIMUM_LINKS_PER_SESSION - 1; i++)
@@ -433,7 +434,7 @@ static int __cam_req_mgr_notify_error_on_link(
 	struct cam_req_mgr_connected_device *dev)
 {
 	struct cam_req_mgr_core_session *session = NULL;
-	struct cam_req_mgr_message       msg;
+	struct cam_req_mgr_message       msg = {0};
 	int rc = 0, pd;
 
 	session = (struct cam_req_mgr_core_session *)link->parent;
@@ -794,6 +795,7 @@ static void __cam_req_mgr_flush_req_slot(
 	link->trigger_cnt[0][CAM_TRIGGER_POINT_EOF] = 0;
 	link->trigger_cnt[1][CAM_TRIGGER_POINT_SOF] = 0;
 	link->trigger_cnt[1][CAM_TRIGGER_POINT_EOF] = 0;
+	link->cont_empty_slots = 0;
 }
 
 /**
@@ -863,7 +865,7 @@ static void __cam_req_mgr_validate_crm_wd_timer(
 	struct cam_req_mgr_core_link *link)
 {
 	int idx = 0;
-	int next_frame_timeout = 0, current_frame_timeout = 0;
+	int next_frame_timeout, current_frame_timeout, max_frame_timeout;
 	int64_t current_req_id, next_req_id;
 	struct cam_req_mgr_req_queue *in_q = link->req.in_q;
 
@@ -899,9 +901,13 @@ static void __cam_req_mgr_validate_crm_wd_timer(
 			"Skip modifying wd timer, continue with same timeout");
 		return;
 	}
+
+	max_frame_timeout = (current_frame_timeout > next_frame_timeout) ?
+		current_frame_timeout : next_frame_timeout;
+
 	spin_lock_bh(&link->link_state_spin_lock);
 	if (link->watchdog) {
-		if ((next_frame_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT) >
+		if ((max_frame_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT) >
 			link->watchdog->expires) {
 			CAM_DBG(CAM_CRM,
 				"Modifying wd timer expiry from %d ms to %d ms",
@@ -909,18 +915,18 @@ static void __cam_req_mgr_validate_crm_wd_timer(
 				(next_frame_timeout +
 				 CAM_REQ_MGR_WATCHDOG_TIMEOUT));
 			crm_timer_modify(link->watchdog,
-				next_frame_timeout +
+				max_frame_timeout +
 				CAM_REQ_MGR_WATCHDOG_TIMEOUT);
-		} else if (current_frame_timeout) {
+		} else if (max_frame_timeout) {
 			CAM_DBG(CAM_CRM,
 				"Reset wd timer to frame from %d ms to %d ms",
 				link->watchdog->expires,
-				(current_frame_timeout +
+				(max_frame_timeout +
 				 CAM_REQ_MGR_WATCHDOG_TIMEOUT));
 			crm_timer_modify(link->watchdog,
-				current_frame_timeout +
+				max_frame_timeout +
 				CAM_REQ_MGR_WATCHDOG_TIMEOUT);
-		} else if (!next_frame_timeout && (link->watchdog->expires >
+		} else if (!max_frame_timeout && (link->watchdog->expires >
 			CAM_REQ_MGR_WATCHDOG_TIMEOUT)) {
 			CAM_DBG(CAM_CRM,
 				"Reset wd timer to default from %d ms to %d ms",
@@ -960,16 +966,18 @@ static int __cam_req_mgr_check_for_lower_pd_devices(
 }
 
 /**
- * __cam_req_mgr_check_next_req_slot()
+ * __cam_req_mgr_move_to_next_req_slot()
  *
  * @brief    : While streaming if input queue does not contain any pending
  *             request, req mgr still needs to submit pending request ids to
- *             devices with lower pipeline delay value.
+ *             devices with lower pipeline delay value. But if there are
+ *             continuous max_delay empty slots, we don't need to move to
+ *             next slot since the last request is applied to all devices.
  * @in_q     : Pointer to input queue where req mgr wil peep into
  *
  * @return   : 0 for success, negative for failure
  */
-static int __cam_req_mgr_check_next_req_slot(
+static int __cam_req_mgr_move_to_next_req_slot(
 	struct cam_req_mgr_core_link *link)
 {
 	int rc = 0;
@@ -1008,6 +1016,13 @@ static int __cam_req_mgr_check_next_req_slot(
 				link->link_hdl);
 			return rc;
 		}
+
+		if (link->cont_empty_slots++ >= link->max_delay) {
+			CAM_DBG(CAM_CRM, "There are %d continuous empty slots on link 0x%x",
+				link->cont_empty_slots, link->link_hdl);
+			return -EAGAIN;
+		}
+
 		__cam_req_mgr_in_q_skip_idx(in_q, idx);
 		slot->status = CRM_SLOT_STATUS_REQ_ADDED;
 		if (in_q->wr_idx != idx)
@@ -1015,7 +1030,10 @@ static int __cam_req_mgr_check_next_req_slot(
 				"CHECK here wr %d, rd %d", in_q->wr_idx, idx);
 		else
 			__cam_req_mgr_inc_idx(&in_q->wr_idx, 1, in_q->num_slots);
-	}
+	} else
+		link->cont_empty_slots = 0;
+
+	__cam_req_mgr_inc_idx(&in_q->rd_idx, 1, in_q->num_slots);
 
 	return rc;
 }
@@ -2423,7 +2441,7 @@ static int __cam_req_mgr_process_sof_freeze(void *priv, void *data)
 	struct cam_req_mgr_core_link    *link = NULL;
 	struct cam_req_mgr_req_queue    *in_q = NULL;
 	struct cam_req_mgr_core_session *session = NULL;
-	struct cam_req_mgr_message       msg;
+	struct cam_req_mgr_message       msg = {0};
 	int rc = 0;
 	int64_t last_applied_req_id = -EINVAL;
 
@@ -3630,17 +3648,14 @@ static int cam_req_mgr_process_trigger(void *priv, void *data)
 		 */
 		CAM_DBG(CAM_CRM, "link[%x] Req[%lld] invalidating slot",
 			link->link_hdl, in_q->slot[in_q->rd_idx].req_id);
-		rc = __cam_req_mgr_check_next_req_slot(link);
+		rc = __cam_req_mgr_move_to_next_req_slot(link);
 		if (rc) {
 			CAM_DBG(CAM_REQ,
 				"No pending req to apply to lower pd devices");
 			rc = 0;
 			__cam_req_mgr_notify_frame_skip(link, trigger_data->trigger);
-			__cam_req_mgr_inc_idx(&in_q->rd_idx,
-				1, in_q->num_slots);
 			goto release_lock;
 		}
-		__cam_req_mgr_inc_idx(&in_q->rd_idx, 1, in_q->num_slots);
 	}
 
 	rc = __cam_req_mgr_process_req(link, trigger_data);

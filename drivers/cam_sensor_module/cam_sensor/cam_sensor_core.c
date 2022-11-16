@@ -21,7 +21,7 @@ static int cam_sensor_notify_v4l2_error_event(
 	uint32_t error_type, uint32_t error_code)
 {
 	int                        rc = 0;
-	struct cam_req_mgr_message req_msg;
+	struct cam_req_mgr_message req_msg = {0};
 
 	req_msg.session_hdl = s_ctrl->bridge_intf.session_hdl;
 	req_msg.u.err_msg.device_hdl = s_ctrl->bridge_intf.device_hdl;

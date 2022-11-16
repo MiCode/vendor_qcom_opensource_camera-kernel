@@ -4923,13 +4923,13 @@ static int cam_icp_mgr_pkt_validation(struct cam_packet *packet)
 		return -EINVAL;
 	}
 
-	if (packet->num_io_configs > IPE_IO_IMAGES_MAX) {
+	if (!packet->num_io_configs || packet->num_io_configs > IPE_IO_IMAGES_MAX) {
 		CAM_ERR(CAM_ICP, "Invalid number of io configs: %d %d",
 			IPE_IO_IMAGES_MAX, packet->num_io_configs);
 		return -EINVAL;
 	}
 
-	if (packet->num_cmd_buf > CAM_ICP_CTX_MAX_CMD_BUFFERS) {
+	if (!packet->num_cmd_buf || packet->num_cmd_buf > CAM_ICP_CTX_MAX_CMD_BUFFERS) {
 		CAM_ERR(CAM_ICP, "Invalid number of cmd buffers: %d %d",
 			CAM_ICP_CTX_MAX_CMD_BUFFERS, packet->num_cmd_buf);
 		return -EINVAL;
@@ -7025,7 +7025,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 
 	rc = cam_cpas_get_hw_info(&query.camera_family,
 			&query.camera_version, &query.cpas_version,
-			&cam_caps, NULL);
+			&cam_caps, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "failed to get hw info rc=%d", rc);
 		goto destroy_mutex;

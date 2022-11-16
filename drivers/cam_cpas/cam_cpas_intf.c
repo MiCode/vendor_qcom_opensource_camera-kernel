@@ -341,8 +341,14 @@ int cam_cpas_get_hw_info(uint32_t *camera_family,
 	struct cam_hw_version *camera_version,
 	struct cam_hw_version *cpas_version,
 	uint32_t *cam_caps,
-	struct cam_cpas_fuse_info *cam_fuse_info)
+	struct cam_cpas_fuse_info *cam_fuse_info,
+	struct cam_cpas_domain_id_caps *domain_id_info)
 {
+	struct cam_hw_info              *cpas_hw;
+	struct cam_cpas_private_soc     *soc_private;
+	struct cam_cpas_domain_id_info   cpas_domain_id;
+	int i;
+
 	if (!CAM_CPAS_INTF_INITIALIZED()) {
 		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
 		return -ENODEV;
@@ -354,14 +360,38 @@ int cam_cpas_get_hw_info(uint32_t *camera_family,
 		return -EINVAL;
 	}
 
+	cpas_hw = g_cpas_intf->hw_intf->hw_priv;
+	soc_private = (struct cam_cpas_private_soc *)
+		cpas_hw->soc_info.soc_private;
+
 	*camera_family  = g_cpas_intf->hw_caps.camera_family;
 	*camera_version = g_cpas_intf->hw_caps.camera_version;
 	*cpas_version   = g_cpas_intf->hw_caps.cpas_version;
 	*cam_caps       = g_cpas_intf->hw_caps.camera_capability;
 	if (cam_fuse_info)
 		*cam_fuse_info  = g_cpas_intf->hw_caps.fuse_info;
+	if (domain_id_info) {
+		cpas_domain_id = soc_private->domain_id_info;
 
-	CAM_DBG(CAM_CPAS, "Family %d, version %d.%d cam_caps %d",
+		if (!soc_private->domain_id_info.domain_id_supported) {
+			domain_id_info->num_mapping = 0;
+			domain_id_info->is_supported = 0;
+		} else {
+			domain_id_info->is_supported = 1;
+			domain_id_info->num_mapping =
+				soc_private->domain_id_info.num_domain_ids;
+
+			for (i = 0; i < domain_id_info->num_mapping; i++) {
+				domain_id_info->entries[i].domain_type =
+					cpas_domain_id.domain_id_entries[i].domain_type;
+				domain_id_info->entries[i].mapping_id =
+					cpas_domain_id.domain_id_entries[i].mapping_id;
+			}
+		}
+	}
+
+	CAM_DBG(CAM_CPAS, "Family %d, version %d.%d cam_caps %d, domain_id: %s",
+		CAM_BOOL_TO_YESNO(soc_private->domain_id_info.domain_id_supported),
 		*camera_family, camera_version->major,
 		camera_version->minor, *cam_caps);
 
@@ -847,7 +877,7 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 
 		rc = cam_cpas_get_hw_info(&query.camera_family,
 			&query.camera_version, &query.cpas_version,
-			&query.reserved, NULL);
+			&query.reserved, NULL, NULL);
 		if (rc)
 			break;
 
@@ -872,7 +902,32 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 		rc = cam_cpas_get_hw_info(&query.camera_family,
 			&query.camera_version, &query.cpas_version,
 			&query.reserved,
-			&query.fuse_info);
+			&query.fuse_info, NULL);
+		if (rc)
+			break;
+
+		rc = copy_to_user(u64_to_user_ptr(cmd->handle), &query,
+			sizeof(query));
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Failed in copy to user, rc=%d", rc);
+
+		break;
+	}
+	case CAM_QUERY_CAP_V3: {
+		struct cam_cpas_query_cap_v3 query;
+
+		rc = copy_from_user(&query, u64_to_user_ptr(cmd->handle),
+			sizeof(query));
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Failed in copy from user, rc=%d",
+				rc);
+			break;
+		}
+
+		rc = cam_cpas_get_hw_info(&query.camera_family,
+			&query.camera_version, &query.cpas_version,
+			&query.camera_caps, &query.fuse_info,
+			&query.domain_id_info);
 		if (rc)
 			break;
 

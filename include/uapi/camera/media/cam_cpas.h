@@ -73,10 +73,15 @@
 
 #define CAM_AXI_PATH_DATA_ALL  256
 #define CAM_CPAS_FUSES_MAX     32
+#define CAM_CPAS_DOMAIN_ID_MAX 5
 
 /* DRV Vote level */
 #define CAM_CPAS_VOTE_LEVEL_HIGH   1
 #define CAM_CPAS_VOTE_LEVEL_LOW    2
+
+/* Domain id types */
+#define CAM_CPAS_NON_SECURE_DOMAIN  0
+#define CAM_CPAS_SECURE_DOMAIN      1
 
 /**
  * struct cam_cpas_fuse_value - CPAS fuse value
@@ -99,6 +104,41 @@ struct cam_cpas_fuse_info {
 	__u32  num_fuses;
 	struct cam_cpas_fuse_value fuse_val[CAM_CPAS_FUSES_MAX];
 };
+
+/**
+ * struct cam_cpas_domain_id_pairing - CPAS domain id mapping
+ *
+ * @domain_type    : Domain type
+ * @mapping_id     : ID of domain type
+ */
+struct cam_cpas_domain_id_pairing {
+	__u32 domain_type;
+	__u32 mapping_id;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[4];
+};
+
+/**
+ * struct cam_cpas_domain_id_caps - CPAS domain id info
+ *
+ * @is_supported      : If domain id is supported on target
+ * @num_mapping       : Number of domain id types supported, if any
+ * @entries           : Stores mapping between domain type and its ID
+ * @num_valid_params  : Number of valid params
+ * @valid_param_mask  : Valid param mask
+ * @params            : These fields are reserved for future extensions
+ *                      to this structure.
+ */
+struct cam_cpas_domain_id_caps {
+	__u32  is_supported;
+	__u32  num_mapping;
+	struct cam_cpas_domain_id_pairing entries[CAM_CPAS_DOMAIN_ID_MAX];
+	__u32  num_valid_params;
+	__u32  valid_param_mask;
+	__u32  params[6];
+};
+
 
 /**
  * struct cam_cpas_query_cap - CPAS query device capability payload
@@ -132,6 +172,34 @@ struct cam_cpas_query_cap_v2 {
 	struct cam_hw_version     camera_version;
 	struct cam_hw_version     cpas_version;
 	struct cam_cpas_fuse_info fuse_info;
+};
+
+/**
+ * struct cam_cpas_query_cap - CPAS query device capability payload
+ *
+ * @version           : Struct version
+ * @camera_family     : Camera family type
+ * @camera_caps       : Camera capability
+ * @camera_version    : Camera platform version
+ * @cpas_version      : Camera CPAS version within camera platform
+ * @fuse_info         : Camera fuse info
+ * @domain_id_info    : Domain id info
+ * @num_valid_params  : Number of valid params
+ * @valid_param_mask  : Valid param mask
+ * @params            : Reserved fields to make this query cap
+ *                      extendable in the future
+ */
+struct cam_cpas_query_cap_v3 {
+	__u32                             version;
+	__u32                             camera_family;
+	__u32                             camera_caps;
+	struct cam_hw_version             camera_version;
+	struct cam_hw_version             cpas_version;
+	struct cam_cpas_fuse_info         fuse_info;
+	struct cam_cpas_domain_id_caps    domain_id_info;
+	__u32                             num_valid_params;
+	__u32                             valid_param_mask;
+	__u32                             params[10];
 };
 
 /**
