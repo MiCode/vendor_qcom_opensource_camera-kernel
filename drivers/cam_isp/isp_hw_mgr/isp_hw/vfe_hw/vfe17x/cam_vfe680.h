@@ -2237,8 +2237,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 	},
 	.num_comp_grp          = 17,
 	.support_consumed_addr = true,
-	.comp_done_shift = {
-		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+	.comp_done_mask = {
+		BIT(0), BIT(1), BIT(2), BIT(3),
+		BIT(4), BIT(5), BIT(6), BIT(7),
+		BIT(8), BIT(9), BIT(10), BIT(11),
+		BIT(12), BIT(13), BIT(14), BIT(15), BIT(16),
 	},
 	.top_irq_shift         = 0,
 	.max_out_res           = CAM_ISP_IFE_OUT_RES_BASE + 33,

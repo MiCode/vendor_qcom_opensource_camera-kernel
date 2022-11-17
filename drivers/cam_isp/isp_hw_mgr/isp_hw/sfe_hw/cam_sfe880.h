@@ -1765,8 +1765,9 @@ static struct cam_sfe_bus_wr_hw_info sfe880_bus_wr_hw_info = {
 		},
 	},
 	.constraint_error_info = &sfe880_bus_wr_constraint_error_info,
-	.comp_done_shift = {
-		17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 22,
+	.comp_done_mask = {
+		BIT(17), BIT(18), BIT(19), BIT(20), BIT(21),  BIT(23),
+		BIT(24), BIT(25), BIT(26), BIT(27), BIT(22),
 	},
 	.num_comp_grp           = 11,
 	.line_done_cfg          = 0x11,

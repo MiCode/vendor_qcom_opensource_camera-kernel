@@ -143,7 +143,7 @@ struct cam_sfe_bus_wr_wm_resource_data {
 
 struct cam_sfe_bus_wr_comp_grp_data {
 	enum cam_sfe_bus_wr_comp_grp_type          comp_grp_type;
-	uint32_t                                   comp_done_shift;
+	uint32_t                                   comp_done_mask;
 	struct cam_sfe_bus_wr_common_data         *common_data;
 
 	uint32_t                                   is_master;
@@ -1249,7 +1249,7 @@ static int cam_sfe_bus_start_comp_grp(
 		return 0;
 
 	/* CSID buf done register */
-	bus_irq_reg_mask[0] = BIT(rsrc_data->comp_done_shift);
+	bus_irq_reg_mask[0] = rsrc_data->comp_done_mask;
 
 	CAM_DBG(CAM_SFE, "Start Done SFE:%d comp_grp:%d buf_done_mask:0x%x",
 		rsrc_data->common_data->core_index,
@@ -1290,7 +1290,7 @@ static int cam_sfe_bus_wr_init_comp_grp(uint32_t index,
 	rsrc_data->comp_grp_type   = index;
 	rsrc_data->common_data     = &bus_priv->common_data;
 	rsrc_data->dual_slave_core = CAM_SFE_CORE_MAX;
-	rsrc_data->comp_done_shift = hw_info->comp_done_shift[index];
+	rsrc_data->comp_done_mask = hw_info->comp_done_mask[index];
 
 	list_add_tail(&comp_grp->list, &bus_priv->free_comp_grp);
 
@@ -1810,7 +1810,7 @@ static int cam_sfe_bus_handle_sfe_out_done_top_half(
 
 	status_0 = th_payload->evt_status_arr[CAM_SFE_IRQ_BUS_WR_REG_STATUS0];
 
-	if (status_0 & BIT(resource_data->comp_done_shift)) {
+	if (status_0 & resource_data->comp_done_mask) {
 		trace_cam_log_event("bufdone", "bufdone_IRQ",
 			status_0, resource_data->comp_grp_type);
 	}
@@ -1842,7 +1842,7 @@ static int cam_sfe_bus_handle_comp_done_bottom_half(
 	cam_sfe_irq_regs = evt_payload->irq_reg_val;
 	status_0 = cam_sfe_irq_regs[CAM_SFE_IRQ_BUS_WR_REG_STATUS0];
 
-	if (status_0 & BIT(rsrc_data->comp_done_shift)) {
+	if (status_0 & rsrc_data->comp_done_mask) {
 		evt_payload->evt_id = CAM_ISP_HW_EVENT_DONE;
 		rc = CAM_SFE_IRQ_STATUS_SUCCESS;
 	}
