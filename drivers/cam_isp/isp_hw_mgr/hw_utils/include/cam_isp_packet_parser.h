@@ -407,6 +407,8 @@ int cam_isp_add_csid_offline_cmd(
  *                         left or right CSID instance.
  *
  * @prepare:               Contain the packet and HW update variables
+ * @kmd_buf_info:          KMD buffer to store the custom cmd data
+ * @blob_handler_cb:       Blob handler callback
  * @base_info:             base hardware information
  *
  * @return:                0 for success
@@ -414,6 +416,8 @@ int cam_isp_add_csid_offline_cmd(
  */
 int cam_isp_add_csid_command_buffers(
 	struct cam_hw_prepare_update_args   *prepare,
+	struct cam_kmd_buf_info             *kmd_buf_info,
+	cam_packet_generic_blob_handler      blob_handler_cb,
 	struct cam_isp_ctx_base_info        *base_info);
 
 /*

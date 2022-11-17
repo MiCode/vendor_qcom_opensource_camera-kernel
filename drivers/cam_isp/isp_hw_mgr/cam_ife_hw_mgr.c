@@ -10936,6 +10936,16 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_EXP_ORDER_CFG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_FPS_CONFIG:
 		break;
+	case CAM_ISP_GENERIC_BLOB_TYPE_IRQ_COMP_CFG:
+		{
+			struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+
+			prepare_hw_data = (struct cam_isp_prepare_hw_update_data *)
+				prepare->priv;
+
+			prepare_hw_data->irq_comp_cfg_valid = true;
+		}
+		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_DYNAMIC_MODE_SWITCH: {
 		struct cam_isp_mode_switch_info    *mup_config;
 
@@ -11067,7 +11077,6 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 		prepare_hw_data->drv_config_valid = true;
 	}
 		break;
-
 	default:
 		CAM_WARN(CAM_ISP, "Invalid blob type %d, ctx_idx: %u",
 			blob_type, ife_mgr_ctx->ctx_index);
@@ -11128,6 +11137,126 @@ static int cam_ife_mgr_util_insert_frame_header(
 	/* Reserve memory for frame header */
 	kmd_buf->used_bytes += (padded_bytes + CAM_FRAME_HEADER_BUFFER_SIZE);
 	kmd_buf->offset += kmd_buf->used_bytes;
+
+	return rc;
+}
+
+static int cam_isp_blob_csid_irq_comp_cfg(
+	struct cam_ife_hw_mgr_ctx         *ctx,
+	struct cam_hw_prepare_update_args *prepare,
+	struct cam_isp_generic_blob_info  *blob_info,
+	struct cam_isp_irq_comp_cfg       *comp_cfg,
+	uint32_t                           blob_type)
+
+{
+	int rc = 0;
+	struct cam_isp_hw_mgr_res         *hw_mgr_res;
+
+	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
+		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)
+			continue;
+
+		if (!hw_mgr_res->hw_res[0])
+			continue;
+		break;
+	}
+
+	if (!hw_mgr_res) {
+		CAM_ERR(CAM_ISP, "Ctx:%d invalid res", ctx->ctx_index);
+		return -EINVAL;
+	}
+
+	rc = cam_isp_hw_mgr_add_cmd_buf_util(hw_mgr_res, prepare,
+		blob_info, (void *)comp_cfg,
+		CAM_ISP_HW_CMD_IRQ_COMP_CFG, blob_type);
+
+	CAM_DBG(CAM_ISP, "Ctx:%d IPP SRC mask 0x%x IPP DST mask 0x%x", ctx->ctx_index,
+		comp_cfg->ipp_src_ctxt_mask, comp_cfg->ipp_dst_comp_mask);
+
+	return rc;
+}
+
+static int cam_csid_packet_generic_blob_handler(void *user_data,
+	uint32_t blob_type, uint32_t blob_size, uint8_t *blob_data)
+{
+	int rc = 0;
+	struct cam_isp_generic_blob_info *blob_info = user_data;
+	struct cam_ife_hw_mgr_ctx *ife_mgr_ctx = NULL;
+	struct cam_hw_prepare_update_args *prepare = NULL;
+
+	if (!blob_data || (blob_size == 0) || !blob_info) {
+		CAM_ERR(CAM_ISP, "Invalid args data %pK size %d info %pK",
+			blob_data, blob_size, blob_info);
+		return -EINVAL;
+	}
+
+	prepare = blob_info->prepare;
+	if (!prepare || !prepare->ctxt_to_hw_map) {
+		CAM_ERR(CAM_ISP, "Failed. prepare is NULL, blob_type %d",
+			blob_type);
+		return -EINVAL;
+	}
+
+	ife_mgr_ctx = prepare->ctxt_to_hw_map;
+	CAM_DBG(CAM_ISP, "Context[%pK][%u] blob_type=%d, blob_size=%d",
+		ife_mgr_ctx, ife_mgr_ctx->ctx_index, blob_type, blob_size);
+
+	switch (blob_type) {
+	case CAM_ISP_GENERIC_BLOB_TYPE_HFR_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_CLOCK_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V2:
+	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V3:
+	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG_V2:
+	case CAM_ISP_GENERIC_BLOB_TYPE_CSID_CLOCK_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_CSID_QCFA_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_FE_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_IFE_CORE_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_VFE_OUT_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SENSOR_BLANKING_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_DISCARD_INITIAL_FRAMES:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_SCRATCH_BUF_CFG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_CLOCK_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_CORE_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_OUT_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_HFR_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_FE_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_EXP_ORDER_CFG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_FPS_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_DYNAMIC_MODE_SWITCH:
+	case CAM_ISP_GENERIC_BLOB_TYPE_BW_LIMITER_CFG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_INIT_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_RDI_LCR_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG:
+		break;
+	case CAM_ISP_GENERIC_BLOB_TYPE_IRQ_COMP_CFG: {
+		struct cam_isp_irq_comp_cfg *irq_comp_cfg;
+		struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+
+		if (blob_size < sizeof(struct cam_isp_irq_comp_cfg)) {
+			CAM_ERR(CAM_ISP,
+				"Invalid IPP IRQ comp cfg blob size, %u, expected %u",
+				blob_size, sizeof(struct cam_isp_irq_comp_cfg));
+			return -EINVAL;
+		}
+
+		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
+			prepare->priv;
+		irq_comp_cfg = (struct cam_isp_irq_comp_cfg *)blob_data;
+		rc = cam_isp_blob_csid_irq_comp_cfg(ife_mgr_ctx, prepare,
+			blob_info, irq_comp_cfg, blob_type);
+
+		CAM_DBG(CAM_ISP,
+			"IRQ comp cfg blob, ipp_src_ctxt_mask: 0x%x, ipp_dest_ctxt_mask: 0x%x",
+			irq_comp_cfg->ipp_src_ctxt_mask, irq_comp_cfg->ipp_dst_comp_mask);
+	}
+		break;
+	default:
+		CAM_WARN(CAM_ISP, "Invalid blob type %d, ctx_idx: %u",
+			blob_type, ife_mgr_ctx->ctx_index);
+		break;
+	}
 
 	return rc;
 }
@@ -12093,13 +12222,16 @@ static int cam_ife_hw_mgr_update_cmd_buffer(
 	struct list_head                     *res_list = NULL;
 	struct cam_isp_change_base_args       change_base_info = {0};
 	int                                   rc = 0;
+	struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+
+	prepare_hw_data = (struct cam_isp_prepare_hw_update_data *)prepare->priv;
 
 	if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_SFE) {
 		res_list = &ctx->res_list_sfe_src;
 	} else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_VFE) {
 		res_list = &ctx->res_list_ife_src;
 	} else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_CSID) {
-		if (!cmd_buf_count->csid_cnt)
+		if (!cmd_buf_count->csid_cnt && !prepare_hw_data->irq_comp_cfg_valid)
 			return rc;
 		res_list = &ctx->res_list_ife_csid;
 	} else {
@@ -12149,6 +12281,7 @@ static int cam_ife_hw_mgr_update_cmd_buffer(
 			max_ife_out_res));
 	else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_CSID)
 		rc = cam_isp_add_csid_command_buffers(prepare,
+			kmd_buf, cam_csid_packet_generic_blob_handler,
 			&ctx->base[base_idx]);
 
 	CAM_DBG(CAM_ISP,

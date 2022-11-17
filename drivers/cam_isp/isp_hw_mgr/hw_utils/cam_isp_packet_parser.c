@@ -1564,6 +1564,8 @@ int cam_isp_add_wait_trigger(
 
 int cam_isp_add_csid_command_buffers(
 	struct cam_hw_prepare_update_args   *prepare,
+	struct cam_kmd_buf_info             *kmd_buf_info,
+	cam_packet_generic_blob_handler     blob_handler_cb,
 	struct cam_isp_ctx_base_info        *base_info)
 {
 	int rc = 0;
@@ -1616,9 +1618,74 @@ int cam_isp_add_csid_command_buffers(
 		case CAM_ISP_PACKET_META_COMMON:
 		case CAM_ISP_PACKET_META_DMI_COMMON:
 		case CAM_ISP_PACKET_META_DUAL_CONFIG:
+			break;
 		case CAM_ISP_PACKET_META_GENERIC_BLOB_LEFT:
+			if (split_id == CAM_ISP_HW_SPLIT_LEFT) {
+				struct cam_isp_generic_blob_info   blob_info;
+
+				prepare->num_hw_update_entries = num_ent;
+				blob_info.prepare = prepare;
+				blob_info.base_info = base_info;
+				blob_info.kmd_buf_info = kmd_buf_info;
+
+				rc = cam_packet_util_process_generic_cmd_buffer(
+					&cmd_desc[i],
+					blob_handler_cb,
+					&blob_info);
+				if (rc) {
+					CAM_ERR(CAM_ISP,
+						"Failed in processing blobs %d",
+						rc);
+					return rc;
+				}
+				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
+				num_ent = prepare->num_hw_update_entries;
+			}
+			break;
 		case CAM_ISP_PACKET_META_GENERIC_BLOB_RIGHT:
-		case CAM_ISP_PACKET_META_GENERIC_BLOB_COMMON:
+			if (split_id == CAM_ISP_HW_SPLIT_RIGHT) {
+				struct cam_isp_generic_blob_info   blob_info;
+
+				prepare->num_hw_update_entries = num_ent;
+				blob_info.prepare = prepare;
+				blob_info.base_info = base_info;
+				blob_info.kmd_buf_info = kmd_buf_info;
+
+				rc = cam_packet_util_process_generic_cmd_buffer(
+					&cmd_desc[i],
+					blob_handler_cb,
+					&blob_info);
+				if (rc) {
+					CAM_ERR(CAM_ISP,
+						"Failed in processing blobs %d",
+						rc);
+					return rc;
+				}
+				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
+				num_ent = prepare->num_hw_update_entries;
+			}
+			break;
+		case CAM_ISP_PACKET_META_GENERIC_BLOB_COMMON: {
+			struct cam_isp_generic_blob_info   blob_info;
+
+			prepare->num_hw_update_entries = num_ent;
+			blob_info.prepare = prepare;
+			blob_info.base_info = base_info;
+			blob_info.kmd_buf_info = kmd_buf_info;
+
+			rc = cam_packet_util_process_generic_cmd_buffer(
+				&cmd_desc[i],
+				blob_handler_cb,
+				&blob_info);
+			if (rc) {
+				CAM_ERR(CAM_ISP,
+					"Failed in processing blobs %d", rc);
+				return rc;
+			}
+			hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
+			num_ent = prepare->num_hw_update_entries;
+		}
+			break;
 		case CAM_ISP_PACKET_META_REG_DUMP_ON_FLUSH:
 		case CAM_ISP_PACKET_META_REG_DUMP_ON_ERROR:
 		case CAM_ISP_PACKET_META_REG_DUMP_PER_REQUEST:
