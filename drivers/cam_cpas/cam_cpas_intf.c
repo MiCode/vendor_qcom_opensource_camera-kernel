@@ -391,9 +391,9 @@ int cam_cpas_get_hw_info(uint32_t *camera_family,
 	}
 
 	CAM_DBG(CAM_CPAS, "Family %d, version %d.%d cam_caps %d, domain_id: %s",
-		CAM_BOOL_TO_YESNO(soc_private->domain_id_info.domain_id_supported),
 		*camera_family, camera_version->major,
-		camera_version->minor, *cam_caps);
+		camera_version->minor, *cam_caps,
+		CAM_BOOL_TO_YESNO(soc_private->domain_id_info.domain_id_supported));
 
 	return 0;
 }
