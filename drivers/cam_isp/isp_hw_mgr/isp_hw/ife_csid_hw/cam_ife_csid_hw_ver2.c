@@ -261,12 +261,12 @@ static int cam_ife_csid_ver2_sof_irq_debug(
 	void *cmd_args)
 {
 	int      i = 0;
+	int      data_idx = 0;
 	bool     sof_irq_enable = false;
 	struct   cam_ife_csid_ver2_reg_info    *csid_reg;
 	struct   cam_ife_csid_ver2_path_cfg    *path_cfg;
 	struct   cam_isp_resource_node         *res;
 	uint32_t irq_mask = 0;
-	uint32_t data_idx;
 
 	if (*((uint32_t *)cmd_args) == 1)
 		sof_irq_enable = true;
@@ -280,7 +280,6 @@ static int cam_ife_csid_ver2_sof_irq_debug(
 		return 0;
 	}
 
-	data_idx = csid_hw->rx_cfg.phy_sel - 1;
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
 			csid_hw->core_info->csid_reg;
 
@@ -315,12 +314,16 @@ static int cam_ife_csid_ver2_sof_irq_debug(
 		csid_hw->hw_intf->hw_idx,
 		(sof_irq_enable) ? "enabled" : "disabled");
 
+	data_idx = (int)(csid_hw->rx_cfg.phy_sel - csid_reg->cmn_reg->phy_sel_base_idx);
 	if (sof_irq_enable) {
-		CAM_INFO(CAM_ISP, "Notify CSIPHY: %d",
-			csid_hw->rx_cfg.phy_sel - 1);
-
-		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
-			CAM_SUBDEV_MESSAGE_REG_DUMP, (void *)&data_idx);
+		if (data_idx < 0)
+			CAM_WARN(CAM_ISP, "Can't notify csiphy, incorrect phy selected=%d",
+				data_idx);
+		else {
+			CAM_INFO(CAM_ISP, "Notify CSIPHY: %d", data_idx);
+			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+				CAM_SUBDEV_MESSAGE_REG_DUMP, (void *)&data_idx);
+		}
 	}
 
 	return 0;
@@ -1179,7 +1182,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 	uint32_t                                    event_type = 0;
 	uint32_t                                    long_pkt_ftr_val;
 	uint32_t                                    total_crc;
-	uint32_t                                    data_idx;
+	int                                         data_idx = 0;
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params");
@@ -1189,7 +1192,6 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 	payload = evt_payload_priv;
 	csid_hw = handler_priv;
 	soc_info = &csid_hw->hw_info->soc_info;
-	data_idx = csid_hw->rx_cfg.phy_sel -1;
 
 	log_buf = csid_hw->log_buf;
 	log_buf[0] = '\0';
@@ -1336,12 +1338,17 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 		csid_hw->hw_intf->hw_idx,
 		payload->irq_reg_val);
 
+	data_idx = (int)(csid_hw->rx_cfg.phy_sel - csid_reg->cmn_reg->phy_sel_base_idx);
 	if ((!csid_hw->flags.reset_awaited) && csid_hw->flags.fatal_err_detected) {
 		if (!event_type)
 			event_type |= CAM_ISP_HW_ERROR_CSID_FATAL;
 
-		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
-			CAM_SUBDEV_MESSAGE_APPLY_CSIPHY_AUX, (void *)&data_idx);
+		if (data_idx < 0)
+			CAM_WARN(CAM_ISP, "Can't notify csiphy, incorrect phy selected=%d",
+				data_idx);
+		else
+			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+				CAM_SUBDEV_MESSAGE_APPLY_CSIPHY_AUX, (void *)&data_idx);
 
 		cam_ife_csid_ver2_handle_event_err(csid_hw,
 			rx_irq_status, event_type, false, NULL);
@@ -1758,9 +1765,9 @@ void cam_ife_csid_ver2_print_format_measure_info(
 		csid_reg->path_reg[res->res_id];
 	struct cam_hw_soc_info *soc_info = &csid_hw->hw_info->soc_info;
 	void __iomem *base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
-	uint32_t expected_frame = 0, actual_frame = 0, data_idx;
+	uint32_t expected_frame = 0, actual_frame = 0;
+	int data_idx = 0;
 
-	data_idx = csid_hw->rx_cfg.phy_sel - 1;
 	actual_frame = cam_io_r_mb(base + path_reg->format_measure0_addr);
 	expected_frame = cam_io_r_mb(base + path_reg->format_measure_cfg1_addr);
 
@@ -1780,8 +1787,14 @@ void cam_ife_csid_ver2_print_format_measure_info(
 		csid_reg->cmn_reg->format_measure_width_mask_val);
 
 	/* AUX settings update to phy for pix and line count errors */
-	cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
-		CAM_SUBDEV_MESSAGE_APPLY_CSIPHY_AUX, (void *)&data_idx);
+	data_idx = (int)(csid_hw->rx_cfg.phy_sel - csid_reg->cmn_reg->phy_sel_base_idx);
+	if (data_idx < 0)
+		CAM_WARN(CAM_ISP, "Can't notify csiphy, incorrect phy selected=%d",
+			data_idx);
+	else
+		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+			CAM_SUBDEV_MESSAGE_APPLY_CSIPHY_AUX, (void *)&data_idx);
+
 }
 
 static int cam_ife_csid_ver2_ipp_bottom_half(
@@ -4639,8 +4652,11 @@ static void cam_ife_csid_ver2_send_secure_info(
 	struct cam_ife_csid_ver2_hw    *csid_hw)
 {
 	struct cam_ife_csid_secure_info        secure_info;
+	struct cam_ife_csid_ver2_reg_info     *csid_reg;
+	int                                    phy_sel = 0;
 
-	secure_info.phy_sel = csid_hw->rx_cfg.phy_sel - 1;
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
 	secure_info.lane_cfg = csid_hw->rx_cfg.lane_cfg;
 	secure_info.cdm_hw_idx_mask = BIT(start_args->cdm_hw_idx);
 	secure_info.vc_mask = 0;
@@ -4650,14 +4666,23 @@ static void cam_ife_csid_ver2_send_secure_info(
 		secure_info.csid_hw_idx_mask |= BIT(csid_hw->dual_core_idx);
 
 	CAM_DBG(CAM_ISP,
-		"PHY secure info for CSID[%u], phy_sel: 0x%x, lane_cfg: 0x%x, ife: 0x%x, cdm: 0x%x, vc_mask: 0x%llx",
-		csid_hw->hw_intf->hw_idx, secure_info.phy_sel,
+		"PHY secure info for CSID[%u], lane_cfg: 0x%x, ife: 0x%x, cdm: 0x%x, vc_mask: 0x%llx",
+		csid_hw->hw_intf->hw_idx,
 		secure_info.lane_cfg, secure_info.csid_hw_idx_mask,
 		secure_info.cdm_hw_idx_mask, secure_info.vc_mask);
 
 	/* Issue one call to PHY for dual IFE cases */
-	cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
-		CAM_SUBDEV_MESSAGE_DOMAIN_ID_SECURE_PARAMS, (void *)&secure_info);
+	phy_sel = (int)(csid_hw->rx_cfg.phy_sel - csid_reg->cmn_reg->phy_sel_base_idx);
+	if (phy_sel < 0) {
+		CAM_WARN(CAM_ISP, "Can't notify csiphy, incorrect phy selected=%d",
+			phy_sel);
+	} else {
+		secure_info.phy_sel = (uint32_t)phy_sel;
+		CAM_DBG(CAM_ISP, "Notify CSIPHY: %d", phy_sel);
+		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+			CAM_SUBDEV_MESSAGE_DOMAIN_ID_SECURE_PARAMS, (void *)&secure_info);
+	}
+
 }
 
 int cam_ife_csid_ver2_start(void *hw_priv, void *args,

@@ -1363,6 +1363,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.format_measure_width_mask_val           = 0xFFFF,
 	.format_measure_width_shift_val          = 0x0,
 	.top_buf_done_irq_mask                   = 0x2000,
+	.phy_sel_base_idx                        = 1,
 	.decode_format_payload_only              = 0xF,
 	.timestamp_enabled_in_cfg0               = true,
 	.sfe_ipp_input_rdi_res                   = BIT(CAM_IFE_PIX_PATH_RES_RDI_0),

@@ -467,6 +467,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.top_reset_irq_mask                           = 0x1,
 	.top_buf_done_irq_mask                        = 0x2000,
 	.decode_format_payload_only                   = 0xF,
+	.phy_sel_base_idx                             = 1,
 	.timestamp_enabled_in_cfg0                    = true,
 	.camif_irq_support                            = true,
 };

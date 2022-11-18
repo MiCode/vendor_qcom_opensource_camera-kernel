@@ -492,6 +492,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t rup_supported;
 	uint32_t only_master_rup;
 	uint32_t sfe_ipp_input_rdi_res;
+	uint32_t phy_sel_base_idx;
 	bool     timestamp_enabled_in_cfg0;
 	bool     camif_irq_support;
 	uint32_t drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_MAX];

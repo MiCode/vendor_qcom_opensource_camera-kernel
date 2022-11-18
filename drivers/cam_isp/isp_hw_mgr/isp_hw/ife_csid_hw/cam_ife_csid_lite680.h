@@ -421,6 +421,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.global_reset                                 = 1,
 	.rup_supported                                = 1,
 	.only_master_rup                              = 1,
+	.phy_sel_base_idx                             = 1,
 	.camif_irq_support                            = true,
 };
 
