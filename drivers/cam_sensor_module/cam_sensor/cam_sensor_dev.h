@@ -111,6 +111,7 @@ struct cam_sensor_dev_res_info {
  * @aon_camera_id: AON Camera ID associated with this sensor
  * @last_applied_req: Last updated request id
  * @last_applied_req: Last applied request id
+ * @num_batched_frames: Number batched frames
  * @is_stopped_by_user: Indicate if sensor has been stopped by userland
  * @stream_off_after_eof: Indicates if sensor needs to stream off after eof
  * @is_res_info_updated: Indicate if resolution info is updated
@@ -147,6 +148,7 @@ struct cam_sensor_ctrl_t {
 	uint32_t                       aon_camera_id;
 	int64_t                        last_updated_req;
 	int64_t                        last_applied_req;
+	uint32_t                       num_batched_frames;
 	bool                           is_stopped_by_user;
 	bool                           stream_off_after_eof;
 	bool                           is_res_info_updated;
