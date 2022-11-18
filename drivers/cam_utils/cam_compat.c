@@ -18,7 +18,7 @@
 #include "cam_eeprom_dev.h"
 #include "cam_eeprom_core.h"
 
-#if IS_ENABLED(CONFIG_USE_RPMH_DRV_API)
+#if IS_ENABLED(CONFIG_SPECTRA_USE_RPMH_DRV_API)
 #define CAM_RSC_DRV_IDENTIFIER "cam_rsc"
 
 const struct device *cam_cpas_get_rsc_dev_for_drv(uint32_t index)
