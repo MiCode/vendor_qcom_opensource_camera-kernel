@@ -12,6 +12,10 @@
 #include <media/cam_defs.h>
 #include "cam_cpas_api.h"
 
+
+#define CAM_ICP_SUBDEV_NAME_LEN  32
+#define CAM_ICP_SUBDEV_NAME      "cam-icp"
+
 #define ICP_CLK_TURBO_HZ         600000000
 #define ICP_CLK_SVS_HZ           400000000
 
@@ -32,6 +36,12 @@
 
 #define CAM_ICP_DUMP_TAG_MAX_LEN 64
 #define CAM_ICP_DUMP_NUM_WORDS   5
+
+enum cam_icp_subdev_id {
+	CAM_ICP0_SUBDEV,
+	CAM_ICP1_SUBDEV,
+	CAM_ICP_SUBDEV_MAX
+};
 
 enum cam_icp_hw_event_type {
 	CAM_ICP_EVT_ID_BUF_DONE,

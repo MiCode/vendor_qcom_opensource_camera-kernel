@@ -708,8 +708,6 @@ int cam_node_init(struct cam_node *node, struct cam_hw_mgr_intf *hw_mgr_intf,
 		return -EINVAL;
 	}
 
-	memset(node, 0, sizeof(*node));
-
 	strlcpy(node->name, name, sizeof(node->name));
 
 	memcpy(&node->hw_mgr_intf, hw_mgr_intf, sizeof(node->hw_mgr_intf));
