@@ -13,7 +13,7 @@
 #include "cam_sync.h"
 #include "cam_debug_util.h"
 
-#define CAM_SYNX_MAX_OBJS 64
+#define CAM_SYNX_MAX_OBJS 256
 #define CAM_SYNX_OBJ_NAME_LEN 64
 
 /* Synx obj state */
