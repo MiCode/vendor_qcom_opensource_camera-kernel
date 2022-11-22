@@ -94,6 +94,7 @@ static int cam_isp_update_dual_config(
 	uint32_t                            split_id,
 	uint32_t                            base_idx,
 	struct cam_isp_hw_mgr_res          *res_list_isp_out,
+	uint8_t                            *out_map,
 	uint32_t                            out_base,
 	uint32_t                            out_max)
 {
@@ -102,7 +103,7 @@ static int cam_isp_update_dual_config(
 	struct cam_isp_hw_mgr_res                  *hw_mgr_res;
 	struct cam_isp_resource_node               *res;
 	struct cam_isp_hw_dual_isp_update_args      dual_isp_update_args;
-	uint32_t                                    outport_id;
+	uint32_t                                    port_id = 0;
 	uint32_t                                    ports_plane_idx;
 	size_t                                      len = 0, remain_len = 0;
 	uint32_t                                   *cpu_addr;
@@ -142,16 +143,23 @@ static int cam_isp_update_dual_config(
 			goto end;
 		}
 
-		hw_mgr_res = &res_list_isp_out[i];
-		if (!hw_mgr_res) {
-			CAM_ERR(CAM_ISP,
-				"Invalid isp out resource i %d num_out_res %d",
-				i, dual_config->num_ports);
-			rc = -EINVAL;
-			goto end;
-		}
-
 		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX; j++) {
+			ports_plane_idx = (j * (dual_config->num_ports *
+				CAM_PACKET_MAX_PLANES)) +
+				(i * CAM_PACKET_MAX_PLANES);
+
+			if (dual_config->stripes[ports_plane_idx].port_id == 0)
+				continue;
+			port_id = dual_config->stripes[ports_plane_idx].port_id;
+			hw_mgr_res = &res_list_isp_out[out_map[port_id & 0xFF]];
+			if (!hw_mgr_res) {
+				CAM_ERR(CAM_ISP,
+					"Invalid isp out resource i %d num_out_res %d",
+					i, dual_config->num_ports);
+				rc = -EINVAL;
+				goto end;
+			}
+
 			if (!hw_mgr_res->hw_res[j])
 				continue;
 
@@ -162,15 +170,6 @@ static int cam_isp_update_dual_config(
 
 			if (res->res_id < out_base ||
 				res->res_id >= out_max)
-				continue;
-
-			outport_id = res->res_id & 0xFF;
-
-			ports_plane_idx = (j * (dual_config->num_ports *
-				CAM_PACKET_MAX_PLANES)) +
-				(outport_id * CAM_PACKET_MAX_PLANES);
-
-			if (dual_config->stripes[ports_plane_idx].port_id == 0)
 				continue;
 
 			dual_isp_update_args.split_id = j;
@@ -239,6 +238,7 @@ int cam_isp_add_command_buffers(
 	struct cam_isp_ctx_base_info       *base_info,
 	cam_packet_generic_blob_handler     blob_handler_cb,
 	struct cam_isp_hw_mgr_res          *res_list_isp_out,
+	uint8_t                            *out_map,
 	uint32_t                            out_base,
 	uint32_t                            out_max)
 {
@@ -343,7 +343,7 @@ int cam_isp_add_command_buffers(
 		case CAM_ISP_PACKET_META_DUAL_CONFIG:
 			rc = cam_isp_update_dual_config(&cmd_desc[i],
 				split_id, base_idx, res_list_isp_out,
-				out_base, out_max);
+				out_map, out_base, out_max);
 			if (rc)
 				return rc;
 			break;
@@ -462,6 +462,7 @@ int cam_sfe_add_command_buffers(
 	struct cam_isp_ctx_base_info       *base_info,
 	cam_packet_generic_blob_handler     blob_handler_cb,
 	struct cam_isp_hw_mgr_res          *res_list_sfe_out,
+	uint8_t                            *out_map,
 	uint32_t                            out_base,
 	uint32_t                            out_max)
 {
@@ -560,7 +561,7 @@ int cam_sfe_add_command_buffers(
 		case CAM_ISP_SFE_PACKET_META_DUAL_CONFIG:
 			rc = cam_isp_update_dual_config(&cmd_desc[i],
 				split_id, base_info->idx,
-				res_list_sfe_out, out_base, out_max);
+				res_list_sfe_out, out_map, out_base, out_max);
 			if (rc)
 				return rc;
 			break;
@@ -752,7 +753,7 @@ static int cam_isp_io_buf_get_entries_util(
 				io_cfg->resource_type);
 		}
 
-		*hw_mgr_res = &buf_info->res_list_isp_out[res_id];
+		*hw_mgr_res = &buf_info->res_list_isp_out[buf_info->out_map[res_id]];
 		if ((*hw_mgr_res)->res_type == CAM_ISP_RESOURCE_UNINT) {
 			CAM_ERR(CAM_ISP, "io res id:%d not valid",
 				io_cfg->resource_type);

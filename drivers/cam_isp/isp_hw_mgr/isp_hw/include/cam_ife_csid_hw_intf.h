@@ -155,6 +155,7 @@ struct cam_isp_in_port_generic_info {
 	uint32_t                        lcr_count;
 	uint32_t                        ife_rd_count;
 	uint32_t                        lite_path_count;
+	uint32_t                        sfe_port_count;
 	uint32_t                        sfe_in_path_type;
 	uint32_t                        sfe_ife_enable;
 	uint32_t                        epoch_factor;

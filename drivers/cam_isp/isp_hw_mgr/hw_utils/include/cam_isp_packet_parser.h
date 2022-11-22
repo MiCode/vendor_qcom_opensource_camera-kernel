@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_PARSER_H_
@@ -125,6 +125,7 @@ struct cam_isp_cmd_buf_count {
  * @res_list_isp_out:      IFE/SFE out resource list
  * @res_list_ife_in_rd:    IFE/SFE in rd resource list
  * @base:                  Base info for IFE/SFE
+ * @out_map:               Outport map
  * @iommu_hdl:             Iommu handle to get the IO buf from memory manager
  * @sec_iommu_hdl:         Secure iommu handle to get the IO buf from
  *                         memory manager
@@ -143,6 +144,7 @@ struct cam_isp_io_buf_info {
 	struct cam_isp_hw_mgr_res               *res_list_isp_out;
 	struct list_head                        *res_list_in_rd;
 	struct cam_isp_ctx_base_info            *base;
+	uint8_t                                 *out_map;
 	int                                      iommu_hdl;
 	int                                      sec_iommu_hdl;
 	uint32_t                                 out_base;
@@ -211,6 +213,7 @@ int cam_isp_add_cmd_buf_update(
  * @base_info:             base hardware information
  * @blob_handler_cb:       Call_back_function for Meta handling
  * @res_list_isp_out:      SFE out resource list
+ * @out_map:               SFE /VFE out port map
  * @out_base:              Base value of ISP resource (SFE)
  * @out_max:               Max of supported ISP resources(SFE)
  *
@@ -223,6 +226,7 @@ int cam_sfe_add_command_buffers(
 	struct cam_isp_ctx_base_info       *base_info,
 	cam_packet_generic_blob_handler     blob_handler_cb,
 	struct cam_isp_hw_mgr_res          *res_list_sfe_out,
+	uint8_t                            *out_map,
 	uint32_t                            out_base,
 	uint32_t                            out_max);
 
@@ -237,6 +241,7 @@ int cam_sfe_add_command_buffers(
  * @base_info:             base hardware information
  * @blob_handler_cb:       Call_back_function for Meta handling
  * @res_list_isp_out:      IFE /VFE out resource list
+ * @out_map:               SFE /VFE out port map
  * @out_base:              Base value of ISP resource (IFE)
  * @out_max:               Max of supported ISP resources(IFE)
  *
@@ -249,6 +254,7 @@ int cam_isp_add_command_buffers(
 	struct cam_isp_ctx_base_info       *base_info,
 	cam_packet_generic_blob_handler     blob_handler_cb,
 	struct cam_isp_hw_mgr_res          *res_list_isp_out,
+	uint8_t                            *out_map,
 	uint32_t                            out_base,
 	uint32_t                            out_max);
 

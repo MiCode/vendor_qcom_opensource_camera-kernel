@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_HW_MGR_H_
@@ -277,6 +277,8 @@ struct cam_isp_comp_record_query {
  * @res_list_ife_in_rd      IFE/SFE input resource list for read path
  * @res_list_ife_out:       IFE output resoruces array
  * @res_list_sfe_out:       SFE output resources array
+ * @vfe_out_map:            Map for VFE out ports
+ * @sfe_out_map:            Map for SFE out ports
  * @num_acq_vfe_out:        Number of acquired VFE out resources
  * @num_acq_sfe_out:        Number of acquired SFE out resources
  * @free_res_list:          Free resources list for the branch node
@@ -339,6 +341,8 @@ struct cam_ife_hw_mgr_ctx {
 	struct cam_isp_hw_mgr_res                 *res_list_sfe_out;
 	struct list_head                           free_res_list;
 	struct cam_isp_hw_mgr_res                  res_pool[CAM_IFE_HW_RES_POOL_MAX];
+	uint8_t                                   *vfe_out_map;
+	uint8_t                                   *sfe_out_map;
 	uint32_t                                   num_acq_vfe_out;
 	uint32_t                                   num_acq_sfe_out;
 
