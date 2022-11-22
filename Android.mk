@@ -16,6 +16,9 @@ DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 # List of board platforms for which MMRM driver API should be enabled
 MMRM_BOARDS := taro parrot kalama pineapple
 
+# List of board platforms for which Synx V2 vendor driver API should be enabled
+SYNX_VENDOR_BOARDS := pineapple
+
 CAMERA_SRC_FILES := \
                     $(addprefix $(LOCAL_PATH)/, $(call all-named-files-under,*.h,drivers dt-bindings include))\
                     $(addprefix $(LOCAL_PATH)/, $(call all-named-files-under,*.mk,config))\

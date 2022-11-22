@@ -10,7 +10,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/debugfs.h>
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX) || IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX) || IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 #include <synx_api.h>
 #endif
 #include "cam_sync_util.h"
@@ -357,7 +357,7 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 	struct sync_table_row *row = NULL;
 	struct list_head parents_list;
 	int rc = 0;
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	struct cam_synx_obj_signal signal_synx_obj;
 #endif
 
@@ -397,7 +397,7 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 				row->dma_fence_info.dma_fence_fd, row->name, sync_obj);
 	}
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	/*
 	 * Signal associated synx obj
 	 */
@@ -974,7 +974,7 @@ end:
 	return rc;
 }
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 static int cam_sync_synx_obj_cb(int32_t sync_obj,
 	struct cam_synx_obj_signal_sync_obj *signal_sync_obj)
 {
@@ -1351,7 +1351,7 @@ static int cam_generic_fence_process_dma_fence_cmd(
 	return rc;
 }
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 static int cam_generic_fence_validate_signal_input_info_util(
 	int32_t fence_type,
 	struct cam_generic_fence_cmd_args *fence_cmd_args,
@@ -1829,7 +1829,7 @@ static int cam_generic_fence_handle_sync_create(
 	struct cam_generic_fence_config *fence_cfg = NULL;
 	bool synx_obj_created;
 	struct sync_synx_obj_info synx_obj_create;
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	int32_t fence_flag;
 	int32_t synx_obj_row_idx;
 	struct cam_synx_obj_release_params synx_release_params;
@@ -1871,7 +1871,7 @@ static int cam_generic_fence_handle_sync_create(
 			dma_fence_created = true;
 		}
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 		/* Create a synx object */
 		if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &fence_sel_mask)) {
 			if (dma_fence_created) {
@@ -1932,7 +1932,7 @@ static int cam_generic_fence_handle_sync_create(
 
 				cam_dma_fence_release(&release_params);
 			}
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 			/* Release synx obj */
 			if (synx_obj_created) {
 				synx_release_params.use_row_idx = true;
@@ -1964,7 +1964,7 @@ static int cam_generic_fence_handle_sync_create(
 
 					cam_dma_fence_release(&release_params);
 				}
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 				/* Release synx obj */
 				if (synx_obj_created) {
 					synx_release_params.use_row_idx = true;
@@ -1976,7 +1976,7 @@ static int cam_generic_fence_handle_sync_create(
 				goto out_copy;
 			}
 		}
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 		/* Register synx object callback */
 		if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &fence_sel_mask)) {
 			rc = cam_synx_obj_register_cb(&fence_cfg->sync_obj,
@@ -2040,7 +2040,7 @@ static int cam_generic_fence_handle_sync_release(
 	struct cam_generic_fence_input_info *fence_input_info = NULL;
 	struct cam_generic_fence_config *fence_cfg = NULL;
 	struct cam_sync_check_for_synx_release check_for_synx_release;
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	struct cam_synx_obj_release_params synx_release_params;
 #endif
 
@@ -2098,7 +2098,7 @@ static int cam_generic_fence_handle_sync_release(
 			}
 		}
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 		/* Release associated synx obj */
 		if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &fence_sel_mask)) {
 			if (!check_for_synx_release.sync_created_with_synx) {
@@ -2207,7 +2207,7 @@ static int cam_generic_fence_parser(
 	case CAM_GENERIC_FENCE_TYPE_DMA_FENCE:
 		rc = cam_generic_fence_process_dma_fence_cmd(k_ioctl->id, &fence_cmd_args);
 		break;
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	case CAM_GENERIC_FENCE_TYPE_SYNX_OBJ:
 		rc = cam_generic_fence_process_synx_obj_cmd(k_ioctl->id, &fence_cmd_args);
 		break;
@@ -2387,7 +2387,7 @@ static int cam_sync_close(struct file *filep)
 
 	/* Clean dma fence table */
 	cam_dma_fence_close();
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	/* Clean synx obj table */
 	cam_synx_obj_close();
 #endif
@@ -2709,7 +2709,7 @@ static int cam_sync_component_bind(struct device *dev,
 
 	trigger_cb_without_switch = false;
 	cam_sync_create_debugfs();
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	/* Initialize synx obj driver */
 	rc = cam_synx_obj_driver_init();
 	if (rc) {
@@ -2727,7 +2727,7 @@ static int cam_sync_component_bind(struct device *dev,
 	CAM_DBG(CAM_SYNC, "Component bound successfully");
 	return rc;
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX) || IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX) || IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 dma_driver_deinit:
 	cam_dma_fence_driver_deinit();
 #endif
@@ -2753,7 +2753,7 @@ static void cam_sync_component_unbind(struct device *dev,
 
 	v4l2_device_unregister(sync_dev->vdev->v4l2_dev);
 	cam_sync_media_controller_cleanup(sync_dev);
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	cam_synx_obj_driver_deinit();
 #elif IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
 	cam_sync_unregister_synx_bind_ops(&sync_dev->params);

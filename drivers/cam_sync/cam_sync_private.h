@@ -20,11 +20,11 @@
 #include "cam_sync_api.h"
 #include "cam_sync_dma_fence.h"
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 #include "cam_sync_synx.h"
 #endif
 
-#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX) || IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX_V2)
+#if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX) || IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 #include <synx_api.h>
 #endif
 

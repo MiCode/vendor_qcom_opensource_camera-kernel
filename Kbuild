@@ -54,7 +54,7 @@ ifeq ($(CONFIG_ARCH_PARROT), y)
 include $(CAMERA_KERNEL_ROOT)/config/parrot.mk
 endif
 
-ifdef ($(KBUILD_EXTRA_CONFIGS))
+ifneq ($(KBUILD_EXTRA_CONFIGS),)
 include $(KBUILD_EXTRA_CONFIGS)
 endif
 
@@ -71,8 +71,11 @@ LINUXINCLUDE +=                                 \
 	-I$(CAMERA_KERNEL_ROOT)/include/uapi/camera \
 	-I$(CAMERA_KERNEL_ROOT)/
 # Optional include directories
+SYNXVENDORDIR=$(CAMERA_KERNEL_ROOT)/../synx-kernel
 ccflags-$(CONFIG_MSM_GLOBAL_SYNX) += -I$(KERNEL_ROOT)/drivers/media/platform/msm/synx
-ccflags-$(CONFIG_MSM_GLOBAL_SYNX_V2) += -I$(KERNEL_ROOT)/drivers/media/platform/msm/synx
+ccflags-$(TARGET_SYNX_ENABLE) += -I$(SYNXVENDORDIR)/include/uapi/synx/media
+ccflags-$(TARGET_SYNX_ENABLE) += -I$(SYNXVENDORDIR)/msm/synx
+ccflags-$(TARGET_SYNX_ENABLE) += -DCONFIG_TARGET_SYNX_ENABLE=1
 
 # After creating lists, add content of 'ccflags-m' variable to 'ccflags-y' one.
 ccflags-y += ${ccflags-m}
@@ -121,7 +124,7 @@ else
 	ccflags-y += -DCONFIG_CAM_PRESIL=1
 endif
 
-camera-$(CONFIG_MSM_GLOBAL_SYNX_V2) += drivers/cam_sync/cam_sync_synx.o
+camera-$(TARGET_SYNX_ENABLE) += drivers/cam_sync/cam_sync_synx.o
 camera-$(CONFIG_QCOM_CX_IPEAK) += drivers/cam_utils/cam_cx_ipeak.o
 camera-$(CONFIG_QCOM_BUS_SCALING) += drivers/cam_utils/cam_soc_bus.o
 camera-$(CONFIG_INTERCONNECT_QCOM) += drivers/cam_utils/cam_soc_icc.o
