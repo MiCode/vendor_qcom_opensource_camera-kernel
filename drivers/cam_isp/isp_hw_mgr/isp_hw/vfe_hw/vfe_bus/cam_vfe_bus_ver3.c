@@ -2769,7 +2769,8 @@ static int cam_vfe_bus_ver3_err_irq_top_half(uint32_t evt_id,
 static void cam_vfe_print_violations(
 	char *error_type,
 	uint32_t status,
-	struct cam_vfe_bus_ver3_priv *bus_priv)
+	struct cam_vfe_bus_ver3_priv *bus_priv,
+	uint64_t *out_port)
 {
 	int i, j;
 	struct cam_isp_resource_node       *rsrc_node = NULL;
@@ -2802,6 +2803,7 @@ static void cam_vfe_print_violations(
 					bus_priv->common_data.core_index, error_type);
 				cam_vfe_bus_ver3_print_wm_info(wm_data,
 					common_data, wm_name);
+				*out_port |= BIT_ULL(rsrc_node->res_id & 0xFF);
 			}
 		}
 	}
@@ -2816,6 +2818,7 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 	struct cam_isp_hw_event_info evt_info;
 	struct cam_isp_hw_error_event_info err_evt_info;
 	uint32_t status = 0, image_size_violation = 0, ccif_violation = 0, constraint_violation = 0;
+	uint64_t out_port_id = 0;
 
 	if (!handler_priv || !evt_payload_priv)
 		return -EINVAL;
@@ -2845,13 +2848,13 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 			cam_vfe_bus_ver3_get_constraint_errors(bus_priv);
 		else {
 			cam_vfe_print_violations("Image Size", status,
-				bus_priv);
+				bus_priv, &out_port_id);
 		}
 	}
 
 	if (ccif_violation) {
 		status = evt_payload->ccif_violation_status;
-		cam_vfe_print_violations("CCIF", status, bus_priv);
+		cam_vfe_print_violations("CCIF", status, bus_priv, &out_port_id);
 	}
 
 	cam_vfe_bus_ver3_put_evt_payload(common_data, &evt_payload);
@@ -2862,6 +2865,7 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 	evt_info.hw_type = CAM_ISP_HW_TYPE_VFE;
 	err_evt_info.err_type = CAM_VFE_IRQ_STATUS_VIOLATION;
 	evt_info.event_data = (void *)&err_evt_info;
+	evt_info.out_port_id = out_port_id;
 
 	if (common_data->event_cb)
 		common_data->event_cb(common_data->priv, CAM_ISP_HW_EVENT_ERROR,

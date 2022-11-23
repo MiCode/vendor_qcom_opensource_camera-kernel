@@ -6179,6 +6179,58 @@ static int cam_ife_csid_ver2_dual_sync_cfg(
 	return 0;
 }
 
+static int cam_ife_csid_ver2_dump_crop_reg(
+	struct cam_hw_info  *hw_info, uint32_t *path_id)
+{
+	struct cam_ife_csid_ver2_hw                    *csid_hw;
+	const struct cam_ife_csid_ver2_reg_info        *csid_reg;
+	struct cam_hw_soc_info                         *soc_info;
+	const struct cam_ife_csid_ver2_path_reg_info   *path_reg;
+	struct cam_isp_resource_node                   *path_res;
+	struct cam_ife_csid_ver2_path_cfg              *path_cfg;
+	uint32_t hcrop = 0, vcrop = 0, cfg0 = 0, cfg1 = 0;
+	int rc = 0;
+	void __iomem *mem_base;
+
+	csid_hw = (struct cam_ife_csid_ver2_hw *)hw_info->core_info;
+
+	spin_lock(&csid_hw->lock_state);
+	if (csid_hw->hw_info->hw_state != CAM_HW_STATE_POWER_UP ||
+		*path_id >= CAM_IFE_PIX_PATH_RES_MAX || *path_id < 0) {
+		CAM_ERR(CAM_ISP, "CSID[%u] Invalid dev state :%d or path_id :%u",
+			csid_hw->hw_intf->hw_idx,
+			csid_hw->hw_info->hw_state);
+		spin_unlock(&csid_hw->lock_state);
+		return -EINVAL;
+	}
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)csid_hw->core_info->csid_reg;
+	soc_info = &csid_hw->hw_info->soc_info;
+	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
+
+	CAM_INFO(CAM_ISP, "CSID[%u] Clock Name=%s Clock Rate=%u",
+		csid_hw->hw_intf->hw_idx, soc_info->clk_name[soc_info->src_clk_idx],
+		cam_soc_util_get_applied_src_clk(soc_info, true));
+
+	path_res = &csid_hw->path_res[*path_id];
+	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)path_res->res_priv;
+	if (path_res->res_state == CAM_ISP_RESOURCE_STATE_STREAMING && path_cfg) {
+		path_reg = csid_reg->path_reg[*path_id];
+		hcrop = cam_io_r_mb(mem_base + path_reg->hcrop_addr);
+		vcrop = cam_io_r_mb(mem_base + path_reg->vcrop_addr);
+		cfg0 = cam_io_r_mb(mem_base + path_reg->cfg0_addr);
+		cfg1 = cam_io_r_mb(mem_base + path_reg->cfg1_addr);
+		CAM_INFO(CAM_ISP, "CSID[%u] %s HCROP=0x%x VCROP=0x%x, CFG0=0x%x CFG1=0x%x",
+			csid_hw->hw_intf->hw_idx, path_res->res_name, hcrop, vcrop, cfg0, cfg1);
+		CAM_INFO(CAM_ISP, "CSID[%u] %s width=%d height=%d start line:%d end line:%d",
+			csid_hw->hw_intf->hw_idx, path_res->res_name, path_cfg->width,
+			path_cfg->height, path_cfg->start_line, path_cfg->end_line);
+	}
+
+	spin_unlock(&csid_hw->lock_state);
+	return rc;
+}
+
 static int cam_ife_csid_ver2_set_discard_frame_cfg(
 	struct cam_ife_csid_ver2_hw    *csid_hw,
 	void                           *cmd_args)
@@ -6527,6 +6579,9 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 		break;
 	case CAM_IFE_CSID_RESET_OUT_OF_SYNC_CNT:
 		rc = cam_ife_csid_ver2_reset_out_of_sync_cnt(csid_hw, cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_CSID_DUMP_CROP_REG:
+		rc = cam_ife_csid_ver2_dump_crop_reg(hw_info, (uint32_t *)cmd_args);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%u unsupported cmd:%d",

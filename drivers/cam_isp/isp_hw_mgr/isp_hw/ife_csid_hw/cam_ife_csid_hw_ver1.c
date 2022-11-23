@@ -3788,6 +3788,9 @@ static int cam_ife_csid_ver1_process_cmd(void *hw_priv,
 		/* Not supported for V1 */
 		rc = 0;
 		break;
+	case CAM_ISP_HW_CMD_CSID_DUMP_CROP_REG:
+		/* Not supported in V1*/
+		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",
 			csid_hw->hw_intf->hw_idx, cmd_type);

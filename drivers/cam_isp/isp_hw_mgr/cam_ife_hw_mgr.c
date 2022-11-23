@@ -4215,6 +4215,26 @@ static int cam_ife_mgr_check_and_update_fe(
 	return 0;
 }
 
+static int cam_ife_hw_mgr_convert_out_port_to_csid_path(uint64_t port_id)
+{
+	uint32_t path_id = CAM_IFE_PIX_PATH_RES_MAX;
+
+	if (port_id == max_ife_out_res)
+		goto end;
+
+	path_id = cam_ife_hw_mgr_get_ife_csid_rdi_res_type(port_id);
+	if (path_id >= CAM_IFE_PIX_PATH_RES_RDI_0 && path_id <= CAM_IFE_PIX_PATH_RES_RDI_4)
+		return path_id;
+	else if (cam_ife_hw_mgr_check_path_port_compat(CAM_ISP_HW_VFE_IN_PDLIB,
+		port_id))
+		path_id =  CAM_IFE_PIX_PATH_RES_PPP;
+	else
+		path_id = CAM_IFE_PIX_PATH_RES_IPP;
+
+end:
+		return path_id;
+}
+
 static int cam_ife_hw_mgr_preprocess_port(
 	struct cam_ife_hw_mgr_ctx   *ife_ctx,
 	struct cam_isp_in_port_generic_info *in_port)
@@ -13421,6 +13441,36 @@ end:
 	return rc;
 }
 
+static void cam_ife_hw_mgr_trigger_crop_reg_dump(
+	struct cam_hw_intf                      *hw_intf,
+	struct cam_isp_hw_event_info            *event_info)
+{
+	int rc = 0, path_id = 0, idx = -1;
+
+	while (event_info->out_port_id) {
+		idx++;
+		if (!(event_info->out_port_id & 0x1)) {
+			event_info->out_port_id >>= 1;
+			continue;
+		}
+
+		path_id = cam_ife_hw_mgr_convert_out_port_to_csid_path(
+				CAM_ISP_IFE_OUT_RES_BASE + idx);
+		if (hw_intf->hw_ops.process_cmd) {
+			rc = hw_intf->hw_ops.process_cmd(
+				hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_CSID_DUMP_CROP_REG,
+				&path_id,
+				sizeof(path_id));
+			if (rc)
+				CAM_ERR(CAM_ISP, "CSID:%d Reg Dump failed for path=%u",
+					event_info->hw_idx, path_id);
+		}
+
+		event_info->out_port_id >>= 1;
+	}
+}
+
 static int cam_ife_hw_mgr_do_error_recovery(
 	struct cam_ife_hw_event_recovery_data  *ife_mgr_recovery_data)
 {
@@ -14059,6 +14109,7 @@ static int cam_ife_hw_mgr_handle_hw_err(
 	struct cam_isp_hw_error_event_info      *err_evt_info;
 	struct cam_isp_hw_error_event_data       error_event_data = {0};
 	struct cam_ife_hw_event_recovery_data    recovery_data = {0};
+	struct cam_hw_intf                      *hw_intf;
 	int                                      rc = -EINVAL;
 
 	if (!event_info->event_data) {
@@ -14072,6 +14123,11 @@ static int cam_ife_hw_mgr_handle_hw_err(
 	err_type =  err_evt_info->err_type;
 
 	spin_lock(&g_ife_hw_mgr.ctx_lock);
+	if (event_info->res_type == CAM_ISP_RESOURCE_VFE_OUT) {
+		hw_intf = g_ife_hw_mgr.csid_devices[event_info->hw_idx];
+		cam_ife_hw_mgr_trigger_crop_reg_dump(hw_intf, event_info);
+	}
+
 	if (event_info->res_type ==
 		CAM_ISP_RESOURCE_VFE_IN &&
 		!ife_hw_mgr_ctx->flags.is_rdi_only_context &&

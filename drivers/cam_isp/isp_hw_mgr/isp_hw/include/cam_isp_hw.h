@@ -230,6 +230,7 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_USER_DUMP,
 	CAM_ISP_HW_CMD_RDI_LCR_CFG,
 	CAM_ISP_HW_CMD_DRV_CONFIG,
+	CAM_ISP_HW_CMD_CSID_DUMP_CROP_REG,
 	CAM_ISP_HW_CMD_MAX,
 };
 
@@ -334,6 +335,7 @@ struct cam_isp_hw_bufdone_event_info {
  *
  * @Brief:             Structure to pass event details to hw mgr
  *
+ * @out_port_id        Out port id on which event occurred
  * @res_type:          Type of IFE resource
  * @is_secondary_evt:  Indicates if event was requested by hw mgr
  * @res_id:            Unique resource ID
@@ -345,6 +347,7 @@ struct cam_isp_hw_bufdone_event_info {
  *
  */
 struct cam_isp_hw_event_info {
+	uint64_t                       out_port_id;
 	enum cam_isp_resource_type     res_type;
 	bool                           is_secondary_evt;
 	uint32_t                       res_id;
