@@ -3910,8 +3910,6 @@ int cam_vfe_bus_ver2_init(
 	return rc;
 
 deinit_vfe_out:
-	if (i < 0)
-		i = CAM_VFE_BUS_VER2_VFE_OUT_MAX;
 	for (--i; i >= 0; i--)
 		cam_vfe_bus_deinit_vfe_out_resource(&bus_priv->vfe_out[i]);
 
