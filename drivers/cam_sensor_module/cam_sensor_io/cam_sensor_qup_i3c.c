@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_i3c.h"
@@ -44,6 +44,14 @@ static int cam_qup_i3c_rxdata(struct i3c_device *dev_client, unsigned char *rxda
 	return rc;
 }
 
+static inline void cam_qup_i3c_txdata_fill(struct camera_io_master *dev_client,
+	unsigned char *txdata, int length,
+	struct i3c_priv_xfer *msgs, int curr_mindx)
+{
+	msgs[curr_mindx].rnw = 0;
+	msgs[curr_mindx].len = length;
+	msgs[curr_mindx].data.out = txdata;
+}
 
 static int cam_qup_i3c_txdata(struct camera_io_master *dev_client, unsigned char *txdata,
 	int length)
@@ -331,21 +339,129 @@ deallocate_buffer:
 	return rc;
 }
 
+static int32_t cam_qup_i3c_write_optimized(struct camera_io_master *client,
+	struct cam_sensor_i2c_reg_array *reg_setting,
+	enum camera_sensor_i2c_type addr_type,
+	enum camera_sensor_i2c_type data_type, struct i3c_priv_xfer *msgs,
+	int curr_mindx, unsigned char *buf, uint32_t *offset)
+{
+	int32_t rc = 0;
+	uint8_t len = 0;
+
+	CAM_DBG(CAM_SENSOR, "reg addr = 0x%x data type: %d",
+			reg_setting->reg_addr, data_type);
+	if (addr_type == CAMERA_SENSOR_I2C_TYPE_BYTE) {
+		buf[*offset] = reg_setting->reg_addr;
+		CAM_DBG(CAM_SENSOR, "byte %d: 0x%x", len, buf[*offset]);
+		*offset += 1;
+		len = 1;
+	} else if (addr_type == CAMERA_SENSOR_I2C_TYPE_WORD) {
+		buf[*offset] = reg_setting->reg_addr >> 8;
+		buf[*offset + 1] = reg_setting->reg_addr;
+		CAM_DBG(CAM_SENSOR, "byte %d: 0x%x", len, buf[*offset]);
+		CAM_DBG(CAM_SENSOR, "byte %d: 0x%x", len+1, buf[*offset+1]);
+		*offset += 2;
+		len = 2;
+	} else if (addr_type == CAMERA_SENSOR_I2C_TYPE_3B) {
+		buf[*offset] = reg_setting->reg_addr >> 16;
+		buf[*offset+1] = reg_setting->reg_addr >> 8;
+		buf[*offset+2] = reg_setting->reg_addr;
+		*offset += 3;
+		len = 3;
+	} else if (addr_type == CAMERA_SENSOR_I2C_TYPE_DWORD) {
+		buf[*offset] = reg_setting->reg_addr >> 24;
+		buf[*offset+1] = reg_setting->reg_addr >> 16;
+		buf[*offset+2] = reg_setting->reg_addr >> 8;
+		buf[*offset+3] = reg_setting->reg_addr;
+		*offset += 4;
+		len = 4;
+	} else {
+		CAM_ERR(CAM_SENSOR, "Invalid I2C addr type");
+		rc = -EINVAL;
+
+	}
+
+	CAM_DBG(CAM_SENSOR, "Data: 0x%x", reg_setting->reg_data);
+	if (data_type == CAMERA_SENSOR_I2C_TYPE_BYTE) {
+		buf[*offset] = reg_setting->reg_data;
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len, buf[*offset]);
+		*offset += 1;
+		len += 1;
+	} else if (data_type == CAMERA_SENSOR_I2C_TYPE_WORD) {
+		buf[*offset] = reg_setting->reg_data >> 8;
+		buf[*offset+1] = reg_setting->reg_data;
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len, buf[*offset]);
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+1, buf[*offset+1]);
+		*offset += 2;
+		len += 2;
+	} else if (data_type == CAMERA_SENSOR_I2C_TYPE_3B) {
+		buf[*offset] = reg_setting->reg_data >> 16;
+		buf[*offset + 1] = reg_setting->reg_data >> 8;
+		buf[*offset + 2] = reg_setting->reg_data;
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len, buf[*offset]);
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+1, buf[*offset+1]);
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+2, buf[*offset+2]);
+		*offset += 3;
+		len += 3;
+	} else if (data_type == CAMERA_SENSOR_I2C_TYPE_DWORD) {
+		buf[*offset] = reg_setting->reg_data >> 24;
+		buf[*offset + 1] = reg_setting->reg_data >> 16;
+		buf[*offset + 2] = reg_setting->reg_data >> 8;
+		buf[*offset + 3] = reg_setting->reg_data;
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len, buf[*offset]);
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+1, buf[*offset+1]);
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+2, buf[*offset+2]);
+		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+3, buf[*offset+3]);
+		*offset += 4;
+		len += 4;
+	} else {
+		CAM_ERR(CAM_SENSOR, "Invalid Data Type");
+		rc = -EINVAL;
+	}
+
+	if (!rc)
+		cam_qup_i3c_txdata_fill(client, &buf[*offset - len], len, msgs, curr_mindx);
+
+	if (rc < 0)
+		CAM_ERR(CAM_SENSOR, "failed rc: %d", rc);
+
+	return rc;
+}
+
 int cam_qup_i3c_write_table(struct camera_io_master *client,
 	struct cam_sensor_i2c_reg_setting *write_setting)
 {
 	int i;
 	int rc = -EINVAL;
 	struct cam_sensor_i2c_reg_array *reg_setting;
+	uint32_t offset = 0;
+	uint32_t us = 0;
+	struct i3c_priv_xfer *msgs = NULL;
+	unsigned char *buf = NULL;
 
 	if (!client || !write_setting)
 		return -EINVAL;
 
+	msgs = kcalloc(write_setting->size, sizeof(struct i3c_priv_xfer), GFP_KERNEL);
+	if (!msgs) {
+		CAM_ERR(CAM_SENSOR, "Message Buffer memory allocation failed");
+		return -ENOMEM;
+	}
+
+	buf = kzalloc(write_setting->size*I3C_REG_MAX_BUF_SIZE, GFP_KERNEL|GFP_DMA);
+	if (!buf) {
+		CAM_ERR(CAM_SENSOR, "Buffer memory allocation failed");
+		kfree(msgs);
+		return -ENOMEM;
+	}
+
 	if ((write_setting->addr_type <= CAMERA_SENSOR_I2C_TYPE_INVALID
 		|| write_setting->addr_type >= CAMERA_SENSOR_I2C_TYPE_MAX
 		|| (write_setting->data_type <= CAMERA_SENSOR_I2C_TYPE_INVALID
-		|| write_setting->data_type >= CAMERA_SENSOR_I2C_TYPE_MAX)))
-		return -EINVAL;
+		|| write_setting->data_type >= CAMERA_SENSOR_I2C_TYPE_MAX))) {
+		rc = -EINVAL;
+		goto deallocate_buffer;
+	}
 
 	reg_setting = write_setting->reg_setting;
 
@@ -353,18 +469,39 @@ int cam_qup_i3c_write_table(struct camera_io_master *client,
 		CAM_DBG(CAM_SENSOR, "addr 0x%x data 0x%x",
 			reg_setting->reg_addr, reg_setting->reg_data);
 
-		rc = cam_qup_i3c_write(client, reg_setting,
-			write_setting->addr_type, write_setting->data_type);
+		rc = cam_qup_i3c_write_optimized(client, reg_setting,
+			write_setting->addr_type, write_setting->data_type, msgs, i, buf, &offset);
 		if (rc < 0)
-			break;
+			goto deallocate_buffer;
+
 		reg_setting++;
 	}
+
+	rc = i3c_device_do_priv_xfers(client->i3c_client, msgs, write_setting->size);
+	if (rc == -ENOTCONN) {
+		while (us < CAM_I3C_DEV_PROBE_TIMEOUT_US) {
+			usleep_range(1000, 1005);
+			rc = i3c_device_do_priv_xfers(client->i3c_client,
+				msgs, write_setting->size);
+			if (rc != -ENOTCONN)
+				break;
+			us += 1000;
+		}
+
+		if (rc)
+			CAM_ERR(CAM_SENSOR, "Retry Failed i3c_write: rc = %d, us = %d", rc, us);
+	} else if (rc)
+		CAM_ERR(CAM_SENSOR, "Failed with i3c_write: rc = %d", rc);
 
 	if (write_setting->delay > 20)
 		msleep(write_setting->delay);
 	else if (write_setting->delay)
 		usleep_range(write_setting->delay * 1000, (write_setting->delay
 			* 1000) + 1000);
+
+deallocate_buffer:
+	kfree(buf);
+	kfree(msgs);
 
 	return rc;
 }
