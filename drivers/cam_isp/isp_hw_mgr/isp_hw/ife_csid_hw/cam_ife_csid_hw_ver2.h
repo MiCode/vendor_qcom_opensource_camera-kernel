@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_HW_VER2_H_
@@ -113,6 +113,7 @@ struct cam_ife_csid_ver2_top_cfg {
 	bool          dual_en;
 	bool          offline_sfe_en;
 	bool          out_ife_en;
+	bool          sfe_fs;
 };
 
 struct cam_ife_csid_ver2_evt_payload {
@@ -239,6 +240,7 @@ struct cam_ife_csid_ver2_top_reg_info {
 	uint32_t slave_sel_val;
 	uint32_t io_path_cfg_rst_val;
 	uint32_t dual_cfg_rst_val;
+	bool     sfe_pipeline_bypassed;
 };
 
 struct cam_ife_csid_ver2_path_reg_info {

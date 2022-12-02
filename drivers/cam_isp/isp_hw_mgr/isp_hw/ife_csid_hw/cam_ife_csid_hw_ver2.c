@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -4200,8 +4200,11 @@ static int cam_ife_csid_ver2_program_top(
 	}
 
 	val = (uint32_t)input_core_sel << top_reg->input_core_type_shift_val;
-	val |= csid_hw->top_cfg.offline_sfe_en <<
-			top_reg->sfe_offline_en_shift_val;
+
+	if ((csid_hw->top_cfg.offline_sfe_en) ||
+		(top_reg->sfe_pipeline_bypassed && csid_hw->top_cfg.sfe_fs))
+		val |= BIT(top_reg->sfe_offline_en_shift_val);
+
 	val |= csid_hw->top_cfg.out_ife_en <<
 			top_reg->out_ife_en_shift_val;
 
@@ -5174,11 +5177,13 @@ static int cam_ife_csid_ver2_top_cfg(
 	}
 
 	csid_hw->top_cfg.offline_sfe_en = top_args->is_sfe_offline;
+	csid_hw->top_cfg.sfe_fs = top_args->is_sfe_fs;
 	CAM_DBG(CAM_ISP,
-		"CSID[%d] input_core_type:%d ife_out:%d sfe_offline:%d",
+		"CSID[%d] input_core_type:%d ife_out:%d sfe_offline:%d sfe_fs:%d",
 		hw_idx, csid_hw->top_cfg.input_core_type,
 		csid_hw->top_cfg.out_ife_en,
-		csid_hw->top_cfg.offline_sfe_en);
+		csid_hw->top_cfg.offline_sfe_en,
+		csid_hw->top_cfg.sfe_fs);
 	CAM_DBG(CAM_ISP,
 		"CSID[%d] Top config received: input_core_type%d core_idx:%d",
 		hw_idx, top_args->input_core_type, top_args->core_idx);

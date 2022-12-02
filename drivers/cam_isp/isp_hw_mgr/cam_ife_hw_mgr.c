@@ -7265,9 +7265,11 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 						CAM_IFE_CSID_INPUT_CORE_IFE;
 				}
 
-				if ((ctx->flags.is_offline) ||
-					(ctx->flags.is_sfe_fs))
+				if (ctx->flags.is_offline)
 					csid_top_args.is_sfe_offline = true;
+
+				if (ctx->flags.is_sfe_fs)
+					csid_top_args.is_sfe_fs = true;
 
 				hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
 				rc = hw_intf->hw_ops.process_cmd(
