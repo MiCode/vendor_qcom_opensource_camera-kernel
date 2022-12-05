@@ -5300,8 +5300,8 @@ end:
 	return 0;
 }
 
-static unsigned long cam_req_mgr_core_mini_dump_cb(void *dst,
-	unsigned long len)
+static unsigned long cam_req_mgr_core_mini_dump_cb(void *dst, unsigned long len,
+	void *priv_data)
 {
 	struct cam_req_mgr_core_link *link;
 	struct cam_req_mgr_core_mini_dump *md;
@@ -5424,7 +5424,7 @@ int cam_req_mgr_core_device_init(void)
 		cam_req_mgr_core_link_reset(&g_links[i]);
 	}
 	cam_common_register_mini_dump_cb(cam_req_mgr_core_mini_dump_cb,
-		"CAM_CRM");
+		"CAM_CRM", NULL);
 
 	return 0;
 }

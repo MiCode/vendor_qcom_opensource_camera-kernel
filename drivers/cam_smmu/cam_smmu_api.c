@@ -4420,7 +4420,8 @@ static void cam_smmu_mini_dump_entries(
 	}
 }
 
-static unsigned long cam_smmu_mini_dump_cb(void *dst, unsigned long len)
+static unsigned long cam_smmu_mini_dump_cb(void *dst, unsigned long len,
+	void *priv_data)
 {
 	struct cam_smmu_mini_dump_cb_info *cb_md;
 	struct cam_smmu_mini_dump_info     *md;
@@ -4653,7 +4654,7 @@ static int cam_smmu_component_bind(struct device *dev,
 		of_property_read_bool(dev->of_node, "expanded_memory");
 
 	cam_common_register_mini_dump_cb(cam_smmu_mini_dump_cb,
-		"cam_smmu");
+		"cam_smmu", NULL);
 
 	CAM_DBG(CAM_SMMU, "Main component bound successfully");
 	return 0;

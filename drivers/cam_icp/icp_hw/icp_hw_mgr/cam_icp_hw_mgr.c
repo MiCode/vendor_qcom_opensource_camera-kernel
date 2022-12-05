@@ -4046,7 +4046,8 @@ static int cam_icp_mgr_release_ctx(struct cam_icp_hw_mgr *hw_mgr, int ctx_id)
 	return 0;
 }
 
-static unsigned long cam_icp_hw_mgr_mini_dump_cb(void *dst, unsigned long len)
+static unsigned long cam_icp_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
+	void *priv_data)
 {
 	struct cam_icp_hw_mini_dump_info   *md;
 	struct cam_icp_hw_ctx_mini_dump    *ctx_md;
@@ -7089,7 +7090,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 
 	init_completion(&icp_hw_mgr.icp_complete);
 	cam_common_register_mini_dump_cb(
-		cam_icp_hw_mgr_mini_dump_cb, "cam_icp");
+		cam_icp_hw_mgr_mini_dump_cb, "cam_icp", NULL);
 
 	cam_icp_test_irq_line_at_probe();
 

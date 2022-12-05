@@ -83,7 +83,8 @@
 	rem_jiffies;                                                                         \
 })
 
-typedef unsigned long (*cam_common_mini_dump_cb) (void *dst, unsigned long len);
+typedef unsigned long (*cam_common_mini_dump_cb) (void *dst,
+	unsigned long len, void *priv_data);
 
 /**
  * struct cam_common_mini_dump_dev_info
@@ -96,6 +97,7 @@ struct cam_common_mini_dump_dev_info {
 	cam_common_mini_dump_cb  dump_cb[CAM_COMMON_MINI_DUMP_DEV_NUM];
 	uint8_t                  name[CAM_COMMON_MINI_DUMP_DEV_NUM]
 				    [CAM_COMMON_MINI_DUMP_DEV_NAME_LEN];
+	void                    *priv_data[CAM_COMMON_MINI_DUMP_DEV_NUM];
 	uint8_t                  num_devs;
 	bool                     is_registered;
 };
@@ -347,11 +349,11 @@ void cam_common_util_thread_switch_delay_detect(const char *token,
  */
 #if IS_REACHABLE(CONFIG_QCOM_VA_MINIDUMP)
 int cam_common_register_mini_dump_cb(
-	cam_common_mini_dump_cb mini_dump_cb, uint8_t *name);
+	cam_common_mini_dump_cb mini_dump_cb, uint8_t *dev_name, void *priv_data);
 #else
 static inline int cam_common_register_mini_dump_cb(
 	cam_common_mini_dump_cb mini_dump_cb,
-	uint8_t *dev_name)
+	uint8_t *dev_name, void *priv_data)
 {
 	return 0;
 }

@@ -14590,7 +14590,8 @@ static void cam_req_mgr_process_workq_cam_ife_worker(struct work_struct *w)
 	cam_req_mgr_process_workq(w);
 }
 
-static unsigned long cam_ife_hw_mgr_mini_dump_cb(void *dst, unsigned long len)
+static unsigned long cam_ife_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
+	void *priv_data)
 {
 	struct cam_ife_hw_mini_dump_data   *mgr_md;
 	struct cam_ife_hw_mini_dump_ctx    *ctx_md;
@@ -15070,7 +15071,7 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 	cam_ife_mgr_count_ife();
 	cam_ife_mgr_count_sfe();
 	cam_common_register_mini_dump_cb(cam_ife_hw_mgr_mini_dump_cb,
-		"CAM_ISP");
+		"CAM_ISP", NULL);
 	cam_ife_mgr_test_irq_lines_at_probe(&g_ife_hw_mgr);
 
 	/* Allocate memory for perf counters */
