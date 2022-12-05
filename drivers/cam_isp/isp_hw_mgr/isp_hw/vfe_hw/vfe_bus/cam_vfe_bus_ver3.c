@@ -3541,27 +3541,31 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 		}
 
 		wm_data = vfe_out_data->wm_res[i].res_priv;
-		if ((wm_data->framedrop_pattern !=
-			hfr_cfg->framedrop_pattern) ||
-			!wm_data->hfr_cfg_done) {
-			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-				wm_data->hw_regs->framedrop_pattern,
-				hfr_cfg->framedrop_pattern);
-			wm_data->framedrop_pattern = hfr_cfg->framedrop_pattern;
-			CAM_DBG(CAM_ISP, "VFE:%u WM:%d framedrop pattern 0x%X",
-				bus_priv->common_data.core_index, wm_data->index,
-				wm_data->framedrop_pattern);
-		}
 
-		if (wm_data->framedrop_period != hfr_cfg->framedrop_period ||
-			!wm_data->hfr_cfg_done) {
-			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-				wm_data->hw_regs->framedrop_period,
-				hfr_cfg->framedrop_period);
-			wm_data->framedrop_period = hfr_cfg->framedrop_period;
-			CAM_DBG(CAM_ISP, "VFE:%u WM:%d framedrop period 0x%X",
-				bus_priv->common_data.core_index, wm_data->index,
-				wm_data->framedrop_period);
+		/* Frame drop config is only applicable to full IFE */
+		if (!bus_priv->common_data.is_lite) {
+			if ((wm_data->framedrop_pattern !=
+				hfr_cfg->framedrop_pattern) ||
+				!wm_data->hfr_cfg_done) {
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					wm_data->hw_regs->framedrop_pattern,
+					hfr_cfg->framedrop_pattern);
+				wm_data->framedrop_pattern = hfr_cfg->framedrop_pattern;
+				CAM_DBG(CAM_ISP, "VFE:%u WM:%d framedrop pattern 0x%X",
+					bus_priv->common_data.core_index, wm_data->index,
+					wm_data->framedrop_pattern);
+			}
+
+			if (wm_data->framedrop_period != hfr_cfg->framedrop_period ||
+				!wm_data->hfr_cfg_done) {
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					wm_data->hw_regs->framedrop_period,
+					hfr_cfg->framedrop_period);
+				wm_data->framedrop_period = hfr_cfg->framedrop_period;
+				CAM_DBG(CAM_ISP, "VFE:%u WM:%d framedrop period 0x%X",
+					bus_priv->common_data.core_index, wm_data->index,
+					wm_data->framedrop_period);
+			}
 		}
 
 		if (wm_data->irq_subsample_period != hfr_cfg->subsample_period
