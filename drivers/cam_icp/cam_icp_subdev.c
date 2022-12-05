@@ -332,7 +332,7 @@ static int cam_icp_component_bind(struct device *dev,
 	mutex_init(&icp_dev->icp_lock);
 
 	rc = cam_icp_hw_mgr_init(pdev->dev.of_node, (uint64_t *)(&hw_mgr_intf),
-		&iommu_hdl, cam_icp_dev_mini_dump_cb);
+		&iommu_hdl, cam_icp_dev_mini_dump_cb, device_idx);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "device[%s] HW manager init failed: %d", subdev_name, rc);
 		goto hw_init_fail;
@@ -371,7 +371,7 @@ static int cam_icp_component_bind(struct device *dev,
 ctx_fail:
 	for (--i; i >= 0; i--)
 		cam_icp_context_deinit(&icp_dev->ctx_icp[i]);
-	cam_icp_hw_mgr_deinit();
+	cam_icp_hw_mgr_deinit(device_idx);
 hw_init_fail:
 	cam_subdev_remove(&icp_dev->sd);
 probe_fail:
@@ -415,7 +415,7 @@ static void cam_icp_component_unbind(struct device *dev,
 	for (i = 0; i < CAM_ICP_CTX_MAX; i++)
 		cam_icp_context_deinit(&icp_dev->ctx_icp[i]);
 
-	cam_icp_hw_mgr_deinit();
+	cam_icp_hw_mgr_deinit(device_idx);
 	cam_node_deinit(icp_dev->node);
 	cam_subdev_remove(&icp_dev->sd);
 	mutex_destroy(&icp_dev->icp_lock);

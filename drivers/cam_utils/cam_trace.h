@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #if !defined(_CAM_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
@@ -110,19 +111,21 @@ TRACE_EVENT(cam_log_debug,
 
 
 TRACE_EVENT(cam_icp_fw_dbg,
-	TP_PROTO(char *dbg_message, uint64_t timestamp),
-	TP_ARGS(dbg_message, timestamp),
+	TP_PROTO(char *dbg_message, uint64_t timestamp, char *dev_name),
+	TP_ARGS(dbg_message, timestamp, dev_name),
 	TP_STRUCT__entry(
 		__string(dbg_message, dbg_message)
 		__field(uint64_t, timestamp)
+		__string(dev_name, dev_name)
 	),
 	TP_fast_assign(
 		__assign_str(dbg_message, dbg_message);
 		__entry->timestamp = timestamp;
+		__assign_str(dev_name, dev_name);
 	),
 	TP_printk(
-		"%llu %s: ",
-		 __entry->timestamp, __get_str(dbg_message)
+		"[%s] %llu %s: ",
+		__get_str(dev_name), __entry->timestamp, __get_str(dbg_message)
 	)
 );
 

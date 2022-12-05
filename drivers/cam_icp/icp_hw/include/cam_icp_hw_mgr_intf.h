@@ -57,12 +57,6 @@ enum cam_icp_hw_error_type {
 typedef void(*cam_icp_mini_dump_cb)(void *priv,
 	void *args);
 
-int cam_icp_hw_mgr_init(struct device_node *of_node,
-	uint64_t *hw_mgr_hdl, int *iommu_hdl,
-	cam_icp_mini_dump_cb mini_dump_cb);
-
-void cam_icp_hw_mgr_deinit(void);
-
 /**
  * struct cam_icp_cpas_vote
  * @ahb_vote: AHB vote info
@@ -120,5 +114,11 @@ struct cam_icp_hw_error_evt_data {
 	uint64_t                       req_id;
 	enum cam_icp_hw_error_type     err_type;
 };
+
+int cam_icp_hw_mgr_init(struct device_node *of_node,
+	uint64_t *hw_mgr_hdl, int *iommu_hdl,
+	cam_icp_mini_dump_cb mini_dump_cb, int device_idx);
+
+void cam_icp_hw_mgr_deinit(int device_idx);
 
 #endif /* CAM_ICP_HW_MGR_INTF_H */

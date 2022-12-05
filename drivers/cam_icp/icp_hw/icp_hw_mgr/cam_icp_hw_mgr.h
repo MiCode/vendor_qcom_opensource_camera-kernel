@@ -71,6 +71,8 @@
 /* Current appliacble vote paths, based on number of UAPI definitions */
 #define CAM_ICP_MAX_PER_PATH_VOTES 6
 
+#define CAM_ICP_HW_MGR_NAME_SIZE  32
+
 struct hfi_mini_dump_info;
 
 /**
@@ -266,6 +268,7 @@ struct cam_ctx_clk_info {
 /**
  * struct cam_icp_hw_ctx_data
  * @context_priv: Context private data
+ * @hw_mgr_priv: HW MGR of the context
  * @ctx_mutex: Mutex for context
  * @fw_handle: Firmware handle
  * @scratch_mem_size: Scratch memory size
@@ -293,6 +296,7 @@ struct cam_ctx_clk_info {
  */
 struct cam_icp_hw_ctx_data {
 	void *context_priv;
+	void *hw_mgr_priv;
 	struct mutex ctx_mutex;
 	uint32_t fw_handle;
 	uint32_t scratch_mem_size;
@@ -345,6 +349,7 @@ struct icp_cmd_generic_blob {
  * @hw_type: IPE/BPS device type
  * @watch_dog: watchdog timer handle
  * @watch_dog_reset_counter: Counter for watch dog reset
+ * @timeout_cb_data: private cb data to be used when device timeouts
  */
 struct cam_icp_clk_info {
 	uint32_t base_clk;
@@ -359,6 +364,7 @@ struct cam_icp_clk_info {
 	uint32_t hw_type;
 	struct cam_req_mgr_timer *watch_dog;
 	uint32_t watch_dog_reset_counter;
+	void *timeout_cb_data;
 };
 
 /**
@@ -369,6 +375,8 @@ struct cam_icp_clk_info {
  * @ctx_data: Context data
  * @icp_caps: ICP capabilities
  * @mini_dump_cb: Mini dump cb
+ * @hw_mgr_name: name of the hw mgr
+ * @hw_mgr_id: ID of the hw mgr, equivalent to hw mgr index
  * @icp_booted: Processor is booted i.e. firmware loaded
  * @icp_resumed: Processor is powered on
  * @iommu_hdl: Non secure IOMMU handle
@@ -426,6 +434,8 @@ struct cam_icp_hw_mgr {
 	struct cam_icp_hw_ctx_data ctx_data[CAM_ICP_CTX_MAX];
 	struct cam_icp_query_cap_cmd icp_caps;
 	cam_icp_mini_dump_cb mini_dump_cb;
+	char hw_mgr_name[CAM_ICP_HW_MGR_NAME_SIZE];
+	uint32_t hw_mgr_id;
 
 	bool icp_booted;
 	bool icp_resumed;
@@ -451,7 +461,7 @@ struct cam_icp_hw_mgr {
 	uint64_t icp_debug_clk;
 	uint64_t icp_default_clk;
 	struct cam_icp_clk_info clk_info[ICP_CLK_HW_MAX];
-	bool secure_mode;
+	uint32_t secure_mode;
 	bool icp_jtag_debug;
 	u64 icp_debug_type;
 	u64 icp_dbg_lvl;
