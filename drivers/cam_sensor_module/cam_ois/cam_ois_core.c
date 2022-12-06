@@ -16,6 +16,32 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+
+static inline uint64_t swap_high_byte_and_low_byte(uint8_t *src,
+	uint8_t size_bytes)
+{
+	uint64_t ret_value = 0x00;
+	uint8_t  cycle = 0;
+
+	for (cycle = 0; cycle < size_bytes; cycle++)
+		ret_value = ((ret_value<<8) | ((*(src+cycle))&0xff));
+
+	return ret_value;
+}
+
+static inline uint64_t swap_high_word_and_low_word(uint16_t *src,
+	uint8_t size_words)
+{
+	uint64_t ret_value = 0x00;
+	uint8_t  cycle = 0;
+
+	for (cycle = 0; cycle < size_words; cycle++)
+		ret_value = ((ret_value<<16) | ((*(src+cycle))&0xffff));
+
+	return ret_value;
+}
+
+
 int32_t cam_ois_construct_default_power_setting(
 	struct cam_sensor_power_ctrl_t *power_info)
 {
@@ -214,7 +240,8 @@ static int cam_ois_power_down(struct cam_ois_ctrl_t *o_ctrl)
 	return rc;
 }
 
-static int cam_ois_update_time(struct i2c_settings_array *i2c_set)
+static int cam_ois_update_time(struct i2c_settings_array *i2c_set,
+	enum cam_endianness_type endianness)
 {
 	struct i2c_settings_list *i2c_list;
 	int32_t rc = 0;
@@ -234,6 +261,10 @@ static int cam_ois_update_time(struct i2c_settings_array *i2c_set)
 			rc);
 		return rc;
 	}
+
+	if (endianness == CAM_ENDIANNESS_BIG)
+		qtime_ns = swap_high_word_and_low_word((uint16_t *)(&qtime_ns),
+					sizeof(qtime_ns) / sizeof(uint16_t));
 
 	list_for_each_entry(i2c_list,
 		&(i2c_set->list_head), list) {
@@ -257,16 +288,19 @@ static int cam_ois_update_time(struct i2c_settings_array *i2c_set)
 				break;
 			case CAMERA_SENSOR_I2C_TYPE_WORD:
 				for (i = 0; i < size; i++) {
-					CAM_DBG(CAM_OIS, "time: reg_data[%d]: 0x%x",
-						i, (qtime_ns & 0xFFFF));
+					uint16_t  data = (qtime_ns & 0xFFFF);
 					i2c_list->i2c_settings.reg_setting[i].reg_data =
-						(qtime_ns & 0xFFFF);
+						data;
+
 					qtime_ns >>= 16;
+
+					CAM_DBG(CAM_OIS, "time: reg_data[%d]: 0x%x",
+							i, data);
 				}
 
 				break;
 			default:
-				CAM_ERR(CAM_OIS, "Unsupported reg data type!");
+				CAM_ERR(CAM_OIS, "Unsupported reg data type");
 				return -EINVAL;
 			}
 		}
@@ -569,8 +603,8 @@ static int cam_ois_fw_info_pkt_parser(struct cam_ois_ctrl_t *o_ctrl,
 	}
 
 	ois_fw_info = (struct cam_cmd_ois_fw_info *)cmd_buf;
-	CAM_DBG(CAM_SENSOR, "fw_count %d, endianness %d",
-		ois_fw_info->fw_count, ois_fw_info->endianness);
+	CAM_DBG(CAM_SENSOR, "endianness %d, fw_count %d",
+		ois_fw_info->endianness, ois_fw_info->fw_count);
 
 	if (ois_fw_info->fw_count <= MAX_OIS_FW_COUNT) {
 		memcpy(&o_ctrl->fw_info, ois_fw_info, sizeof(struct cam_cmd_ois_fw_info));
@@ -590,7 +624,7 @@ static int cam_ois_fw_info_pkt_parser(struct cam_ois_ctrl_t *o_ctrl,
 				CAM_DBG(CAM_SENSOR, "finalize size %d", size);
 			} else {
 				size = 0;
-				CAM_DBG(CAM_SENSOR, "Unsupported case!");
+				CAM_DBG(CAM_SENSOR, "Unsupported case");
 				return -EINVAL;
 			}
 
@@ -600,14 +634,14 @@ static int cam_ois_fw_info_pkt_parser(struct cam_ois_ctrl_t *o_ctrl,
 			}
 
 			if (rc) {
-				CAM_ERR(CAM_OIS, "Failed to parse fw setting!");
+				CAM_ERR(CAM_OIS, "Failed to parse fw setting");
 				return rc;
 			}
 
 			pSettingData += size;
 		}
 	} else {
-		CAM_ERR(CAM_OIS, "Exceed max fw count!");
+		CAM_ERR(CAM_OIS, "Exceed max fw count");
 	}
 
 	return rc;
@@ -737,18 +771,6 @@ release_firmware:
 	return rc;
 }
 
-static inline uint32_t swap_high_byte_and_low_byte(uint8_t *src,
-	uint8_t data_type)
-{
-	uint32_t ret_value = 0x00;
-	uint8_t  cycle = 0;
-
-	for (cycle = 0; cycle < data_type; cycle++)
-		ret_value = ((ret_value<<8) | ((*(src+cycle))&0xff));
-
-	return ret_value;
-}
-
 static int write_ois_fw(uint8_t *fw_data, enum cam_endianness_type endianness,
 	struct cam_cmd_ois_fw_param *fw_param, struct camera_io_master io_master_info,
 	uint8_t i2c_operation)
@@ -783,7 +805,7 @@ static int write_ois_fw(uint8_t *fw_data, enum cam_endianness_type endianness,
 			/* Big */
 			if (endianness == CAM_ENDIANNESS_BIG) {
 				setting.reg_setting[cnt].reg_data =
-					swap_high_byte_and_low_byte(ptr, data_type);
+					(uint32_t)swap_high_byte_and_low_byte(ptr, data_type);
 			/* Little */
 			} else if (endianness == CAM_ENDIANNESS_LITTLE) {
 				switch (data_type) {
@@ -896,8 +918,8 @@ static int cam_ois_fw_download_v2(struct cam_ois_ctrl_t *o_ctrl)
 			else if (fw_param->fw_operation == CAMERA_SENSOR_I2C_OP_CONT_WR_SEQN)
 				cont_wr_flag = CAM_SENSOR_I2C_WRITE_SEQ;
 
-			write_ois_fw(ptr, o_ctrl->fw_info.endianness, fw_param,
-					o_ctrl->io_master_info, cont_wr_flag);
+			write_ois_fw(ptr, (o_ctrl->fw_info.endianness & OIS_ENDIANNESS_MASK_FW),
+					fw_param, o_ctrl->io_master_info, cont_wr_flag);
 
 			/* fw finalize */
 			CAM_DBG(CAM_OIS, "fw finalize");
@@ -1398,7 +1420,12 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			return rc;
 		}
 
-		rc = cam_ois_update_time(i2c_reg_settings);
+		if (o_ctrl->fw_info.fw_count > 0) {
+			uint8_t ois_endianness =
+				(o_ctrl->fw_info.endianness & OIS_ENDIANNESS_MASK_INPUTPARAM) >> 4;
+			rc = cam_ois_update_time(i2c_reg_settings, ois_endianness);
+		} else
+			rc = cam_ois_update_time(i2c_reg_settings, CAM_ENDIANNESS_LITTLE);
 		if (rc < 0) {
 			CAM_ERR(CAM_OIS, "Cannot update time");
 			return rc;

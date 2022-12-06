@@ -457,7 +457,9 @@ struct cam_cmd_ois_fw_param {
  * @reserved        :       reserved
  * @cmd_type        :       Explains type of command
  * @fw_count        :       firmware count
- * @endianness      :       firmware data's endianness
+ * @endianness      :       endianness combo:
+ *                          bit[3:0] firmware data's endianness
+ *                          bit[7:4] endian type of input parameter to ois driver, say QTime
  * @fw_param        :       includes firmware parameters
  * @num_valid_params:       Number of valid params
  * @param_mask      :       Mask to indicate fields in params
