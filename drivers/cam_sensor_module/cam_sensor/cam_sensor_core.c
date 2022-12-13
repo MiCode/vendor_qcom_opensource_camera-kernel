@@ -187,8 +187,9 @@ static int cam_sensor_handle_res_info(struct cam_sensor_res_info *res_info,
 	s_ctrl->is_res_info_updated = true;
 
 	/* If request id is 0, it will be during an initial config/acquire */
-	CAM_DBG(CAM_SENSOR,
-		"Feature: 0x%x updated for request id: %lu, res index: %u, width: 0x%x, height: 0x%x, capability: %s, fps: %u",
+	CAM_INFO(CAM_SENSOR,
+		"Sensor[%s-%d] Feature: 0x%x updated for request id: %lu, res index: %u, width: 0x%x, height: 0x%x, capability: %s, fps: %u",
+		s_ctrl->sensor_name, s_ctrl->soc_info.index,
 		s_ctrl->sensor_res[idx].feature_mask,
 		s_ctrl->sensor_res[idx].request_id, s_ctrl->sensor_res[idx].res_index,
 		s_ctrl->sensor_res[idx].width, s_ctrl->sensor_res[idx].height,
@@ -232,7 +233,7 @@ static int32_t cam_sensor_generic_blob_handler(void *user_data,
 	return rc;
 }
 
-static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
+static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	void *arg)
 {
 	int32_t rc = 0;
@@ -308,7 +309,6 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		s_ctrl->last_flush_req = 0;
 
 	prev_updated_req = s_ctrl->last_updated_req;
-	s_ctrl->last_updated_req = csl_packet->header.request_id;
 	s_ctrl->is_res_info_updated = false;
 
 	i2c_data = &(s_ctrl->i2c_data);
@@ -482,6 +482,7 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 			goto end;
 		}
 
+		s_ctrl->last_updated_req = csl_packet->header.request_id;
 		idx = s_ctrl->last_updated_req % MAX_PER_FRAME_ARRAY;
 		s_ctrl->sensor_res[idx].request_id = csl_packet->header.request_id;
 
@@ -507,10 +508,20 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	/*
 	 * If no res info in current request, then we pick previous
 	 * resolution info as current resolution info.
+	 * Don't copy the sensor resolution info when the request id
+	 * is invalid.
 	 */
-	if (!s_ctrl->is_res_info_updated)
+	if ((!s_ctrl->is_res_info_updated) && (csl_packet->header.request_id != 0)) {
+		/*
+		 * Update the last updated req at two places.
+		 * 1# Got generic blob: The req id can be zero for the initial res info updating
+		 * 2# Copy previous res info: The req id can't be zero, in case some queue info
+		 * are override by slot0.
+		 */
+		s_ctrl->last_updated_req = csl_packet->header.request_id;
 		s_ctrl->sensor_res[s_ctrl->last_updated_req % MAX_PER_FRAME_ARRAY] =
 			s_ctrl->sensor_res[prev_updated_req % MAX_PER_FRAME_ARRAY];
+	}
 
 	if ((csl_packet->header.op_code & 0xFFFFFF) ==
 		CAM_SENSOR_PACKET_OPCODE_SENSOR_UPDATE) {
@@ -1397,15 +1408,15 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	}
 		break;
 	case CAM_CONFIG_DEV: {
-		rc = cam_sensor_i2c_pkt_parse(s_ctrl, arg);
+		rc = cam_sensor_pkt_parse(s_ctrl, arg);
 		if (rc < 0) {
 			if (rc == -EBADR)
 				CAM_INFO(CAM_SENSOR,
-					"%s:Failed i2c pkt parse. rc: %d, it has been flushed",
+					"%s:Failed pkt parse. rc: %d, it has been flushed",
 					s_ctrl->sensor_name, rc);
 			else
 				CAM_ERR(CAM_SENSOR,
-					"%s:Failed i2c pkt parse. rc: %d",
+					"%s:Failed pkt parse. rc: %d",
 					s_ctrl->sensor_name, rc);
 			goto release_mutex;
 		}
