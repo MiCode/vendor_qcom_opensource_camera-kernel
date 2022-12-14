@@ -109,6 +109,23 @@ struct cam_tfe_rdi_data {
 	uint32_t                                     last_line;
 };
 
+struct cam_tfe_ppp_data {
+	void __iomem                                *mem_base;
+	struct cam_hw_intf                          *hw_intf;
+	struct cam_tfe_top_reg_offset_common        *common_reg;
+	struct cam_tfe_ppp_reg                      *ppp_reg;
+	struct cam_tfe_ppp_reg_data                 *reg_data;
+	cam_hw_mgr_event_cb_func                     event_cb;
+	void                                        *priv;
+	enum cam_isp_hw_sync_mode                    sync_mode;
+	uint32_t                                     pix_pattern;
+	uint32_t                                     left_first_pixel;
+	uint32_t                                     left_last_pixel;
+	uint32_t                                     first_line;
+	uint32_t                                     last_line;
+	bool                                         lcr_enable;
+};
+
 static int cam_tfe_validate_pix_pattern(uint32_t pattern)
 {
 	int rc;
@@ -240,6 +257,7 @@ static void cam_tfe_log_tfe_in_debug_status(
 	struct cam_tfe_camif_data            *camif_data;
 	struct cam_tfe_rdi_data              *rdi_data;
 	struct cam_tfe_top_reg_offset_common *common_reg;
+	struct cam_tfe_ppp_data              *ppp_data;
 	uint32_t  i, val_0, val_1;
 
 	mem_base = top_priv->common_data.soc_info->reg_map[0].mem_base;
@@ -283,6 +301,28 @@ static void cam_tfe_log_tfe_in_debug_status(
 				camif_data->vbi_value,
 				camif_data->hbi_value);
 
+		} else if (top_priv->in_rsrc[i].res_id == CAM_ISP_HW_TFE_IN_PDLIB) {
+			ppp_data = (struct cam_tfe_ppp_data  *)
+				top_priv->in_rsrc[i].res_priv;
+			val_0 = cam_io_r(mem_base  +
+				ppp_data->ppp_reg->ppp_debug_0);
+			val_1 = cam_io_r(mem_base  +
+				ppp_data->ppp_reg->ppp_debug_1);
+			CAM_INFO(CAM_ISP,
+				"PDLIB res id:%d debug1:0x%x Height:0x%x, width:0x%x",
+				top_priv->in_rsrc[i].res_id,
+				val_1, ((val_0 >> 16) & 0x1FFF),
+				(val_0 & 0x1FFF));
+			CAM_INFO(CAM_ISP,
+				"sync mode:%d left start pxl:0x%x end_pixel:0x%x",
+				ppp_data->sync_mode,
+				ppp_data->left_first_pixel,
+				ppp_data->left_last_pixel);
+			CAM_INFO(CAM_ISP,
+				"sync mode:%d line start:0x%x line end:0x%x",
+				ppp_data->sync_mode,
+				ppp_data->first_line,
+				ppp_data->last_line);
 		} else if ((top_priv->in_rsrc[i].res_id >=
 			CAM_ISP_HW_TFE_IN_RDI0) ||
 			(top_priv->in_rsrc[i].res_id <=
@@ -401,6 +441,9 @@ static void cam_tfe_log_error_irq_status(
 		if (evt_payload->irq_reg_val[0] & common_reg->rdi2_frame_drop_bit)
 			CAM_INFO(CAM_ISP, "TFE %d RDI2_FRAME_DROP", core_info->core_index);
 
+		if (evt_payload->irq_reg_val[0] & common_reg->ppp_frame_drop_bit)
+			CAM_INFO(CAM_ISP, "TFE %d PDAF_FRAME_DROP", core_info->core_index);
+
 		if (evt_payload->irq_reg_val[0] & common_reg->pp_overflow_bit)
 			CAM_INFO(CAM_ISP, "TFE %d PP_OVERFLOW", core_info->core_index);
 
@@ -412,6 +455,9 @@ static void cam_tfe_log_error_irq_status(
 
 		if (evt_payload->irq_reg_val[0] & common_reg->rdi2_overflow_bit)
 			CAM_INFO(CAM_ISP, "TFE %d RDI2_OVERFLOW", core_info->core_index);
+
+		if (evt_payload->irq_reg_val[0] & common_reg->ppp_overflow_bit)
+			CAM_INFO(CAM_ISP, "TFE %d PDAF_OVERFLOW", core_info->core_index);
 
 		if (evt_payload->irq_reg_val[0] & common_reg->out_of_sync_frame_drop_bit) {
 			CAM_INFO(CAM_ISP,
@@ -441,6 +487,12 @@ static void cam_tfe_log_error_irq_status(
 
 		if (evt_payload->irq_reg_val[2] & common_reg->diag_violation_bit)
 			CAM_INFO(CAM_ISP, "TFE %d DIAG_VIOLATION", core_info->core_index);
+
+		if (evt_payload->irq_reg_val[2] & common_reg->ppp_camif_violation_bit)
+			CAM_INFO(CAM_ISP, "TFE %d PDAF_CAMIF_VIOLATION", core_info->core_index);
+
+		if (evt_payload->irq_reg_val[2] & common_reg->ppp_violation_bit)
+			CAM_INFO(CAM_ISP, "TFE %d PDAF_VIOLATION", core_info->core_index);
 
 		if (evt_payload->irq_reg_val[2] & common_reg->dyamanic_switch_violation_bit)
 			CAM_INFO(CAM_ISP,
@@ -586,6 +638,84 @@ static int cam_tfe_rdi_irq_bottom_half(
 	return 0;
 }
 
+static int cam_tfe_ppp_irq_bottom_half(
+	struct cam_tfe_top_priv              *top_priv,
+	struct cam_isp_resource_node         *ppp_node,
+	bool                                  epoch_process,
+	struct cam_tfe_irq_evt_payload       *evt_payload)
+{
+	struct cam_tfe_ppp_data               *ppp_priv;
+	struct cam_isp_hw_event_info           evt_info;
+	struct cam_hw_info                    *hw_info;
+	struct cam_tfe_top_reg_offset_common  *common_reg;
+	uint32_t                               val, val2;
+
+	ppp_priv = (struct cam_tfe_ppp_data    *)ppp_node->res_priv;
+	hw_info = ppp_node->hw_intf->hw_priv;
+
+	evt_info.hw_idx   = ppp_node->hw_intf->hw_idx;
+	evt_info.res_id   = ppp_node->res_id;
+	evt_info.res_type = ppp_node->res_type;
+
+	if ((!epoch_process) && (evt_payload->irq_reg_val[1] &
+		ppp_priv->reg_data->eof_irq_mask)) {
+		CAM_DBG(CAM_ISP, "Received EOF");
+		top_priv->eof_ts.tv_sec =
+			evt_payload->ts.mono_time.tv_sec;
+		top_priv->eof_ts.tv_nsec =
+			evt_payload->ts.mono_time.tv_nsec;
+
+		if (ppp_priv->event_cb)
+			ppp_priv->event_cb(ppp_priv->priv,
+				CAM_ISP_HW_EVENT_EOF, (void *)&evt_info);
+	}
+
+	if ((!epoch_process) && (evt_payload->irq_reg_val[1] &
+		ppp_priv->reg_data->sof_irq_mask)) {
+		CAM_DBG(CAM_ISP, "Received SOF");
+		top_priv->sof_ts.tv_sec =
+			evt_payload->ts.mono_time.tv_sec;
+		top_priv->sof_ts.tv_nsec =
+			evt_payload->ts.mono_time.tv_nsec;
+
+		if (ppp_priv->event_cb)
+			ppp_priv->event_cb(ppp_priv->priv,
+				CAM_ISP_HW_EVENT_SOF, (void *)&evt_info);
+
+		if (top_priv->top_debug &
+			CAMIF_DEBUG_ENABLE_SENSOR_DIAG_STATUS) {
+			common_reg  = ppp_priv->common_reg;
+			val = cam_io_r(ppp_priv->mem_base +
+				common_reg->diag_sensor_status_0);
+			val2 =  cam_io_r(ppp_priv->mem_base +
+				common_reg->diag_sensor_status_1);
+			CAM_INFO(CAM_ISP,
+				"TFE:%d diag sensor hbi min error:%d neq hbi:%d HBI:%d VBI:%d",
+				ppp_node->hw_intf->hw_idx,
+				((val >> common_reg->diag_min_hbi_error_shift)
+					& 0x1),
+				((val >> common_reg->diag_neq_hbi_shift) & 0x1),
+				(val & common_reg->diag_sensor_hbi_mask),
+				val2);
+		}
+	}
+
+	if (epoch_process && (evt_payload->irq_reg_val[1] &
+		ppp_priv->reg_data->epoch0_irq_mask)) {
+		CAM_DBG(CAM_ISP, "Received EPOCH0");
+		top_priv->epoch_ts.tv_sec =
+			evt_payload->ts.mono_time.tv_sec;
+		top_priv->epoch_ts.tv_nsec =
+			evt_payload->ts.mono_time.tv_nsec;
+
+		if (ppp_priv->event_cb)
+			ppp_priv->event_cb(ppp_priv->priv,
+				CAM_ISP_HW_EVENT_EPOCH, (void *)&evt_info);
+	}
+
+	return 0;
+}
+
 static int cam_tfe_camif_irq_bottom_half(
 	struct cam_tfe_top_priv              *top_priv,
 	struct cam_isp_resource_node         *camif_node,
@@ -687,6 +817,7 @@ static int cam_tfe_irq_bottom_half(void *handler_priv,
 	struct cam_tfe_irq_evt_payload      *evt_payload;
 	struct cam_tfe_camif_data           *camif_priv;
 	struct cam_tfe_rdi_data             *rdi_priv;
+	struct cam_tfe_ppp_data             *ppp_priv;
 	cam_hw_mgr_event_cb_func             event_cb = NULL;
 	void                                *event_cb_priv = NULL;
 	uint32_t i;
@@ -719,6 +850,20 @@ static int cam_tfe_irq_bottom_half(void *handler_priv,
 					&top_priv->in_rsrc[i], false,
 					evt_payload);
 
+		} else if ((top_priv->in_rsrc[i].res_id ==
+			CAM_ISP_HW_TFE_IN_PDLIB) &&
+			(top_priv->in_rsrc[i].res_state ==
+			CAM_ISP_RESOURCE_STATE_STREAMING)) {
+			ppp_priv = (struct cam_tfe_ppp_data *)
+				top_priv->in_rsrc[i].res_priv;
+			event_cb = ppp_priv->event_cb;
+			event_cb_priv = ppp_priv->priv;
+
+			if (ppp_priv->reg_data->subscribe_irq_mask[1] &
+				evt_payload->irq_reg_val[1])
+				cam_tfe_ppp_irq_bottom_half(top_priv,
+					&top_priv->in_rsrc[i], false,
+					evt_payload);
 		} else if ((top_priv->in_rsrc[i].res_id >=
 			CAM_ISP_HW_TFE_IN_RDI0) &&
 			(top_priv->in_rsrc[i].res_id <=
@@ -761,6 +906,17 @@ static int cam_tfe_irq_bottom_half(void *handler_priv,
 			if (camif_priv->reg_data->subscribe_irq_mask[1] &
 				evt_payload->irq_reg_val[1])
 				cam_tfe_camif_irq_bottom_half(top_priv,
+					&top_priv->in_rsrc[i], true,
+					evt_payload);
+		} else if ((top_priv->in_rsrc[i].res_id ==
+			CAM_ISP_HW_TFE_IN_PDLIB) &&
+			(top_priv->in_rsrc[i].res_state ==
+			CAM_ISP_RESOURCE_STATE_STREAMING)) {
+			ppp_priv = (struct cam_tfe_ppp_data *)
+				top_priv->in_rsrc[i].res_priv;
+			if (ppp_priv->reg_data->subscribe_irq_mask[1] &
+				evt_payload->irq_reg_val[1])
+				cam_tfe_ppp_irq_bottom_half(top_priv,
 					&top_priv->in_rsrc[i], true,
 					evt_payload);
 		} else if ((top_priv->in_rsrc[i].res_id >=
@@ -1339,6 +1495,11 @@ static int cam_tfe_top_get_reg_update(
 		rdi_rsrc_data =  in_res->res_priv;
 		reg_val_pair[0] = rdi_rsrc_data->rdi_reg->reg_update_cmd;
 		reg_val_pair[1] = rdi_rsrc_data->reg_data->reg_update_cmd_data;
+	} else if (in_res->res_id == CAM_ISP_HW_TFE_IN_PDLIB) {
+		/*REG CMD is not supported in PDLIB. PD CAMIF takes RUP from IPP CAMIF */
+		CAM_DBG(CAM_ISP, "Reg update not supported for res %d",
+			in_res->res_id);
+		return 0;
 	}
 
 	common_reg = top_priv->common_data.common_reg;
@@ -1908,6 +2069,22 @@ int cam_tfe_set_top_debug(struct cam_tfe_hw_core_info    *core_info,
 	return 0;
 }
 
+static int cam_tfe_bus_get_path_port_map(void *top_hw_info,
+		void *cmd_args, uint32_t arg_size)
+{
+	struct cam_isp_hw_path_port_map *arg = cmd_args;
+	struct cam_tfe_top_hw_info *hw_info =
+		(struct cam_tfe_top_hw_info  *)top_hw_info;
+	int i;
+
+	for (i = 0; i < hw_info->num_path_port_map; i++) {
+		arg->entry[i][0] = hw_info->path_port_map[i][0];
+		arg->entry[i][1] = hw_info->path_port_map[i][1];
+	}
+	arg->num_entries = hw_info->num_path_port_map;
+
+	return 0;
+}
 
 int cam_tfe_top_reserve(void *device_priv,
 	void *reserve_args, uint32_t arg_size)
@@ -1916,6 +2093,7 @@ int cam_tfe_top_reserve(void *device_priv,
 	struct cam_tfe_acquire_args             *args;
 	struct cam_tfe_hw_tfe_in_acquire_args   *acquire_args;
 	struct cam_tfe_camif_data               *camif_data;
+	struct cam_tfe_ppp_data                 *ppp_data;
 	struct cam_tfe_rdi_data                 *rdi_data;
 	uint32_t i;
 	int rc = -EINVAL;
@@ -1986,6 +2164,24 @@ int cam_tfe_top_reserve(void *device_priv,
 					top_priv->in_rsrc[i].hw_intf->hw_idx,
 					camif_data->pix_pattern,
 					camif_data->dsp_mode);
+			} else if (acquire_args->res_id == CAM_ISP_HW_TFE_IN_PDLIB) {
+				ppp_data = (struct cam_tfe_ppp_data	*)
+					top_priv->in_rsrc[i].res_priv;
+				ppp_data->pix_pattern =
+					acquire_args->in_port->pix_pattern;
+				ppp_data->sync_mode = acquire_args->sync_mode;
+				ppp_data->event_cb = args->event_cb;
+				ppp_data->priv = args->priv;
+				ppp_data->left_first_pixel =
+					acquire_args->in_port->left_start;
+				ppp_data->left_last_pixel =
+					acquire_args->in_port->left_end;
+				ppp_data->first_line =
+					acquire_args->in_port->line_start;
+				ppp_data->last_line =
+					acquire_args->in_port->line_end;
+				ppp_data->lcr_enable =
+					acquire_args->lcr_enable;
 			} else {
 				rdi_data = (struct cam_tfe_rdi_data      *)
 					top_priv->in_rsrc[i].res_priv;
@@ -2212,6 +2408,45 @@ static int cam_tfe_camif_resource_start(
 	return 0;
 }
 
+static int cam_tfe_ppp_resource_start(
+	struct cam_tfe_hw_core_info         *core_info,
+	struct cam_isp_resource_node        *ppp_res)
+{
+	struct cam_tfe_ppp_data             *rsrc_data;
+	uint32_t                             val = 0;
+
+	if (!ppp_res || !core_info) {
+		CAM_ERR(CAM_ISP, "Error Invalid input arguments");
+		return -EINVAL;
+	}
+
+	if (ppp_res->res_state != CAM_ISP_RESOURCE_STATE_RESERVED) {
+		CAM_ERR(CAM_ISP, "TFE:%d Error Invalid camif res res_state:%d",
+			core_info->core_index, ppp_res->res_state);
+		return -EINVAL;
+	}
+
+	rsrc_data = (struct cam_tfe_ppp_data  *)ppp_res->res_priv;
+
+	/* Config tfe core */
+	val = (1 << rsrc_data->reg_data->pdaf_path_en_shift);
+
+	if (!rsrc_data->lcr_enable)
+		val = (1 << rsrc_data->reg_data->lcr_dis_en_shift);
+
+	if (rsrc_data->sync_mode != CAM_ISP_HW_SYNC_NONE)
+		val = (1 << rsrc_data->reg_data->lcr_dis_en_shift);
+
+	cam_io_w_mb(val, rsrc_data->mem_base +
+		rsrc_data->common_reg->core_cfg_0);
+
+	ppp_res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
+
+	CAM_DBG(CAM_ISP, "TFE: %d Start PPP Done, core_cfg 0 val:0x%x",
+		core_info->core_index, val);
+	return 0;
+}
+
 int cam_tfe_top_start(struct cam_tfe_hw_core_info *core_info,
 	void *start_args, uint32_t arg_size)
 {
@@ -2256,6 +2491,8 @@ int cam_tfe_top_start(struct cam_tfe_hw_core_info *core_info,
 
 	if (in_res->res_id == CAM_ISP_HW_TFE_IN_CAMIF) {
 		cam_tfe_camif_resource_start(core_info, in_res);
+	} else if (in_res->res_id == CAM_ISP_HW_TFE_IN_PDLIB) {
+		cam_tfe_ppp_resource_start(core_info, in_res);
 	} else if (in_res->res_id >= CAM_ISP_HW_TFE_IN_RDI0 &&
 		in_res->res_id <= CAM_ISP_HW_TFE_IN_RDI2) {
 		rsrc_rdi_data = (struct cam_tfe_rdi_data *) in_res->res_priv;
@@ -2325,6 +2562,7 @@ int cam_tfe_top_stop(struct cam_tfe_hw_core_info *core_info,
 	struct cam_hw_info                      *hw_info = NULL;
 	struct cam_tfe_camif_data               *camif_data;
 	struct cam_tfe_rdi_data                 *rsrc_rdi_data;
+	struct cam_tfe_ppp_data                 *ppp_data;
 	uint32_t val = 0;
 	int i, rc = 0;
 
@@ -2362,7 +2600,15 @@ int cam_tfe_top_stop(struct cam_tfe_hw_core_info *core_info,
 			cam_io_w_mb(val, camif_data->mem_base +
 				camif_data->common_reg->diag_config);
 		}
-	}  else if ((in_res->res_id >= CAM_ISP_HW_TFE_IN_RDI0) &&
+	}  else if (in_res->res_id == CAM_ISP_HW_TFE_IN_PDLIB) {
+		ppp_data = (struct cam_tfe_ppp_data *)in_res->res_priv;
+
+		cam_io_w_mb(0, ppp_data->mem_base +
+			ppp_data->ppp_reg->ppp_module_config);
+
+		if (in_res->res_state == CAM_ISP_RESOURCE_STATE_STREAMING)
+			in_res->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
+	} else if ((in_res->res_id >= CAM_ISP_HW_TFE_IN_RDI0) &&
 		(in_res->res_id <= CAM_ISP_HW_TFE_IN_RDI2)) {
 		rsrc_rdi_data = (struct cam_tfe_rdi_data *) in_res->res_priv;
 		cam_io_w_mb(0x0, rsrc_rdi_data->mem_base +
@@ -2415,6 +2661,7 @@ int cam_tfe_top_init(
 	struct cam_tfe_soc_private        *soc_private = NULL;
 	struct cam_tfe_camif_data         *camif_priv = NULL;
 	struct cam_tfe_rdi_data           *rdi_priv = NULL;
+	struct cam_tfe_ppp_data           *ppp_priv = NULL;
 	int i, j, rc = 0;
 
 	top_priv = kzalloc(sizeof(struct cam_tfe_top_priv),
@@ -2477,6 +2724,29 @@ int cam_tfe_top_init(
 			camif_priv->hw_intf     = hw_intf;
 			camif_priv->soc_info    = soc_info;
 
+		} else if (hw_info->in_port[i] == CAM_TFE_PDLIB_VER_1_0) {
+			top_priv->in_rsrc[i].res_id =
+				CAM_ISP_HW_TFE_IN_PDLIB;
+
+			ppp_priv = kzalloc(sizeof(struct cam_tfe_ppp_data),
+					GFP_KERNEL);
+			if (!ppp_priv) {
+				CAM_DBG(CAM_ISP,
+					"TFE:%d Error Failed to alloc for ppp_priv",
+					core_info->core_index);
+				goto deinit_resources;
+			}
+
+			top_priv->in_rsrc[i].res_priv = ppp_priv;
+
+			ppp_priv->mem_base    =
+				soc_info->reg_map[TFE_CORE_BASE_IDX].mem_base;
+			ppp_priv->hw_intf     = hw_intf;
+			ppp_priv->common_reg  = hw_info->common_reg;
+			ppp_priv->ppp_reg     =
+				hw_info->ppp_hw_info.ppp_reg;
+			ppp_priv->reg_data    =
+				hw_info->ppp_hw_info.reg_data;
 		} else if (hw_info->in_port[i] ==
 			CAM_TFE_RDI_VER_1_0) {
 			top_priv->in_rsrc[i].res_id =
@@ -3024,6 +3294,10 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		rc = core_info->tfe_bus->hw_ops.process_cmd(
 			core_info->tfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);
+		break;
+	case CAM_ISP_HW_CMD_GET_PATH_PORT_MAP:
+		rc = cam_tfe_bus_get_path_port_map(hw_info->top_hw_info, cmd_args,
+					arg_size);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "TFE:%d Invalid cmd type:%d",

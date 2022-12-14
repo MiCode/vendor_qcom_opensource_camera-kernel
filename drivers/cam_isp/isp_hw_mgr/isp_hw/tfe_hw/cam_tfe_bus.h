@@ -70,6 +70,7 @@ enum cam_tfe_bus_rup_grp_id {
 	CAM_TFE_BUS_RUP_GRP_1,
 	CAM_TFE_BUS_RUP_GRP_2,
 	CAM_TFE_BUS_RUP_GRP_3,
+	CAM_TFE_BUS_RUP_GRP_4,
 	CAM_TFE_BUS_RUP_GRP_MAX,
 };
 
@@ -89,6 +90,9 @@ enum cam_tfe_bus_tfe_out_id {
 	CAM_TFE_BUS_TFE_OUT_DS4,
 	CAM_TFE_BUS_TFE_OUT_DS16,
 	CAM_TFE_BUS_TFE_OUT_AI,
+	CAM_TFE_BUS_TFE_OUT_PD_LCR_STATS,
+	CAM_TFE_BUS_TFE_OUT_PD_PREPROCESSED,
+	CAM_TFE_BUS_TFE_OUT_PD_PARSED,
 	CAM_TFE_BUS_TFE_OUT_MAX,
 };
 
@@ -202,6 +206,7 @@ struct cam_tfe_bus_tfe_out_hw_info {
  * @counter_limit_shift:   Mask shift for BW counter limit
  * @counter_limit_mask:    Default Mask of BW limit counter
  * @en_cfg_shift:          bus client frame based enable bit
+ * @pack_align_shift:      pack alignment shift
  */
 struct cam_tfe_bus_hw_info {
 	struct cam_tfe_bus_reg_offset_common common_reg;
@@ -226,6 +231,7 @@ struct cam_tfe_bus_hw_info {
 	uint32_t max_bw_counter_limit;
 	uint32_t counter_limit_shift;
 	uint32_t counter_limit_mask;
+	uint32_t pack_align_shift;
 };
 
 /*

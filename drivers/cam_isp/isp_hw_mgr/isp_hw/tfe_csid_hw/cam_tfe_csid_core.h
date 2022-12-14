@@ -58,9 +58,12 @@
 #define TFE_CSID_PATH_IPP_ERROR_CCIF_VIOLATION        BIT(15)
 #define TFE_CSID_PATH_IPP_FRAME_DROP                  BIT(16)
 #define TFE_CSID_PATH_IPP_OVERFLOW_IRQ                BIT(17)
+#define TFE_CSID_PATH_PPP_ERROR_CCIF_VIOLATION        BIT(15)
+#define TFE_CSID_PATH_PPP_FRAME_DROP                  BIT(16)
+#define TFE_CSID_PATH_PPP_OVERFLOW_IRQ                BIT(17)
+#define TFE_CSID_PATH_RDI_ERROR_CCIF_VIOLATION        BIT(15)
 #define TFE_CSID_PATH_RDI_FRAME_DROP                  BIT(16)
 #define TFE_CSID_PATH_RDI_OVERFLOW_IRQ                BIT(17)
-#define TFE_CSID_PATH_RDI_ERROR_CCIF_VIOLATION        BIT(18)
 
 /*
  * Debug values enable the corresponding interrupts and debug logs provide
@@ -93,6 +96,14 @@ enum cam_tfe_csid_path_halt_mode {
 	TFE_CSID_HALT_MODE_GLOBAL,
 	TFE_CSID_HALT_MODE_MASTER,
 	TFE_CSID_HALT_MODE_SLAVE,
+};
+
+/* enum cam_csid_path_halt_master select the path halt master control */
+enum cam_tfe_csid_path_halt_master_sel {
+	TFE_CSID_HALT_CMD_SOURCE_EXTERNAL,
+	TFE_CSID_HALT_CMD_SOURCE_NONE,
+	TFE_CSID_HALT_CMD_SOURCE_INTERNAL2,
+	TFE_CSID_HALT_CMD_SOURCE_INTERNAL1,
 };
 
 /**
@@ -470,6 +481,7 @@ struct cam_csid_evt_payload {
  * @csi2_rx_reserve_cnt:      csi2 reservations count value
  * pxl_pipe_enable:           flag to specify if the hardware has IPP
  * @ipp_res:                  image pixel path resource
+ * @ppp_res:                  PD pixel path resource
  * @rdi_res:                  raw dump image path resources
  * @cid_res:                  cid resources values
  * @csid_top_reset_complete:  csid top reset completion
@@ -510,11 +522,13 @@ struct cam_tfe_csid_hw {
 	uint32_t                            csi2_reserve_cnt;
 	uint32_t                            pxl_pipe_enable;
 	struct cam_isp_resource_node        ipp_res;
+	struct cam_isp_resource_node        ppp_res;
 	struct cam_isp_resource_node        rdi_res[CAM_TFE_CSID_RDI_MAX];
 	struct cam_tfe_csid_cid_data        cid_res[CAM_TFE_CSID_CID_MAX];
 	struct completion                   csid_top_complete;
 	struct completion                   csid_csi2_complete;
 	struct completion                   csid_ipp_complete;
+	struct completion                   csid_ppp_complete;
 	struct completion     csid_rdin_complete[CAM_TFE_CSID_RDI_MAX];
 	uint64_t                            csid_debug;
 	uint64_t                            clk_rate;
