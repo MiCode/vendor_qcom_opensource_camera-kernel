@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -30,6 +30,9 @@
 
 static struct cam_mem_table tbl;
 static atomic_t cam_mem_mgr_state = ATOMIC_INIT(CAM_MEM_MGR_UNINITIALIZED);
+
+/* Number of words for dumping req state info */
+#define CAM_MEM_MGR_DUMP_BUF_NUM_WORDS  29
 
 /* cam_mem_mgr_debug - global struct to keep track of debug settings for mem mgr
  *
@@ -1911,6 +1914,102 @@ ion_fail:
 	return rc;
 }
 EXPORT_SYMBOL(cam_mem_mgr_reserve_memory_region);
+
+static void *cam_mem_mgr_user_dump_buf(
+	void *dump_struct, uint8_t *addr_ptr)
+{
+	struct cam_mem_buf_queue          *buf = NULL;
+	uint64_t                          *addr;
+	int                                i = 0;
+
+	buf = (struct cam_mem_buf_queue *)dump_struct;
+
+	addr = (uint64_t *)addr_ptr;
+
+	*addr++ = buf->timestamp.tv_sec;
+	*addr++ = buf->timestamp.tv_nsec / NSEC_PER_USEC;
+	*addr++ = buf->fd;
+	*addr++ = buf->i_ino;
+	*addr++ = buf->buf_handle;
+	*addr++ = buf->len;
+	*addr++ = buf->align;
+	*addr++ = buf->flags;
+	*addr++ = buf->vaddr;
+	*addr++ = buf->kmdvaddr;
+	*addr++ = buf->is_imported;
+	*addr++ = buf->is_internal;
+	*addr++ = buf->num_hdl;
+	for (i = 0; i < buf->num_hdl; i++)
+		*addr++ = buf->hdls[i];
+
+	return addr;
+}
+
+int cam_mem_mgr_dump_user(struct cam_dump_req_cmd *dump_req)
+{
+	int                             rc = 0;
+	int                             i;
+	struct cam_common_hw_dump_args  dump_args;
+	size_t                          buf_len;
+	size_t                          remain_len;
+	uint32_t                        min_len;
+	uintptr_t                       cpu_addr;
+
+	rc = cam_mem_get_cpu_buf(dump_req->buf_handle,
+		&cpu_addr, &buf_len);
+	if (rc) {
+		CAM_ERR(CAM_MEM, "Invalid handle %u rc %d",
+			dump_req->buf_handle, rc);
+		return rc;
+	}
+	if (buf_len <= dump_req->offset) {
+		CAM_WARN(CAM_MEM, "Dump buffer overshoot len %zu offset %zu",
+			buf_len, dump_req->offset);
+		return -ENOSPC;
+	}
+
+	remain_len = buf_len - dump_req->offset;
+	min_len =
+		(CAM_MEM_BUFQ_MAX *
+		(CAM_MEM_MGR_DUMP_BUF_NUM_WORDS * sizeof(uint64_t) +
+		sizeof(struct cam_common_hw_dump_header)));
+
+	if (remain_len < min_len) {
+		CAM_WARN(CAM_MEM, "Dump buffer exhaust remain %zu min %u",
+			remain_len, min_len);
+		return -ENOSPC;
+	}
+
+	dump_args.req_id = dump_req->issue_req_id;
+	dump_args.cpu_addr = cpu_addr;
+	dump_args.buf_len = buf_len;
+	dump_args.offset = dump_req->offset;
+	dump_args.ctxt_to_hw_map = NULL;
+
+	mutex_lock(&tbl.m_lock);
+	for (i = 1; i < CAM_MEM_BUFQ_MAX; i++) {
+		if (tbl.bufq[i].active) {
+			mutex_lock(&tbl.bufq[i].q_lock);
+			rc = cam_common_user_dump_helper(&dump_args,
+				cam_mem_mgr_user_dump_buf,
+				&tbl.bufq[i],
+				sizeof(uint64_t), "MEM_MGR_BUF.%d:", i);
+			if (rc) {
+				CAM_ERR(CAM_CRM,
+					"Dump state info failed, rc: %d",
+					rc);
+				return rc;
+			}
+			mutex_unlock(&tbl.bufq[i].q_lock);
+		}
+	}
+	mutex_unlock(&tbl.m_lock);
+
+	dump_req->offset = dump_args.offset;
+
+	return rc;
+}
+
 
 int cam_mem_mgr_free_memory_region(struct cam_mem_mgr_memory_desc *inp)
 {

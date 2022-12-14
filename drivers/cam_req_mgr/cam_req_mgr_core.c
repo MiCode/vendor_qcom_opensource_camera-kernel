@@ -5637,6 +5637,17 @@ int cam_req_mgr_dump_request(struct cam_dump_req_cmd *dump_req)
 		goto end;
 	}
 
+	/*
+	 * Dump Mem MGR
+	 */
+	rc = cam_mem_mgr_dump_user(dump_req);
+	if (rc)
+		CAM_ERR(CAM_REQ,
+			"Fail to dump mem mgr rc %d", rc);
+
+	/*
+	 * Dump CRM
+	 */
 	info.offset = dump_req->offset;
 	info.link_hdl = dump_req->link_hdl;
 	info.dev_hdl = 0;

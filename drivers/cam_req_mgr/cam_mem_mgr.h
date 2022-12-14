@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_MEM_MGR_H_
@@ -240,4 +240,11 @@ int cam_mem_mgr_send_buffer_to_presil(int32_t iommu_hdl, int32_t buf_handle);
  */
 int cam_mem_mgr_retrieve_buffer_from_presil(int32_t buf_handle,
 	uint32_t buf_size, uint32_t offset, int32_t iommu_hdl);
+
+/**
+ * @brief: Dump mem mgr info into user buffer
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
+ */
+int cam_mem_mgr_dump_user(struct cam_dump_req_cmd *dump_req);
 #endif /* _CAM_MEM_MGR_H_ */
