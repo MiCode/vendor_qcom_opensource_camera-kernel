@@ -8,6 +8,7 @@
 #define __TPG_HW_V_1_4_DATA_H__
 
 #include "../tpg_hw.h"
+#include "../tpg_hw_common.h"
 #include "tpg_hw_v_1_4.h"
 #include "tpg_hw_v_1_4_0.h"
 
@@ -17,6 +18,7 @@ struct tpg_hw_ops tpg_hw_v_1_4_ops = {
 	.init  = tpg_hw_v_1_4_init,
 	.process_cmd = tpg_hw_v_1_4_process_cmd,
 	.dump_status = tpg_hw_v_1_4_dump_status,
+	.write_settings = tpg_hw_write_settings,
 };
 
 struct tpg_hw_info tpg_v_1_4_hw_info = {

@@ -135,6 +135,7 @@ enum tpg_command_type_t {
 	TPG_CMD_TYPE_GLOBAL_CONFIG,
 	TPG_CMD_TYPE_STREAM_CONFIG,
 	TPG_CMD_TYPE_ILLUMINATION_CONFIG,
+	TPG_CMD_TYPE_SETTINGS_CONFIG,
 	TPG_CMD_TYPE_MAX,
 };
 
@@ -877,6 +878,41 @@ struct tpg_cfa_information_t {
 	uint32_t pattern_height;
 	uint32_t pixel_coordinate_count;
 	struct tpg_pixel_coordinate_t pixel_coordinate[64];
+} __attribute__((packed));
+
+/**
+ * tpg_reg_settings : TPG register settings
+ *
+ * @reg_offset : register offset
+ * @reg_value  : register value
+ * @operation  : operation
+ * @delay_us   : delay in micro second
+ */
+struct tpg_reg_settings {
+	uint32_t reg_offset;
+	uint32_t reg_value;
+	uint32_t operation;
+	uint32_t delay_us;
+	uint32_t reserved[4];
+} __attribute__((packed));
+
+/**
+ * tpg_settings_config_t : settings configuration command structure
+ *
+ * @header                : common header
+ * @settings_array_offset : settings array offset
+ * @settings_array_size   : settings array size
+ * @active_count          : active count
+ * @param_mask            : Mask to indicate fields in params
+ * @params                : Additional Params
+ */
+struct tpg_settings_config_t {
+	struct tpg_command_header_t header;
+	uint32_t settings_array_offset;
+	uint32_t settings_array_size;
+	uint32_t active_count;
+	uint32_t param_mask;
+	uint32_t params[4];
 } __attribute__((packed));
 
 /**

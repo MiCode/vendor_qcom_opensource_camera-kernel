@@ -501,9 +501,17 @@ int tpg_hw_dump_status(struct tpg_hw *hw)
 int tpg_hw_start(struct tpg_hw *hw)
 {
 	int rc = 0;
+	struct tpg_reg_settings *reg_settings = NULL;
+	struct tpg_settings_config_t *config = NULL;
+	uint32_t settings_count = 0;
 
 	if (!hw || !hw->hw_info || !hw->hw_info->ops)
 		return -EINVAL;
+
+	reg_settings = hw->register_settings;
+	config = &hw->settings_config;
+	settings_count = config->active_count;
+
 	mutex_lock(&hw->mutex);
 	switch (hw->hw_info->version) {
 	case TPG_HW_VERSION_1_0:
@@ -517,10 +525,15 @@ int tpg_hw_start(struct tpg_hw *hw)
 	case TPG_HW_VERSION_1_4:
 		if (hw->hw_info->ops->start)
 			hw->hw_info->ops->start(hw, NULL);
-		if (hw->stream_version == 1)
-			tpg_hw_start_default_new(hw);
-		else if (hw->stream_version == 3)
-			tpg_hw_start_default_new_v3(hw);
+		if (settings_count != 0) {
+			hw->hw_info->ops->write_settings(hw, config,
+						reg_settings);
+		} else {
+			if (hw->stream_version == 1)
+				tpg_hw_start_default_new(hw);
+			else if (hw->stream_version == 3)
+				tpg_hw_start_default_new_v3(hw);
+		}
 		cam_tpg_mem_dmp(hw->soc_info);
 		break;
 	default:
@@ -830,6 +843,41 @@ int tpg_hw_copy_global_config(
 		global,
 		sizeof(struct tpg_global_config_t));
 	mutex_unlock(&hw->mutex);
+	return 0;
+}
+
+int tpg_hw_copy_settings_config(
+	struct tpg_hw *hw,
+	struct tpg_settings_config_t *settings)
+{
+	struct tpg_reg_settings *reg_settings;
+
+	if (!hw || !settings) {
+		CAM_ERR(CAM_TPG, "invalid parameter");
+		return -EINVAL;
+	}
+
+	hw->register_settings =
+		kzalloc(sizeof(struct tpg_reg_settings) *
+		settings->settings_array_size, GFP_KERNEL);
+
+	if (hw->register_settings == NULL) {
+		CAM_ERR(CAM_TPG, "unable to allocate memory");
+		return -EINVAL;
+	}
+
+	reg_settings = (struct tpg_reg_settings *)
+		((uint8_t *)settings + settings->settings_array_offset);
+
+	mutex_lock(&hw->mutex);
+	memcpy(&hw->settings_config,
+		settings,
+		sizeof(struct tpg_settings_config_t));
+	memcpy(hw->register_settings,
+		reg_settings,
+		sizeof(struct tpg_reg_settings) * settings->settings_array_size);
+	mutex_unlock(&hw->mutex);
+
 	return 0;
 }
 

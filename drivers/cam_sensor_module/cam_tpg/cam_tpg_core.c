@@ -426,6 +426,19 @@ static int cam_tpg_validate_cmd_descriptor(
 		*cmd_type = TPG_CMD_TYPE_ILLUMINATION_CONFIG;
 		break;
 	}
+	case TPG_CMD_TYPE_SETTINGS_CONFIG: {
+		if (cmd_header->size != sizeof(struct tpg_settings_config_t)) {
+			CAM_ERR(CAM_TPG, "Got invalid settings config command recv: %d exp: %d",
+					cmd_header->size,
+					sizeof(struct tpg_settings_config_t));
+			rc = -EINVAL;
+			goto end;
+		}
+		CAM_INFO(CAM_TPG, "Got settings config command");
+		*cmd_type = TPG_CMD_TYPE_SETTINGS_CONFIG;
+		break;
+	}
+
 	default:
 		rc = -EINVAL;
 		CAM_ERR(CAM_TPG, "invalid config command");
@@ -484,6 +497,13 @@ static int cam_tpg_cmd_buf_parse(
 					(struct tpg_stream_config_t *)cmd_addr);
 				CAM_DBG(CAM_TPG, "Stream config");
 			}
+			break;
+		}
+		case TPG_CMD_TYPE_SETTINGS_CONFIG: {
+			CAM_DBG(CAM_TPG, "TPG[%d] Got TPG Settings Config",
+							tpg_dev->soc_info.index);
+			rc = tpg_hw_copy_settings_config(&tpg_dev->tpg_hw,
+				(struct tpg_settings_config_t *)cmd_addr);
 			break;
 		}
 		case TPG_CMD_TYPE_ILLUMINATION_CONFIG:
