@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include "cam_sync_dma_fence.h"
 
@@ -80,13 +80,17 @@ static void __cam_dma_fence_print_table(void)
 
 static int __cam_dma_fence_find_free_idx(uint32_t *idx)
 {
-	int rc = 0;
+	int rc = -ENOMEM;
+
+	/* Hold lock to obtain free index */
+	mutex_lock(&g_cam_dma_fence_dev->dev_lock);
 
 	*idx = find_first_zero_bit(g_cam_dma_fence_dev->bitmap, CAM_DMA_FENCE_MAX_FENCES);
-	if (*idx < CAM_DMA_FENCE_MAX_FENCES)
+	if (*idx < CAM_DMA_FENCE_MAX_FENCES) {
 		set_bit(*idx, g_cam_dma_fence_dev->bitmap);
-	else
-		rc = -ENOMEM;
+		rc = 0;
+	}
+	mutex_unlock(&g_cam_dma_fence_dev->dev_lock);
 
 	if (rc) {
 		CAM_ERR(CAM_DMA_FENCE, "No free idx, printing dma fence table......");

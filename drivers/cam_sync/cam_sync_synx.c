@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sync_synx.h"
@@ -81,13 +81,17 @@ static int __cam_synx_obj_release(int32_t row_idx)
 
 static int __cam_synx_obj_find_free_idx(uint32_t *idx)
 {
-	int rc = 0;
+	int rc = -ENOMEM;
+
+	/* Hold lock to obtain free index */
+	mutex_lock(&g_cam_synx_obj_dev->dev_lock);
 
 	*idx = find_first_zero_bit(g_cam_synx_obj_dev->bitmap, CAM_SYNX_MAX_OBJS);
-	if (*idx < CAM_SYNX_MAX_OBJS)
+	if (*idx < CAM_SYNX_MAX_OBJS) {
 		set_bit(*idx, g_cam_synx_obj_dev->bitmap);
-	else
-		rc = -ENOMEM;
+		rc = 0;
+	}
+	mutex_unlock(&g_cam_synx_obj_dev->dev_lock);
 
 	if (rc)
 		CAM_ERR(CAM_SYNX, "No free synx idx");
@@ -345,7 +349,7 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 	struct cam_synx_obj_signal *signal_synx_obj)
 {
 	int rc = 0;
-	uint32_t signal_status;
+	uint32_t signal_status, synx_obj = 0;
 	struct cam_synx_obj_row *row = NULL;
 
 	if ((row_idx < 0) || (row_idx >= CAM_SYNX_MAX_OBJS)) {
@@ -359,6 +363,7 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 
 	/* Ensures sync obj cb is not invoked */
 	row->sync_signal_synx = true;
+	synx_obj = row->synx_obj;
 
 	if (row->state == CAM_SYNX_OBJ_STATE_SIGNALED) {
 		spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
@@ -376,18 +381,21 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 			signal_synx_obj->synx_obj);
 	}
 
-	rc = synx_signal(g_cam_synx_obj_dev->session_handle,
-		signal_synx_obj->synx_obj, signal_status);
-	if (rc)
-		CAM_WARN(CAM_SYNX, "synx obj: %d already signaled rc: %d",
-			row->synx_obj, rc);
-
 	row->state = CAM_SYNX_OBJ_STATE_SIGNALED;
 	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
+
+	rc = synx_signal(g_cam_synx_obj_dev->session_handle,
+		signal_synx_obj->synx_obj, signal_status);
+	if (rc) {
+		CAM_WARN(CAM_SYNX, "synx obj: %d already signaled rc: %d",
+			synx_obj, rc);
+		goto end;
+	}
 
 	CAM_DBG(CAM_SYNX, "synx obj: %d signaled with status: %d rc: %d",
 		signal_synx_obj->synx_obj, signal_status, rc);
 
+end:
 	return rc;
 }
 
@@ -402,7 +410,7 @@ int cam_synx_obj_release(struct cam_synx_obj_release_params *release_params)
 int cam_synx_obj_signal_obj(struct cam_synx_obj_signal *signal_synx_obj)
 {
 	int rc = 0;
-	uint32_t idx, signal_status = 0;
+	uint32_t idx, signal_status = 0, synx_obj = 0;
 	struct cam_synx_obj_row *row = NULL;
 
 	rc = cam_synx_obj_find_obj_in_table(
@@ -416,6 +424,7 @@ int cam_synx_obj_signal_obj(struct cam_synx_obj_signal *signal_synx_obj)
 
 	spin_lock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
 	row = &g_cam_synx_obj_dev->rows[idx];
+	synx_obj = row->synx_obj;
 	if (row->state == CAM_SYNX_OBJ_STATE_SIGNALED) {
 		spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
 		CAM_WARN(CAM_SYNX, "synx obj: %d already in signaled state",
@@ -431,19 +440,21 @@ int cam_synx_obj_signal_obj(struct cam_synx_obj_signal *signal_synx_obj)
 			signal_synx_obj->status,
 			signal_synx_obj->synx_obj);
 	}
+	row->state = CAM_SYNX_OBJ_STATE_SIGNALED;
+	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
 
 	rc = synx_signal(g_cam_synx_obj_dev->session_handle,
 		signal_synx_obj->synx_obj, signal_status);
-	if (rc)
+	if (rc) {
 		CAM_WARN(CAM_SYNX, "synx obj: %d already signaled rc: %d",
-			row->synx_obj, rc);
-
-	row->state = CAM_SYNX_OBJ_STATE_SIGNALED;
-	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
+			synx_obj, rc);
+		goto end;
+	}
 
 	CAM_DBG(CAM_SYNX, "synx obj: %d signaled with status: %d rc: %d",
 		signal_synx_obj->synx_obj, signal_status, rc);
 
+end:
 	return rc;
 }
 
@@ -451,6 +462,7 @@ int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
 	cam_sync_callback_for_synx_obj sync_cb)
 {
 	int rc = 0;
+	uint32_t synx_obj = 0;
 	struct cam_synx_obj_row *row = NULL;
 	struct synx_callback_params cb_params;
 
@@ -468,12 +480,14 @@ int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
 
 	spin_lock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 	row = &g_cam_synx_obj_dev->rows[row_idx];
+	synx_obj = row->synx_obj;
 
 	if (row->state != CAM_SYNX_OBJ_STATE_ACTIVE) {
 		CAM_ERR(CAM_SYNX,
 			"synx obj at idx: %d handle: %d is not active, current state: %d",
 			row_idx, row->synx_obj, row->state);
 		rc = -EINVAL;
+		spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 		goto end;
 	}
 
@@ -484,19 +498,7 @@ int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
 		CAM_WARN(CAM_SYNX,
 			"synx obj at idx: %d handle: %d has already registered a cb for sync: %d",
 			row_idx, row->synx_obj, row->sync_obj);
-		goto end;
-	}
-
-	cb_params.userdata = row;
-	cb_params.cancel_cb_func = NULL;
-	cb_params.h_synx = row->synx_obj;
-	cb_params.cb_func = __cam_synx_obj_signal_cb;
-
-	rc = synx_async_wait(g_cam_synx_obj_dev->session_handle, &cb_params);
-	if (rc) {
-		CAM_ERR(CAM_SYNX,
-			"Failed to register cb for synx obj: %d rc: %d",
-			row->synx_obj, rc);
+		spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 		goto end;
 	}
 
@@ -504,12 +506,25 @@ int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
 	row->sync_obj = *sync_obj;
 	row->cb_registered_for_sync = true;
 
+	cb_params.userdata = row;
+	cb_params.cancel_cb_func = NULL;
+	cb_params.h_synx = synx_obj;
+	cb_params.cb_func = __cam_synx_obj_signal_cb;
+	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
+
+	rc = synx_async_wait(g_cam_synx_obj_dev->session_handle, &cb_params);
+	if (rc) {
+		CAM_ERR(CAM_SYNX,
+			"Failed to register cb for synx obj: %d rc: %d",
+			synx_obj, rc);
+		goto end;
+	}
+
 	CAM_DBG(CAM_SYNX,
 		"CB successfully registered for synx obj: %d for sync_obj: %d",
-		row->synx_obj, *sync_obj);
+		synx_obj, *sync_obj);
 
 end:
-	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 	return rc;
 }
 
@@ -543,13 +558,11 @@ void cam_synx_obj_close(void)
 
 	mutex_lock(&g_cam_synx_obj_dev->dev_lock);
 	for (i = 0; i < CAM_SYNX_MAX_OBJS; i++) {
-		spin_lock_bh(&g_cam_synx_obj_dev->row_spinlocks[i]);
 
 		row = &g_cam_synx_obj_dev->rows[i];
-		if (row->state == CAM_SYNX_OBJ_STATE_INVALID) {
-			spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[i]);
+		if (row->state == CAM_SYNX_OBJ_STATE_INVALID)
 			continue;
-		}
+
 		CAM_DBG(CAM_SYNX, "Releasing synx_obj: %d[%s]",
 			row->synx_obj, row->name);
 
@@ -579,7 +592,6 @@ void cam_synx_obj_close(void)
 
 		memset(row, 0, sizeof(struct cam_synx_obj_row));
 		clear_bit(i, g_cam_synx_obj_dev->bitmap);
-		spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[i]);
 	}
 
 	mutex_unlock(&g_cam_synx_obj_dev->dev_lock);
