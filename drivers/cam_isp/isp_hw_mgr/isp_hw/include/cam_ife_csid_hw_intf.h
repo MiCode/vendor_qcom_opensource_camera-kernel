@@ -25,6 +25,22 @@ enum cam_ife_csid_hw_irq_regs {
 };
 
 /**
+ * enum cam_ife_csid_top_irq_regs - Specify the top irq reg
+ */
+enum cam_ife_csid_top_irq_regs {
+	CAM_IFE_CSID_TOP_IRQ_STATUS_REG0,
+	CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX,
+};
+
+/**
+ * enum cam_ife_csid_rx_irq_regs - Specify the rx irq reg
+ */
+enum cam_ife_csid_rx_irq_regs {
+	CAM_IFE_CSID_RX_IRQ_STATUS_REG0,
+	CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX,
+};
+
+/**
  * enum cam_ife_csid_input_core_type - Specify the csid input core
  */
 enum cam_ife_csid_input_core_type {
