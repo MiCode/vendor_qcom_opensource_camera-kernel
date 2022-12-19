@@ -7223,7 +7223,12 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 					CAM_IFE_CSID_TOP_CONFIG,
 					&csid_top_args,
 					sizeof(csid_top_args));
-
+				if (rc) {
+					CAM_ERR(CAM_ISP,
+						"CSID: %u top config cmd failed, rc:%d",
+						hw_intf->hw_idx, rc);
+					goto tasklet_stop;
+				}
 				CAM_DBG(CAM_ISP,
 					"CSID: %u split_id: %d core_idx: %u core_type: %u is_sfe_offline: %d",
 					hw_intf->hw_idx, i, csid_top_args.core_idx,
