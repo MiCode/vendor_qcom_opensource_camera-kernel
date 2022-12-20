@@ -103,6 +103,12 @@ int cam_sfe_init_soc_resources(struct cam_hw_soc_info *soc_info,
 		goto free_soc_private;
 	}
 
+	rc = cam_cpas_query_drv_enable(NULL, &soc_info->is_clk_drv_en);
+	if (rc) {
+		CAM_ERR(CAM_SFE, "Failed to query DRV enable rc:%d", rc);
+		goto free_soc_private;
+	}
+
 	rc = cam_sfe_request_platform_resource(soc_info,
 		irq_handler_func, irq_data);
 	if (rc < 0) {

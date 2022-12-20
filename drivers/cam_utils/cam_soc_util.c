@@ -97,6 +97,11 @@ static LIST_HEAD(wrapper_clk_list);
 
 const struct device *cam_cesta_crm_dev;
 
+#if IS_ENABLED(CONFIG_QCOM_CRM) && IS_ENABLED(CONFIG_SPECTRA_USE_CLK_CRM_API)
+static int cam_soc_util_set_hw_client_rate_through_mmrm(
+	void *mmrm_handle, long low_val, long high_val,
+	uint32_t num_hw_blocks, int cesta_client_idx);
+#endif
 #if IS_ENABLED(CONFIG_QCOM_CRM)
 static inline const struct device *cam_wrapper_crm_get_device(
 	const char *name)
@@ -403,6 +408,23 @@ static int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
 	src_clk_idx = soc_info->src_clk_idx;
 	clk = soc_info->clk[src_clk_idx];
 
+	if (!skip_mmrm_set_rate && soc_info->mmrm_handle) {
+		CAM_DBG(CAM_UTIL, "cesta mmrm hw client: set %s, high-rate %lld low-rate %lld",
+			soc_info->clk_name[src_clk_idx], high_val, low_val);
+
+		rc = cam_soc_util_set_hw_client_rate_through_mmrm(
+			soc_info->mmrm_handle, low_val, high_val, 1,
+			cesta_client_idx);
+		if (rc) {
+			CAM_ERR(CAM_UTIL,
+				"set_sw_client_rate through mmrm failed on %s clk_id %d low_val %llu high_val %llu client idx=%d",
+				soc_info->clk_name[src_clk_idx], soc_info->clk_id[src_clk_idx],
+				low_val, high_val, cesta_client_idx);
+			return rc;
+		}
+		goto end;
+	}
+
 	CAM_DBG(CAM_UTIL, "%s Requested clk rate [high low]: [%llu %llu] cesta_client_idx: %d",
 		soc_info->clk_name[src_clk_idx], high_val, low_val, cesta_client_idx);
 
@@ -424,6 +446,7 @@ static int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
 		return rc;
 	}
 
+end:
 	if (applied_high_val)
 		*applied_high_val = high_val;
 
@@ -432,6 +455,52 @@ static int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
 
 	return rc;
 }
+
+#if IS_REACHABLE(CONFIG_MSM_MMRM)
+int cam_soc_util_set_hw_client_rate_through_mmrm(
+	void *mmrm_handle, long low_val, long high_val,
+	uint32_t num_hw_blocks, int cesta_client_idx)
+{
+	int rc = 0;
+	struct mmrm_client_data client_data;
+
+	client_data.num_hw_blocks = num_hw_blocks;
+	client_data.crm_drv_idx = cesta_client_idx;
+	client_data.drv_type = MMRM_CRM_HW_DRV;
+	client_data.pwr_st = CRM_PWR_STATE1;
+	client_data.flags = 0;
+
+	CAM_DBG(CAM_UTIL,
+		"hw client mmrm=%pK, high_val %ld, low_val %ld, num_blocks=%d, pwr_state: %u, client_idx: %d",
+		mmrm_handle, high_val, low_val, num_hw_blocks, CRM_PWR_STATE1, cesta_client_idx);
+
+	rc = mmrm_client_set_value((struct mmrm_client *)mmrm_handle,
+		&client_data, high_val);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "Set high rate failed rate %ld rc %d",
+			high_val, rc);
+		return rc;
+	}
+
+	/* We vote a second time for pwr_st = low */
+	client_data.pwr_st = CRM_PWR_STATE0;
+
+	rc = mmrm_client_set_value((struct mmrm_client *)mmrm_handle,
+		&client_data, low_val);
+	if (rc)
+		CAM_ERR(CAM_UTIL, "Set low rate failed rate %ld rc %d", low_val, rc);
+
+	return rc;
+}
+
+#else
+int cam_soc_util_set_hw_client_rate_through_mmrm(
+	void *mmrm_handle, long low_val, long high_val,
+	uint32_t num_hw_blocks, int cesta_client_idx)
+{
+	return 0;
+}
+#endif
 
 #else
 static inline int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
@@ -508,6 +577,16 @@ int cam_soc_util_register_mmrm_client(
 	desc.client_info.desc.client_id = clk_id;
 	desc.client_info.desc.clk = clk;
 
+#if IS_ENABLED(CONFIG_QCOM_CRM) && IS_ENABLED(CONFIG_SPECTRA_USE_CLK_CRM_API)
+	if (soc_info->is_clk_drv_en) {
+		desc.client_info.desc.hw_drv_instances = CAM_CESTA_MAX_CLIENTS;
+		desc.client_info.desc.num_pwr_states = CAM_NUM_PWR_STATES;
+	} else {
+		desc.client_info.desc.hw_drv_instances = 0;
+		desc.client_info.desc.num_pwr_states = 0;
+	}
+#endif
+
 	snprintf((char *)desc.client_info.desc.name,
 		sizeof(desc.client_info.desc.name), "%s_%s",
 		soc_info->dev_name, clk_name);
@@ -551,7 +630,7 @@ int cam_soc_util_unregister_mmrm_client(
 	return rc;
 }
 
-static int cam_soc_util_set_rate_through_mmrm(
+static int cam_soc_util_set_sw_client_rate_through_mmrm(
 	void *mmrm_handle, bool is_nrt_dev, long min_rate,
 	long req_rate, uint32_t num_hw_blocks)
 {
@@ -562,8 +641,12 @@ static int cam_soc_util_set_rate_through_mmrm(
 	client_data.num_hw_blocks = num_hw_blocks;
 	client_data.flags = 0;
 
+#if IS_ENABLED(CONFIG_QCOM_CRM) && IS_ENABLED(CONFIG_SPECTRA_USE_CLK_CRM_API)
+	client_data.drv_type = MMRM_CRM_SW_DRV;
+#endif
+
 	CAM_DBG(CAM_UTIL,
-		"mmrm=%pK, nrt=%d, min_rate=%ld req_rate %ld, num_blocks=%d",
+		"sw client mmrm=%pK, nrt=%d, min_rate=%ld req_rate %ld, num_blocks=%d",
 		mmrm_handle, is_nrt_dev, min_rate, req_rate, num_hw_blocks);
 
 	if (is_nrt_dev) {
@@ -606,7 +689,7 @@ int cam_soc_util_unregister_mmrm_client(
 	return 0;
 }
 
-static int cam_soc_util_set_rate_through_mmrm(
+static int cam_soc_util_set_sw_client_rate_through_mmrm(
 	void *mmrm_handle, bool is_nrt_dev, long min_rate,
 	long req_rate, uint32_t num_hw_blocks)
 {
@@ -851,7 +934,7 @@ static int cam_soc_util_clk_wrapper_set_clk_rate(
 		bool set_rate_finish = false;
 
 		if (!skip_mmrm_set_rate && wrapper_clk->mmrm_handle) {
-			rc = cam_soc_util_set_rate_through_mmrm(
+			rc = cam_soc_util_set_sw_client_rate_through_mmrm(
 				wrapper_clk->mmrm_handle,
 				wrapper_clk->is_nrt_dev,
 				wrapper_clk->min_clk_rate,
@@ -1341,16 +1424,16 @@ static int cam_soc_util_set_clk_rate(struct cam_hw_soc_info *soc_info,
 				uint32_t idx = soc_info->src_clk_idx;
 				uint32_t min_level = soc_info->lowest_clk_level;
 
-				rc = cam_soc_util_set_rate_through_mmrm(
+				rc = cam_soc_util_set_sw_client_rate_through_mmrm(
 					soc_info->mmrm_handle,
 					soc_info->is_nrt_dev,
 					soc_info->clk_rate[min_level][idx],
 					clk_rate_round, 1);
+
 				if (rc) {
 					CAM_ERR(CAM_UTIL,
-						"set_rate through mmrm failed on %s clk_id %d, rate=%ld",
-						clk_name, clk_id,
-						clk_rate_round);
+						"set_sw_client_rate through mmrm failed on %s clk_id %d, rate=%ld",
+						clk_name, clk_id, clk_rate_round);
 					return rc;
 				}
 				set_rate_finish = true;
@@ -1766,7 +1849,7 @@ int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info, int cesta_client_
 				(soc_info->src_clk_idx == clk_idx)) {
 			CAM_DBG(CAM_UTIL, "Dev %s Disabling %s clk, set 0 rate",
 				soc_info->dev_name, clk_name);
-			cam_soc_util_set_rate_through_mmrm(
+			cam_soc_util_set_sw_client_rate_through_mmrm(
 				soc_info->mmrm_handle,
 				soc_info->is_nrt_dev,
 				0, 0, 1);

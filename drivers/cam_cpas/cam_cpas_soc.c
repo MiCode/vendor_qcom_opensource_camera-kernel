@@ -1772,13 +1772,13 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		goto free_irq_data;
 	}
 
+	soc_info->is_clk_drv_en = soc_private->enable_cam_clk_drv;
+
 	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler, &(irq_data[0]));
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "failed in request_platform_resource, rc=%d", rc);
 		goto free_irq_data;
 	}
-
-	soc_info->is_clk_drv_en = soc_private->enable_cam_clk_drv;
 
 	rc = cam_soc_util_get_option_clk_by_name(soc_info, CAM_ICP_CLK_NAME,
 		&soc_private->icp_clk_index);

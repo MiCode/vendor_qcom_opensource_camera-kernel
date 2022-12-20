@@ -93,6 +93,7 @@ enum cam_vote_level {
 #define CAM_SOC_PINCTRL_STATE_DEFAULT "cam_default"
 
 #define CAM_CESTA_MAX_CLIENTS       3
+#define CAM_NUM_PWR_STATES          2
 
 /**
  * struct cam_soc_util_hw_client_clk_rates:   Information about HW client clock vote

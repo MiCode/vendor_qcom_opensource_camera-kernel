@@ -80,10 +80,20 @@ int cam_ife_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	soc_info->soc_private = soc_private;
 
 	rc = cam_ife_csid_get_dt_properties(soc_info);
-	if (rc < 0)
-		return rc;
+	if (rc < 0) {
+		CAM_ERR(CAM_ISP, "Failed in get_dt_properties, rc=%d", rc);
+		goto free_soc_private;
+	}
 
 	/* Need to see if we want post process the clock list */
+
+	if (!soc_private->is_ife_csid_lite) {
+		rc = cam_cpas_query_drv_enable(NULL, &soc_info->is_clk_drv_en);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Failed to query DRV enable rc:%d", rc);
+			goto free_soc_private;
+		}
+	}
 
 	rc = cam_ife_csid_request_platform_resource(soc_info, csid_irq_handler,
 		data);
