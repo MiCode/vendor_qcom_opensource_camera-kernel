@@ -2064,7 +2064,7 @@ static int cam_icp_test_irq_line(struct cam_icp_hw_mgr *hw_mgr)
 	int rc = -EINVAL;
 	struct cam_hw_intf *icp_dev_intf = hw_mgr->icp_dev_intf;
 
-	if (!icp_dev_inf) {
+	if (!icp_dev_intf) {
 		CAM_ERR(CAM_ICP, "ICP device interface is NULL");
 		return -EINVAL;
 	}
