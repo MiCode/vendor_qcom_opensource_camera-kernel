@@ -3527,7 +3527,7 @@ static int cam_icp_get_io_mem_info(struct cam_icp_hw_mgr *hw_mgr)
 static int cam_icp_allocate_hfi_mem(struct cam_icp_hw_mgr *hw_mgr)
 {
 	int rc;
-	struct cam_smmu_region_info fwuncached_region_info;
+	struct cam_smmu_region_info fwuncached_region_info = {0};
 	bool fwuncached_region_exists = false;
 
 	rc = cam_smmu_get_region_info(hw_mgr->iommu_hdl,
