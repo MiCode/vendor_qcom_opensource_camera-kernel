@@ -16,7 +16,6 @@
 #include <linux/workqueue.h>
 #include <linux/genalloc.h>
 #include <linux/debugfs.h>
-#include <linux/dma-iommu.h>
 
 #include <soc/qcom/secure_buffer.h>
 
