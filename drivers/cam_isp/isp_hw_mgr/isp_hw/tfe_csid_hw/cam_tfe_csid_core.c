@@ -2271,6 +2271,7 @@ static int cam_tfe_csid_get_hw_caps(void *hw_priv,
 	struct cam_tfe_csid_hw                *csid_hw;
 	struct cam_hw_info                    *csid_hw_info;
 	const struct cam_tfe_csid_reg_offset  *csid_reg;
+	struct cam_tfe_csid_soc_private       *soc_private;
 
 	if (!hw_priv || !get_hw_cap_args) {
 		CAM_ERR(CAM_ISP, "CSID: Invalid args");
@@ -2281,6 +2282,7 @@ static int cam_tfe_csid_get_hw_caps(void *hw_priv,
 	csid_hw = (struct cam_tfe_csid_hw   *)csid_hw_info->core_info;
 	csid_reg = csid_hw->csid_info->csid_reg;
 	hw_caps = (struct cam_tfe_csid_hw_caps *) get_hw_cap_args;
+	soc_private = (struct cam_tfe_csid_soc_private *) csid_hw_info->soc_info.soc_private;
 
 	hw_caps->num_rdis = csid_reg->cmn_reg->num_rdis;
 	hw_caps->num_pix = csid_hw->pxl_pipe_enable;
@@ -2288,6 +2290,7 @@ static int cam_tfe_csid_get_hw_caps(void *hw_priv,
 	hw_caps->minor_version = csid_reg->cmn_reg->minor_version;
 	hw_caps->version_incr = csid_reg->cmn_reg->version_incr;
 	hw_caps->sync_clk = csid_reg->cmn_reg->sync_clk;
+	hw_caps->is_lite = soc_private->is_tfe_csid_lite;
 
 	CAM_DBG(CAM_ISP,
 		"CSID:%d No rdis:%d, no pix:%d, major:%d minor:%d ver :%d",
@@ -3891,6 +3894,7 @@ int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
 	struct cam_tfe_csid_path_cfg         *path_data;
 	struct cam_hw_info                   *csid_hw_info;
 	struct cam_tfe_csid_hw               *tfe_csid_hw = NULL;
+	struct cam_tfe_csid_soc_private      *soc_private = NULL;
 	const struct cam_tfe_csid_reg_offset *csid_reg;
 
 	if (csid_idx >= CAM_TFE_CSID_HW_NUM_MAX) {
@@ -3940,6 +3944,8 @@ int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
 		goto err;
 	}
 
+	soc_private = (struct cam_tfe_csid_soc_private *) csid_hw_info->soc_info.soc_private;
+
 	tfe_csid_hw->hw_intf->hw_ops.get_hw_caps = cam_tfe_csid_get_hw_caps;
 	tfe_csid_hw->hw_intf->hw_ops.init        = cam_tfe_csid_init_hw;
 	tfe_csid_hw->hw_intf->hw_ops.deinit      = cam_tfe_csid_deinit_hw;
@@ -3986,7 +3992,7 @@ int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
 		csid_reg->cmn_reg->top_tfe2_pix_pipe_fuse_reg);
 
 	/* Initialize the IPP resources */
-	if (!(val && (tfe_csid_hw->hw_intf->hw_idx == 2))) {
+	if (!soc_private->is_tfe_csid_lite && !(val && (tfe_csid_hw->hw_intf->hw_idx == 2))) {
 		CAM_DBG(CAM_ISP, "initializing the pix path");
 
 		tfe_csid_hw->ipp_res.res_type = CAM_ISP_RESOURCE_PIX_PATH;

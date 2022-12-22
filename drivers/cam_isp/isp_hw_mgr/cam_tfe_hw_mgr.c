@@ -1473,6 +1473,13 @@ static int cam_tfe_hw_mgr_acquire_res_tfe_csid_rdi(
 
 				hw_intf = csid_res_iterator->hw_res[i]->hw_intf;
 
+				if (tfe_hw_mgr->tfe_csid_dev_caps[hw_intf->hw_idx].is_lite
+					&& !tfe_ctx->is_rdi_only_context) {
+					CAM_DBG(CAM_ISP, "Ctx id %d CSID[%u] cannot use lite",
+						tfe_ctx->ctx_index, hw_intf->hw_idx);
+					continue;
+				}
+
 				rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
 					&csid_acquire, sizeof(csid_acquire));
 				if (rc) {
@@ -1511,6 +1518,14 @@ static int cam_tfe_hw_mgr_acquire_res_tfe_csid_rdi(
 					continue;
 
 				hw_intf = tfe_hw_mgr->csid_devices[i];
+
+				if (tfe_hw_mgr->tfe_csid_dev_caps[hw_intf->hw_idx].is_lite &&
+					!tfe_ctx->is_rdi_only_context) {
+					CAM_DBG(CAM_ISP, "Ctx id %d CSID[%u] cannot use lite",
+						tfe_ctx->ctx_index, hw_intf->hw_idx);
+					continue;
+				}
+
 				rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
 					&csid_acquire, sizeof(csid_acquire));
 				if (rc)
@@ -1537,6 +1552,14 @@ static int cam_tfe_hw_mgr_acquire_res_tfe_csid_rdi(
 					continue;
 
 				hw_intf = tfe_hw_mgr->csid_devices[i];
+
+				if (tfe_hw_mgr->tfe_csid_dev_caps[hw_intf->hw_idx].is_lite &&
+					!tfe_ctx->is_rdi_only_context) {
+					CAM_DBG(CAM_ISP, "Ctx id %d CSID[%u] cannot use lite",
+						tfe_ctx->ctx_index, hw_intf->hw_idx);
+					continue;
+				}
+
 				rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
 					&csid_acquire, sizeof(csid_acquire));
 				if (rc)
@@ -2161,6 +2184,21 @@ static int cam_tfe_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		if (in_port[i].usage_type)
 			tfe_ctx->is_dual = true;
 
+	for (i = 0; i < acquire_hw_info->num_inputs; i++) {
+		cam_tfe_hw_mgr_preprocess_port(tfe_ctx, &in_port[i], &num_pix_port_per_in,
+			&num_rdi_port_per_in, &pdaf_enable);
+		total_pix_port += num_pix_port_per_in;
+		total_rdi_port += num_rdi_port_per_in;
+	}
+
+	/* Check whether context has only RDI resource */
+	if (!total_pix_port) {
+		tfe_ctx->is_rdi_only_context = 1;
+		CAM_DBG(CAM_ISP, "RDI only context");
+	} else {
+		tfe_ctx->is_rdi_only_context = 0;
+	}
+
 	/* acquire HW resources */
 	for (i = 0; i < acquire_hw_info->num_inputs; i++) {
 
@@ -2171,25 +2209,19 @@ static int cam_tfe_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 			goto free_cdm;
 		}
 
+		num_pix_port_per_in = 0;
+		num_rdi_port_per_in = 0;
+
 		CAM_DBG(CAM_ISP, "in_res_id %x", in_port[i].res_id);
 		rc = cam_tfe_mgr_acquire_hw_for_ctx(tfe_ctx, &in_port[i],
 			&num_pix_port_per_in, &num_rdi_port_per_in,
 			&pdaf_enable);
-		total_pix_port += num_pix_port_per_in;
-		total_rdi_port += num_rdi_port_per_in;
 
 		if (rc) {
 			CAM_ERR(CAM_ISP, "can not acquire resource");
 			goto free_res;
 		}
 	}
-
-	/* Check whether context has only RDI resource */
-	if (!total_pix_port) {
-		tfe_ctx->is_rdi_only_context = 1;
-		CAM_DBG(CAM_ISP, "RDI only context");
-	} else
-		tfe_ctx->is_rdi_only_context = 0;
 
 	/* Process base info */
 	rc = cam_tfe_mgr_process_base_info(tfe_ctx);

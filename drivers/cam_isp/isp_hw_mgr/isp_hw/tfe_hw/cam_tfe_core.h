@@ -23,13 +23,14 @@
 #define CAMIF_DEBUG_ENABLE_SENSOR_DIAG_STATUS      BIT(0)
 #define CAM_TFE_EVT_MAX                            256
 
-#define CAM_TFE_MAX_REG_DUMP_ENTRIES  20
-#define CAM_TFE_MAX_LUT_DUMP_ENTRIES  10
+#define CAM_TFE_MAX_REG_DUMP_ENTRIES        20
+#define CAM_TFE_MAX_LUT_DUMP_ENTRIES        10
 
-#define CAM_TFE_MAX_CLC               40
-#define CAM_TFE_CLC_NAME_LENGTH_MAX   32
-#define CAM_TFE_MAX_DEBUG_REG         10
-#define CAM_TFE_MAX_PERF_CNT           2
+#define CAM_TFE_MAX_CLC                     42
+#define CAM_TFE_CLC_NAME_LENGTH_MAX         32
+#define CAM_TFE_LITE_MAX_CLC                4
+#define CAM_TFE_MAX_DEBUG_REG               12
+#define CAM_TFE_MAX_PERF_CNT                2
 
 /*we take each word as uint32_t, for dumping uint64_t count as 2 words
  * soc index
@@ -86,7 +87,8 @@ struct cam_tfe_top_reg_offset_common {
 	uint32_t stats_feature;
 	uint32_t zoom_feature;
 	uint32_t global_reset_cmd;
-	uint32_t core_cgc_ctrl;
+	uint32_t core_cgc_ctrl_0;
+	uint32_t core_cgc_ctrl_1;
 	uint32_t ahb_cgc_ctrl;
 	uint32_t core_cfg_0;
 	uint32_t core_cfg_1;
@@ -103,6 +105,7 @@ struct cam_tfe_top_reg_offset_common {
 	uint32_t debug_cfg;
 	uint32_t num_perf_cfg;
 	struct   cam_tfe_top_reg_perf_cfg perf_cfg[CAM_TFE_MAX_PERF_CNT];
+	uint32_t diag_sensor_frame_cnt_status_1;
 
 	/*reg data */
 	uint32_t diag_min_hbi_error_shift;

@@ -100,6 +100,7 @@ struct cam_isp_tfe_in_port_generic_info {
  * @minor_version:  minor version
  * @version_incr:   version increment
  * @sync_clk:       sync clocks such that freq(TFE)>freq(CSID)>freq(CSIPHY)
+ * @is_lite:        Indicate if it is CSID Lite
  *
  */
 struct cam_tfe_csid_hw_caps {
@@ -109,6 +110,7 @@ struct cam_tfe_csid_hw_caps {
 	uint32_t      minor_version;
 	uint32_t      version_incr;
 	bool          sync_clk;
+	bool          is_lite;
 };
 
 /**

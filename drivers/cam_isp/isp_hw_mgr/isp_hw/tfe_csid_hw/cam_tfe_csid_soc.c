@@ -24,13 +24,16 @@ int cam_tfe_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 
 	soc_info->soc_private = soc_private;
 
-
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc < 0)
 		return rc;
 
 	for (i = 0; i < soc_info->irq_count; i++)
 		irq_data[i] = data;
+
+	soc_private->is_tfe_csid_lite = false;
+	if (strnstr(soc_info->compatible, "lite", strlen(soc_info->compatible)) != NULL)
+		soc_private->is_tfe_csid_lite = true;
 
 	/* Need to see if we want post process the clock list */
 	rc = cam_soc_util_request_platform_resource(soc_info, csid_irq_handler, &(irq_data[0]));
