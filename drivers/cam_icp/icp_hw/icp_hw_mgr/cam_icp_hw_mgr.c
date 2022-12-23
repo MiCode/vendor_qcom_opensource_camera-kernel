@@ -853,7 +853,7 @@ static void cam_icp_device_timer_cb(struct timer_list *timer_data)
 
 static int cam_icp_get_svs_clk_info(struct cam_icp_hw_mgr *hw_mgr)
 {
-	int32_t src_clk_idx, i;
+	int32_t src_clk_idx;
 	struct cam_hw_soc_info *soc_info;
 	struct cam_hw_intf *dev_intf = NULL;
 	struct cam_hw_info *dev = NULL;
@@ -861,25 +861,18 @@ static int cam_icp_get_svs_clk_info(struct cam_icp_hw_mgr *hw_mgr)
 	if (CAM_ICP_IS_DEV_HW_EXIST(hw_mgr->hw_cap_mask, CAM_ICP_DEV_IPE)) {
 		dev_intf = hw_mgr->devices[CAM_ICP_DEV_IPE][0];
 		if (!dev_intf) {
-			CAM_ERR(CAM_ICP, "IPE dev_intf is invalid");
+			CAM_ERR(CAM_ICP, "[%s] IPE dev intf is invalid", hw_mgr->hw_mgr_name);
+			return -EINVAL;
+		}
+	} else if (CAM_ICP_IS_DEV_HW_EXIST(hw_mgr->hw_cap_mask, CAM_ICP_DEV_OFE)) {
+		dev_intf = hw_mgr->devices[CAM_ICP_DEV_OFE][0];
+		if (!dev_intf) {
+			CAM_ERR(CAM_ICP, "[%s] OFE dev inf is invalid", hw_mgr->hw_mgr_name);
 			return -EINVAL;
 		}
 	} else {
-		for (i = CAM_ICP_DEV_START_IDX; i < CAM_ICP_HW_MAX; i++) {
-			if (CAM_ICP_IS_DEV_HW_EXIST(hw_mgr->hw_cap_mask, i)) {
-				dev_intf = hw_mgr->devices[i][0];
-				if (!dev_intf) {
-					CAM_ERR(CAM_ICP, "Device intf for %s is NULL",
-						cam_icp_hw_dev_type_to_name(i));
-					return -EINVAL;
-				}
-				break;
-			}
-		}
-	}
-
-	if (!dev_intf) {
-		CAM_ERR(CAM_ICP, "[%s] No device to get svs clock rate", hw_mgr->hw_mgr_name);
+		CAM_ERR(CAM_ICP, "[%s] No supported device to get svs clock info",
+			hw_mgr->hw_mgr_name);
 		return -ENODEV;
 	}
 
