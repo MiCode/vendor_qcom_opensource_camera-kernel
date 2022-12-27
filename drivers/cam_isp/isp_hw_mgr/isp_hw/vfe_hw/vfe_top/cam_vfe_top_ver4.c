@@ -1319,8 +1319,6 @@ static int cam_vfe_handle_sof(struct cam_vfe_mux_ver4_data *vfe_priv,
 	}
 	vfe_priv->top_priv->sof_cnt++;
 
-	cam_cpas_notify_event("IFE SOF", vfe_priv->hw_intf->hw_idx);
-
 	return 0;
 }
 
@@ -1333,7 +1331,6 @@ static int cam_vfe_handle_epoch(struct cam_vfe_mux_ver4_data *vfe_priv,
 	vfe_priv->epoch_ts.tv_sec = payload->ts.mono_time.tv_sec;
 	vfe_priv->epoch_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
 
-	cam_cpas_notify_event("IFE EPOCH", vfe_priv->hw_intf->hw_idx);
 	return 0;
 }
 
@@ -1355,7 +1352,6 @@ static int cam_vfe_handle_eof(struct cam_vfe_mux_ver4_data *vfe_priv,
 	vfe_priv->eof_ts.tv_sec = payload->ts.mono_time.tv_sec;
 	vfe_priv->eof_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
 
-	cam_cpas_notify_event("IFE EOF", vfe_priv->hw_intf->hw_idx);
 	return 0;
 }
 

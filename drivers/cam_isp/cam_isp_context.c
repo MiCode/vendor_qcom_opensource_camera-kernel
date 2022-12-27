@@ -7373,6 +7373,8 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 			for (j = 0; j < CAM_MAX_HW_SPLIT; j++)
 				cmd->hw_info.acquired_hw_path[i][j] =
 					param.acquired_hw_path[i][j];
+
+		ctx_isp->hw_idx = param.acquired_hw_id[0];
 	}
 	cmd->hw_info.valid_acquired_hw =
 		param.valid_acquired_hw;
@@ -7430,6 +7432,14 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 	ctx_isp->hw_ctx = param.ctxt_to_hw_map;
 	ctx_isp->hw_acquired = true;
 	ctx->ctxt_to_hw_map = param.ctxt_to_hw_map;
+	ctx->hw_mgr_ctx_id = param.hw_mgr_ctx_id;
+
+	snprintf(ctx->ctx_id_string, sizeof(ctx->ctx_id_string),
+		"%s_ctx[%d]_hwmgrctx[%d]_hwidx[0x%x]",
+		ctx->dev_name,
+		ctx->ctx_id,
+		ctx->hw_mgr_ctx_id,
+		ctx_isp->hw_idx);
 
 	trace_cam_context_state("ISP", ctx);
 	CAM_INFO(CAM_ISP,
@@ -8393,6 +8403,66 @@ static int __cam_isp_ctx_apply_default_settings(
 	return rc;
 }
 
+void __cam_isp_ctx_notify_cpas(struct cam_context *ctx, uint32_t evt_id)
+{
+	uint64_t request_id = 0;
+	struct cam_isp_context *ctx_isp =
+		(struct cam_isp_context *)ctx->ctx_priv;
+	struct cam_ctx_request *req = NULL;
+	char ctx_evt_id_string[128];
+
+	switch (evt_id) {
+	case CAM_ISP_HW_EVENT_SOF:
+		if (!list_empty(&ctx->wait_req_list)) {
+			req = list_first_entry(&ctx->wait_req_list, struct cam_ctx_request, list);
+			request_id = req->request_id;
+		} else
+			request_id = 0;
+		if (ctx_isp->substate_activated == CAM_ISP_CTX_ACTIVATED_EPOCH &&
+			!list_empty(&ctx->active_req_list)) {
+			req = list_last_entry(&ctx->active_req_list, struct cam_ctx_request, list);
+			request_id = req->request_id;
+			CAM_DBG(CAM_ISP, "EPCR notify cpas");
+		}
+		break;
+	case CAM_ISP_HW_EVENT_EOF:
+		if (!list_empty(&ctx->active_req_list)) {
+			req = list_first_entry(&ctx->active_req_list, struct cam_ctx_request, list);
+			request_id = req->request_id;
+		} else
+			request_id = 0;
+		break;
+	case CAM_ISP_HW_EVENT_EPOCH:
+		if (list_empty(&ctx->wait_req_list)) {
+			if (!list_empty(&ctx->active_req_list)) {
+				req = list_last_entry(&ctx->active_req_list,
+					struct cam_ctx_request, list);
+				request_id = req->request_id;
+			} else
+				request_id = 0;
+		} else {
+			req = list_first_entry(&ctx->wait_req_list, struct cam_ctx_request, list);
+			request_id = req->request_id;
+		}
+		break;
+	default:
+		return;
+	}
+
+	snprintf(ctx_evt_id_string, sizeof(ctx_evt_id_string),
+		"%s_frame[%llu]_%s",
+		ctx->ctx_id_string,
+		ctx_isp->frame_id,
+		cam_isp_hw_evt_type_to_string(evt_id));
+	CAM_DBG(CAM_ISP, "Substate[%s] ctx: %s frame: %llu evt: %s req: %llu",
+		__cam_isp_ctx_substate_val_to_type(ctx_isp->substate_activated),
+		ctx->ctx_id_string,
+		ctx_isp->frame_id,
+		cam_isp_hw_evt_type_to_string(evt_id),
+		request_id);
+	cam_cpas_notify_event(ctx_evt_id_string, request_id);
+}
+
 static int __cam_isp_ctx_handle_irq_in_activated(void *context,
 	uint32_t evt_id, void *evt_data)
 {
@@ -8428,7 +8498,8 @@ static int __cam_isp_ctx_handle_irq_in_activated(void *context,
 		(evt_id == CAM_ISP_HW_EVENT_EPOCH))
 		__cam_isp_ctx_update_frame_timing_record(evt_id, ctx_isp);
 
-	CAM_DBG(CAM_ISP, "Exit: State %d Substate[%s] on ctx: %d",
+	__cam_isp_ctx_notify_cpas(ctx, evt_id);
+	CAM_DBG(CAM_ISP, "Exit: State %d Substate[%s], ctx: %u link: 0x%x",
 		ctx->state, __cam_isp_ctx_substate_val_to_type(
 		ctx_isp->substate_activated), ctx->ctx_id, ctx->link_hdl);
 

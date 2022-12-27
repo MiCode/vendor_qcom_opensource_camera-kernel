@@ -372,6 +372,7 @@ struct cam_isp_context_debug_monitors {
  *                             This is decided based on the max mode switch delay published
  *                             by other devices on the link as part of link setup
  * @mode_switch_en:            Indicates if mode switch is enabled
+ * @hw_idx:                    Hardware ID
  *
  */
 struct cam_isp_context {
@@ -437,6 +438,7 @@ struct cam_isp_context {
 	atomic_t                              mswitch_default_apply_delay_ref_cnt;
 	bool                                  handle_mswitch;
 	bool                                  mode_switch_en;
+	uint32_t                              hw_idx;
 };
 
 /**
