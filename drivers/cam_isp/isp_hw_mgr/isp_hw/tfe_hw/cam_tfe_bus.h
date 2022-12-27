@@ -201,6 +201,7 @@ struct cam_tfe_bus_tfe_out_hw_info {
  * @max_bw_counter_limit:  Max BW counter limit
  * @counter_limit_shift:   Mask shift for BW counter limit
  * @counter_limit_mask:    Default Mask of BW limit counter
+ * @en_cfg_shift:          bus client frame based enable bit
  */
 struct cam_tfe_bus_hw_info {
 	struct cam_tfe_bus_reg_offset_common common_reg;
@@ -213,6 +214,8 @@ struct cam_tfe_bus_hw_info {
 	uint32_t num_comp_grp;
 	uint32_t max_wm_per_comp_grp;
 	uint32_t comp_done_shift;
+	uint32_t en_cfg_shift;
+	uint32_t height_shift;
 	uint32_t top_bus_wr_irq_shift;
 	uint32_t comp_buf_done_mask;
 	uint32_t comp_rup_done_mask;

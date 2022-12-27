@@ -239,9 +239,11 @@ static void cam_tfe_log_tfe_in_debug_status(
 	void __iomem                         *mem_base;
 	struct cam_tfe_camif_data            *camif_data;
 	struct cam_tfe_rdi_data              *rdi_data;
+	struct cam_tfe_top_reg_offset_common *common_reg;
 	uint32_t  i, val_0, val_1;
 
 	mem_base = top_priv->common_data.soc_info->reg_map[0].mem_base;
+	common_reg = top_priv->common_data.common_reg;
 
 	for (i = 0; i < CAM_TFE_TOP_IN_PORT_MAX; i++) {
 		if ((top_priv->in_rsrc[i].res_state !=
@@ -258,7 +260,7 @@ static void cam_tfe_log_tfe_in_debug_status(
 			CAM_INFO(CAM_ISP,
 				"camif debug1:0x%x Height:0x%x, width:0x%x",
 				val_1,
-				((val_0 >> 16) & 0x1FFF),
+				((val_0 >> common_reg->height_shift) & 0x1FFF),
 				(val_0 & 0x1FFF));
 			CAM_INFO(CAM_ISP,
 				"Acquired sync mode:%d left start pxl:0x%x end_pixel:0x%x",
@@ -294,7 +296,7 @@ static void cam_tfe_log_tfe_in_debug_status(
 			CAM_INFO(CAM_ISP,
 				"RDI res id:%d debug1:0x%x Height:0x%x, width:0x%x",
 				top_priv->in_rsrc[i].res_id,
-				val_1, ((val_0 >> 16) & 0x1FFF),
+				val_1, ((val_0 >> common_reg->height_shift) & 0x1FFF),
 				(val_0 & 0x1FFF));
 			CAM_INFO(CAM_ISP,
 				"sync mode:%d left start pxl:0x%x end_pixel:0x%x",
@@ -415,7 +417,8 @@ static void cam_tfe_log_error_irq_status(
 			CAM_INFO(CAM_ISP,
 				"TFE %d SENSOR_SWITCH_OUT_OF_SYNC_FRAME_DROP mup: last %d curr %d",
 				core_info->core_index, top_priv->last_mup_val,
-				((cam_io_r(mem_base + common_reg->reg_update_cmd) >> 8) & 1));
+				((cam_io_r(mem_base + common_reg->reg_update_cmd) >>
+				common_reg->mup_shift_val) & 1));
 		}
 	}
 
@@ -2060,6 +2063,7 @@ static int cam_tfe_camif_resource_start(
 	uint32_t                             camera_hw_version = 0;
 	struct cam_hw_intf                  *tfe_device;
 	bool                                 pdaf_rdi2_mux_en = false;
+	struct cam_tfe_top_reg_offset_common *common_reg;
 
 	if (!camif_res || !core_info) {
 		CAM_ERR(CAM_ISP, "Error Invalid input arguments");
@@ -2081,7 +2085,7 @@ static int cam_tfe_camif_resource_start(
 			core_info->core_index);
 		return -ENODEV;
 	}
-
+	common_reg = top_priv->common_data.common_reg;
 	/* Config tfe core*/
 	val = 0;
 	if (rsrc_data->sync_mode == CAM_ISP_HW_SYNC_SLAVE)
@@ -2150,7 +2154,7 @@ static int cam_tfe_camif_resource_start(
 
 	epoch1_irq_mask = rsrc_data->reg_data->epoch_line_cfg &
 			0xFFFF;
-	computed_epoch_line_cfg = (epoch0_irq_mask << 16) |
+	computed_epoch_line_cfg = (epoch0_irq_mask << common_reg->epoch_shift_val) |
 			epoch1_irq_mask;
 	cam_io_w_mb(computed_epoch_line_cfg,
 			rsrc_data->mem_base +

@@ -82,6 +82,8 @@ static struct cam_tfe_top_reg_offset_common  tfe640_top_commong_reg  = {
 	.rdi2_overflow_bit                      = BIT(19),
 	.mup_shift_val                          = 0,
 	.mup_supported                          = false,
+	.height_shift                           = 16,
+	.epoch_shift_val                        = 16,
 };
 
 static struct cam_tfe_camif_reg  tfe640_camif_reg = {
@@ -1190,6 +1192,8 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 	.max_bw_counter_limit  = 0xFF,
 	.counter_limit_shift   = 1,
 	.counter_limit_mask    = 0xF,
+	.en_cfg_shift = 16,
+	.height_shift = 16,
 };
 
 struct cam_tfe_hw_info cam_tfe640 = {

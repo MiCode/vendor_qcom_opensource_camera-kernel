@@ -130,6 +130,8 @@ struct cam_tfe_top_reg_offset_common {
 	uint32_t rdi1_overflow_bit;
 	uint32_t rdi2_overflow_bit;
 	uint32_t out_of_sync_frame_drop_bit;
+	uint32_t height_shift;
+	uint32_t epoch_shift_val;
 
 	/* configuration */
 	bool serializer_supported;
