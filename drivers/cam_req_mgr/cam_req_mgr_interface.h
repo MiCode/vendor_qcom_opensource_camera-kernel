@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_REQ_MGR_INTERFACE_H
@@ -140,6 +140,14 @@ enum cam_modeswitch_delay {
 #define CAM_TRIGGER_POINT_SOF     (1 << 0)
 #define CAM_TRIGGER_POINT_EOF     (1 << 1)
 #define CAM_TRIGGER_MAX_POINTS    2
+
+
+enum cam_req_mgr_dual_trigger {
+	CAM_REQ_DUAL_TRIGGER_NONE,
+	CAM_REQ_DUAL_TRIGGER_ONE_EXPOSURE,
+	CAM_REQ_DUAL_TRIGGER_TWO_EXPOSURE,
+	CAM_REQ_DUAL_TRIGGER_MAX,
+};
 
 /**
  * enum cam_req_status
@@ -304,6 +312,7 @@ struct cam_req_mgr_error_notify {
  *                         by not sending request to devices. ex: IFE and Flash
  * @trigger_eof          : to identify that one of the device at this slot needs
  *                         to be apply at EOF
+ * @num_exp              : num of exposure associated with the request
  */
 struct cam_req_mgr_add_request {
 	int32_t  link_hdl;
@@ -311,6 +320,7 @@ struct cam_req_mgr_add_request {
 	uint64_t req_id;
 	uint32_t skip_at_sof;
 	uint32_t skip_at_eof;
+	uint32_t num_exp;
 	bool     trigger_eof;
 };
 
@@ -333,7 +343,10 @@ struct cam_req_mgr_notify_stop {
  * @p_delay : delay between time settings applied and take effect
  * @m_delay : delay between time modeswitch settings applied and take effect
  * @trigger : Trigger point for the client
+ * @mode_switch_req : Request id on which sensor mode switch observed on the device
  * @trigger_on : This device provides trigger
+ * @is_shdr : Flag to indicate auto shdr usecase without SFE
+ * @is_shdr_master : Flag to indicate master dev in auto shdr usecase without SFE
  */
 struct cam_req_mgr_device_info {
 	int32_t                     dev_hdl;
@@ -342,7 +355,10 @@ struct cam_req_mgr_device_info {
 	enum cam_pipeline_delay     p_delay;
 	enum cam_modeswitch_delay   m_delay;
 	uint32_t                    trigger;
+	uint64_t                    mode_switch_req;
 	bool                        trigger_on;
+	bool                        is_shdr;
+	bool                        is_shdr_master;
 };
 
 /**
@@ -367,26 +383,26 @@ struct cam_req_mgr_core_dev_link_setup {
 
 /**
  * struct cam_req_mgr_apply_request
- * @link_hdl                 : link identifier
- * @dev_hdl                  : device handle for cross check
- * @request_id               : request id settings to apply
- * @last_applied_max_pd_req  : Last applied request on highest pd device
- *                             -1 is considered invalid
- * @report_if_bubble         : report to crm if failure in applying
- * @trigger_point            : the trigger point of this apply
- * @re_apply                 : to skip re_apply for buf_done request
- * @recovery                 : Indicate if it is recovery req
- *
+ * @link_hdl         : link identifier
+ * @dev_hdl          : device handle for cross check
+ * @request_id       : request id settings to apply
+ * @last_applied_max_pd_req : Last applied req on highest pd dev -1 is considered invalid
+ * @report_if_bubble : report to crm if failure in applying
+ * @trigger_point    : the trigger point of this apply
+ * @re_apply         : to skip re_apply for buf_done request
+ * @recovery         : Indicate if it is recovery req
+ * @dual_trigger_status : Enum to indicate status of dual trigger
  */
 struct cam_req_mgr_apply_request {
-	int32_t    link_hdl;
-	int32_t    dev_hdl;
-	uint64_t   request_id;
-	int64_t    last_applied_max_pd_req;
-	int32_t    report_if_bubble;
-	uint32_t   trigger_point;
-	bool       re_apply;
-	bool       recovery;
+	int32_t                       link_hdl;
+	int32_t                       dev_hdl;
+	uint64_t                      request_id;
+	int64_t                       last_applied_max_pd_req;
+	int32_t                       report_if_bubble;
+	uint32_t                      trigger_point;
+	bool                          re_apply;
+	bool                          recovery;
+	enum cam_req_mgr_dual_trigger dual_trigger_status;
 };
 
 /**

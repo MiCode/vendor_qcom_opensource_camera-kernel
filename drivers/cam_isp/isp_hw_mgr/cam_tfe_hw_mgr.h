@@ -129,6 +129,7 @@ struct cam_tfe_cdm_user_data {
  * @try_recovery_cnt          Retry count for overflow recovery
  * @current_mup               Current MUP val
  * @recovery_req_id           The request id on which overflow recovery happens
+ * @is_shdr_slave              indicate whether context is slave in shdr usecase
  */
 struct cam_tfe_hw_mgr_ctx {
 	struct list_head                list;

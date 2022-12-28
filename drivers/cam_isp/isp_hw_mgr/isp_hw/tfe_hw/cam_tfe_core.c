@@ -93,6 +93,8 @@ struct cam_tfe_camif_data {
 	uint32_t                           qcfa_bin;
 	uint32_t                           bayer_bin;
 	uint32_t                           core_cfg;
+	bool                               shdr_en;
+	bool                               is_shdr_master;
 };
 
 struct cam_tfe_rdi_data {
@@ -109,6 +111,8 @@ struct cam_tfe_rdi_data {
 	uint32_t                                     left_last_pixel;
 	uint32_t                                     first_line;
 	uint32_t                                     last_line;
+	bool                                         shdr_en;
+	bool                                         is_shdr_master;
 };
 
 struct cam_tfe_ppp_data {
@@ -2206,6 +2210,8 @@ int cam_tfe_top_reserve(void *device_priv,
 					acquire_args->in_port->bayer_bin;
 				camif_data->core_cfg =
 					acquire_args->in_port->core_cfg;
+				camif_data->shdr_en = acquire_args->in_port->shdr_en;
+				camif_data->is_shdr_master = acquire_args->in_port->is_shdr_master;
 
 				CAM_DBG(CAM_ISP,
 					"TFE:%d pix_pattern:%d dsp_mode=%d",
@@ -2247,6 +2253,8 @@ int cam_tfe_top_reserve(void *device_priv,
 					acquire_args->in_port->line_start;
 				rdi_data->last_line =
 					acquire_args->in_port->line_end;
+				rdi_data->shdr_en = acquire_args->in_port->shdr_en;
+				rdi_data->is_shdr_master = acquire_args->in_port->is_shdr_master;
 			}
 
 			top_priv->in_rsrc[i].cdm_ops = acquire_args->cdm_ops;
@@ -2367,6 +2375,13 @@ static int cam_tfe_camif_resource_start(
 			(1 << rsrc_data->reg_data->ds4_c_srl_en_shift);
 	}
 
+	if (rsrc_data->shdr_en) {
+		val |= rsrc_data->core_cfg &
+			(1 << rsrc_data->reg_data->shdr_mode_shift);
+		if (!rsrc_data->is_shdr_master)
+			val |= rsrc_data->core_cfg &
+				(1 << rsrc_data->reg_data->extern_mup_shift);
+	}
 
 	cam_io_w_mb(val, rsrc_data->mem_base +
 		rsrc_data->common_reg->core_cfg_0);
