@@ -300,7 +300,6 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 	case CAM_VFE_BUS_VER3_VFE_OUT_FULL:
 	case CAM_VFE_BUS_VER3_VFE_OUT_DS4:
 	case CAM_VFE_BUS_VER3_VFE_OUT_DS16:
-	case CAM_VFE_BUS_VER3_VFE_OUT_FD:
 	case CAM_VFE_BUS_VER3_VFE_OUT_RAW_DUMP:
 	case CAM_VFE_BUS_VER3_VFE_OUT_RDI0:
 	case CAM_VFE_BUS_VER3_VFE_OUT_RDI1:
@@ -317,6 +316,9 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 	case CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED:
 	case CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_RAW:
 		return true;
+
+	case CAM_VFE_BUS_VER3_VFE_OUT_FD:
+		return cam_secure_get_vfe_fd_port_config();
 
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_HDR_BE:
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_HDR_BHIST:

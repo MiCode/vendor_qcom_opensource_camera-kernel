@@ -98,4 +98,6 @@ int cam_eeprom_spi_driver_remove(struct spi_device *sdev);
 
 int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info);
 
+bool cam_secure_get_vfe_fd_port_config(void);
+
 #endif /* _CAM_COMPAT_H_ */

@@ -751,3 +751,13 @@ int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
 	return rc;
 }
 #endif
+
+bool cam_secure_get_vfe_fd_port_config(void)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	return false;
+#else
+	return true;
+#endif
+}
+
