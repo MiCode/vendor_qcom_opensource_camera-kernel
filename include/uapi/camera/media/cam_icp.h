@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_ICP_H__
@@ -193,6 +193,57 @@ struct cam_icp_query_cap_cmd {
 	__u32                   num_ipe;
 	__u32                   num_bps;
 	struct cam_icp_dev_ver  dev_ver[CAM_ICP_DEV_TYPE_MAX];
+};
+
+/**
+ * struct cam_icp_device_info - ICP device info
+ *
+ * @dev_type:          type of the device (IPE/BPS/..)
+ * @num_devices:       number of such devices
+ * @dev_version:       device HW version
+ * @num_valid_params:  number of valid params
+ * @valid_param_mask:  valid param mask
+ * @params:            additional parameters for future usage
+ */
+struct cam_icp_device_info  {
+	__u32 dev_type;
+	__u32 num_devices;
+	struct cam_hw_version dev_version;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[6];
+};
+
+/**
+ * struct cam_icp_query_cap_cmd_v2 - ICP query device capability payload
+ *
+ * @version:              struct version
+ * @dev_iommu_handle:     icp iommu handles for secure/non secure modes
+ * @cdm_iommu_handle:     iommu handles for secure/non secure modes
+ * @fw_version:           firmware version info
+ * @num_dev_info:         number of devices present in this queried subdevice
+ * @dev_info:             returned icp devices capability array
+ * @hw_fence_info_size:   size of the data pointed to by hw_fence_info_hdl
+ *                        if the size is 0, hw fence info will not be populated
+ *                        treated as non-fatal
+ * @hw_fence_info_hdl:    Handle to the hw fence session data if applicable
+ * @num_valid_params:     number of valid params
+ * @valid_param_mask:     valid param mask
+ * @params:               additional parameters for future usage
+ */
+
+struct cam_icp_query_cap_cmd_v2 {
+	__u32                            version;
+	struct cam_iommu_handle          dev_iommu_handle;
+	struct cam_iommu_handle          cdm_iommu_handle;
+	struct cam_icp_ver               fw_version;
+	__u32                            num_dev_info;
+	struct cam_icp_device_info       dev_info[CAM_ICP_MAX_NUM_OF_DEV_TYPES];
+	__u32                            hw_fence_info_size;
+	__u64                            hw_fence_info_hdl;
+	__u32                            num_valid_params;
+	__u32                            valid_param_mask;
+	__u32                            params[5];
 };
 
 /**
