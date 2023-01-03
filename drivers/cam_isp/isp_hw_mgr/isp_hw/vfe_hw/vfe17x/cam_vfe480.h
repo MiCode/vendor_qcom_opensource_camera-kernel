@@ -1604,8 +1604,10 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 	},
 
 	.num_comp_grp    = 14,
-	.comp_done_shift = {
-		6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+	.comp_done_mask = {
+		BIT(6), BIT(7), BIT(8), BIT(9), BIT(10),
+		BIT(11), BIT(12), BIT(13), BIT(14),
+		BIT(15), BIT(16), BIT(17), BIT(18), BIT(19),
 	},
 	.top_irq_shift   = 7,
 	.support_consumed_addr = true,

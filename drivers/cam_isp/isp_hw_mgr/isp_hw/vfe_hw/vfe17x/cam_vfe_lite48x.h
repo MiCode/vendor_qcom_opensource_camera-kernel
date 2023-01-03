@@ -428,8 +428,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe48x_bus_hw_info = {
 		},
 	},
 	.num_comp_grp    = 4,
-	.comp_done_shift = {
-		4, 5, 6, 7,
+	.comp_done_mask = {
+		BIT(4), BIT(5), BIT(6), BIT(7),
 	},
 	.top_irq_shift   = 4,
 	.support_consumed_addr = true,
