@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -121,11 +121,37 @@ const char *cam_cpas_axi_util_path_type_to_string(
 	case CAM_AXI_PATH_DATA_CRE_WR_OUT:
 		return "CRE_WR_OUT";
 
+	/* OFE Paths */
+	case CAM_AXI_PATH_DATA_OFE_RD_EXT:
+		return "OFE_RD_EXT";
+	case CAM_AXI_PATH_DATA_OFE_RD_INT_PDI:
+		return "OFE_RD_INT_PDI";
+	case CAM_AXI_PATH_DATA_OFE_RD_INT_HDR:
+		return "OFE_RD_INT_HDR";
+	case CAM_AXI_PATH_DATA_OFE_WR_VID:
+		return "OFE_WR_VID";
+	case CAM_AXI_PATH_DATA_OFE_WR_DISP:
+		return "OFE_WR_DISP";
+	case CAM_AXI_PATH_DATA_OFE_WR_IR:
+		return "OFE_WR_IR";
+	case CAM_AXI_PATH_DATA_OFE_WR_HDR_LTM:
+		return "OFE_WR_HDR_LTM";
+	case CAM_AXI_PATH_DATA_OFE_WR_DC4:
+		return "OFE_WR_DC4";
+	case CAM_AXI_PATH_DATA_OFE_WR_AI:
+		return "OFE_WR_AI";
+	case CAM_AXI_PATH_DATA_OFE_WR_PDI:
+		return "OFE_WR_PDI";
+	case CAM_AXI_PATH_DATA_OFE_WR_IDEALRAW:
+		return "OFE_WR_IDEALRAW";
+	case CAM_AXI_PATH_DATA_OFE_WR_STATS:
+		return "OFE_WR_STATS";
+
 	/* Common Paths */
 	case CAM_AXI_PATH_DATA_ALL:
 		return "DATA_ALL";
 	default:
-		return "IFE_PATH_INVALID";
+		return "CPAS_PATH_INVALID";
 	}
 }
 EXPORT_SYMBOL(cam_cpas_axi_util_path_type_to_string);
