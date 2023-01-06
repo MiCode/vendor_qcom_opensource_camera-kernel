@@ -237,6 +237,7 @@ struct cam_iommu_cb_set {
 	bool force_cache_allocs;
 	bool need_shared_buffer_padding;
 	bool is_expanded_memory;
+	struct cam_csf_version csf_version;
 };
 
 static const struct of_device_id msm_cam_smmu_dt_match[] = {
@@ -326,6 +327,15 @@ struct cam_smmu_mini_dump_info {
 };
 
 static struct cam_iommu_cb_set iommu_cb_set;
+
+/*
+ * This is expected to succeed as the SMMU bind would have
+ * failed if it could not fetch the CSF version from SMMU proxy
+ */
+void cam_smmu_get_csf_version(struct cam_csf_version *csf_ver)
+{
+	memcpy(csf_ver, &iommu_cb_set.csf_version, sizeof(*csf_ver));
+}
 
 static enum dma_data_direction cam_smmu_translate_dir(
 	enum cam_smmu_map_dir dir);
@@ -3465,6 +3475,11 @@ static int cam_smmu_map_stage2_buffer_and_add_to_list(int idx, int ion_fd,
 
 	attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
 
+	if (IS_CSF25(iommu_cb_set.csf_version.arch_ver,
+		iommu_cb_set.csf_version.max_ver))
+		attach->dma_map_attrs =
+			cam_update_dma_map_attributes(attach->dma_map_attrs);
+
 	table = dma_buf_map_attachment(attach, dma_dir);
 	if (IS_ERR_OR_NULL(table)) {
 		CAM_ERR(CAM_SMMU, "Error: dma buf map attachment failed");
@@ -3473,7 +3488,12 @@ static int cam_smmu_map_stage2_buffer_and_add_to_list(int idx, int ion_fd,
 	}
 
 	/* return addr and len to client */
-	*paddr_ptr = sg_phys(table->sgl);
+	if (IS_CSF25(iommu_cb_set.csf_version.arch_ver,
+		iommu_cb_set.csf_version.max_ver))
+		*paddr_ptr = sg_dma_address(table->sgl);
+	else
+		*paddr_ptr = sg_phys(table->sgl);
+
 	*len_ptr = (size_t)sg_dma_len(table->sgl);
 
 	/* fill up mapping_info */
@@ -5405,6 +5425,8 @@ const static struct component_ops cam_smmu_cb_qsmmu_component_ops = {
 static int cam_smmu_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
 {
+	int rc;
+
 	INIT_WORK(&iommu_cb_set.smmu_work, cam_smmu_page_fault_work);
 	mutex_init(&iommu_cb_set.payload_list_lock);
 	INIT_LIST_HEAD(&iommu_cb_set.payload_list);
@@ -5419,6 +5441,12 @@ static int cam_smmu_component_bind(struct device *dev,
 
 	cam_common_register_mini_dump_cb(cam_smmu_mini_dump_cb,
 		"cam_smmu", NULL);
+
+	rc = cam_smmu_fetch_csf_version(&iommu_cb_set.csf_version);
+	if (rc) {
+		CAM_ERR(CAM_SMMU, "Failed to fetch CSF version: %d", rc);
+		return rc;
+	}
 
 	CAM_DBG(CAM_SMMU, "Main component bound successfully");
 	return 0;

@@ -89,6 +89,7 @@ struct cam_mem_buf_queue {
  * @force_cache_allocs: Force all internal buffer allocations with cache
  * @need_shared_buffer_padding: Whether padding is needed for shared buffer
  *                              allocations.
+ * @csf_version: Camera security framework version
  * @system_heap: Handle to system heap
  * @system_uncached_heap: Handle to system uncached heap
  * @camera_heap: Handle to camera heap
@@ -104,6 +105,7 @@ struct cam_mem_table {
 	size_t dbg_buf_idx;
 	bool force_cache_allocs;
 	bool need_shared_buffer_padding;
+	struct cam_csf_version csf_version;
 #if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
 	struct dma_heap *system_heap;
 	struct dma_heap *system_uncached_heap;
