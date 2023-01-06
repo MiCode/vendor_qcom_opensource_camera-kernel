@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_API_H_
@@ -30,6 +30,7 @@
 /* Qos Selection mask */
 #define CAM_CPAS_QOS_DEFAULT_SETTINGS_MASK 0x1
 #define CAM_CPAS_QOS_CUSTOM_SETTINGS_MASK  0x2
+
 
 /**
  * enum cam_cpas_vote_type - Enum for cpas vote type
@@ -273,6 +274,24 @@ enum cam_sys_cache_config_types {
 	CAM_LLCC_LARGE_3 = 4,
 	CAM_LLCC_LARGE_4 = 5,
 	CAM_LLCC_MAX     = 6,
+};
+
+/**
+ * enum cam_sys_cache_llcc_staling_mode - Enum for camera llc's stalling mode
+ */
+enum cam_sys_cache_llcc_staling_mode {
+	CAM_LLCC_STALING_MODE_CAPACITY,
+	CAM_LLCC_STALING_MODE_NOTIFY,
+	CAM_LLCC_STALING_MODE_MAX,
+};
+
+/**
+ * enum cam_sys_cache_llcc_staling_mode - Enum for camera llc's stalling mode
+ */
+enum cam_sys_cache_llcc_staling_op_type {
+	CAM_LLCC_NOTIFY_STALING_EVICT,
+	CAM_LLCC_NOTIFY_STALING_FORGET,
+	CAM_LLCC_NOTIFY_STALING_OPS_MAX
 };
 
 /**
@@ -877,6 +896,41 @@ int cam_cpas_activate_llcc(enum cam_sys_cache_config_types type);
 int cam_cpas_deactivate_llcc(enum cam_sys_cache_config_types type);
 
 /**
+ * cam_cpas_configure_staling_llcc()
+ *
+ * @brief:  Configure cache staling mode by setting the
+ *          staling_mode and corresponding params
+ *
+ * @type: Cache type
+ * @mode_param: llcc stalling mode params
+ * @operation_type: cache operation type
+ * @stalling_distance: llcc sys cache stalling distance
+ *
+ * @return 0 for success.
+ *
+ */
+int cam_cpas_configure_staling_llcc(
+	enum cam_sys_cache_config_types type,
+	enum cam_sys_cache_llcc_staling_mode mode_param,
+	enum cam_sys_cache_llcc_staling_op_type operation_type,
+	uint32_t staling_distance);
+
+/**
+ * cam_cpas_notif_increment_staling_counter()
+ *
+ * @brief: This will increment the stalling counter
+ *         depends on what operation it does.
+ *         The operation mode what we have setup in other function.
+ *
+ * @type: Cache type
+ *
+ * @return 0 for success.
+ *
+ */
+int cam_cpas_notif_increment_staling_counter(
+	enum cam_sys_cache_config_types type);
+
+/**
  * cam_cpas_dump_camnoc_buff_fill_info()
  *
  * @brief: API to dump camnoc buffer fill level info
@@ -944,5 +998,14 @@ bool cam_cpas_query_domain_id_security_support(void);
  * @return 0 on success
  */
 int cam_cpas_enable_clks_for_domain_id(bool enable);
+
+/**
+ * cam_cpas_is_notif_staling_supported()
+ *
+ * @brief: API to check stalling feature is supported or not
+ *
+ * @return rue if supported
+ */
+bool cam_cpas_is_notif_staling_supported(void);
 
 #endif /* _CAM_CPAS_API_H_ */

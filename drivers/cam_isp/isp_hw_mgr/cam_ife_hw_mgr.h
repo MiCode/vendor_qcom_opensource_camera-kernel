@@ -408,10 +408,12 @@ struct cam_isp_ife_sfe_hw_caps {
  *
  * @type:                    Cache type
  * @scid:                    Cache slice ID
+ * @llcc_staling_support     to check llcc sys cache stalling mode supported or not
  */
 struct cam_isp_sys_cache_info {
 	enum cam_sys_cache_config_types type;
 	int32_t                         scid;
+	bool            llcc_staling_support;
 };
 
 /*

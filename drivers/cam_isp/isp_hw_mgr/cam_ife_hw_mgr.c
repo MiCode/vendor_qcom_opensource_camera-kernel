@@ -1131,7 +1131,7 @@ static void cam_ife_hw_mgr_deinit_hw(
 {
 	struct cam_isp_hw_mgr_res *hw_mgr_res;
 	struct cam_ife_hw_mgr          *hw_mgr;
-	int i = 0, j;
+	int i = 0, j, rc;
 
 	if (!ctx->flags.init_done) {
 		CAM_WARN(CAM_ISP, "ctx is not in init state, ctx_idx: %u", ctx->ctx_index);
@@ -1186,8 +1186,16 @@ static void cam_ife_hw_mgr_deinit_hw(
 	 * for a particular exposure. Check if any cache needs to be de-activated
 	 */
 	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
-		if (ctx->flags.sys_cache_usage[i])
+		if (ctx->flags.sys_cache_usage[i]) {
+			if (cam_cpas_is_notif_staling_supported() &&
+				hw_mgr->sys_cache_info[i].llcc_staling_support) {
+				rc = cam_cpas_notif_increment_staling_counter(i);
+				if (rc)
+					CAM_ERR(CAM_ISP,
+						"llcc cache notif increment staling failed %d", i);
+			}
 			cam_cpas_deactivate_llcc(i);
+		}
 		ctx->flags.sys_cache_usage[i] = false;
 	}
 
@@ -8302,6 +8310,7 @@ static uint32_t cam_ife_hw_mgr_get_sfe_sys_cache_id(uint32_t exp_type,
 	unsigned long          supported_sc_idx;
 	struct                 cam_ife_hw_mgr *hw_mgr;
 	bool                   use_large;
+	int                    rc;
 
 	hw_mgr = ctx->hw_mgr;
 	supported_sc_idx = hw_mgr->sfe_cache_info[hw_idx].supported_scid_idx;
@@ -8360,6 +8369,13 @@ static uint32_t cam_ife_hw_mgr_get_sfe_sys_cache_id(uint32_t exp_type,
 			cam_cpas_activate_llcc(scid_idx);
 
 		hw_mgr->sfe_cache_info[hw_idx].activated[exp_type] = true;
+		if (cam_cpas_is_notif_staling_supported()
+			&& hw_mgr->sys_cache_info[scid_idx].llcc_staling_support) {
+			rc = cam_cpas_notif_increment_staling_counter(scid_idx);
+			if (rc)
+				CAM_ERR(CAM_ISP,
+					"llcc cache notif increment staling failed %d", scid_idx);
+		}
 
 		CAM_DBG(CAM_ISP, "SFE %u Exp type %u SCID index %d use_large %d ctx_idx: %u",
 			hw_idx, exp_type, scid_idx, use_large, ctx->ctx_index);
@@ -15236,7 +15252,7 @@ static void cam_ife_hw_mgr_attach_sfe_sys_cache_id(
 	}
 }
 
-static void cam_ife_mgr_populate_sys_cache_id(void)
+static int cam_ife_mgr_populate_sys_cache_id(void)
 {
 	int                             i, scid, j;
 	uint32_t                        hw_id = 0;
@@ -15244,6 +15260,7 @@ static void cam_ife_mgr_populate_sys_cache_id(void)
 	uint32_t                        num_large_scid = 0;
 	uint32_t                        num_sfe = 0;
 	bool                            shared;
+	int rc = 0;
 
 	/* Populate sys cache info */
 	g_ife_hw_mgr.num_caches_found = 0;
@@ -15257,7 +15274,7 @@ static void cam_ife_mgr_populate_sys_cache_id(void)
 	}
 
 	if (!num_sfe)
-		return;
+		return rc;
 
 	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
 		scid = cam_cpas_get_scid(i);
@@ -15300,12 +15317,39 @@ static void cam_ife_mgr_populate_sys_cache_id(void)
 			continue;
 		cam_ife_hw_mgr_attach_sfe_sys_cache_id(shared,
 			g_ife_hw_mgr.sys_cache_info[i].type, &hw_id, num_sfe);
+		g_ife_hw_mgr.sys_cache_info[i].llcc_staling_support = false;
+		rc = cam_cpas_configure_staling_llcc(i,
+				CAM_LLCC_STALING_MODE_NOTIFY,
+				CAM_LLCC_NOTIFY_STALING_EVICT,
+				1);
+		if ((num_large_scid == 1) && (num_large_scid < num_sfe) &&
+			(rc == -EOPNOTSUPP)) {
+			CAM_ERR(CAM_ISP,
+			"Fatal error llcc staling feature is not supported cache: %d", i);
+			rc = -EFAULT;
+		} else if (!rc && num_large_scid > 1) {
+			CAM_ERR(CAM_ISP,
+			"Fatal error llcc staling feature is supported more large cache %d", i);
+			rc = -EFAULT;
+		} else if (rc == -EOPNOTSUPP) {
+			CAM_ERR(CAM_ISP,
+			"llcc staling feature is not supported cache: %d", i);
+		} else if (rc) {
+			CAM_ERR(CAM_ISP,
+			"llcc staling feature enabling failing cache: %d", i);
+		} else {
+			CAM_INFO(CAM_ISP,
+			"llcc staling feature supported: %d rc = %d", i, rc);
+			g_ife_hw_mgr.sys_cache_info[i].llcc_staling_support = true;
+		}
 	}
 
 	CAM_DBG(CAM_ISP, "Num SCIDs Small:%u Large: %u", num_small_scid, num_large_scid);
 	for (i = 0; i < num_sfe; i++)
 		CAM_DBG(CAM_ISP, "SFE[%u] available SCIDs 0x%x", i,
 			g_ife_hw_mgr.sfe_cache_info[i].supported_scid_idx);
+	return rc;
+
 }
 
 int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
@@ -15558,9 +15602,12 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 		CAM_ERR(CAM_ISP, "Unable to create worker, ctx_idx: %u", ctx_pool->ctx_index);
 		goto end;
 	}
-
 	/* Populate sys cache info */
-	cam_ife_mgr_populate_sys_cache_id();
+	rc = cam_ife_mgr_populate_sys_cache_id();
+	if (rc == -EFAULT) {
+		CAM_ERR(CAM_ISP, "LLCC stall notif enable fault");
+		goto end;
+	}
 
 	/* fill return structure */
 	hw_mgr_intf->hw_mgr_priv = &g_ife_hw_mgr;
