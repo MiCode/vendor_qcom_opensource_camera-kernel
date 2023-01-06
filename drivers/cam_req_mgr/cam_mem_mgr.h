@@ -21,6 +21,12 @@ enum cam_mem_mgr_state {
 	CAM_MEM_MGR_INITIALIZED,
 };
 
+/*Enum for memory allocation initiator */
+enum cam_mem_mgr_allocator {
+	CAM_MEMMGR_ALLOC_USER,
+	CAM_MEMMGR_ALLOC_KERNEL,
+};
+
 /*Enum for possible SMMU operations */
 enum cam_smmu_mapping_client {
 	CAM_SMMU_MAPPING_USER,
@@ -91,11 +97,13 @@ struct cam_mem_buf_queue {
  *                              allocations.
  * @csf_version: Camera security framework version
  * @system_heap: Handle to system heap
+ * @system_movable_heap: Handle to system movable heap
  * @system_uncached_heap: Handle to system uncached heap
  * @camera_heap: Handle to camera heap
  * @camera_uncached_heap: Handle to camera uncached heap
  * @secure_display_heap: Handle to secure display heap
  * @ubwc_p_heap: Handle to ubwc-p heap
+ * @ubwc_p_movable_heap: Handle to ubwc-p movable heap
  */
 struct cam_mem_table {
 	struct mutex m_lock;
@@ -108,11 +116,13 @@ struct cam_mem_table {
 	struct cam_csf_version csf_version;
 #if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
 	struct dma_heap *system_heap;
+	struct dma_heap *system_movable_heap;
 	struct dma_heap *system_uncached_heap;
 	struct dma_heap *camera_heap;
 	struct dma_heap *camera_uncached_heap;
 	struct dma_heap *secure_display_heap;
 	struct dma_heap *ubwc_p_heap;
+	struct dma_heap *ubwc_p_movable_heap;
 #endif
 
 };

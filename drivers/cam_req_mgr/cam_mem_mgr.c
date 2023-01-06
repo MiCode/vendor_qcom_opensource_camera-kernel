@@ -585,11 +585,13 @@ static int cam_mem_mgr_get_dma_heaps(void)
 	int rc = 0;
 
 	tbl.system_heap = NULL;
+	tbl.system_movable_heap = NULL;
 	tbl.system_uncached_heap = NULL;
 	tbl.camera_heap = NULL;
 	tbl.camera_uncached_heap = NULL;
 	tbl.secure_display_heap = NULL;
 	tbl.ubwc_p_heap = NULL;
+	tbl.ubwc_p_movable_heap = NULL;
 
 	tbl.system_heap = dma_heap_find("qcom,system");
 	if (IS_ERR_OR_NULL(tbl.system_heap)) {
@@ -597,6 +599,14 @@ static int cam_mem_mgr_get_dma_heaps(void)
 		CAM_ERR(CAM_MEM, "qcom system heap not found, rc=%d", rc);
 		tbl.system_heap = NULL;
 		goto put_heaps;
+	}
+
+	tbl.system_movable_heap = dma_heap_find("qcom,system-movable");
+	if (IS_ERR_OR_NULL(tbl.system_movable_heap)) {
+		rc = PTR_ERR(tbl.system_movable_heap);
+		CAM_DBG(CAM_MEM, "qcom system heap not found, rc=%d", rc);
+		tbl.system_movable_heap = NULL;
+		/* not fatal error, we can fallback to system heap */
 	}
 
 	tbl.system_uncached_heap = dma_heap_find("qcom,system-uncached");
@@ -622,6 +632,13 @@ static int cam_mem_mgr_get_dma_heaps(void)
 	if (IS_ERR_OR_NULL(tbl.ubwc_p_heap)) {
 		CAM_DBG(CAM_MEM, "qcom ubwcp heap not found, err=%d", PTR_ERR(tbl.ubwc_p_heap));
 		tbl.ubwc_p_heap = NULL;
+	}
+
+	tbl.ubwc_p_movable_heap = dma_heap_find("qcom,ubwcp-movable");
+	if (IS_ERR_OR_NULL(tbl.ubwc_p_movable_heap)) {
+		CAM_DBG(CAM_MEM, "qcom ubwcp movable heap not found, err=%d",
+			PTR_ERR(tbl.ubwc_p_movable_heap));
+		tbl.ubwc_p_movable_heap = NULL;
 	}
 
 	tbl.secure_display_heap = dma_heap_find("qcom,display");
@@ -650,10 +667,10 @@ static int cam_mem_mgr_get_dma_heaps(void)
 	}
 
 	CAM_INFO(CAM_MEM,
-		"Heaps : system=%pK, system_uncached=%pK, camera=%pK, camera-uncached=%pK, secure_display=%pK, ubwc_p_heap=%pK",
-		tbl.system_heap, tbl.system_uncached_heap,
+		"Heaps : system=%pK %pK, system_uncached=%pK, camera=%pK, camera-uncached=%pK, secure_display=%pK, ubwc_p=%pK %pK",
+		tbl.system_heap, tbl.system_movable_heap, tbl.system_uncached_heap,
 		tbl.camera_heap, tbl.camera_uncached_heap,
-		tbl.secure_display_heap, tbl.ubwc_p_heap);
+		tbl.secure_display_heap, tbl.ubwc_p_heap,  tbl.ubwc_p_movable_heap);
 
 	return 0;
 put_heaps:
@@ -671,6 +688,7 @@ bool cam_mem_mgr_ubwc_p_heap_supported(void)
 
 static int cam_mem_util_get_dma_buf(size_t len,
 	unsigned int cam_flags,
+	enum cam_mem_mgr_allocator alloc_type,
 	struct dma_buf **buf,
 	unsigned long *i_ino)
 {
@@ -744,12 +762,19 @@ static int cam_mem_util_get_dma_buf(size_t len,
 			return -EINVAL;
 		}
 
-		heap = tbl.ubwc_p_heap;
-		CAM_DBG(CAM_MEM, "Allocating from ubwc-p heap, size=%d, flags=0x%x",
-			len, cam_flags);
+		if (tbl.ubwc_p_movable_heap && (alloc_type == CAM_MEMMGR_ALLOC_USER))
+			heap = tbl.ubwc_p_movable_heap;
+		else
+			heap = tbl.ubwc_p_heap;
+		CAM_DBG(CAM_MEM, "Allocating from ubwc-p heap %pK, size=%d, flags=0x%x",
+			heap, len, cam_flags);
 	} else if (use_cached_heap) {
 		try_heap = tbl.camera_heap;
-		heap = tbl.system_heap;
+
+		if (tbl.system_movable_heap && (alloc_type == CAM_MEMMGR_ALLOC_USER))
+			heap = tbl.system_movable_heap;
+		else
+			heap = tbl.system_heap;
 	} else {
 		try_heap = tbl.camera_uncached_heap;
 		heap = tbl.system_uncached_heap;
@@ -834,6 +859,7 @@ bool cam_mem_mgr_ubwc_p_heap_supported(void)
 
 static int cam_mem_util_get_dma_buf(size_t len,
 	unsigned int cam_flags,
+	enum cam_mem_mgr_allocator alloc_type,
 	struct dma_buf **buf,
 	unsigned long *i_ino)
 {
@@ -901,7 +927,7 @@ static int cam_mem_util_buffer_alloc(size_t len, uint32_t flags,
 {
 	int rc;
 
-	rc = cam_mem_util_get_dma_buf(len, flags, dmabuf, i_ino);
+	rc = cam_mem_util_get_dma_buf(len, flags, CAM_MEMMGR_ALLOC_USER, dmabuf, i_ino);
 	if (rc) {
 		CAM_ERR(CAM_MEM,
 			"Error allocating dma buf : len=%llu, flags=0x%x",
@@ -1665,7 +1691,7 @@ int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,
 		return -EINVAL;
 	}
 
-	rc = cam_mem_util_get_dma_buf(inp->size, inp->flags, &buf, &i_ino);
+	rc = cam_mem_util_get_dma_buf(inp->size, inp->flags, CAM_MEMMGR_ALLOC_KERNEL, &buf, &i_ino);
 
 	if (rc) {
 		CAM_ERR(CAM_MEM, "ION alloc failed for shared buffer");
@@ -1845,7 +1871,7 @@ int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,
 		return -EINVAL;
 	}
 
-	rc = cam_mem_util_get_dma_buf(inp->size, 0, &buf, &i_ino);
+	rc = cam_mem_util_get_dma_buf(inp->size, 0, CAM_MEMMGR_ALLOC_KERNEL, &buf, &i_ino);
 
 	if (rc) {
 		CAM_ERR(CAM_MEM, "ION alloc failed for sec heap buffer");
