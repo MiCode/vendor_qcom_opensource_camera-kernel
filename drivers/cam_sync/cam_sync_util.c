@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sync_util.h"
@@ -629,9 +629,10 @@ void cam_sync_util_cb_dispatch(struct work_struct *cb_dispatch_work)
 		struct sync_callback_info,
 		cb_dispatch_work);
 	sync_callback sync_data = cb_info->callback_func;
+	void *cb = cb_info->callback_func;
 
 	cam_common_util_thread_switch_delay_detect(
-		"CAM-SYNC workq schedule",
+		"cam_sync_workq", "schedule", cb,
 		cb_info->workq_scheduled_ts,
 		CAM_WORKQ_SCHEDULE_TIME_THRESHOLD);
 	sync_data(cb_info->sync_obj, cb_info->status, cb_info->cb_data);

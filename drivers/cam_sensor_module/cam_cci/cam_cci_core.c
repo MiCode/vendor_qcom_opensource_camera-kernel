@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1584,7 +1584,7 @@ static void cam_cci_write_async_helper(struct work_struct *work)
 	struct cam_cci_master_info *cci_master_info;
 
 	cam_common_util_thread_switch_delay_detect(
-		"CCI workq schedule",
+		"cam_cci_workq", "schedule", cam_cci_write_async_helper,
 		write_async->workq_scheduled_ts,
 		CAM_WORKQ_SCHEDULE_TIME_THRESHOLD);
 	cci_dev = write_async->cci_dev;
