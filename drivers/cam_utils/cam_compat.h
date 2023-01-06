@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_COMPAT_H_
@@ -37,6 +37,13 @@
 
 #if KERNEL_VERSION(5, 18, 0) <= LINUX_VERSION_CODE
 MODULE_IMPORT_NS(DMA_BUF);
+#endif
+
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+#include <linux/smcinvoke.h>
+#include <linux/IClientEnv.h>
+#include <linux/ITrustedCameraDriver.h>
+#include <linux/CTrustedCameraDriver.h>
 #endif
 
 struct cam_fw_alloc_info {
