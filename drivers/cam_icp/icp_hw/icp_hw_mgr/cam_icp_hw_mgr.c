@@ -485,9 +485,10 @@ static inline bool cam_icp_validate_bw_path_idx(
 		return true;
 	} else if (path_idx >= CAM_ICP_MAX_PER_PATH_VOTES) {
 		CAM_WARN(CAM_PERF,
-			"Invalid path: %u start offset: %d, max: %d",
+			"Invalid path: %u IPE start offset: %d, OFE start offset: %d max: %d",
 			path_data_type,
 			CAM_AXI_PATH_DATA_IPE_START_OFFSET,
+			CAM_AXI_PATH_DATA_OFE_START_OFFSET,
 			CAM_ICP_MAX_PER_PATH_VOTES);
 		return true;
 	} else {
@@ -505,7 +506,7 @@ static inline int cam_icp_get_axi_path_index(struct cam_cpas_axi_per_path_bw_vot
 	case CAM_ICP_DEV_IPE:
 		return axi_path->path_data_type - CAM_AXI_PATH_DATA_IPE_START_OFFSET;
 	case CAM_ICP_DEV_OFE:
-		return 0;
+		return axi_path->path_data_type - CAM_AXI_PATH_DATA_OFE_START_OFFSET;
 	default:
 		CAM_ERR(CAM_ICP, "Invalid hw dev type not supported: %u",
 			hw_dev_type);

@@ -68,7 +68,7 @@
 #define CAM_ICP_CTX_MAX_CMD_BUFFERS 0x2
 
 /* Current appliacble vote paths, based on number of UAPI definitions */
-#define CAM_ICP_MAX_PER_PATH_VOTES 6
+#define CAM_ICP_MAX_PER_PATH_VOTES 12
 
 #define CAM_ICP_HW_MGR_NAME_SIZE  32
 
