@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -41,7 +41,7 @@ static bool cam_ofe_cpas_cb(uint32_t client_handle, void *userdata,
 		return error_handled;
 
 	switch (irq_data->irq_type) {
-	case CAM_CAMNOC_IRQ_OFE_WR_UBWC_DECODE_ERROR:
+	case CAM_CAMNOC_IRQ_OFE_WR_UBWC_ENCODE_ERROR:
 		CAM_ERR_RATE_LIMIT(CAM_ICP,
 			"OFE Write UBWC Decode error type=%d status=%x thr_err=%d, fcl_err=%d, len_md_err=%d, format_err=%d",
 			irq_data->irq_type,

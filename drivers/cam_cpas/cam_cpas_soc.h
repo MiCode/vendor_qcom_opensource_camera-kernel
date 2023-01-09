@@ -204,6 +204,18 @@ struct cam_cpas_domain_id_support_clks {
 };
 
 /**
+ * struct cam_cpas_soc_irq_data: irq data to be passed in irq handler from ISR
+ *
+ * @cpas_hw: cpas hw info
+ * @camnoc_type: type of camnoc associated with the irq
+ *
+ */
+struct cam_cpas_soc_irq_data {
+	struct cam_hw_info *cpas_hw;
+	enum cam_camnoc_hw_type camnoc_type;
+};
+
+/**
  * struct cam_cpas_private_soc : CPAS private DT info
  *
  * @arch_compat: ARCH compatible string
@@ -235,6 +247,7 @@ struct cam_cpas_domain_id_support_clks {
  * @icp_clk_index: Index of optional icp clk
  * @domain_id_info: Stores all information related to domain id support
  * @domain_id_clks: All clock related information for domain id support
+ * @irq_data: array of data for each irq line to be passed in irq handler
  */
 struct cam_cpas_private_soc {
 	const char *arch_compat;
@@ -264,6 +277,7 @@ struct cam_cpas_private_soc {
 	int32_t icp_clk_index;
 	struct cam_cpas_domain_id_info domain_id_info;
 	struct cam_cpas_domain_id_support_clks *domain_id_clks;
+	struct cam_cpas_soc_irq_data *irq_data;
 };
 
 void cam_cpas_dump_tree_vote_info(struct cam_hw_info *cpas_hw,

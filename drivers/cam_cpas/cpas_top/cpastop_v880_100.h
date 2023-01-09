@@ -1332,7 +1332,6 @@ static struct cam_camnoc_info cam880_cpas100_camnoc_info = {
 		.sbm_enable_mask = 0x80,
 		.sbm_clear_mask = 0x4,
 	},
-	.cesta_info = &cam_v880_cesta_info,
 };
 
 static struct cam_cpas_camnoc_qchannel cam880_cpas100_qchannel_info = {

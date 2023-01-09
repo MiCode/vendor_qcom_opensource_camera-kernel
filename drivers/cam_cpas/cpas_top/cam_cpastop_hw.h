@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPASTOP_HW_H_
@@ -63,6 +63,15 @@
  * @CAM_CAMNOC_HW_IRQ_IPE_BPS_UBWC_ENCODE_ERROR    : Triggered if any error
  *                                                   detected in the IPE/BPS
  *                                                   UBWC encoder instance
+ * @CAM_CAMNOC_HW_IRQ_OFE_UBWC_WRITE_ENCODE_ERROR  : Triggered if any error
+ *                                                   detected in the OFE write
+ *                                                   path enconder instance
+ * @CAM_CAMNOC_HW_IRQ_OFE_UBWC_READ_DECODE_ERROR   : Triggered if any error
+ *                                                   detected in the OFE read
+ *                                                   path enconder instance
+ * @CAM_CAMNOC_HW_IRQ_TFE_UBWC_ENCODE_ERROR        : Triggered if any error
+ *                                                   detected in the TFE
+ *                                                   UBWC enconder instance
  * @CAM_CAMNOC_HW_IRQ_RESERVED1                    : Reserved
  * @CAM_CAMNOC_HW_IRQ_RESERVED2                    : Reserved
  * @CAM_CAMNOC_HW_IRQ_CAMNOC_TEST                  : To test the IRQ logic
@@ -98,6 +107,12 @@ enum cam_camnoc_hw_irq_type {
 		CAM_CAMNOC_IRQ_IPE_BPS_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_HW_IRQ_IPE_BPS_UBWC_ENCODE_ERROR =
 		CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR,
+	CAM_CAMNOC_HW_IRQ_OFE_UBWC_WRITE_ENCODE_ERROR =
+		CAM_CAMNOC_IRQ_OFE_WR_UBWC_ENCODE_ERROR,
+	CAM_CAMNOC_HW_IRQ_OFE_UBWC_READ_DECODE_ERROR =
+		CAM_CAMNOC_IRQ_OFE_RD_UBWC_DECODE_ERROR,
+	CAM_CAMNOC_HW_IRQ_TFE_UBWC_ENCODE_ERROR =
+		CAM_CAMNOC_IRQ_TFE_UBWC_ENCODE_ERROR,
 	CAM_CAMNOC_HW_IRQ_AHB_TIMEOUT =
 		CAM_CAMNOC_IRQ_AHB_TIMEOUT,
 	CAM_CAMNOC_HW_IRQ_RESERVED1,
@@ -414,6 +429,9 @@ struct cam_cpas_cesta_info {
 /**
  * struct cam_camnoc_info : Overall CAMNOC settings info
  *
+ * @camnoc_type: type of camnoc (RT/NRT/COMBINED)
+ * @camnoc_name: name of camnoc (CAMNOC_RT/CAMNOC_NRT/CAMNOC_COMBINED)
+ * @reg_base: register base for camnoc RT/NRT/COMBINED register space
  * @specific: Pointer to CAMNOC SPECIFICTONTTPTR settings
  * @specific_size: Array size of SPECIFICTONTTPTR settings
  * @irq_sbm: Pointer to CAMNOC IRQ SBM settings
@@ -426,6 +444,12 @@ struct cam_cpas_cesta_info {
  *
  */
 struct cam_camnoc_info {
+	/* Below fields populated at probe on camera version */
+	enum cam_camnoc_hw_type camnoc_type;
+	char *camnoc_name;
+	enum cam_cpas_reg_base reg_base;
+
+	/* Below fields populated from the cpas header */
 	struct cam_camnoc_specific *specific;
 	int specific_size;
 	struct cam_camnoc_irq_sbm *irq_sbm;
@@ -440,6 +464,7 @@ struct cam_camnoc_info {
 /**
  * struct cam_cpas_work_payload : Struct for cpas work payload data
  *
+ * @camnoc_idx: index to camnoc info array
  * @hw: Pointer to HW info
  * @irq_status: IRQ status value
  * @irq_data: IRQ data
@@ -448,6 +473,7 @@ struct cam_camnoc_info {
  *
  */
 struct cam_cpas_work_payload {
+	int8_t camnoc_idx;
 	struct cam_hw_info *hw;
 	uint32_t irq_status;
 	uint32_t irq_data;

@@ -2911,7 +2911,7 @@ int cam_soc_util_request_platform_resource(
 		return -EINVAL;
 	}
 
-	if (unlikely(soc_info->irq_count >= CAM_SOC_MAX_IRQ_LINES_PER_DEV)) {
+	if (unlikely(soc_info->irq_count > CAM_SOC_MAX_IRQ_LINES_PER_DEV)) {
 		CAM_ERR(CAM_UTIL, "Invalid irq count: %u Max IRQ per device: %d",
 			soc_info->irq_count, CAM_SOC_MAX_IRQ_LINES_PER_DEV);
 		return -EINVAL;

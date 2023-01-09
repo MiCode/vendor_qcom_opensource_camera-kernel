@@ -83,7 +83,8 @@ enum cam_cpas_camera_version {
 	CAM_CPAS_CAMERA_VERSION_165  = 0x00010605,
 	CAM_CPAS_CAMERA_VERSION_780  = 0x00070800,
 	CAM_CPAS_CAMERA_VERSION_640  = 0x00060400,
-	CAM_CPAS_CAMERA_VERSION_880 =  0x00080800,
+	CAM_CPAS_CAMERA_VERSION_880  = 0x00080800,
+	CAM_CPAS_CAMERA_VERSION_980  = 0x00090800,
 	CAM_CPAS_CAMERA_VERSION_MAX
 };
 
@@ -119,7 +120,8 @@ enum cam_cpas_camera_version_map_id {
 	CAM_CPAS_CAMERA_VERSION_ID_165  = 0xA,
 	CAM_CPAS_CAMERA_VERSION_ID_780  = 0xB,
 	CAM_CPAS_CAMERA_VERSION_ID_640  = 0xC,
-	CAM_CPAS_CAMERA_VERSION_ID_880 =  0xD,
+	CAM_CPAS_CAMERA_VERSION_ID_880  = 0xD,
+	CAM_CPAS_CAMERA_VERSION_ID_980  = 0xE,
 	CAM_CPAS_CAMERA_VERSION_ID_MAX
 };
 
@@ -164,6 +166,7 @@ enum cam_cpas_hw_version {
 	CAM_CPAS_TITAN_780_V100 = 0x780100,
 	CAM_CPAS_TITAN_640_V200 = 0x640200,
 	CAM_CPAS_TITAN_880_V100 = 0x880100,
+	CAM_CPAS_TITAN_980_V100 = 0x980100,
 	CAM_CPAS_TITAN_MAX
 };
 
@@ -226,11 +229,14 @@ enum cam_camnoc_slave_error_codes {
  * @CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR: Triggered if any error detected
  *                                            in the IPE/BPS UBWC encoder
  *                                            instance
- * @CAM_CAMNOC_IRQ_OFE_WR_UBWC_DECODE_ERROR : Triggered if any error detected
+ * @CAM_CAMNOC_IRQ_OFE_WR_UBWC_ENCODE_ERROR : Triggered if any error detected
  *                                            in the OFE write UBWC decoder
  *                                            instance
  * @CAM_CAMNOC_IRQ_OFE_RD_UBWC_DECODE_ERROR : Triggered if any error detected
  *                                            in the OFE read UBWC decoder
+ *                                            instance
+ * @CAM_CAMNOC_IRQ_TFE_UBWC_ENCODE_ERROR    : Triggered if any error detected
+ *                                            in the TFE UBWC encoder
  *                                            instance
  * @CAM_CAMNOC_IRQ_AHB_TIMEOUT              : Triggered when the QHS_ICP slave
  *                                            times out after 4000 AHB cycles
@@ -251,8 +257,9 @@ enum cam_camnoc_irq_type {
 	CAM_CAMNOC_IRQ_IPE1_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_IRQ_IPE_BPS_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR,
-	CAM_CAMNOC_IRQ_OFE_WR_UBWC_DECODE_ERROR,
+	CAM_CAMNOC_IRQ_OFE_WR_UBWC_ENCODE_ERROR,
 	CAM_CAMNOC_IRQ_OFE_RD_UBWC_DECODE_ERROR,
+	CAM_CAMNOC_IRQ_TFE_UBWC_ENCODE_ERROR,
 	CAM_CAMNOC_IRQ_AHB_TIMEOUT,
 };
 
