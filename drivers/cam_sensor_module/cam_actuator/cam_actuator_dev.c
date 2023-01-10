@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_actuator_dev.h"
@@ -270,8 +270,6 @@ static void cam_actuator_i2c_component_unbind(struct device *dev,
 {
 	struct i2c_client               *client = NULL;
 	struct cam_actuator_ctrl_t      *a_ctrl = NULL;
-	struct cam_actuator_soc_private *soc_private;
-	struct cam_sensor_power_ctrl_t  *power_info;
 
 	client = container_of(dev, struct i2c_client, dev);
 	if (!client) {
@@ -292,9 +290,6 @@ static void cam_actuator_i2c_component_unbind(struct device *dev,
 	cam_actuator_shutdown(a_ctrl);
 	mutex_unlock(&(a_ctrl->actuator_mutex));
 	cam_unregister_subdev(&(a_ctrl->v4l2_dev_str));
-	soc_private =
-		(struct cam_actuator_soc_private *)a_ctrl->soc_info.soc_private;
-	power_info = &soc_private->power_info;
 
 	/*Free Allocated Mem */
 	kfree(a_ctrl->i2c_data.per_frame);
@@ -455,8 +450,6 @@ static void cam_actuator_platform_component_unbind(struct device *dev,
 	struct device *master_dev, void *data)
 {
 	struct cam_actuator_ctrl_t      *a_ctrl;
-	struct cam_actuator_soc_private *soc_private;
-	struct cam_sensor_power_ctrl_t  *power_info;
 	bool                             i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
 
@@ -474,10 +467,6 @@ static void cam_actuator_platform_component_unbind(struct device *dev,
 	cam_actuator_shutdown(a_ctrl);
 	mutex_unlock(&(a_ctrl->actuator_mutex));
 	cam_unregister_subdev(&(a_ctrl->v4l2_dev_str));
-
-	soc_private =
-		(struct cam_actuator_soc_private *)a_ctrl->soc_info.soc_private;
-	power_info = &soc_private->power_info;
 
 	kfree(a_ctrl->io_master_info.cci_client);
 	a_ctrl->io_master_info.cci_client = NULL;
