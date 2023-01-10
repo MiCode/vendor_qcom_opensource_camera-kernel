@@ -787,12 +787,6 @@ static int cam_ife_csid_ver2_stop_csi2_in_err(
 	CAM_DBG(CAM_ISP, "CSID:%d Stop csi2 rx",
 		csid_hw->hw_intf->hw_idx);
 
-	/* Reset the Rx CFG registers */
-	cam_io_w_mb(0, soc_info->reg_map[0].mem_base +
-		csid_reg->csi2_reg->cfg0_addr);
-	cam_io_w_mb(0, soc_info->reg_map[0].mem_base +
-		csid_reg->csi2_reg->cfg1_addr);
-
 	if (csid_hw->rx_cfg.top_irq_handle)
 		cam_irq_controller_disable_irq(
 			csid_hw->top_irq_controller,
