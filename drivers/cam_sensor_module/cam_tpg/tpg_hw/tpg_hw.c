@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw.h"
@@ -722,6 +722,7 @@ static int tpg_hw_configure_init_settings_v3(
 		struct tpg_hw_initsettings_v3 *settings)
 {
 	int rc = 0;
+	int clk_level = 0;
 
 	if (!hw || !hw->hw_info || !hw->hw_info->ops)
 		return -EINVAL;
@@ -733,7 +734,8 @@ static int tpg_hw_configure_init_settings_v3(
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
 	case TPG_HW_VERSION_1_4:
-		rc = tpg_hw_soc_enable(hw, CAM_SVS_VOTE);
+		clk_level = get_tpg_clk_level(hw);
+		rc = tpg_hw_soc_enable(hw, clk_level);
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
 				hw->hw_idx, rc);
