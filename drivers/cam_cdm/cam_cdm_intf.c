@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -768,10 +768,12 @@ static void cam_cdm_intf_component_unbind(struct device *dev,
 			CAM_ERR(CAM_CDM, "Valid node present in index=%d", i);
 			goto end;
 		}
-		mutex_destroy(&cdm_mgr.nodes[i].lock);
+		mutex_lock(&cdm_mgr.nodes[i].lock);
 		cdm_mgr.nodes[i].device = NULL;
 		cdm_mgr.nodes[i].data = NULL;
 		cdm_mgr.nodes[i].refcount = 0;
+		mutex_unlock(&cdm_mgr.nodes[i].lock);
+		mutex_destroy(&cdm_mgr.nodes[i].lock);
 	}
 
 	cdm_mgr.probe_done = false;
