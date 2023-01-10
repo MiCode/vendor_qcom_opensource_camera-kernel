@@ -191,7 +191,18 @@ int cam_sfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 		goto end;
 	}
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	rc = cam_cpas_query_drv_enable(NULL, &soc_info->is_clk_drv_en);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed to query DRV enable rc:%d", rc);
+		return rc;
+	}
+
+	/*
+	 * using sfe index - assuming csid and sfe are one to one map on chipsets where
+	 * cesta is present.
+	 */
+	rc = cam_soc_util_enable_platform_resource(soc_info,
+		(soc_info->is_clk_drv_en ? soc_info->index : CAM_CLK_SW_CLIENT_IDX), true,
 		CAM_LOWSVS_VOTE, true);
 	if (rc) {
 		CAM_ERR(CAM_SFE, "Enable platform failed rc=%d", rc);
@@ -231,7 +242,8 @@ int cam_sfe_disable_soc_resources(struct cam_hw_soc_info *soc_info)
 
 	soc_private = soc_info->soc_private;
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info,
+		(soc_info->is_clk_drv_en ? soc_info->index : CAM_CLK_SW_CLIENT_IDX), true, true);
 	if (rc)
 		CAM_ERR(CAM_SFE, "Disable platform failed rc=%d", rc);
 

@@ -161,6 +161,9 @@ static void cam_csiphy_reset_phyconfig_param(struct csiphy_device *csiphy_dev,
 	csiphy_dev->csiphy_info[index].mipi_flags = 0;
 	csiphy_dev->csiphy_info[index].hdl_data.device_hdl = -1;
 	csiphy_dev->csiphy_info[index].csiphy_3phase = -1;
+	csiphy_dev->csiphy_info[index].conn_csid_idx = -1;
+	csiphy_dev->csiphy_info[index].use_hw_client_voting = false;
+	csiphy_dev->csiphy_info[index].is_drv_config_en = false;
 }
 
 static inline void cam_csiphy_apply_onthego_reg_values(void __iomem *csiphybase, uint8_t csiphy_idx)
@@ -1401,7 +1404,9 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 {
 	struct cam_hw_soc_info *soc_info;
 	struct csiphy_reg_parms_t *csiphy_reg;
+	struct cam_csiphy_param *param;
 	int32_t i = 0;
+	int rc = 0;
 
 	if (csiphy_dev->csiphy_state == CAM_CSIPHY_INIT)
 		return;
@@ -1423,13 +1428,31 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 		soc_info = &csiphy_dev->soc_info;
 
 		for (i = 0; i < csiphy_dev->acquire_count; i++) {
-			if (csiphy_dev->csiphy_info[i].secure_mode)
-				cam_csiphy_program_secure_mode(
-					csiphy_dev,
+			param = &csiphy_dev->csiphy_info[i];
+
+			if (param->secure_mode)
+				cam_csiphy_program_secure_mode(csiphy_dev,
 					CAM_SECURE_MODE_NON_SECURE, i);
 
-			csiphy_dev->csiphy_info[i].secure_mode =
-				CAM_SECURE_MODE_NON_SECURE;
+			param->secure_mode = CAM_SECURE_MODE_NON_SECURE;
+
+			if (soc_info->is_clk_drv_en && param->use_hw_client_voting) {
+				rc = cam_soc_util_set_src_clk_rate(soc_info, param->conn_csid_idx,
+					0, 0);
+				if (rc) {
+					CAM_ERR(CAM_CSIPHY,
+						"[%d] Failed in setting clk rate for %d",
+						soc_info->index, param->conn_csid_idx);
+				} else {
+					rc = cam_soc_util_cesta_channel_switch(param->conn_csid_idx,
+						"csiphy_shutdown");
+					if (rc) {
+						CAM_ERR(CAM_CSIPHY,
+							"Failed to apply power states for cesta client:%d rc:%d",
+							param->conn_csid_idx, rc);
+					}
+				}
+			}
 
 			cam_csiphy_reset_phyconfig_param(csiphy_dev, i);
 		}
@@ -1445,7 +1468,7 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 		}
 
 		cam_csiphy_reset(csiphy_dev);
-		cam_soc_util_disable_platform_resource(soc_info, true, true);
+		cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 
 		cam_cpas_stop(csiphy_dev->cpas_handle);
 		csiphy_dev->csiphy_state = CAM_CSIPHY_ACQUIRE;
@@ -2092,6 +2115,9 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_acq_dev.session_handle;
 		csiphy_dev->csiphy_info[index].csiphy_3phase =
 			csiphy_acq_params.csiphy_3phase;
+		csiphy_dev->csiphy_info[index].conn_csid_idx = -1;
+		csiphy_dev->csiphy_info[index].use_hw_client_voting = false;
+		csiphy_dev->csiphy_info[index].is_drv_config_en = false;
 
 		CAM_DBG(CAM_CSIPHY, "Add dev_handle:0x%x at index: %d ",
 			csiphy_dev->csiphy_info[index].hdl_data.device_hdl,
@@ -2151,6 +2177,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 	case CAM_STOP_DEV: {
 		int32_t offset, rc = 0;
 		struct cam_start_stop_dev_cmd config;
+		struct cam_csiphy_param *param;
 
 		rc = copy_from_user(&config, (void __user *)cmd->handle,
 					sizeof(config));
@@ -2173,40 +2200,52 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			goto release_mutex;
 		}
 
+		param = &csiphy_dev->csiphy_info[offset];
+
 		if (--csiphy_dev->start_dev_count) {
-			if (csiphy_dev->csiphy_info[offset].secure_mode)
-				cam_csiphy_program_secure_mode(
-					csiphy_dev,
+			if (param->secure_mode)
+				cam_csiphy_program_secure_mode(csiphy_dev,
 					CAM_SECURE_MODE_NON_SECURE, offset);
 
-			csiphy_dev->csiphy_info[offset].secure_mode =
-				CAM_SECURE_MODE_NON_SECURE;
-			csiphy_dev->csiphy_info[offset].csiphy_cpas_cp_reg_mask
-				= 0;
+			param->secure_mode = CAM_SECURE_MODE_NON_SECURE;
+			param->csiphy_cpas_cp_reg_mask = 0;
 
 			cam_csiphy_update_lane_selection(csiphy_dev, offset, false);
 
+			if (soc_info->is_clk_drv_en && param->use_hw_client_voting) {
+				rc = cam_soc_util_set_src_clk_rate(soc_info, param->conn_csid_idx,
+					0, 0);
+				if (rc) {
+					CAM_ERR(CAM_CSIPHY,
+						"[%d] Failed in setting clk rate for %d",
+						soc_info->index, param->conn_csid_idx);
+				} else {
+					rc = cam_soc_util_cesta_channel_switch(param->conn_csid_idx,
+						"csiphy_stop_dev");
+					if (rc) {
+						CAM_ERR(CAM_CSIPHY,
+							"Failed to apply power states for cesta client:%d rc:%d",
+							param->conn_csid_idx, rc);
+					}
+				}
+			}
+
 			CAM_INFO(CAM_CSIPHY,
-				"CAM_STOP_PHYDEV: %d, Type: %s, dev_cnt: %u, slot: %d, Datarate: %llu, Settletime: %llu",
-				soc_info->index,
+				"CAM_STOP_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, Datarate: %llu, Settletime: %llu",
+				soc_info->index, param->conn_csid_idx,
 				g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
-				csiphy_dev->start_dev_count,
-				offset,
-				csiphy_dev->csiphy_info[offset].data_rate,
-				csiphy_dev->csiphy_info[offset].settle_time);
+				csiphy_dev->start_dev_count, offset, param->data_rate,
+				param->settle_time);
 
 			goto release_mutex;
 		}
 
-		if (csiphy_dev->csiphy_info[offset].secure_mode)
-			cam_csiphy_program_secure_mode(
-				csiphy_dev,
-				CAM_SECURE_MODE_NON_SECURE, offset);
+		if (param->secure_mode)
+			cam_csiphy_program_secure_mode(csiphy_dev, CAM_SECURE_MODE_NON_SECURE,
+				offset);
 
-		csiphy_dev->csiphy_info[offset].secure_mode =
-			CAM_SECURE_MODE_NON_SECURE;
-
-		csiphy_dev->csiphy_info[offset].csiphy_cpas_cp_reg_mask = 0x0;
+		param->secure_mode = CAM_SECURE_MODE_NON_SECURE;
+		param->csiphy_cpas_cp_reg_mask = 0x0;
 
 		if (csiphy_dev->prgm_cmn_reg_across_csiphy) {
 			mutex_lock(&active_csiphy_cnt_mutex);
@@ -2225,7 +2264,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 		cam_csiphy_update_lane_selection(csiphy_dev, offset, false);
 
-		rc = cam_csiphy_disable_hw(csiphy_dev);
+		rc = cam_csiphy_disable_hw(csiphy_dev, offset);
 		if (rc < 0)
 			CAM_ERR(CAM_CSIPHY, "Failed in csiphy release");
 
@@ -2237,12 +2276,10 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		csiphy_dev->csiphy_state = CAM_CSIPHY_ACQUIRE;
 
 		CAM_INFO(CAM_CSIPHY,
-			"CAM_STOP_PHYDEV: %u, Type: %s, slot: %d, Datarate: %llu, Settletime: %llu",
-			soc_info->index,
+			"CAM_STOP_PHYDEV: %u, CSID:%d, Type: %s, slot: %d, Datarate: %llu, Settletime: %llu",
+			soc_info->index, param->conn_csid_idx,
 			g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
-			offset,
-			csiphy_dev->csiphy_info[offset].data_rate,
-			csiphy_dev->csiphy_info[offset].settle_time);
+			offset, param->data_rate, param->settle_time);
 	}
 		break;
 	case CAM_RELEASE_DEV: {
@@ -2350,9 +2387,11 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		break;
 	}
 	case CAM_START_DEV: {
+		struct cam_csiphy_param *param;
 		struct cam_start_stop_dev_cmd config;
 		int32_t offset;
-		int clk_vote_level = -1;
+		int clk_vote_level_high = -1;
+		int clk_vote_level_low = -1;
 		uint8_t data_rate_variant_idx = 0;
 
 		CAM_DBG(CAM_CSIPHY, "START_DEV Called");
@@ -2382,17 +2421,63 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			goto release_mutex;
 		}
 
+		param = &csiphy_dev->csiphy_info[offset];
+
+		rc = cam_cpas_query_drv_enable(NULL, &soc_info->is_clk_drv_en);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "Failed to query DRV enable rc: %d", rc);
+			goto release_mutex;
+		}
+
 		if (csiphy_dev->start_dev_count) {
-			clk_vote_level =
-				csiphy_dev->ctrl_reg->getclockvoting(
-					csiphy_dev, offset);
-			rc = cam_soc_util_set_clk_rate_level(
-				&csiphy_dev->soc_info, clk_vote_level, false);
-			if (rc) {
-				CAM_WARN(CAM_CSIPHY,
-					"Failed to set the clk_rate level: %d",
-					clk_vote_level);
-				rc = 0;
+			clk_vote_level_high =
+				csiphy_dev->ctrl_reg->getclockvoting(csiphy_dev, offset);
+			clk_vote_level_low = clk_vote_level_high;
+
+			CAM_DBG(CAM_CSIPHY,
+				"CSIPHY[%d] is_clk_drv_en[%d] conn_csid_idx[%d] use_hw_client_voting[%d] is_drv_config_en[%d]",
+				csiphy_dev->soc_info.index, soc_info->is_clk_drv_en,
+				param->conn_csid_idx, param->use_hw_client_voting,
+				param->is_drv_config_en);
+
+			if (soc_info->is_clk_drv_en && param->use_hw_client_voting) {
+				if (param->is_drv_config_en)
+					clk_vote_level_low = CAM_LOWSVS_VOTE;
+
+				rc = cam_soc_util_set_clk_rate_level(&csiphy_dev->soc_info,
+					param->conn_csid_idx, clk_vote_level_high,
+					clk_vote_level_low, false);
+				if (rc) {
+					CAM_ERR(CAM_CSIPHY,
+						"Failed to set the req clk_rate level[high low]: [%s %s] cesta_client_idx: %d rc: %d",
+						cam_soc_util_get_string_from_level(
+						clk_vote_level_high),
+						cam_soc_util_get_string_from_level(
+						clk_vote_level_low), param->conn_csid_idx, rc);
+					rc = -EINVAL;
+					goto release_mutex;
+				}
+
+				rc = cam_soc_util_cesta_channel_switch(param->conn_csid_idx,
+					"csiphy_combo");
+				if (rc) {
+					CAM_ERR(CAM_CSIPHY,
+						"Failed to apply power states for crm client:%d rc:%d",
+						param->conn_csid_idx, rc);
+					rc = 0;
+				}
+			} else {
+				rc = cam_soc_util_set_clk_rate_level(&csiphy_dev->soc_info,
+					CAM_CLK_SW_CLIENT_IDX, clk_vote_level_high, 0, false);
+				if (rc) {
+					CAM_WARN(CAM_CSIPHY,
+						"Failed to set the req clk_rate level: %s",
+						cam_soc_util_get_string_from_level(
+						clk_vote_level_high));
+					rc = -EINVAL;
+					goto release_mutex;
+
+				}
 			}
 
 			if (csiphy_dev->csiphy_info[offset].secure_mode == 1) {
@@ -2440,8 +2525,9 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->start_dev_count++;
 
 			CAM_INFO(CAM_CSIPHY,
-				"CAM_START_PHYDEV: %d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, sec_mode: %d, Datarate: %llu, Settletime: %llu",
+				"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, sec_mode: %d, Datarate: %llu, Settletime: %llu",
 				soc_info->index,
+				csiphy_dev->csiphy_info[offset].conn_csid_idx,
 				g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
 				csiphy_dev->start_dev_count,
 				offset,
@@ -2505,7 +2591,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		rc = cam_csiphy_config_dev(csiphy_dev, config.dev_handle, data_rate_variant_idx);
 		if (rc < 0) {
 			CAM_ERR(CAM_CSIPHY, "cam_csiphy_config_dev failed");
-			cam_csiphy_disable_hw(csiphy_dev);
+			cam_csiphy_disable_hw(csiphy_dev, offset);
 			goto hw_cnt_decrement;
 		}
 
@@ -2549,8 +2635,9 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		csiphy_dev->csiphy_state = CAM_CSIPHY_START;
 
 		CAM_INFO(CAM_CSIPHY,
-			"CAM_START_PHYDEV: %d, Type: %s, slot: %d, sec_mode: %d, Datarate: %llu, Settletime: %llu, combo: %u, cphy+dphy: %u",
+			"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, slot: %d, sec_mode: %d, Datarate: %llu, Settletime: %llu, combo: %u, cphy+dphy: %u",
 			soc_info->index,
+			csiphy_dev->csiphy_info[offset].conn_csid_idx,
 			g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
 			offset,
 			csiphy_dev->csiphy_info[offset].secure_mode,

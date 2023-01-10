@@ -12,6 +12,10 @@
 #include <media/cam_defs.h>
 #include "cam_cpas_api.h"
 
+
+#define CAM_ICP_SUBDEV_NAME_LEN  32
+#define CAM_ICP_SUBDEV_NAME      "cam-icp"
+
 #define ICP_CLK_TURBO_HZ         600000000
 #define ICP_CLK_SVS_HZ           400000000
 
@@ -33,6 +37,12 @@
 #define CAM_ICP_DUMP_TAG_MAX_LEN 64
 #define CAM_ICP_DUMP_NUM_WORDS   5
 
+enum cam_icp_subdev_id {
+	CAM_ICP0_SUBDEV,
+	CAM_ICP1_SUBDEV,
+	CAM_ICP_SUBDEV_MAX
+};
+
 enum cam_icp_hw_event_type {
 	CAM_ICP_EVT_ID_BUF_DONE,
 	CAM_ICP_EVT_ID_ERROR,
@@ -46,12 +56,6 @@ enum cam_icp_hw_error_type {
 
 typedef void(*cam_icp_mini_dump_cb)(void *priv,
 	void *args);
-
-int cam_icp_hw_mgr_init(struct device_node *of_node,
-	uint64_t *hw_mgr_hdl, int *iommu_hdl,
-	cam_icp_mini_dump_cb mini_dump_cb);
-
-void cam_icp_hw_mgr_deinit(void);
 
 /**
  * struct cam_icp_cpas_vote
@@ -110,5 +114,11 @@ struct cam_icp_hw_error_evt_data {
 	uint64_t                       req_id;
 	enum cam_icp_hw_error_type     err_type;
 };
+
+int cam_icp_hw_mgr_init(struct device_node *of_node,
+	uint64_t *hw_mgr_hdl, int *iommu_hdl,
+	cam_icp_mini_dump_cb mini_dump_cb, int device_idx);
+
+void cam_icp_hw_mgr_deinit(int device_idx);
 
 #endif /* CAM_ICP_HW_MGR_INTF_H */

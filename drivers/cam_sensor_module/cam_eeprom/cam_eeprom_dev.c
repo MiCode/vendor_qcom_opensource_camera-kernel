@@ -355,12 +355,19 @@ static int cam_eeprom_i2c_driver_probe(struct i2c_client *client,
 	return rc;
 }
 
+#if KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE
+void cam_eeprom_i2c_driver_remove(struct i2c_client *client)
+{
+	component_del(&client->dev, &cam_eeprom_i2c_component_ops);
+}
+#else
 static int cam_eeprom_i2c_driver_remove(struct i2c_client *client)
 {
 	component_del(&client->dev, &cam_eeprom_i2c_component_ops);
 
 	return 0;
 }
+#endif
 
 static int cam_eeprom_spi_setup(struct spi_device *spi)
 {

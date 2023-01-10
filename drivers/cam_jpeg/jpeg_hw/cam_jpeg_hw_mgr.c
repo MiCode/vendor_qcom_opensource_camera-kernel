@@ -2015,7 +2015,8 @@ static int cam_jpeg_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 	return rc;
 }
 
-static unsigned long cam_jpeg_hw_mgr_mini_dump_cb(void *dst, unsigned long len)
+static unsigned long cam_jpeg_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
+	void *priv_data)
 {
 	struct cam_jpeg_hw_mini_dump_req *md_req;
 	struct cam_jpeg_hw_mgr_mini_dump *md;
@@ -2315,7 +2316,8 @@ int cam_jpeg_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	if (iommu_hdl)
 		*iommu_hdl = g_jpeg_hw_mgr.iommu_hdl;
 
-	cam_common_register_mini_dump_cb(cam_jpeg_hw_mgr_mini_dump_cb, "CAM_JPEG");
+	cam_common_register_mini_dump_cb(cam_jpeg_hw_mgr_mini_dump_cb, "CAM_JPEG",
+		NULL);
 	cam_jpeg_mgr_create_debugfs_entry();
 	cam_jpeg_test_irq_line_at_probe();
 

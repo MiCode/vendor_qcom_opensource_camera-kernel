@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ICP_CONTEXT_H_
@@ -30,10 +31,11 @@ struct cam_icp_context {
  * @hw_intf: Pointer to ICP hardware interface
  * @ctx_id: ID for this context
  * @img_iommu_hdl: IOMMU HDL for image buffers
- *
+ * @icp_dev_name: name of the icp subdevice
  */
 int cam_icp_context_init(struct cam_icp_context *ctx,
-	struct cam_hw_mgr_intf *hw_intf, uint32_t ctx_id, int img_iommu_hdl);
+	struct cam_hw_mgr_intf *hw_intf, uint32_t ctx_id,
+	int img_iommu_hdl, const char *icp_dev_name);
 
 /**
  * cam_icp_context_deinit() - ICP context deinit

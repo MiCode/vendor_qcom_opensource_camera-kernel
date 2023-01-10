@@ -13,7 +13,9 @@
 #include <linux/iommu.h>
 #include <linux/qcom_scm.h>
 #include <linux/list_sort.h>
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 #include <linux/dma-iommu.h>
+#endif
 #include <soc/qcom/of_common.h>
 #include <linux/spi/spi.h>
 

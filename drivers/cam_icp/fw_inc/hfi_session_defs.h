@@ -19,6 +19,11 @@
 #define HFI_IPEBPS_CMD_OPCODE_IPE_ABORT                 0x7
 #define HFI_IPEBPS_CMD_OPCODE_IPE_DESTROY               0x8
 
+#define HFI_OFE_CMD_OPCODE_CONFIG_IO                    0x1
+#define HFI_OFE_CMD_OPCODE_FRAME_PROCESS                0x2
+#define HFI_OFE_CMD_OPCODE_ABORT                        0x3
+#define HFI_OFE_CMD_OPCODE_DESTROY                      0x4
+
 #define HFI_IPEBPS_CMD_OPCODE_BPS_WAIT_FOR_IPE          0x9
 #define HFI_IPEBPS_CMD_OPCODE_BPS_WAIT_FOR_BPS          0xa
 #define HFI_IPEBPS_CMD_OPCODE_IPE_WAIT_FOR_BPS          0xb
@@ -27,9 +32,16 @@
 #define HFI_IPEBPS_CMD_OPCODE_MEM_MAP                   0xe
 #define HFI_IPEBPS_CMD_OPCODE_MEM_UNMAP                 0xf
 
-#define HFI_IPEBPS_HANDLE_TYPE_BPS                      0x1
+#define HFI_IPEBPS_HANDLE_TYPE_BPS_NON_RT               0x1
 #define HFI_IPEBPS_HANDLE_TYPE_IPE_RT                   0x2
 #define HFI_IPEBPS_HANDLE_TYPE_IPE_NON_RT               0x3
+#define HFI_IPEBPS_HANDLE_TYPE_IPE_SEMI_RT              0x4
+#define HFI_IPEBPS_HANDLE_TYPE_BPS_RT                   0x5
+#define HFI_IPEBPS_HANDLE_TYPE_BPS_SEMI_RT              0x6
+
+#define HFI_OFE_HANDLE_TYPE_OFE_RT                      0x1
+#define HFI_OFE_HANDLE_TYPE_OFE_NON_RT                  0x2
+#define HFI_OFE_HANDLE_TYPE_OFE_SEMI_RT                 0x3
 
 /**
  * struct mem_map_region_data
@@ -94,16 +106,15 @@ struct hfi_cmd_abort {
 } __packed;
 
 /**
- * struct hfi_cmd_abort_destroy
+ * struct hfi_cmd_destroy
  * @user_data: user supplied data
  *
- * Device destroy/abort command
- * @HFI_IPEBPS_CMD_OPCODE_IPE_ABORT
- * @HFI_IPEBPS_CMD_OPCODE_BPS_ABORT
+ * IPE/BPS/OFE destroy command
  * @HFI_IPEBPS_CMD_OPCODE_IPE_DESTROY
  * @HFI_IPEBPS_CMD_OPCODE_BPS_DESTROY
+ * @HFI_OFE_CMD_OPCODE_OFE_DESTROY
  */
-struct hfi_cmd_abort_destroy {
+struct hfi_cmd_destroy {
 	uint64_t user_data;
 } __packed;
 
@@ -127,7 +138,7 @@ struct hfi_cmd_chaining_ops {
  * struct hfi_cmd_create_handle
  * @size: packet size in bytes
  * @pkt_type: opcode of a packet
- * @handle_type: device firmware session handle type
+ * @handle_type: IPE/BPS/OFE firmware session handle type
  * @user_data1: caller provided data1
  * @user_data2: caller provided data2
  *
@@ -145,7 +156,7 @@ struct hfi_cmd_create_handle {
  * struct hfi_cmd_dev_async
  * @size: packet size in bytes
  * @pkt_type: opcode of a packet
- * @opcode: opcode for devices' async operation
+ * @opcode: opcode for devices I/O async operation
  *          CONFIG_IO: configures I/O for device handle
  *          FRAME_PROCESS: image frame to be processed by device
  *          ABORT: abort all processing frames of device handle
@@ -547,13 +558,21 @@ struct hfi_msg_ipe_config {
 } __packed;
 
 /**
- * struct hfi_msg_bps_common
- * @rc: result of ipe config command
+ * struct hfi_msg_bps_config
+ * @rc: result of bps config command
  * @user_data: user data
  */
-struct hfi_msg_bps_common {
+struct hfi_msg_bps_config {
 	uint32_t rc;
 	uint64_t user_data;
+} __packed;
+
+/**
+ * struct hfi_msg_ofe_config
+ * @rc: result of ofe config command
+ */
+struct hfi_msg_ofe_config {
+	uint32_t rc;
 } __packed;
 
 /**

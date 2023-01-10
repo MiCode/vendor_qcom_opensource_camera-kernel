@@ -540,9 +540,22 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 	violation_status = cam_io_r(soc_info->reg_map[VFE_CORE_BASE_IDX].mem_base +
 		    common_data->common_reg->bus_violation_status);
 
-	CAM_ERR(CAM_ISP, "VFE[%d] sof_cnt:%d src_clk:%luMHz overflow:%s violation:%s",
-		soc_info->index, top_priv->sof_cnt, soc_info->applied_src_clk_rate / 1000000,
-		CAM_BOOL_TO_YESNO(bus_overflow_status), CAM_BOOL_TO_YESNO(violation_status));
+	if (soc_private->is_ife_lite)
+		CAM_ERR(CAM_ISP,
+			"VFE[%d] sof_cnt:%d src_clk:%lu overflow:%s violation:%s",
+			soc_info->index, top_priv->sof_cnt,
+			soc_info->applied_src_clk_rates.sw_client,
+			CAM_BOOL_TO_YESNO(bus_overflow_status),
+			CAM_BOOL_TO_YESNO(violation_status));
+	else
+		CAM_ERR(CAM_ISP,
+			"VFE[%d] sof_cnt:%d src_clk sw_client:%lu hw_client:[%lu %lu] overflow:%s violation:%s",
+			soc_info->index, top_priv->sof_cnt,
+			soc_info->applied_src_clk_rates.sw_client,
+			soc_info->applied_src_clk_rates.hw_client[soc_info->index].high,
+			soc_info->applied_src_clk_rates.hw_client[soc_info->index].low,
+			CAM_BOOL_TO_YESNO(bus_overflow_status),
+			CAM_BOOL_TO_YESNO(violation_status));
 
 	if (bus_overflow_status) {
 		overflow_info->is_bus_overflow = true;

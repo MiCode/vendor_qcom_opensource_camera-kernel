@@ -277,7 +277,16 @@ int cam_vfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 		goto end;
 	}
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	if (!soc_private->is_ife_lite) {
+		rc = cam_cpas_query_drv_enable(NULL, &soc_info->is_clk_drv_en);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Failed to query DRV enable rc:%d", rc);
+			return rc;
+		}
+	}
+
+	rc = cam_soc_util_enable_platform_resource(soc_info,
+		(soc_info->is_clk_drv_en ? soc_info->index : CAM_CLK_SW_CLIENT_IDX), true,
 		CAM_LOWSVS_VOTE, true);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Error! enable platform failed rc=%d", rc);
@@ -313,8 +322,8 @@ int cam_vfe_soc_enable_clk(struct cam_hw_soc_info *soc_info,
 			goto end;
 		}
 
-		rc = cam_soc_util_clk_enable(soc_info, true,
-			soc_private->dsp_clk_index, 0, NULL);
+		rc = cam_soc_util_clk_enable(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+			soc_private->dsp_clk_index, 0);
 		if (rc)
 			CAM_ERR(CAM_ISP,
 			"Error enable dsp clk failed rc=%d", rc);
@@ -345,7 +354,7 @@ int cam_vfe_soc_disable_clk(struct cam_hw_soc_info *soc_info,
 			goto end;
 		}
 
-		rc = cam_soc_util_clk_disable(soc_info, true,
+		rc = cam_soc_util_clk_disable(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 			soc_private->dsp_clk_index);
 		if (rc)
 			CAM_ERR(CAM_ISP,
@@ -367,9 +376,11 @@ int cam_vfe_disable_soc_resources(struct cam_hw_soc_info *soc_info)
 		rc = -EINVAL;
 		return rc;
 	}
+
 	soc_private = soc_info->soc_private;
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info,
+		(soc_info->is_clk_drv_en ? soc_info->index : CAM_CLK_SW_CLIENT_IDX), true, true);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Disable platform failed rc=%d", rc);
 		return rc;

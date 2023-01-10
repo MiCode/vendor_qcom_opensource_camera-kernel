@@ -98,6 +98,19 @@ static int cam_ife_mgr_prog_default_settings(
 static int cam_ife_mgr_cmd_get_sof_timestamp(struct cam_ife_hw_mgr_ctx *ife_ctx,
 	uint64_t *time_stamp, uint64_t *boot_time_stamp, uint64_t *prev_time_stamp);
 
+static void *cam_ife_hw_mgr_get_hw_intf(
+	struct cam_isp_ctx_base_info *base)
+{
+	if (base->hw_type == CAM_ISP_HW_TYPE_CSID)
+		return g_ife_hw_mgr.csid_devices[base->idx];
+	else if (base->hw_type == CAM_ISP_HW_TYPE_SFE)
+		return g_ife_hw_mgr.sfe_devices[base->idx]->hw_intf;
+	else if (base->hw_type == CAM_ISP_HW_TYPE_VFE)
+		return g_ife_hw_mgr.ife_devices[base->idx]->hw_intf;
+	else
+		return NULL;
+}
+
 static int cam_ife_mgr_update_core_info_to_cpas(struct cam_ife_hw_mgr_ctx           *ctx,
 	bool set_port)
 {
@@ -167,6 +180,10 @@ static int cam_isp_blob_drv_config(struct cam_ife_hw_mgr_ctx         *ctx,
 	drv_config_args.drv_en = drv_config->drv_en;
 	drv_config_args.path_idle_en = drv_config->path_idle_en;
 	drv_config_args.timeout_val = drv_config->timeout_val;
+
+	if (drv_config->drv_en)
+		ctx->drv_path_idle_en = drv_config->path_idle_en;
+
 	for (i = 0; i < ctx->num_base; i++) {
 		if (ctx->base[i].hw_type != CAM_ISP_HW_TYPE_CSID)
 			continue;
@@ -207,11 +224,15 @@ static int cam_ife_mgr_finish_clk_bw_update(
 {
 	int i, rc = 0;
 	struct cam_isp_apply_clk_bw_args clk_bw_args;
+	bool cesta_idx_updated[CAM_CESTA_MAX_CLIENTS] = {0};
 
 	clk_bw_args.request_id = request_id;
 	clk_bw_args.skip_clk_data_rst = skip_clk_data_rst;
+	clk_bw_args.is_drv_config_en = (bool) (ctx->drv_path_idle_en & CAM_ISP_PXL_PATH);
+
 	for (i = 0; i < ctx->num_base; i++) {
 		clk_bw_args.hw_intf = NULL;
+		clk_bw_args.clock_updated = false;
 		CAM_DBG(CAM_PERF,
 			"Clock/BW Update for req_id:%d i:%d num_vfe_out:%d num_sfe_out:%d in_rd:%d",
 			request_id, i, ctx->num_acq_vfe_out, ctx->num_acq_sfe_out,
@@ -226,8 +247,9 @@ static int cam_ife_mgr_finish_clk_bw_update(
 			continue;
 
 		CAM_DBG(CAM_PERF,
-			"Apply Clock/BW for req_id:%d i:%d hw_idx=%d hw_type:%d num_vfe_out:%d num_sfe_out:%d in_rd:%d",
+			"Apply Clock/BW for req_id:%d i:%d hw_idx=%d hw_type:%d inline:%s num_vfe_out:%d num_sfe_out:%d in_rd:%d",
 			request_id, i, clk_bw_args.hw_intf->hw_idx, clk_bw_args.hw_intf->hw_type,
+			CAM_BOOL_TO_YESNO(clk_bw_args.is_drv_config_en),
 			ctx->num_acq_vfe_out, ctx->num_acq_sfe_out,
 			!list_empty(&ctx->res_list_ife_in_rd));
 		rc = clk_bw_args.hw_intf->hw_ops.process_cmd(clk_bw_args.hw_intf->hw_priv,
@@ -239,7 +261,37 @@ static int cam_ife_mgr_finish_clk_bw_update(
 				request_id, i, ctx->base[i].idx, ctx->base[i].hw_type, rc);
 			break;
 		}
+
+		CAM_DBG(CAM_ISP, "clock_updated=%d, hw_idx=%d",
+			clk_bw_args.clock_updated, clk_bw_args.hw_intf->hw_idx);
+
+		if ((clk_bw_args.clock_updated) &&
+			(clk_bw_args.hw_intf->hw_idx < CAM_CESTA_MAX_CLIENTS))
+			cesta_idx_updated[clk_bw_args.hw_intf->hw_idx] = true;
 	}
+
+	if (g_ife_hw_mgr.cam_clk_drv_support) {
+		CAM_DBG(CAM_ISP, "Channel switch for [0]=%s, [1]=%s, [2]=%s",
+			CAM_BOOL_TO_YESNO(cesta_idx_updated[0]),
+			CAM_BOOL_TO_YESNO(cesta_idx_updated[1]),
+			CAM_BOOL_TO_YESNO(cesta_idx_updated[2]));
+
+		for (i = 0; i < CAM_CESTA_MAX_CLIENTS; i++) {
+			if (!cesta_idx_updated[i])
+				continue;
+
+			rc = cam_soc_util_cesta_channel_switch(i, "ife_hw_mgr_update");
+			if (rc) {
+				CAM_ERR(CAM_CSIPHY,
+					"Failed to apply power states for cesta client:%d rc:%d",
+					i, rc);
+				return rc;
+			}
+		}
+	}
+
+	CAM_DBG(CAM_ISP, "Clk, BW update done for Req=%lld, skip_clk_data_rst=%d",
+		request_id, skip_clk_data_rst);
 
 	return rc;
 }
@@ -901,7 +953,8 @@ err:
 static int cam_ife_mgr_csid_start_hw(
 	struct   cam_ife_hw_mgr_ctx *ctx,
 	uint32_t primary_rdi_csid_res,
-	bool     is_internal_start)
+	bool     is_internal_start,
+	bool     start_only)
 {
 	struct cam_isp_hw_mgr_res      *hw_mgr_res;
 	struct cam_isp_resource_node   *isp_res;
@@ -963,6 +1016,8 @@ static int cam_ife_mgr_csid_start_hw(
 			start_args.cdm_hw_idx = ctx->cdm_hw_idx;
 			start_args.is_secure = is_secure;
 			start_args.is_internal_start = is_internal_start;
+			start_args.start_only = start_only;
+			start_args.is_drv_config_en = (bool) ctx->drv_path_idle_en;
 			hw_intf->hw_ops.start(hw_intf->hw_priv, &start_args,
 			    sizeof(start_args));
 		}
@@ -5197,6 +5252,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->common.sec_pf_evt_cb = acquire_args->sec_pf_evt_cb;
 	ife_ctx->try_recovery_cnt = 0;
 	ife_ctx->recovery_req_id = 0;
+	ife_ctx->drv_path_idle_en = 0;
 
 	acquire_hw_info =
 		(struct cam_isp_acquire_hw_info *)acquire_args->acquire_info;
@@ -6945,7 +7001,7 @@ static int cam_ife_mgr_restart_hw(void *start_hw_args)
 
 	CAM_DBG(CAM_ISP, "START CSID HW ... in ctx id:%d", ctx->ctx_index);
 	/* Start the IFE CSID HW devices */
-	rc = cam_ife_mgr_csid_start_hw(ctx, CAM_IFE_PIX_PATH_RES_MAX, false);
+	rc = cam_ife_mgr_csid_start_hw(ctx, CAM_IFE_PIX_PATH_RES_MAX, false, false);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Error in starting CSID HW in ctx id:%d", ctx->ctx_index);
 		goto err;
@@ -7110,6 +7166,13 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 	CAM_DBG(CAM_ISP, "Enter... ctx id:%d",
 		ctx->ctx_index);
 
+	rc = cam_cpas_query_drv_enable(&g_ife_hw_mgr.cam_ddr_drv_support,
+		&g_ife_hw_mgr.cam_clk_drv_support);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed to query DRV enable rc: %d", rc);
+		return -EINVAL;
+	}
+
 	/* update Bandwidth should be done at the hw layer */
 
 	cam_tasklet_start(ctx->common.tasklet_info);
@@ -7217,12 +7280,6 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Can not start cdm (%d)", ctx->cdm_handle);
 		goto safe_disable;
-	}
-
-	rc = cam_cpas_query_drv_enable(&g_ife_hw_mgr.cam_ddr_drv_support);
-	if (rc) {
-		CAM_ERR(CAM_ISP, "Failed to query DRV enable rc: %d", rc);
-		goto cdm_streamoff;
 	}
 
 start_only:
@@ -7343,7 +7400,7 @@ start_only:
 		ctx->ctx_index);
 	/* Start the IFE CSID HW devices */
 	rc = cam_ife_mgr_csid_start_hw(ctx, primary_rdi_csid_res,
-		start_isp->is_internal_start);
+		start_isp->is_internal_start, start_isp->start_only);
 	if (rc)
 		goto err;
 
@@ -7497,6 +7554,7 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	ctx->scratch_buf_info.ife_scratch_config = NULL;
 	ctx->try_recovery_cnt = 0;
 	ctx->recovery_req_id = 0;
+	ctx->drv_path_idle_en = 0;
 
 	memset(&ctx->flags, 0, sizeof(struct cam_ife_hw_mgr_ctx_flags));
 	atomic_set(&ctx->overflow_pending, 0);
@@ -7602,6 +7660,7 @@ static int cam_isp_blob_ubwc_update(
 	struct cam_kmd_buf_info               *kmd_buf_info;
 	struct cam_ife_hw_mgr_ctx             *ctx = NULL;
 	struct cam_isp_hw_mgr_res             *hw_mgr_res;
+	struct cam_hw_intf                    *hw_intf = NULL;
 	uint32_t                               res_id_out, i;
 	uint32_t                               total_used_bytes = 0;
 	uint32_t                               kmd_buf_remain_size;
@@ -7669,10 +7728,21 @@ static int cam_isp_blob_ubwc_update(
 				goto end;
 			}
 
+			hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+
+			if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+				CAM_ERR(CAM_ISP,
+					"Invalid base %u type %u", blob_info->base_info->idx,
+					blob_info->base_info->hw_type);
+				return rc;
+			}
+			if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
+				break;
+
 			rc = cam_isp_add_cmd_buf_update(
-				hw_mgr_res, blob_type,
+				hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
+				blob_type,
 				blob_type_hw_cmd_map[blob_type],
-				blob_info->base_info->idx,
 				(void *)cmd_buf_addr,
 				kmd_buf_remain_size,
 				(void *)ubwc_plane_cfg,
@@ -7761,6 +7831,7 @@ static int cam_isp_blob_ubwc_update_v2(
 	struct cam_kmd_buf_info               *kmd_buf_info;
 	struct cam_ife_hw_mgr_ctx             *ctx = NULL;
 	struct cam_isp_hw_mgr_res             *hw_mgr_res;
+	struct cam_hw_intf                    *hw_intf = NULL;
 	uint32_t                               res_id_out, i;
 	uint32_t                               total_used_bytes = 0;
 	uint32_t                               kmd_buf_remain_size;
@@ -7802,6 +7873,26 @@ static int cam_isp_blob_ubwc_update_v2(
 			goto end;
 		}
 
+		hw_mgr_res = &ctx->res_list_ife_out[res_id_out];
+
+		if (!hw_mgr_res) {
+			CAM_ERR(CAM_ISP, "Invalid hw_mgr_res");
+			rc = -EINVAL;
+			goto end;
+		}
+
+		hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+
+		if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid base %u type %u", blob_info->base_info->idx,
+				blob_info->base_info->hw_type);
+			return rc;
+		}
+
+		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
+			goto end;
+
 		if ((kmd_buf_info->used_bytes
 			+ total_used_bytes) < kmd_buf_info->size) {
 			kmd_buf_remain_size = kmd_buf_info->size -
@@ -7819,21 +7910,15 @@ static int cam_isp_blob_ubwc_update_v2(
 		cmd_buf_addr = kmd_buf_info->cpu_addr +
 			kmd_buf_info->used_bytes/4 +
 			total_used_bytes/4;
-		hw_mgr_res = &ctx->res_list_ife_out[res_id_out];
-
-		if (!hw_mgr_res) {
-			CAM_ERR(CAM_ISP, "Invalid hw_mgr_res");
-			rc = -EINVAL;
-			goto end;
-		}
 
 		rc = cam_isp_get_generic_ubwc_data_v2(ubwc_plane_cfg,
 			ubwc_config->api_version, &generic_ubwc_cfg);
 
+
 		rc = cam_isp_add_cmd_buf_update(
-			hw_mgr_res, blob_type,
+			hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
+			blob_type,
 			blob_type_hw_cmd_map[blob_type],
-			blob_info->base_info->idx,
 			(void *)cmd_buf_addr,
 			kmd_buf_remain_size,
 			(void *)&generic_ubwc_cfg,
@@ -8291,6 +8376,7 @@ static int cam_isp_blob_sfe_update_fetch_core_cfg(
 	struct cam_isp_hw_mgr_res         *hw_mgr_res;
 	struct cam_kmd_buf_info           *kmd_buf_info;
 	struct cam_ife_hw_mgr_ctx         *ctx = NULL;
+	struct cam_hw_intf                *hw_intf = NULL;
 
 	ctx = prepare->ctxt_to_hw_map;
 	if (prepare->num_hw_update_entries + 1 >=
@@ -8314,6 +8400,18 @@ static int cam_isp_blob_sfe_update_fetch_core_cfg(
 				rc = -ENOMEM;
 				return rc;
 		}
+
+		hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+
+		if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid base %u type %u", blob_info->base_info->idx,
+				blob_info->base_info->hw_type);
+			return -EINVAL;
+		}
+
+		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
+			return 0;
 
 		cpu_addr = kmd_buf_info->cpu_addr +
 			(kmd_buf_info->used_bytes / 4) +
@@ -8341,11 +8439,12 @@ static int cam_isp_blob_sfe_update_fetch_core_cfg(
 			ctx->scratch_buf_info.sfe_scratch_config->updated_num_exp);
 
 		rc = cam_isp_add_cmd_buf_update(
-			hw_mgr_res, blob_type,
+			hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
+			blob_type,
 			CAM_ISP_HW_CMD_RM_ENABLE_DISABLE,
-			blob_info->base_info->idx,
 			(void *)cpu_addr, remain_size,
 			(void *)&enable, &used_bytes);
+
 		if (rc < 0) {
 			CAM_ERR(CAM_ISP,
 				"Failed to dynamically %s SFE: %u RM: %u bytes_used: %u rc: %d",
@@ -8377,6 +8476,7 @@ static int cam_isp_blob_hfr_update(
 	struct cam_kmd_buf_info               *kmd_buf_info;
 	struct cam_ife_hw_mgr_ctx             *ctx = NULL;
 	struct cam_isp_hw_mgr_res             *hw_mgr_res;
+	struct cam_hw_intf                    *hw_intf = NULL;
 	uint32_t                               res_id_out, i;
 	uint32_t                               total_used_bytes = 0;
 	uint32_t                               kmd_buf_remain_size;
@@ -8411,6 +8511,22 @@ static int cam_isp_blob_hfr_update(
 			return -EINVAL;
 		}
 
+		if (hw_type == CAM_ISP_HW_TYPE_SFE)
+			hw_mgr_res = &ctx->res_list_sfe_out[res_id_out];
+		else
+			hw_mgr_res = &ctx->res_list_ife_out[res_id_out];
+
+		hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+		if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid base %u type %u", blob_info->base_info->idx,
+				blob_info->base_info->hw_type);
+			return rc;
+		}
+
+		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
+			return 0;
+
 		if ((kmd_buf_info->used_bytes
 			+ total_used_bytes) < kmd_buf_info->size) {
 			kmd_buf_remain_size = kmd_buf_info->size -
@@ -8427,15 +8543,11 @@ static int cam_isp_blob_hfr_update(
 		cmd_buf_addr = kmd_buf_info->cpu_addr +
 			kmd_buf_info->used_bytes/4 +
 			total_used_bytes/4;
-		if (hw_type == CAM_ISP_HW_TYPE_SFE)
-			hw_mgr_res = &ctx->res_list_sfe_out[res_id_out];
-		else
-			hw_mgr_res = &ctx->res_list_ife_out[res_id_out];
 
 		rc = cam_isp_add_cmd_buf_update(
-			hw_mgr_res, blob_type,
+			hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
+			blob_type,
 			CAM_ISP_HW_CMD_GET_HFR_UPDATE,
-			blob_info->base_info->idx,
 			(void *)cmd_buf_addr,
 			kmd_buf_remain_size,
 			(void *)port_hfr_config,
@@ -8800,13 +8912,11 @@ static int cam_isp_blob_ife_clock_update(
 
 					camif_r_clk_updated = true;
 				}
-			} else if ((hw_mgr_res->res_id >=
-				CAM_ISP_HW_VFE_IN_RD) && (hw_mgr_res->res_id
-				<= CAM_ISP_HW_VFE_IN_RDI3))
+			} else if ((hw_mgr_res->res_id >= CAM_ISP_HW_VFE_IN_RD) &&
+				(hw_mgr_res->res_id <= CAM_ISP_HW_VFE_IN_RDI3)) {
 				for (j = 0; j < clock_config->num_rdi; j++)
-					clk_rate = max(clock_config->rdi_hz[j],
-						clk_rate);
-			else
+					clk_rate = max(clock_config->rdi_hz[j], clk_rate);
+			} else {
 				if (hw_mgr_res->res_id != CAM_ISP_HW_VFE_IN_LCR
 					&& hw_mgr_res->hw_res[i]) {
 					CAM_ERR(CAM_ISP, "Invalid res_id %u",
@@ -8814,6 +8924,7 @@ static int cam_isp_blob_ife_clock_update(
 					rc = -EINVAL;
 					return rc;
 				}
+			}
 
 			hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
 			if (hw_intf && hw_intf->hw_ops.process_cmd) {
@@ -8939,6 +9050,7 @@ static int cam_isp_blob_sfe_rd_update(
 	uint32_t                              bytes_used = 0;
 	bool                                  found = false;
 	struct cam_isp_hw_mgr_res            *sfe_rd_res;
+	struct cam_hw_intf                   *hw_intf = NULL;
 
 	list_for_each_entry(sfe_rd_res, &ctx->res_list_ife_in_rd,
 		list) {
@@ -8958,10 +9070,21 @@ static int cam_isp_blob_sfe_rd_update(
 	CAM_DBG(CAM_ISP, "SFE RM config for port: 0x%x",
 		wm_config->port_type);
 
+	hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+	if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+		CAM_ERR(CAM_ISP,
+			"Invalid base %u type %u", blob_info->base_info->idx,
+			blob_info->base_info->hw_type);
+		return -EINVAL;
+	}
+
+	if (!sfe_rd_res->hw_res[blob_info->base_info->split_id])
+		return 0;
+
 	rc = cam_isp_add_cmd_buf_update(
-		sfe_rd_res, blob_type,
+		sfe_rd_res->hw_res[blob_info->base_info->split_id], hw_intf,
+		blob_type,
 		CAM_ISP_HW_CMD_FE_UPDATE_BUS_RD,
-		blob_info->base_info->idx,
 		(void *)cmd_buf_addr,
 		kmd_buf_remain_size,
 		(void *)wm_config,
@@ -9025,6 +9148,7 @@ static int cam_isp_blob_vfe_out_update(
 	struct cam_kmd_buf_info               *kmd_buf_info;
 	struct cam_ife_hw_mgr_ctx             *ctx = NULL;
 	struct cam_isp_hw_mgr_res             *isp_out_res;
+	struct cam_hw_intf                    *hw_intf = NULL;
 	bool                                   is_sfe_rd = false;
 	uint32_t                               res_id_out, i;
 	uint32_t                               total_used_bytes = 0;
@@ -9110,10 +9234,21 @@ static int cam_isp_blob_vfe_out_update(
 			isp_out_res = &ctx->res_list_ife_out[res_id_out];
 		}
 
+		hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+		if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid base %u type %u", blob_info->base_info->idx,
+				blob_info->base_info->hw_type);
+			return rc;
+		}
+
+		if (!isp_out_res->hw_res[blob_info->base_info->split_id])
+			return 0;
+
 		rc = cam_isp_add_cmd_buf_update(
-			isp_out_res, blob_type,
+			isp_out_res->hw_res[blob_info->base_info->split_id], hw_intf,
+			blob_type,
 			CAM_ISP_HW_CMD_WM_CONFIG_UPDATE,
-			blob_info->base_info->idx,
 			(void *)cmd_buf_addr,
 			kmd_buf_remain_size,
 			(void *)wm_config,
@@ -9196,6 +9331,7 @@ static int cam_isp_blob_bw_limit_update(
 	struct cam_kmd_buf_info               *kmd_buf_info;
 	struct cam_ife_hw_mgr_ctx             *ctx = NULL;
 	struct cam_isp_hw_mgr_res             *isp_out_res;
+	struct cam_hw_intf                    *hw_intf = NULL;
 	uint32_t                               res_id_out, i;
 	uint32_t                               total_used_bytes = 0;
 	uint32_t                               kmd_buf_remain_size;
@@ -9261,10 +9397,21 @@ static int cam_isp_blob_bw_limit_update(
 		else
 			isp_out_res = &ctx->res_list_ife_out[res_id_out];
 
+		hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+		if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid base %u type %u", blob_info->base_info->idx,
+				blob_info->base_info->hw_type);
+			return rc;
+		}
+
+		if (!isp_out_res->hw_res[blob_info->base_info->split_id])
+			return 0;
+
 		rc = cam_isp_add_cmd_buf_update(
-			isp_out_res, blob_type,
+			isp_out_res->hw_res[blob_info->base_info->split_id], hw_intf,
+			blob_type,
 			CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG,
-			blob_info->base_info->idx,
 			(void *)cmd_buf_addr,
 			kmd_buf_remain_size,
 			(void *)wm_bw_limit_cfg,
@@ -9303,6 +9450,7 @@ static int cam_isp_hw_mgr_add_cmd_buf_util(
 	uint32_t                       total_used_bytes = 0;
 	uint32_t                       kmd_buf_remain_size;
 	struct cam_kmd_buf_info       *kmd_buf_info;
+	struct cam_hw_intf            *hw_intf = NULL;
 	uint32_t                      *cmd_buf_addr;
 	int                            rc = 0;
 
@@ -9316,8 +9464,21 @@ static int cam_isp_hw_mgr_add_cmd_buf_util(
 	}
 
 	cmd_buf_addr = kmd_buf_info->cpu_addr + (kmd_buf_info->used_bytes / 4);
-	rc = cam_isp_add_cmd_buf_update(hw_mgr_res, blob_type,
-		hw_cmd_type, blob_info->base_info->idx, (void *)cmd_buf_addr,
+	hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+
+	if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+		CAM_ERR(CAM_ISP,
+		"Invalid base %u type %u", blob_info->base_info->idx,
+			blob_info->base_info->hw_type);
+		return rc;
+	}
+
+	if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
+		return 0;
+
+	rc = cam_isp_add_cmd_buf_update(
+		hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf, blob_type,
+		hw_cmd_type, (void *)cmd_buf_addr,
 		kmd_buf_remain_size, data, &total_used_bytes);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Add cmd buffer failed idx: %d",
@@ -11643,6 +11804,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 	struct list_head                        *res_list_ife_rd_tmp = NULL;
 	struct cam_isp_cmd_buf_count             cmd_buf_count = {0};
 	struct cam_isp_check_io_cfg_for_scratch  check_for_scratch = {0};
+	struct cam_isp_io_buf_info          io_buf_info = {0};
 
 	if (!hw_mgr_priv || !prepare_hw_update_args) {
 		CAM_ERR(CAM_ISP, "Invalid args");
@@ -11735,30 +11897,30 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 		}
 
 		/* get IO buffers */
-		if (ctx->base[i].hw_type == CAM_ISP_HW_TYPE_VFE)
-			rc = cam_isp_add_io_buffers(
-				hw_mgr->mgr_common.img_iommu_hdl,
-				hw_mgr->mgr_common.img_iommu_hdl_secure,
-				prepare, ctx->base[i].idx,
-				&prepare_hw_data->kmd_cmd_buff_info, ctx->res_list_ife_out,
-				res_list_ife_rd_tmp,
-				CAM_ISP_IFE_OUT_RES_BASE,
-				(CAM_ISP_IFE_OUT_RES_BASE + max_ife_out_res),
-				fill_ife_fence,
-				CAM_ISP_HW_TYPE_VFE, &frame_header_info,
-				&check_for_scratch);
-		else if (ctx->base[i].hw_type == CAM_ISP_HW_TYPE_SFE)
-			rc = cam_isp_add_io_buffers(
-				hw_mgr->mgr_common.img_iommu_hdl,
-				hw_mgr->mgr_common.img_iommu_hdl_secure,
-				prepare, ctx->base[i].idx,
-				&prepare_hw_data->kmd_cmd_buff_info, ctx->res_list_sfe_out,
-				&ctx->res_list_ife_in_rd,
-				CAM_ISP_SFE_OUT_RES_BASE,
-				(CAM_ISP_SFE_OUT_RES_BASE + max_sfe_out_res),
-				fill_sfe_fence,
-				CAM_ISP_HW_TYPE_SFE, &frame_header_info,
-				&check_for_scratch);
+		io_buf_info.frame_hdr = &frame_header_info;
+		io_buf_info.scratch_check_cfg = &check_for_scratch;
+		io_buf_info.prepare = prepare;
+		io_buf_info.kmd_buf_info = &prepare_hw_data->kmd_cmd_buff_info;
+		io_buf_info.iommu_hdl = hw_mgr->mgr_common.img_iommu_hdl;
+		io_buf_info.sec_iommu_hdl = hw_mgr->mgr_common.img_iommu_hdl_secure;
+		io_buf_info.base = &ctx->base[i];
+
+		if (ctx->base[i].hw_type == CAM_ISP_HW_TYPE_VFE) {
+			io_buf_info.fill_fence = fill_ife_fence;
+			io_buf_info.out_base = CAM_ISP_IFE_OUT_RES_BASE;
+			io_buf_info.out_max = (CAM_ISP_IFE_OUT_RES_BASE + max_ife_out_res);
+			io_buf_info.res_list_isp_out = ctx->res_list_ife_out;
+			io_buf_info.res_list_in_rd = res_list_ife_rd_tmp;
+			rc = cam_isp_add_io_buffers(&io_buf_info);
+		} else if (ctx->base[i].hw_type == CAM_ISP_HW_TYPE_SFE) {
+			io_buf_info.fill_fence = fill_sfe_fence;
+			io_buf_info.out_base = CAM_ISP_SFE_OUT_RES_BASE;
+			io_buf_info.out_max = (CAM_ISP_SFE_OUT_RES_BASE + max_sfe_out_res);
+			io_buf_info.res_list_in_rd = &ctx->res_list_ife_in_rd;
+			io_buf_info.res_list_isp_out = ctx->res_list_sfe_out;
+			rc = cam_isp_add_io_buffers(&io_buf_info);
+		}
+
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Failed in io buffers, i=%d, rc=%d hw_type=%s",
@@ -12400,6 +12562,41 @@ static int cam_ife_mgr_prog_default_settings(
 	}
 
 end:
+	return rc;
+}
+
+static int cam_hw_mgr_reset_out_of_sync_cnt(
+	struct cam_ife_hw_mgr_ctx *ife_ctx)
+{
+	int                                           rc = -EINVAL;
+	uint32_t                                      i;
+	struct cam_isp_hw_mgr_res                    *hw_mgr_res;
+	struct cam_hw_intf                           *hw_intf;
+	struct cam_csid_reset_out_of_sync_count_args  args;
+
+	list_for_each_entry(hw_mgr_res,
+		&ife_ctx->res_list_ife_csid, list) {
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			if (!hw_mgr_res->hw_res[i])
+				continue;
+
+			hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
+			if (hw_intf->hw_ops.process_cmd) {
+				args.node_res =
+					hw_mgr_res->hw_res[i];
+
+				rc = hw_intf->hw_ops.process_cmd(
+					hw_intf->hw_priv,
+					CAM_IFE_CSID_RESET_OUT_OF_SYNC_CNT,
+					&args,
+					sizeof(args));
+				if (rc)
+					CAM_ERR(CAM_ISP,
+						"Failed to reset out of sync cnt");
+			}
+		}
+	}
+
 	return rc;
 }
 
@@ -13672,6 +13869,8 @@ static int cam_ife_hw_mgr_handle_hw_sof(
 				&sof_done_event_data.boot_time, NULL);
 		}
 
+		cam_hw_mgr_reset_out_of_sync_cnt(ife_hw_mgr_ctx);
+
 		if (atomic_read(&ife_hw_mgr_ctx->overflow_pending))
 			break;
 
@@ -13686,11 +13885,16 @@ static int cam_ife_hw_mgr_handle_hw_sof(
 	case CAM_ISP_HW_VFE_IN_RDI3:
 		if (!cam_isp_is_ctx_primary_rdi(ife_hw_mgr_ctx))
 			break;
+
 		cam_ife_mgr_cmd_get_sof_timestamp(ife_hw_mgr_ctx,
 			&sof_done_event_data.timestamp,
 			&sof_done_event_data.boot_time, NULL);
+
+		cam_hw_mgr_reset_out_of_sync_cnt(ife_hw_mgr_ctx);
+
 		if (atomic_read(&ife_hw_mgr_ctx->overflow_pending))
 			break;
+
 		ife_hw_irq_sof_cb(ife_hw_mgr_ctx->common.cb_priv,
 			CAM_ISP_HW_EVENT_SOF, (void *)&sof_done_event_data);
 		break;
@@ -13796,7 +14000,7 @@ static int cam_ife_hw_mgr_check_ife_scratch_buf_done(
 	return rc;
 }
 
-static int cam_ife_hw_mgr_check_rdi_scratch_buf_done(
+static int cam_ife_hw_mgr_check_sfe_scratch_buf_done(
 	struct cam_sfe_scratch_buf_cfg *scratch_cfg,
 	uint32_t res_id, uint32_t last_consumed_addr)
 {
@@ -13840,7 +14044,7 @@ static int cam_ife_hw_mgr_check_for_scratch_buf_done(
 				res_id, last_consumed_addr);
 		break;
 	case CAM_ISP_HW_TYPE_SFE:
-		rc = cam_ife_hw_mgr_check_rdi_scratch_buf_done(
+		rc = cam_ife_hw_mgr_check_sfe_scratch_buf_done(
 			ife_hw_mgr_ctx->scratch_buf_info.sfe_scratch_config,
 			res_id, last_consumed_addr);
 		break;
@@ -14548,7 +14752,8 @@ static void cam_req_mgr_process_workq_cam_ife_worker(struct work_struct *w)
 	cam_req_mgr_process_workq(w);
 }
 
-static unsigned long cam_ife_hw_mgr_mini_dump_cb(void *dst, unsigned long len)
+static unsigned long cam_ife_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
+	void *priv_data)
 {
 	struct cam_ife_hw_mini_dump_data   *mgr_md;
 	struct cam_ife_hw_mini_dump_ctx    *ctx_md;
@@ -15028,7 +15233,7 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 	cam_ife_mgr_count_ife();
 	cam_ife_mgr_count_sfe();
 	cam_common_register_mini_dump_cb(cam_ife_hw_mgr_mini_dump_cb,
-		"CAM_ISP");
+		"CAM_ISP", NULL);
 	cam_ife_mgr_test_irq_lines_at_probe(&g_ife_hw_mgr);
 
 	/* Allocate memory for perf counters */

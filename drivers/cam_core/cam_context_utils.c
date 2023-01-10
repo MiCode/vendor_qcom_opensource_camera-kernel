@@ -204,8 +204,11 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 	}
 
 	if (!req->num_out_map_entries) {
-		CAM_ERR(CAM_CTXT, "[%s][%d] no output fence to signal",
+		CAM_DBG(CAM_CTXT, "[%s][%d] no output fence to signal",
 			ctx->dev_name, ctx->ctx_id);
+		list_del_init(&req->list);
+		list_add_tail(&req->list, &ctx->free_req_list);
+		req->ctx = NULL;
 		spin_unlock(&ctx->lock);
 		return -EIO;
 	}
@@ -584,16 +587,15 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 		}
 	}
 
+	spin_lock(&ctx->lock);
+	list_add_tail(&req->list, &ctx->pending_req_list);
+	spin_unlock(&ctx->lock);
+	if (cam_debug_ctx_req_list & ctx->dev_id)
+		CAM_INFO(CAM_CTXT,
+			"[%s][%d] : Moving req[%llu] from free_list to pending_list",
+			ctx->dev_name, ctx->ctx_id, req->request_id);
+
 	if (req->num_in_map_entries > 0) {
-		spin_lock(&ctx->lock);
-		list_add_tail(&req->list, &ctx->pending_req_list);
-		spin_unlock(&ctx->lock);
-
-		if (cam_debug_ctx_req_list & ctx->dev_id)
-			CAM_INFO(CAM_CTXT,
-				"[%s][%d] : Moving req[%llu] from free_list to pending_list",
-				ctx->dev_name, ctx->ctx_id, req->request_id);
-
 		for (j = 0; j < req->num_in_map_entries; j++) {
 			rc = cam_sync_check_valid(
 				req->in_map_entries[j].sync_id);
@@ -635,6 +637,18 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 			CAM_DBG(CAM_CTXT, "register in fence cb: %d ret = %d",
 				req->in_map_entries[j].sync_id, rc);
 		}
+	} else {
+		struct cam_req_mgr_apply_request apply;
+
+		/* If there are no input fences submit request immediately */
+		apply.request_id = req->request_id;
+		mutex_lock(&ctx->sync_mutex);
+		rc = cam_context_apply_req_to_hw(req, &apply);
+		mutex_unlock(&ctx->sync_mutex);
+		if (rc)
+			CAM_ERR(CAM_CTXT,
+				"[%s][%d] : Failed to apply req: %llu with no input dependencies",
+				ctx->dev_name, ctx->ctx_id, req->request_id);
 	}
 
 	return rc;

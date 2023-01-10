@@ -957,8 +957,8 @@ static int cam_cpastop_qchannel_handshake(struct cam_hw_info *cpas_hw,
 			CAM_ERR(CAM_CPAS,
 				"ICP clock not added as optional clk, qchannel handshake will fail");
 		} else {
-			ret = cam_soc_util_clk_enable(soc_info, true, soc_private->icp_clk_index,
-				-1, NULL);
+			ret = cam_soc_util_clk_enable(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+				soc_private->icp_clk_index, -1);
 			if (ret)
 				CAM_ERR(CAM_CPAS, "Error enable icp clk failed rc=%d", ret);
 			else
@@ -1010,7 +1010,8 @@ static int cam_cpastop_qchannel_handshake(struct cam_hw_info *cpas_hw,
 		rc = -EBUSY;
 
 	if (icp_clk_enabled) {
-		ret = cam_soc_util_clk_disable(soc_info, true, soc_private->icp_clk_index);
+		ret = cam_soc_util_clk_disable(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+			soc_private->icp_clk_index);
 		if (ret)
 			CAM_ERR(CAM_CPAS, "Error disable icp clk failed rc=%d", rc);
 	}

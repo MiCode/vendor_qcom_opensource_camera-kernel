@@ -2174,8 +2174,8 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					power_setting->config_val;
 
 			for (j = 0; j < soc_info->num_clk; j++) {
-				rc = cam_soc_util_clk_enable(soc_info, false,
-					j, 0, NULL);
+				rc = cam_soc_util_clk_enable(soc_info, CAM_CLK_SW_CLIENT_IDX,
+					false, j, 0);
 				if (rc) {
 					CAM_ERR(CAM_UTIL,
 						"Failed in clk enable %d", i);
@@ -2318,7 +2318,7 @@ power_up_failed:
 		switch (power_setting->seq_type) {
 		case SENSOR_MCLK:
 			for (i = soc_info->num_clk - 1; i >= 0; i--) {
-				cam_soc_util_clk_disable(soc_info, false, i);
+				cam_soc_util_clk_disable(soc_info, CAM_CLK_SW_CLIENT_IDX, false, i);
 			}
 			ret = cam_config_mclk_reg(ctrl, soc_info, index);
 			if (ret < 0) {
@@ -2475,7 +2475,7 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 		switch (pd->seq_type) {
 		case SENSOR_MCLK:
 			for (i = soc_info->num_clk - 1; i >= 0; i--) {
-				cam_soc_util_clk_disable(soc_info, false, i);
+				cam_soc_util_clk_disable(soc_info, CAM_CLK_SW_CLIENT_IDX, false, i);
 			}
 
 			ret = cam_config_mclk_reg(ctrl, soc_info, index);

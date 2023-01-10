@@ -85,6 +85,22 @@ int cam_csiphy_format_secure_phy_lane_info(
 
 }
 
+static int cam_csiphy_get_session_index(struct csiphy_device *csiphy_dev,
+	uint32_t lane_assign)
+{
+	int i = 0;
+	struct cam_csiphy_param *param;
+
+	for (i = 0; i < CSIPHY_MAX_INSTANCES_PER_PHY; i++) {
+		param = &csiphy_dev->csiphy_info[i];
+
+		if (param->lane_assign == lane_assign)
+			break;
+	}
+
+	return i;
+}
+
 static void cam_csiphy_populate_secure_info(
 	struct csiphy_device *csiphy_dev, void *data)
 {
@@ -136,6 +152,7 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 {
 	struct csiphy_device *csiphy_dev = v4l2_get_subdevdata(sd);
 	uint32_t phy_idx;
+	int rc = 0;
 
 	if (!data) {
 		CAM_ERR(CAM_CSIPHY, "Empty Payload");
@@ -170,6 +187,110 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 	case CAM_SUBDEV_MESSAGE_DOMAIN_ID_SECURE_PARAMS: {
 		cam_csiphy_populate_secure_info(csiphy_dev, data);
 
+		break;
+	}
+	case CAM_SUBDEV_MESSAGE_CONN_CSID_INFO: {
+		struct cam_subdev_msg_phy_conn_csid_info *conn_csid_info =
+			(struct cam_subdev_msg_phy_conn_csid_info *) data;
+		int idx;
+		struct cam_csiphy_param *param;
+
+		idx = cam_csiphy_get_session_index(csiphy_dev, conn_csid_info->lane_cfg);
+		if (idx >= CSIPHY_MAX_INSTANCES_PER_PHY) {
+			CAM_ERR(CAM_CSIPHY, "Phy session not found %d %d",
+				csiphy_dev->soc_info.index, conn_csid_info->lane_cfg);
+			rc = -EBADR;
+			break;
+		}
+
+		param = &csiphy_dev->csiphy_info[idx];
+		param->conn_csid_idx = conn_csid_info->core_idx;
+
+		CAM_DBG(CAM_CSIPHY, "PHY: %d, CSID: %d connected", csiphy_dev->soc_info.index,
+			param->conn_csid_idx);
+		break;
+	}
+	case CAM_SUBDEV_MESSAGE_DRV_INFO: {
+		struct cam_subdev_msg_phy_drv_info *drv_info =
+			(struct cam_subdev_msg_phy_drv_info *) data;
+		int idx;
+		struct cam_csiphy_param *param;
+
+		idx = cam_csiphy_get_session_index(csiphy_dev, drv_info->lane_cfg);
+		if (idx >= CSIPHY_MAX_INSTANCES_PER_PHY) {
+			CAM_ERR(CAM_CSIPHY, "Phy session not found %d %d",
+				csiphy_dev->soc_info.index, drv_info->lane_cfg);
+			rc = -EBADR;
+			break;
+		}
+
+		param = &csiphy_dev->csiphy_info[idx];
+		param->is_drv_config_en = drv_info->is_drv_config_en;
+		param->use_hw_client_voting = drv_info->use_hw_client_voting;
+
+		CAM_DBG(CAM_CSIPHY,
+			"PHY: %d, CSID: %d DRV info : use hw client %d, enable drv config %d",
+			csiphy_dev->soc_info.index, param->conn_csid_idx,
+			param->use_hw_client_voting, param->is_drv_config_en);
+
+		break;
+	}
+	case CAM_SUBDEV_MESSAGE_NOTIFY_HALT_RESUME: {
+		int drv_idx;
+		struct cam_subdev_msg_phy_halt_resume_info *halt_resume_info =
+			(struct cam_subdev_msg_phy_halt_resume_info *) data;
+		int idx;
+		struct cam_csiphy_param *param;
+		unsigned long clk_rate;
+
+		idx = cam_csiphy_get_session_index(csiphy_dev, halt_resume_info->lane_cfg);
+		if (idx >= CSIPHY_MAX_INSTANCES_PER_PHY) {
+			CAM_ERR(CAM_CSIPHY, "Phy session not found %d %d",
+				csiphy_dev->soc_info.index, halt_resume_info->lane_cfg);
+			rc = -EBADR;
+			break;
+		}
+
+		param = &csiphy_dev->csiphy_info[idx];
+		drv_idx = param->conn_csid_idx;
+
+		if (!csiphy_dev->soc_info.is_clk_drv_en || !param->use_hw_client_voting ||
+			!param->is_drv_config_en)
+			break;
+
+		CAM_DBG(CAM_CSIPHY,
+			"PHY: %d, CSID: %d DRV info : use hw client %d, enable drv config %d, op=%s",
+			csiphy_dev->soc_info.index, param->conn_csid_idx,
+			param->use_hw_client_voting, param->is_drv_config_en,
+			(halt_resume_info->csid_state == CAM_SUBDEV_PHY_CSID_HALT) ? "HALT" :
+			"RESUME");
+
+		if (halt_resume_info->csid_state == CAM_SUBDEV_PHY_CSID_HALT) {
+			clk_rate =
+				csiphy_dev->soc_info.applied_src_clk_rates.hw_client[drv_idx].high;
+
+			rc = cam_soc_util_set_src_clk_rate(&csiphy_dev->soc_info,
+				CAM_CLK_SW_CLIENT_IDX, clk_rate, 0);
+			if (rc)
+				CAM_ERR(CAM_CSIPHY,
+					"PHY[%d] CSID HALT: csiphy set_rate %ld failed rc: %d",
+					phy_idx, clk_rate, rc);
+		} else if (halt_resume_info->csid_state == CAM_SUBDEV_PHY_CSID_RESUME) {
+			int32_t src_idx = csiphy_dev->soc_info.src_clk_idx;
+
+			clk_rate = csiphy_dev->soc_info.clk_rate[CAM_LOWSVS_VOTE][src_idx];
+
+			rc = cam_soc_util_set_src_clk_rate(&csiphy_dev->soc_info,
+				CAM_CLK_SW_CLIENT_IDX, clk_rate, 0);
+			if (rc)
+				CAM_ERR(CAM_CSIPHY,
+					"PHY[%d] CSID RESUME: csiphy _set_rate %ld failed rc: %d",
+					phy_idx, clk_rate, rc);
+		} else {
+			CAM_ERR(CAM_CSIPHY,
+				"CSIPHY:%d Failed to handle CSID halt resume csid_state: %d",
+				phy_idx, halt_resume_info->csid_state);
+		}
 		break;
 	}
 	default:
@@ -431,6 +552,9 @@ static int cam_csiphy_component_bind(struct device *dev,
 		new_csiphy_dev->csiphy_info[i].lane_assign = 0;
 		new_csiphy_dev->csiphy_info[i].lane_enable = 0;
 		new_csiphy_dev->csiphy_info[i].mipi_flags = 0;
+		new_csiphy_dev->csiphy_info[i].conn_csid_idx = -1;
+		new_csiphy_dev->csiphy_info[i].use_hw_client_voting = false;
+		new_csiphy_dev->csiphy_info[i].is_drv_config_en = false;
 	}
 
 	new_csiphy_dev->ops.get_dev_info = NULL;

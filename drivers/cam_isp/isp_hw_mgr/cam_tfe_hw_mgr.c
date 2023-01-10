@@ -46,6 +46,17 @@ static int cam_tfe_hw_mgr_event_handler(
 	uint32_t                             evt_id,
 	void                                *evt_info);
 
+static void *cam_tfe_hw_mgr_get_hw_intf(
+	struct cam_isp_ctx_base_info *base,
+	struct cam_tfe_hw_mgr_ctx *ctx)
+{
+	struct cam_tfe_hw_mgr  *hw_mgr;
+
+	hw_mgr = ctx->hw_mgr;
+
+	return hw_mgr->tfe_devices[base->idx]->hw_intf;
+}
+
 static int cam_tfe_mgr_regspace_data_cb(uint32_t reg_base_type,
 	void *hw_mgr_ctx, struct cam_hw_soc_info **soc_info_ptr,
 	uint32_t *reg_base_idx)
@@ -3644,6 +3655,7 @@ static int cam_isp_tfe_blob_hfr_update(
 	struct cam_kmd_buf_info               *kmd_buf_info;
 	struct cam_tfe_hw_mgr_ctx             *ctx = NULL;
 	struct cam_isp_hw_mgr_res             *hw_mgr_res;
+	struct cam_hw_intf                    *hw_intf;
 	uint32_t                               res_id_out, i;
 	uint32_t                               total_used_bytes = 0;
 	uint32_t                               kmd_buf_remain_size;
@@ -3695,9 +3707,13 @@ static int cam_isp_tfe_blob_hfr_update(
 			total_used_bytes/4;
 		hw_mgr_res = &ctx->res_list_tfe_out[res_id_out];
 
+		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
+			return 0;
+
+		hw_intf = hw_mgr->tfe_devices[base->idx]->hw_intf;
 		rc = cam_isp_add_cmd_buf_update(
-			hw_mgr_res, blob_type, CAM_ISP_HW_CMD_GET_HFR_UPDATE,
-			blob_info->base_info->idx,
+			hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
+			blob_type, CAM_ISP_HW_CMD_GET_HFR_UPDATE,
 			(void *)cmd_buf_addr,
 			kmd_buf_remain_size,
 			(void *)port_hfr_config,
@@ -4362,6 +4378,7 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 	struct cam_isp_frame_header_info         frame_header_info;
 	struct cam_isp_change_base_args          change_base_info = {0};
 	struct cam_isp_check_io_cfg_for_scratch  check_for_scratch = {0};
+	struct cam_isp_io_buf_info               io_buf_info = {0};
 
 	if (!hw_mgr_priv || !prepare_hw_update_args) {
 		CAM_ERR(CAM_ISP, "Invalid args");
@@ -4441,14 +4458,19 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 		frame_header_info.frame_header_enable = false;
 
 		/* get IO buffers */
-		rc = cam_isp_add_io_buffers(hw_mgr->mgr_common.img_iommu_hdl,
-			hw_mgr->mgr_common.img_iommu_hdl_secure,
-			prepare, ctx->base[i].idx,
-			&prepare_hw_data->kmd_cmd_buff_info, ctx->res_list_tfe_out,
-			NULL, CAM_ISP_TFE_OUT_RES_BASE,
-			CAM_TFE_HW_OUT_RES_MAX, fill_fence,
-			CAM_ISP_HW_TYPE_TFE,
-			&frame_header_info, &check_for_scratch);
+		io_buf_info.frame_hdr = &frame_header_info;
+		io_buf_info.scratch_check_cfg = &check_for_scratch;
+		io_buf_info.prepare = prepare;
+		io_buf_info.kmd_buf_info = &prepare_hw_data->kmd_cmd_buff_info;
+		io_buf_info.res_list_ife_in_rd = NULL;
+		io_buf_info.iommu_hdl = hw_mgr->mgr_common.img_iommu_hdl;
+		io_buf_info.sec_iommu_hdl = hw_mgr->mgr_common.img_iommu_hdl_secure;
+		io_buf_info.base = &ctx->base[i];
+		io_buf_info.fill_fence = fill_fence;
+		io_buf_info.out_base = CAM_ISP_TFE_OUT_RES_BASE;
+		io_buf_info.out_max = CAM_TFE_HW_OUT_RES_MAX;
+		io_buf_info.res_list_isp_out = ctx->res_list_ife_out;
+		rc = cam_isp_add_io_buffers(&io_buf_info);
 
 		if (rc) {
 			CAM_ERR(CAM_ISP,

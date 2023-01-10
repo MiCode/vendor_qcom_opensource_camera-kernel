@@ -61,7 +61,8 @@ static inline void cam_mem_mgr_reset_presil_params(int idx)
 }
 #endif
 
-static unsigned long cam_mem_mgr_mini_dump_cb(void *dst, unsigned long len)
+static unsigned long cam_mem_mgr_mini_dump_cb(void *dst, unsigned long len,
+	void *priv_data)
 {
 	struct cam_mem_table_mini_dump      *md;
 
@@ -252,7 +253,7 @@ int cam_mem_mgr_init(void)
 
 	cam_mem_mgr_create_debug_fs();
 	cam_common_register_mini_dump_cb(cam_mem_mgr_mini_dump_cb,
-		"cam_mem");
+		"cam_mem", NULL);
 
 	return 0;
 put_heaps:

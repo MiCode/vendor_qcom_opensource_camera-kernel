@@ -21,12 +21,19 @@
  * @ipe_write: UBWC configuration for IPE write.
  * @bps_fetch: UBWC configuration for BPS fetch.
  * @bps_write: UBWC configuration for BPS write.
+ * @ofe_fetch: UBWC configuration for ofe fetch.
+ * @ofe_write: UBWC configuration for ofe write.
+ * @found_ubwc_cfg_mask: mask to indicate which
+ *                      ubwc dev cfg found from DT
  */
 struct cam_icp_ubwc_cfg {
 	uint32_t ipe_fetch[ICP_UBWC_CFG_MAX];
 	uint32_t ipe_write[ICP_UBWC_CFG_MAX];
 	uint32_t bps_fetch[ICP_UBWC_CFG_MAX];
 	uint32_t bps_write[ICP_UBWC_CFG_MAX];
+	uint32_t ofe_fetch[ICP_UBWC_CFG_MAX];
+	uint32_t ofe_write[ICP_UBWC_CFG_MAX];
+	uint32_t found_ubwc_cfg_mask;
 };
 
 /**
@@ -60,6 +67,6 @@ int cam_icp_soc_resources_enable(struct cam_hw_soc_info *soc_info);
 int cam_icp_soc_resources_disable(struct cam_hw_soc_info *soc_info);
 
 int cam_icp_soc_update_clk_rate(struct cam_hw_soc_info *soc_info,
-	int32_t clk_level);
+	int32_t clk_level, int hfi_handle);
 
 #endif

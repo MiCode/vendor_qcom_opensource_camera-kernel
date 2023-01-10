@@ -303,6 +303,8 @@ struct cam_csid_hw_stop_args {
  * @cdm_hw_idx:         Physical CDM in use together with these resources
  * @is_secure:          If these resources are run in secure session
  * @is_internal_start:  Start triggered internally for reset & recovery
+ * @start_only:         start only, no init required
+ * @is_drv_config_en:   If drv config is enabled
  *
  */
 struct cam_csid_hw_start_args {
@@ -311,6 +313,8 @@ struct cam_csid_hw_start_args {
 	uint32_t                                  cdm_hw_idx;
 	bool                                      is_secure;
 	bool                                      is_internal_start;
+	bool                                      start_only;
+	bool                                      is_drv_config_en;
 };
 
 
@@ -331,6 +335,15 @@ enum cam_ife_csid_reset_type {
  */
 struct cam_csid_reset_cfg_args {
 	enum cam_ife_csid_reset_type   reset_type;
+	struct cam_isp_resource_node  *node_res;
+};
+
+/**
+ * struct cam_csid_reset_out_of_sync_count_args
+ * @res_node :   resource need to be reset
+ *
+ */
+struct cam_csid_reset_out_of_sync_count_args {
 	struct cam_isp_resource_node  *node_res;
 };
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -65,7 +66,7 @@ int cam_bps_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 		CAM_SVS_VOTE, false);
 	if (rc)
 		CAM_ERR(CAM_ICP, "enable platform failed");
@@ -78,7 +79,7 @@ int cam_bps_disable_soc_resources(struct cam_hw_soc_info *soc_info,
 {
 	int rc = 0;
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, disable_clk,
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, disable_clk,
 		false);
 	if (rc)
 		CAM_ERR(CAM_ICP, "disable platform failed");
@@ -155,7 +156,7 @@ int cam_bps_update_clk_rate(struct cam_hw_soc_info *soc_info,
 		clk_rate = soc_info->clk_rate[CAM_TURBO_VOTE][src_clk_idx];
 	}
 
-	return cam_soc_util_set_src_clk_rate(soc_info, clk_rate);
+	return cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX, clk_rate, 0);
 }
 
 int cam_bps_toggle_clk(struct cam_hw_soc_info *soc_info, bool clk_enable)
@@ -163,9 +164,9 @@ int cam_bps_toggle_clk(struct cam_hw_soc_info *soc_info, bool clk_enable)
 	int rc = 0;
 
 	if (clk_enable)
-		rc = cam_soc_util_clk_enable_default(soc_info, CAM_SVS_VOTE);
+		rc = cam_soc_util_clk_enable_default(soc_info, CAM_CLK_SW_CLIENT_IDX, CAM_SVS_VOTE);
 	else
-		cam_soc_util_clk_disable_default(soc_info);
+		cam_soc_util_clk_disable_default(soc_info, CAM_CLK_SW_CLIENT_IDX);
 
 	return rc;
 }

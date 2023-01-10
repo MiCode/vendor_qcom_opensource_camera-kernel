@@ -36,16 +36,34 @@ static const struct hfi_ops hfi_icp_v2_ops = {
 	.iface_addr = cam_icp_v2_iface_addr,
 };
 
-static int cam_icp_v2_ubwc_configure(struct cam_hw_soc_info *soc_info)
+static int cam_icp_v2_ubwc_configure(struct cam_hw_soc_info *soc_info,
+	struct cam_icp_v2_core_info *core_info, void *args, uint32_t arg_size)
 {
 	struct cam_icp_soc_info *soc_priv;
+	struct cam_icp_ubwc_cfg_cmd *ubwc_cmd = args;
+	struct cam_icp_proc_ubwc_cfg_cmd ubwc_proc_cmd;
 
-	if (!soc_info)
+	if (!soc_info || !core_info || !args) {
+		CAM_ERR(CAM_ICP,
+			"Invalid args: soc info is %s core info is %s cmd args is %s",
+			CAM_IS_NULL_TO_STR(soc_info), CAM_IS_NULL_TO_STR(core_info),
+			CAM_IS_NULL_TO_STR(args));
 		return -EINVAL;
+	}
+
+	if (arg_size != sizeof(struct cam_icp_ubwc_cfg_cmd)) {
+		CAM_ERR(CAM_ICP, "Invalid ubwc cfg arg size: %u",
+			arg_size);
+		return -EINVAL;
+	}
 
 	soc_priv = soc_info->soc_private;
 
-	return cam_icp_proc_ubwc_configure(soc_priv->uconfig.ubwc_cfg_ext, 0);
+	ubwc_proc_cmd.ubwc_cfg = &soc_priv->uconfig.ubwc_cfg_ext;
+	ubwc_proc_cmd.ubwc_cfg_dev_mask = ubwc_cmd->ubwc_cfg_dev_mask;
+
+	return cam_icp_proc_ubwc_configure(&ubwc_proc_cmd,
+		ubwc_cmd->disable_ubwc_comp, core_info->hfi_handle);
 }
 
 static int cam_icp_v2_cpas_vote(struct cam_icp_v2_core_info *core_info,
@@ -187,14 +205,25 @@ static int cam_icp_v2_cpas_stop(struct cam_icp_v2_core_info *core_info)
 int cam_icp_v2_hw_init(void *priv, void *args, uint32_t arg_size)
 {
 	struct cam_hw_info *icp_v2 = priv;
+	struct cam_icp_v2_core_info *core_info;
 	unsigned long flags;
 	int rc;
-	bool send_freq_info = (args == NULL) ? false : *((bool *)args);
+	bool send_freq_info;
 
-	if (!icp_v2) {
-		CAM_ERR(CAM_ICP, "ICP device info cannot be NULL");
+	if (!icp_v2 || !args) {
+		CAM_ERR(CAM_ICP,
+			"Invalid parameters: icp hw info is %s args is %s",
+			CAM_IS_NULL_TO_STR(icp_v2), CAM_IS_NULL_TO_STR(args));
 		return -EINVAL;
 	}
+
+	if (arg_size != sizeof(bool)) {
+		CAM_ERR(CAM_ICP, "Invalid hw init cmd args");
+		return -EINVAL;
+	}
+
+	send_freq_info = *((bool *)args);
+	core_info = icp_v2->core_info;
 
 	spin_lock_irqsave(&icp_v2->hw_lock, flags);
 	if (icp_v2->hw_state == CAM_HW_STATE_POWER_UP) {
@@ -216,7 +245,7 @@ int cam_icp_v2_hw_init(void *priv, void *args, uint32_t arg_size)
 			int32_t clk_rate = 0;
 
 			clk_rate = clk_get_rate(icp_v2->soc_info.clk[icp_v2->soc_info.src_clk_idx]);
-			hfi_send_freq_info(clk_rate);
+			hfi_send_freq_info(core_info->hfi_handle, clk_rate);
 		}
 	}
 
@@ -231,17 +260,28 @@ soc_fail:
 	return rc;
 }
 
-int cam_icp_v2_hw_deinit(void *priv, void *args, uint32_t arg_size)
+int cam_icp_v2_hw_deinit(void *priv, void *args,
+	uint32_t arg_size)
 {
 	struct cam_hw_info *icp_v2_info = priv;
+	struct cam_icp_v2_core_info *core_info;
 	unsigned long flags;
 	int rc;
-	bool send_freq_info = (args == NULL) ? false : *((bool *)args);
+	bool send_freq_info;
 
-	if (!icp_v2_info) {
-		CAM_ERR(CAM_ICP, "ICP device info cannot be NULL");
+	if (!icp_v2_info || !args) {
+		CAM_ERR(CAM_ICP, "ICP device info is %s cmd args is %s",
+			CAM_IS_NULL_TO_STR(icp_v2_info), CAM_IS_NULL_TO_STR(args));
 		return -EINVAL;
 	}
+
+	if (arg_size != sizeof(bool)) {
+		CAM_ERR(CAM_ICP, "Invalid hw deinit cmd args");
+		return -EINVAL;
+	}
+
+	send_freq_info = *((bool *)args);
+	core_info = icp_v2_info->core_info;
 
 	spin_lock_irqsave(&icp_v2_info->hw_lock, flags);
 	if (icp_v2_info->hw_state == CAM_HW_STATE_POWER_DOWN) {
@@ -251,7 +291,7 @@ int cam_icp_v2_hw_deinit(void *priv, void *args, uint32_t arg_size)
 	spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
 
 	if (send_freq_info)
-		hfi_send_freq_info(0);
+		hfi_send_freq_info(core_info->hfi_handle, 0);
 
 	rc = cam_icp_soc_resources_disable(&icp_v2_info->soc_info);
 	if (rc)
@@ -800,15 +840,15 @@ static inline int cam_icp_v2_download_fw(struct cam_hw_info *icp_v2_info,
 }
 
 static int __cam_icp_v2_update_clk_rate(struct cam_hw_info *icp_v2_info,
-	int32_t *clk_lvl)
+	void *args, uint32_t arg_size)
 {
 	int32_t clk_level = 0, rc;
 	struct cam_ahb_vote       ahb_vote;
 	struct cam_icp_v2_core_info *core_info = NULL;
 	struct cam_hw_soc_info   *soc_info = NULL;
 
-	if (!clk_lvl) {
-		CAM_ERR(CAM_ICP, "Invalid args");
+	if (!args) {
+		CAM_ERR(CAM_ICP, "Invalid args is NULL");
 		return -EINVAL;
 	}
 
@@ -819,10 +859,15 @@ static int __cam_icp_v2_update_clk_rate(struct cam_hw_info *icp_v2_info,
 		return -EINVAL;
 	}
 
-	clk_level = *((int32_t *)clk_lvl);
+	if (arg_size != sizeof(int32_t)) {
+		CAM_ERR(CAM_ICP, "Invalid icp update clk args");
+		return -EINVAL;
+	}
+
+	clk_level = *((int32_t *)args);
 	CAM_DBG(CAM_ICP,
 		"Update ICP clock to level [%d]", clk_level);
-	rc = cam_icp_soc_update_clk_rate(soc_info, clk_level);
+	rc = cam_icp_soc_update_clk_rate(soc_info, clk_level, core_info->hfi_handle);
 	if (rc)
 		CAM_WARN(CAM_ICP,
 			"Failed to update clk to level: %d rc: %d",
@@ -851,6 +896,64 @@ static int __cam_icp_v2_fw_mini_dump(struct cam_icp_v2_core_info *core_info,
 		core_info->fw_params.fw_buf_len);
 }
 
+static int cam_icp_v2_send_fw_init(struct cam_icp_v2_core_info *core_info)
+{
+	int rc;
+
+	if (!core_info) {
+		CAM_ERR(CAM_ICP, "Core info is NULL");
+		return -EINVAL;
+	}
+
+	rc = hfi_send_system_cmd(core_info->hfi_handle, HFI_CMD_SYS_INIT, 0, 0);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Fail to send sys init command for hfi handle: %d",
+			core_info->hfi_handle);
+		return rc;
+	}
+
+	return 0;
+}
+
+static int cam_icp_v2_pc_prep(struct cam_icp_v2_core_info *core_info)
+{
+	int rc;
+
+	if (!core_info) {
+		CAM_ERR(CAM_ICP, "Invalid core info is NULL");
+		return -EINVAL;
+	}
+
+	rc = hfi_send_system_cmd(core_info->hfi_handle, HFI_CMD_SYS_PC_PREP, 0, 0);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Fail to send PC collapse command for hfi handle: %d",
+			core_info->hfi_handle);
+		return rc;
+	}
+
+	return 0;
+}
+
+int cam_icp_v2_set_hfi_handle(struct cam_icp_v2_core_info *core_info,
+	void *args, uint32_t arg_size)
+{
+	if (!core_info || !args) {
+		CAM_ERR(CAM_ICP, "Core info is %s and args is %s",
+			CAM_IS_NULL_TO_STR(core_info), CAM_IS_NULL_TO_STR(args));
+		return -EINVAL;
+	}
+
+	if (arg_size != sizeof(int)) {
+		CAM_ERR(CAM_ICP, "Invalid set hfi handle command arg size:%u",
+			arg_size);
+		return -EINVAL;
+	}
+
+	core_info->hfi_handle = *((int *)args);
+
+	return 0;
+}
+
 int cam_icp_v2_process_cmd(void *priv, uint32_t cmd_type,
 	void *args, uint32_t arg_size)
 {
@@ -863,6 +966,9 @@ int cam_icp_v2_process_cmd(void *priv, uint32_t cmd_type,
 	}
 
 	switch (cmd_type) {
+	case CAM_ICP_CMD_SET_HFI_HANDLE:
+		rc = cam_icp_v2_set_hfi_handle(icp_v2_info->core_info, args, arg_size);
+		break;
 	case CAM_ICP_CMD_PROC_SHUTDOWN:
 		rc = cam_icp_v2_shutdown(icp_v2_info);
 		break;
@@ -885,18 +991,17 @@ int cam_icp_v2_process_cmd(void *priv, uint32_t cmd_type,
 		rc = cam_icp_v2_cpas_stop(icp_v2_info->core_info);
 		break;
 	case CAM_ICP_CMD_UBWC_CFG:
-		rc = cam_icp_v2_ubwc_configure(&icp_v2_info->soc_info);
+		rc = cam_icp_v2_ubwc_configure(&icp_v2_info->soc_info,
+			icp_v2_info->core_info, args, arg_size);
 		break;
 	case CAM_ICP_SEND_INIT:
-		hfi_send_system_cmd(HFI_CMD_SYS_INIT, 0, 0);
-		rc = 0;
+		rc = cam_icp_v2_send_fw_init(icp_v2_info->core_info);
 		break;
 	case CAM_ICP_CMD_PC_PREP:
-		hfi_send_system_cmd(HFI_CMD_SYS_PC_PREP, 0, 0);
-		rc = 0;
+		rc = cam_icp_v2_pc_prep(icp_v2_info->core_info);
 		break;
 	case CAM_ICP_CMD_CLK_UPDATE: {
-		rc = __cam_icp_v2_update_clk_rate(icp_v2_info, args);
+		rc = __cam_icp_v2_update_clk_rate(icp_v2_info, args, arg_size);
 		break;
 	}
 	case CAM_ICP_CMD_HW_DUMP:
@@ -1018,6 +1123,7 @@ int cam_icp_v2_test_irq_line(void *priv)
 	struct cam_icp_v2_core_info *core_info = NULL;
 	void __iomem *irq_membase;
 	unsigned long rem_jiffies;
+	bool send_freq_info = false;
 
 	if (!icp_v2_info) {
 		CAM_ERR(CAM_ICP, "invalid ICP device info");
@@ -1042,7 +1148,7 @@ int cam_icp_v2_test_irq_line(void *priv)
 		CAM_ERR(CAM_ICP, "ICP IRQ verification timed out");
 
 	cam_io_w_mb(0, irq_membase + core_info->hw_info->ob_irq_mask);
-	cam_icp_v2_hw_deinit(priv, NULL, 0);
+	cam_icp_v2_hw_deinit(priv, &send_freq_info, sizeof(send_freq_info));
 
 	core_info->is_irq_test = false;
 
@@ -1191,6 +1297,8 @@ int cam_icp_v2_core_init(
 			soc_priv->hw_version);
 		rc = -EINVAL;
 	}
+
+	core_info->hfi_handle = HFI_HANDLE_INIT_VALUE;
 
 	return rc;
 }

@@ -138,6 +138,7 @@ int cam_subdev_remove(struct cam_subdev *sd)
 	cam_unregister_subdev(sd);
 	cam_node_deinit((struct cam_node *)sd->token);
 	kfree(sd->token);
+	memset(sd, 0, sizeof(struct cam_subdev));
 
 	return 0;
 }

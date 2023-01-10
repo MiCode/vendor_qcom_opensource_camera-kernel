@@ -1231,7 +1231,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			event_type |= CAM_ISP_HW_ERROR_CSID_LANE_FIFO_OVERFLOW;
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"INPUT_FIFO_OVERFLOW [Lanes:%s]: Skew/Less Data on lanes/ Slow csid clock:%luHz",
-				tmp_buf, soc_info->applied_src_clk_rate);
+				tmp_buf, cam_soc_util_get_applied_src_clk(soc_info, true));
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_ERROR_CPHY_PH_CRC) {
@@ -1673,17 +1673,17 @@ static int cam_ife_csid_ver2_top_info_irq_bottom_half(
 	}
 
 	if (irq_status & IFE_CSID_VER2_TOP_INFO_VOTE_UP) {
-		cam_cpas_log_votes(true);
 		CAM_INFO(CAM_ISP, "CSID:%d INFO_VOTE_UP timestamp:[%lld.%09lld]",
 			csid_hw->hw_intf->hw_idx, payload->timestamp.tv_sec,
 			payload->timestamp.tv_nsec);
+		cam_cpas_log_votes(true);
 	}
 
 	if (irq_status & IFE_CSID_VER2_TOP_INFO_VOTE_DN) {
-		cam_cpas_log_votes(true);
 		CAM_INFO(CAM_ISP, "CSID:%d INFO_VOTE_DN timestamp:[%lld.%09lld]",
 			csid_hw->hw_intf->hw_idx, payload->timestamp.tv_sec,
 			payload->timestamp.tv_nsec);
+		cam_cpas_log_votes(true);
 	}
 
 	if (irq_status & IFE_CSID_VER2_TOP_ERR_NO_VOTE_DN) {
@@ -4230,6 +4230,44 @@ static int cam_ife_csid_ver2_program_top(
 	return 0;
 }
 
+static int cam_ife_csid_ver2_set_cesta_clk_rate(struct cam_ife_csid_ver2_hw *csid_hw,
+	bool force_channel_switch, const char *identifier)
+{
+	struct cam_hw_soc_info *soc_info = &csid_hw->hw_info->soc_info;
+	bool channel_switch = force_channel_switch;
+	int rc = 0;
+
+	CAM_DBG(CAM_ISP, "CSID:%d clk_rate=%llu, channel_switch=%d, identifier=%s",
+		csid_hw->hw_intf->hw_idx, csid_hw->clk_rate, channel_switch, identifier);
+
+	if (csid_hw->clk_rate) {
+		rc = cam_soc_util_set_src_clk_rate(soc_info, csid_hw->hw_intf->hw_idx,
+			csid_hw->clk_rate,
+			soc_info->clk_rate[CAM_LOWSVS_VOTE][soc_info->src_clk_idx]);
+		if (rc) {
+			CAM_ERR(CAM_ISP,
+				"Failed in setting cesta clk rates[high low]:[%ld %ld] client_idx:%d rc:%d",
+				csid_hw->clk_rate,
+				soc_info->clk_rate[CAM_LOWSVS_VOTE][soc_info->src_clk_idx],
+				csid_hw->hw_intf->hw_idx, rc);
+			return rc;
+		}
+		channel_switch = true;
+	}
+
+	if (channel_switch) {
+		rc = cam_soc_util_cesta_channel_switch(csid_hw->hw_intf->hw_idx, identifier);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY,
+				"Failed to apply power states for cesta client:%d rc:%d",
+				csid_hw->hw_intf->hw_idx, rc);
+			return rc;
+		}
+	}
+
+	return rc;
+}
+
 static int cam_ife_csid_ver2_enable_core(struct cam_ife_csid_ver2_hw *csid_hw)
 {
 	int rc = 0;
@@ -4237,10 +4275,11 @@ static int cam_ife_csid_ver2_enable_core(struct cam_ife_csid_ver2_hw *csid_hw)
 	const struct cam_ife_csid_ver2_reg_info *csid_reg;
 	uint32_t clk_lvl;
 	uint32_t irq_mask = 0;
+	struct cam_csid_soc_private *soc_private;
 
-	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-		    csid_hw->core_info->csid_reg;
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)csid_hw->core_info->csid_reg;
 	soc_info = &csid_hw->hw_info->soc_info;
+	soc_private = (struct cam_csid_soc_private *)soc_info->soc_private;
 
 	/* overflow check before increment */
 	if (csid_hw->hw_info->open_count == UINT_MAX) {
@@ -4266,18 +4305,40 @@ static int cam_ife_csid_ver2_enable_core(struct cam_ife_csid_ver2_hw *csid_hw)
 			csid_hw->clk_rate);
 	}
 
-	CAM_DBG(CAM_ISP,
-		"CSID[%d] clk lvl %u received clk_rate %u applied clk_rate %lu",
-		csid_hw->hw_intf->hw_idx, clk_lvl, csid_hw->clk_rate,
-		soc_info->applied_src_clk_rate);
+	if (soc_private->is_ife_csid_lite)
+		CAM_DBG(CAM_ISP,
+			"CSID[%d] clk lvl %u received clk_rate %u applied clk_rate :%lu",
+			csid_hw->hw_intf->hw_idx, clk_lvl, csid_hw->clk_rate,
+			soc_info->applied_src_clk_rates.sw_client);
+	else
+		CAM_DBG(CAM_ISP,
+			"CSID[%d] clk lvl %u received clk_rate %u applied clk_rate sw_client:%lu hw_client:[%lu %lu]",
+			csid_hw->hw_intf->hw_idx, clk_lvl, csid_hw->clk_rate,
+			soc_info->applied_src_clk_rates.sw_client,
+			soc_info->applied_src_clk_rates.hw_client[csid_hw->hw_intf->hw_idx].high,
+			soc_info->applied_src_clk_rates.hw_client[csid_hw->hw_intf->hw_idx].low);
 
 	rc = cam_ife_csid_enable_soc_resources(soc_info, clk_lvl);
-
 	if (rc) {
-		CAM_ERR(CAM_ISP,
-			"CSID[%d] Enable soc failed",
-			csid_hw->hw_intf->hw_idx);
+		CAM_ERR(CAM_ISP, "CSID[%d] Enable soc failed", csid_hw->hw_intf->hw_idx);
 		goto err;
+	}
+
+	CAM_DBG(CAM_ISP, "csid %d is_clk_drv_en %d is_drv_config_en %d",
+		csid_hw->hw_intf->hw_idx, soc_info->is_clk_drv_en, csid_hw->is_drv_config_en);
+
+	/*
+	 * cam_ife_csid_enable_soc_resources sets clk_lvl for high, low values, if the usecase
+	 * enables drv config, i.e enabling csid DRV events, overwrite low value with LowSVS to get
+	 * power benefit.
+	 */
+	if (soc_info->is_clk_drv_en && csid_hw->is_drv_config_en) {
+		rc = cam_ife_csid_ver2_set_cesta_clk_rate(csid_hw, false, "csid_init");
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Failed in setting cesta clk rates, client_idx:%d rc:%d",
+				csid_hw->hw_intf->hw_idx, rc);
+			return rc;
+		}
 	}
 
 	irq_mask = csid_reg->cmn_reg->top_reset_irq_mask;
@@ -4688,15 +4749,19 @@ static void cam_ife_csid_ver2_send_secure_info(
 int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 			uint32_t arg_size)
 {
-	struct cam_ife_csid_ver2_hw           *csid_hw  = NULL;
-	struct cam_isp_resource_node          *res;
-	struct cam_csid_hw_start_args         *start_args;
-	struct cam_ife_csid_ver2_reg_info     *csid_reg;
-	struct cam_hw_soc_info                *soc_info;
-	struct cam_hw_info                    *hw_info;
-	uint32_t                               rup_aup_mask = 0;
-	int                                    rc = 0, i;
-	bool                                   delay_rdi0_enable = false;
+	struct cam_ife_csid_ver2_hw                 *csid_hw  = NULL;
+	struct cam_isp_resource_node                *res;
+	struct cam_csid_hw_start_args               *start_args;
+	struct cam_ife_csid_ver2_reg_info           *csid_reg;
+	struct cam_hw_soc_info                      *soc_info;
+	struct cam_hw_info                          *hw_info;
+	uint32_t                                     rup_aup_mask = 0;
+	int                                          rc = 0, i;
+	bool                                         delay_rdi0_enable = false;
+	struct cam_subdev_msg_phy_conn_csid_info     conn_csid_info;
+	struct cam_subdev_msg_phy_drv_info           drv_info;
+	struct cam_subdev_msg_phy_halt_resume_info   halt_resume_info;
+	bool                                         cesta_enabled = false;
 
 	if (!hw_priv || !args) {
 		CAM_ERR(CAM_ISP, "CSID Invalid params");
@@ -4720,13 +4785,45 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	mutex_lock(&csid_hw->hw_info->hw_mutex);
 	csid_hw->flags.sof_irq_triggered = false;
 	csid_hw->counters.irq_debug_cnt = 0;
+	csid_hw->is_drv_config_en = start_args->is_drv_config_en;
 
-	if (start_args->is_internal_start) {
+	CAM_DBG(CAM_ISP,
+		"csid %d is_drv_config_en %d start_only %d is_internal_start %d, clk_rate=%lld",
+		csid_hw->hw_intf->hw_idx, csid_hw->is_drv_config_en,
+		start_args->start_only, start_args->is_internal_start, csid_hw->clk_rate);
+
+	if (start_args->start_only) {
 		rc = cam_cpas_csid_process_resume(csid_hw->hw_intf->hw_idx);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "CSID:%u Failed to process resume rc: %d",
 				csid_hw->hw_intf->hw_idx, rc);
 			goto end;
+		}
+	}
+
+	if (soc_info->is_clk_drv_en && csid_hw->is_drv_config_en) {
+		/*
+		 * This will do 2 things :
+		 * 1. At the time of enable_core, we do not have drv info yet populated into
+		 *    csid layer, so we set high, low here will overwrite previously set high, low
+		 * 2. We trigger a channel switch so that we go to high clocks for all including
+		 *    csiphy before calling CSIPHY RESUME, so that we remove sw client vote from
+		 *    csiphy device
+		 */
+		rc = cam_ife_csid_ver2_set_cesta_clk_rate(csid_hw, true, "csid_start");
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Failed in setting cesta clk rates, client_idx:%d rc:%d",
+				csid_hw->hw_intf->hw_idx, rc);
+			return rc;
+		}
+
+		if (csid_hw->sync_mode != CAM_ISP_HW_SYNC_SLAVE) {
+			halt_resume_info.phy_idx = (csid_hw->rx_cfg.phy_sel - 1);
+			halt_resume_info.lane_cfg = csid_hw->rx_cfg.lane_cfg;
+			halt_resume_info.csid_state = CAM_SUBDEV_PHY_CSID_RESUME;
+			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+				CAM_SUBDEV_MESSAGE_NOTIFY_HALT_RESUME,
+					(void *)&halt_resume_info);
 		}
 	}
 
@@ -4803,6 +4900,40 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 
 	cam_ife_csid_ver2_enable_csi2(csid_hw);
 
+	if (csid_hw->sync_mode != CAM_ISP_HW_SYNC_SLAVE) {
+		struct cam_csid_soc_private *soc_private =
+			(struct cam_csid_soc_private *)soc_info->soc_private;
+
+		conn_csid_info.phy_idx = (csid_hw->rx_cfg.phy_sel - 1);
+		conn_csid_info.lane_cfg = csid_hw->rx_cfg.lane_cfg;
+		conn_csid_info.core_idx = csid_hw->hw_intf->hw_idx;
+		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE, CAM_SUBDEV_MESSAGE_CONN_CSID_INFO,
+			(void *)&conn_csid_info);
+
+		if (!soc_private->is_ife_csid_lite)
+			cam_cpas_query_drv_enable(NULL, &cesta_enabled);
+
+		if (cesta_enabled) {
+			/* for ifelites, soc_info->is_clk_drv_en is false */
+			drv_info.use_hw_client_voting = soc_info->is_clk_drv_en;
+			drv_info.is_drv_config_en = csid_hw->is_drv_config_en;
+		} else {
+			drv_info.use_hw_client_voting = false;
+			drv_info.is_drv_config_en = false;
+		}
+
+		drv_info.phy_idx = (csid_hw->rx_cfg.phy_sel - 1);
+		drv_info.lane_cfg = csid_hw->rx_cfg.lane_cfg;
+
+		/*
+		 * send this even when cesta is not enabled - to support debugfs to switch between
+		 * cesta and non-cesta between runs. CSIPHY might have stale information if we
+		 * do not send this info everytime
+		 */
+		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+			CAM_SUBDEV_MESSAGE_DRV_INFO, (void *)&drv_info);
+	}
+
 	for (i = 0; i < start_args->num_res; i++) {
 		res = start_args->node_res[i];
 
@@ -4855,6 +4986,7 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 	uint32_t i;
 	struct cam_csid_hw_stop_args         *csid_stop;
 	struct cam_csid_reset_cfg_args       reset = {0};
+	struct cam_subdev_msg_phy_halt_resume_info halt_resume_info;
 
 	if (!hw_priv || !stop_args ||
 		(arg_size != sizeof(struct cam_csid_hw_stop_args))) {
@@ -4882,6 +5014,15 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 		csid_stop->num_res);
 
 	csid_hw->flags.device_enabled = false;
+
+	if (csid_hw->hw_info->soc_info.is_clk_drv_en && csid_hw->is_drv_config_en) {
+		halt_resume_info.phy_idx = (csid_hw->rx_cfg.phy_sel - 1);
+		halt_resume_info.lane_cfg = csid_hw->rx_cfg.lane_cfg;
+		halt_resume_info.csid_state = CAM_SUBDEV_PHY_CSID_HALT;
+		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+			CAM_SUBDEV_MESSAGE_NOTIFY_HALT_RESUME,
+				(void *)&halt_resume_info);
+	}
 
 	reset.reset_type = (csid_hw->flags.fatal_err_detected) ? CAM_IFE_CSID_RESET_GLOBAL :
 		CAM_IFE_CSID_RESET_PATH;
@@ -5413,6 +5554,8 @@ static int cam_ife_csid_ver2_set_csid_clock(
 
 	csid_hw->clk_rate = clk_update->clk_rate;
 
+	CAM_DBG(CAM_ISP, "CSID:%d, clk_rate=%lld", csid_hw->hw_intf->hw_idx, csid_hw->clk_rate);
+
 	return 0;
 }
 
@@ -5734,6 +5877,29 @@ end:
 	return 0;
 }
 
+static int cam_ife_csid_ver2_reset_out_of_sync_cnt(
+	struct cam_ife_csid_ver2_hw  *csid_hw, void *args)
+{
+	struct cam_ife_csid_ver2_path_cfg  *path_cfg = NULL;
+	struct cam_isp_resource_node       *res = NULL;
+
+	res = ((struct cam_csid_reset_out_of_sync_count_args *)args)->node_res;
+	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+
+	if (!path_cfg) {
+		CAM_ERR(CAM_ISP, "Invalid res %s", res->res_name);
+		return -EINVAL;
+	}
+
+	atomic_set(&path_cfg->switch_out_of_sync_cnt, 0);
+
+	CAM_DBG(CAM_ISP,
+		"Reset out of sync cnt for res:%s",
+		res->res_name);
+
+	return 0;
+}
+
 static int cam_ife_csid_ver2_drv_config(
 	struct cam_ife_csid_ver2_hw  *csid_hw, void *cmd_args)
 {
@@ -5898,6 +6064,9 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_DRV_CONFIG:
 		rc = cam_ife_csid_ver2_drv_config(csid_hw, cmd_args);
+		break;
+	case CAM_IFE_CSID_RESET_OUT_OF_SYNC_CNT:
+		rc = cam_ife_csid_ver2_reset_out_of_sync_cnt(csid_hw, cmd_args);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",

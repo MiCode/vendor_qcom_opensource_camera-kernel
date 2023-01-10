@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_NODE_H_
@@ -20,7 +21,8 @@
  *
  * @name:                  Name for struct cam_node
  * @state:                 Node state:
- *                            0 = uninitialized, 1 = initialized
+ *                         0 = uninitialized, 1 = initialized
+ * @device_idx:            Index to identify which device this node belongs to
  * @list_mutex:            Mutex for the context pool
  * @free_ctx_list:         Free context pool list
  * @ctx_list:              Context list
@@ -33,6 +35,7 @@
 struct cam_node {
 	char                              name[CAM_CTX_DEV_NAME_MAX_LENGTH];
 	uint32_t                          state;
+	uint32_t                          device_idx;
 
 	/* context pool */
 	struct mutex                      list_mutex;

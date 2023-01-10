@@ -23,8 +23,6 @@
 #include "cam_req_mgr_dev.h"
 #include "cam_icp_hw_mgr_intf.h"
 
-static const char icp_dev_name[] = "cam-icp";
-
 static int cam_icp_context_dump_active_request(void *data, void *args)
 {
 	struct cam_context         *ctx = (struct cam_context *)data;
@@ -198,7 +196,9 @@ static int __cam_icp_config_dev_in_ready(struct cam_context *ctx,
 	if (((packet->header.op_code & 0xff) ==
 		CAM_ICP_OPCODE_IPE_SETTINGS) ||
 		((packet->header.op_code & 0xff) ==
-		CAM_ICP_OPCODE_BPS_SETTINGS))
+		CAM_ICP_OPCODE_BPS_SETTINGS) ||
+		((packet->header.op_code & 0xff) ==
+		CAM_ICP_OPCODE_OFE_SETTINGS))
 		rc = cam_context_config_dev_to_hw(ctx, cmd);
 	else
 		rc = cam_context_prepare_dev_to_hw(ctx, cmd);
@@ -506,13 +506,16 @@ static struct cam_ctx_ops
 	},
 };
 
-int cam_icp_context_init(struct cam_icp_context *ctx,
-	struct cam_hw_mgr_intf *hw_intf, uint32_t ctx_id, int img_iommu_hdl)
+int cam_icp_context_init(struct cam_icp_context *ctx, struct cam_hw_mgr_intf *hw_intf,
+	uint32_t ctx_id, int img_iommu_hdl, const char *icp_dev_name)
 {
 	int rc;
 
-	if ((!ctx) || (!ctx->base) || (!hw_intf)) {
-		CAM_ERR(CAM_ICP, "Invalid params: %pK %pK", ctx, hw_intf);
+	if ((!ctx) || (!ctx->base) || (!hw_intf) || (!icp_dev_name)) {
+		CAM_ERR(CAM_ICP,
+			"Invalid params: ctx: %s hw intf: %s dev name: %s",
+			CAM_IS_NULL_TO_STR(ctx), CAM_IS_NULL_TO_STR(hw_intf),
+			CAM_IS_NULL_TO_STR(icp_dev_name));
 		rc = -EINVAL;
 		goto err;
 	}

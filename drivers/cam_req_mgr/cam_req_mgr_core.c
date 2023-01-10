@@ -762,6 +762,8 @@ static void __cam_req_mgr_flush_req_slot(
 
 		/* Reset input queue slot */
 		slot->req_id = -1;
+		slot->bubble_times = 0;
+		slot->internal_recovered = false;
 		slot->skip_idx = 1;
 		slot->recover = 0;
 		slot->additional_timeout = 0;
@@ -825,6 +827,8 @@ static void __cam_req_mgr_reset_req_slot(struct cam_req_mgr_core_link *link,
 
 	/* Reset input queue slot */
 	slot->req_id = -1;
+	slot->bubble_times = 0;
+	slot->internal_recovered = false;
 	slot->skip_idx = 0;
 	slot->recover = 0;
 	slot->additional_timeout = 0;
@@ -1065,6 +1069,11 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 		if (g_crm_core_dev->recovery_on_apply_fail)
 			apply_req.re_apply = true;
 	}
+
+	if (link->state == CAM_CRM_LINK_STATE_ERR)
+		apply_req.recovery = true;
+	else
+		apply_req.recovery = false;
 
 	apply_data = link->req.apply_data;
 
@@ -3418,12 +3427,28 @@ int cam_req_mgr_process_error(void *priv, void *data)
 			/* Bring processing pointer to bubbled req id */
 			__cam_req_mgr_tbl_set_all_skip_cnt(&link->req.l_tbl);
 			in_q->rd_idx = idx;
+			in_q->slot[idx].bubble_times++;
 			in_q->slot[idx].status = CRM_SLOT_STATUS_REQ_ADDED;
 			if (link->sync_link[0]) {
 				in_q->slot[idx].sync_mode = 0;
 				__cam_req_mgr_inc_idx(&idx, 1,
 					link->req.l_tbl->num_slots);
 				in_q->slot[idx].sync_mode = 0;
+			}
+
+			/*
+			 * We need do internal recovery for back to back bubble, but if
+			 * the request had been internal recovered, we won't recover
+			 * it again.
+			 */
+			if ((in_q->slot[idx].bubble_times >= REQ_MAXIMUM_BUBBLE_TIMES) &&
+				!in_q->slot[idx].internal_recovered) {
+				link->try_for_internal_recovery = true;
+				/* Notify all devices in the link about the error */
+				__cam_req_mgr_send_evt(err_info->req_id,
+					CAM_REQ_MGR_LINK_EVT_STALLED, CRM_KMD_ERR_FATAL, link);
+				in_q->slot[idx].internal_recovered = true;
+				link->try_for_internal_recovery = false;
 			}
 
 			/*
@@ -5295,8 +5320,8 @@ end:
 	return 0;
 }
 
-static unsigned long cam_req_mgr_core_mini_dump_cb(void *dst,
-	unsigned long len)
+static unsigned long cam_req_mgr_core_mini_dump_cb(void *dst, unsigned long len,
+	void *priv_data)
 {
 	struct cam_req_mgr_core_link *link;
 	struct cam_req_mgr_core_mini_dump *md;
@@ -5419,7 +5444,7 @@ int cam_req_mgr_core_device_init(void)
 		cam_req_mgr_core_link_reset(&g_links[i]);
 	}
 	cam_common_register_mini_dump_cb(cam_req_mgr_core_mini_dump_cb,
-		"CAM_CRM");
+		"CAM_CRM", NULL);
 
 	return 0;
 }

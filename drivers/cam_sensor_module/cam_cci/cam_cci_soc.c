@@ -176,7 +176,7 @@ int cam_cci_init(struct v4l2_subdev *sd,
 	cam_cci_get_clk_rates(cci_dev, c_ctrl);
 
 	/* Enable Regulators and IRQ*/
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 		CAM_LOWSVS_VOTE, true);
 	if (rc < 0) {
 		CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d request platform resources failed, rc: %d",
@@ -220,7 +220,7 @@ int cam_cci_init(struct v4l2_subdev *sd,
 	return 0;
 
 reset_complete_failed:
-	cam_soc_util_disable_platform_resource(soc_info, true, true);
+	cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 platform_enable_failed:
 	cci_dev->ref_count--;
 	cam_cpas_stop(cci_dev->cpas_handle);
@@ -456,7 +456,7 @@ int cam_cci_soc_release(struct cci_device *cci_dev,
 		cci_dev->i2c_freq_mode[i] = I2C_MAX_MODES;
 	}
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 	if (rc) {
 		CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d platform resources disable failed, rc: %d",
 			cci_dev->soc_info.index, master, rc);

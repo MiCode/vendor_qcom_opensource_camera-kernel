@@ -25,7 +25,8 @@
 #define CAM_ISP_HW_IFE_LITE                     5
 #define CAM_ISP_HW_CSID_LITE                    6
 #define CAM_ISP_HW_SFE                          7
-#define CAM_ISP_HW_MAX                          8
+#define CAM_ISP_HW_MC_TFE                       8
+#define CAM_ISP_HW_MAX                          9
 
 /* Color Pattern */
 #define CAM_ISP_PATTERN_BAYER_RGRGRG            0
@@ -158,6 +159,15 @@
 #define CAM_ISP_RDI2_PATH         0x20
 #define CAM_ISP_RDI3_PATH         0x40
 #define CAM_ISP_RDI4_PATH         0x80
+#define CAM_ISP_PXL1_PATH         0x100
+#define CAM_ISP_PXL2_PATH         0x200
+
+/*
+ * Multi Context Mask
+ */
+#define  CAM_ISP_MULTI_CTXT0_MASK 0x1
+#define  CAM_ISP_MULTI_CTXT1_MASK 0x2
+#define  CAM_ISP_MULTI_CTXT2_MASK 0x4
 
 /* Per Path Usage Data */
 #define CAM_ISP_USAGE_INVALID     0
@@ -458,6 +468,94 @@ struct cam_isp_in_port_info_v2 {
 	__u32                           ife_res_1;
 	__u32                           ife_res_2;
 	struct cam_isp_out_port_info_v2 data[1];
+};
+
+/**
+ * struct cam_isp_in_port_phy_info - CSID in port PHY info
+ *
+ * @res_type:   input resource for the stream
+ * @lane_type:  Lane type--> C-Phy/ D-Phy
+ * @lane_num:   Number of lanes
+ * @lane_cfg:   Lane Configuraion
+ */
+struct cam_isp_in_port_phy_info {
+	__u32                           res_type;
+	__u32                           lane_type;
+	__u32                           lane_num;
+	__u32                           lane_cfg;
+};
+
+/**
+ * struct cam_isp_in_port_csid_info - CSID in port info
+ *
+ * @vc:                Virtual Channel for the incoming stream
+ * @dt:                Data type for the incoming stream
+ * @num_valid_vc_dt    Number of valid vc dt in case of multi vc dt on a single path
+ * @format:            Incoming format for this input
+ * @width:             Width of incoming stream
+ * @height:            Height of incoming stream
+ * @path_id:           CSID IPP Path to be acquired
+ * @param_mask:        Reserved field to add new features
+ * @params:            Reserved fields
+ */
+struct cam_isp_in_port_csid_info {
+	__u32                             vc[CAM_ISP_VC_DT_CFG];
+	__u32                             dt[CAM_ISP_VC_DT_CFG];
+	__u32                             num_valid_vc_dt;
+	__u32                             format;
+	__u32                             width;
+	__u32                             height;
+	__u32                             path_id;
+	__u32                             param_mask;
+	__u32                             params[7];
+};
+
+/**
+ * struct cam_isp_out_port_info_v3 - An output port resource info
+ *
+ * @res_type:                   output resource type defined in file
+ *                              cam_isp_vfe.h or cam_isp_ife.h
+ * @format:                     output format of the resource
+ * @width:                      output width in pixels
+ * @height:                     output height in lines
+ * @comp_grp_id:                composite group id for the resource.
+ * @split_point:                split point in pixels for the dual VFE.
+ * @secure_mode:                flag to tell if output should be run in secure
+ *                              mode or not. See cam_defs.h for definition
+ * @wm_mode:                    WM mode
+ * @context_id:                 Context ID in case of multi context
+ * @param_mask:                 Reserved field to add new features
+ * @params:                     Reserved fields
+ */
+struct cam_isp_out_port_info_v3 {
+	__u32                res_type;
+	__u32                format;
+	__u32                width;
+	__u32                height;
+	__u32                comp_grp_id;
+	__u32                split_point;
+	__u32                secure_mode;
+	__u32                wm_mode;
+	__u32                context_id;
+	__u32                param_mask;
+	__u32                params[6];
+};
+/**
+ * struct cam_isp_in_port_info_v3 - A resource bundle
+ *
+ * @csid_info:                resource id for the resource bundle
+ * @phy_info:                 length of the while resource blob
+ * @num_contexts              Num of contexts in case of multi context
+ * @feature_mask:             Feature mask to store bit fields for any specific use case
+ * @data:                     Pointer to out resource data
+ */
+struct cam_isp_in_port_info_v3 {
+	struct cam_isp_in_port_csid_info csid_info;
+	struct cam_isp_in_port_phy_info  phy_info;
+	__u32                            num_contexts;
+	__u32                            feature_mask;
+	__u32                            num_out_res;
+	struct cam_isp_out_port_info_v3  data[1];
 };
 
 /**
@@ -907,6 +1005,7 @@ struct cam_isp_acquire_hw_info {
  *                     after the last addr that was read from FIFO.
  * @packer_format    : Update packer format for Write master config
  * @reserved_3       : Reserved field for Write master config
+ *                     For acquired version 3-->corresponds to context_id_mask
  * @reserved_4       : Reserved field for Write master config
  */
 struct cam_isp_vfe_wm_config {

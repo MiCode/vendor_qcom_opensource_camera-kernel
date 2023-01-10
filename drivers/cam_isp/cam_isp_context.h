@@ -59,6 +59,9 @@
 /* AEB error count threshold */
 #define CAM_ISP_CONTEXT_AEB_ERROR_CNT_MAX 3
 
+/* Debug Buffer length*/
+#define CAM_ISP_CONTEXT_DBG_BUF_LEN 300
+
 /* forward declaration */
 struct cam_isp_context;
 
@@ -295,6 +298,8 @@ struct cam_isp_context_event_record {
  * @v4l2_event_sub_ids         contains individual bits representing subscribed v4l2 ids
  * @evt_inject_params:         event injection parameters
  * @aeb_enabled:               Indicate if stream is for AEB
+ * @last_sof_jiffies:          Record the jiffies of last sof
+ * @last_applied_jiffies:      Record the jiffiest of last applied req
  *
  */
 struct cam_isp_context {
@@ -353,6 +358,8 @@ struct cam_isp_context {
 	uint32_t                              v4l2_event_sub_ids;
 	struct cam_hw_inject_evt_param        evt_inject_params;
 	bool                                  aeb_enabled;
+	uint64_t                              last_sof_jiffies;
+	uint64_t                              last_applied_jiffies;
 };
 
 /**

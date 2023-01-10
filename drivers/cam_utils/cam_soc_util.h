@@ -57,6 +57,9 @@
 /* Maximum length of tag while dumping */
 #define CAM_SOC_HW_DUMP_TAG_MAX_LEN 32
 
+/* Client index to be used to vote clk frequency through sw client */
+#define CAM_CLK_SW_CLIENT_IDX -1
+
 /**
  * enum cam_vote_level - Enum for voting level
  *
@@ -85,6 +88,30 @@ enum cam_vote_level {
 /* pinctrl states */
 #define CAM_SOC_PINCTRL_STATE_SLEEP "cam_suspend"
 #define CAM_SOC_PINCTRL_STATE_DEFAULT "cam_default"
+
+#define CAM_CESTA_MAX_CLIENTS       3
+
+/**
+ * struct cam_soc_util_hw_client_clk_rates:   Information about HW client clock vote
+ *
+ * @high:               HW client clock vote high value
+ * @low:                HW client clock vote low value
+ **/
+struct cam_soc_util_hw_client_clk_rates {
+	unsigned long high;
+	unsigned long low;
+};
+
+/**
+ * struct cam_soc_util_clk_rates:   Information about clock vote for SW and HW clients
+ *
+ * @sw_client:               SW client clock vote
+ * @hw_client:               HW client clock vote
+ **/
+struct cam_soc_util_clk_rates {
+	unsigned long sw_client;
+	struct cam_soc_util_hw_client_clk_rates hw_client[CAM_CESTA_MAX_CLIENTS];
+};
 
 /**
  * struct cam_soc_reg_map:   Information about the mapped register space
@@ -187,7 +214,7 @@ struct cam_soc_gpio_data {
  *                          through camera clk wrapper for aggregation.
  * @prev_clk_level          Last vote level
  * @src_clk_idx:            Source clock index that is rate-controllable
- * @applied_src_clk_rate    Current clock rate of the core source clk
+ * @applied_src_clk_rates:  Applied src clock rates for SW and HW client
  * @clk_level_valid:        Indicates whether corresponding level is valid
  * @lowest_clk_level:       Lowest clock level that has valid freq info
  * @scl_clk_count:          Number of scalable clocks present
@@ -201,9 +228,13 @@ struct cam_soc_gpio_data {
  *                           through camera clk wrapper for aggregation.
  * @gpio_data:              Pointer to gpio info
  * @mmrm_handle:            MMRM Client handle for src clock
+ * @is_clk_drv_en:          If clock drv is enabled in hw
  * @pinctrl_info:           Pointer to pinctrl info
  * @dentry:                 Debugfs entry
- * @clk_level_override:     Clk level set from debugfs
+ * @clk_level_override_high:Clk level set from debugfs. When cesta is enabled, used to override
+ *                          high clk value
+ * @clk_level_override_high:Low clk level set from debugfs when cesta is enabled, used to override
+ *                          low clk value
  * @clk_control:            Enable/disable clk rate control through debugfs
  * @cam_cx_ipeak_enable     cx-ipeak enable/disable flag
  * @cam_cx_ipeak_bit        cx-ipeak mask for driver
@@ -250,7 +281,7 @@ struct cam_hw_soc_info {
 	uint32_t                        shared_clk_mask;
 	int32_t                         prev_clk_level;
 	int32_t                         src_clk_idx;
-	unsigned long                   applied_src_clk_rate;
+	struct cam_soc_util_clk_rates   applied_src_clk_rates;
 	bool                            clk_level_valid[CAM_MAX_VOTE];
 	uint32_t                        lowest_clk_level;
 	int32_t                         scl_clk_count;
@@ -263,11 +294,14 @@ struct cam_hw_soc_info {
 
 	void                           *mmrm_handle;
 
+	bool                            is_clk_drv_en;
+
 	struct cam_soc_gpio_data       *gpio_data;
 	struct cam_soc_pinctrl_info     pinctrl_info;
 
 	struct dentry                  *dentry;
-	uint32_t                        clk_level_override;
+	uint32_t                        clk_level_override_high;
+	uint32_t                        clk_level_override_low;
 	bool                            clk_control_enable;
 	bool                            cam_cx_ipeak_enable;
 	int32_t                         cam_cx_ipeak_bit;
@@ -410,6 +444,7 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info);
  * @brief:              Enable regulator, irq resources
  *
  * @soc_info:           Device soc information
+ * @cesta_client_idx:   CESTA Client idx for hw client based src clocks
  * @enable_clocks:      Boolean flag:
  *                          TRUE: Enable all clocks in soc_info Now.
  *                          False: Don't enable clocks Now. Driver will
@@ -425,7 +460,8 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info);
  * @return:             Success or failure
  */
 int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
-	bool enable_clocks, enum cam_vote_level clk_level, bool enable_irq);
+	int cesta_client_idx, bool enable_clocks, enum cam_vote_level clk_level,
+	bool enable_irq);
 
 /**
  * cam_soc_util_disable_platform_resource()
@@ -433,6 +469,7 @@ int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
  * @brief:              Disable regulator, irq resources
  *
  * @soc_info:           Device soc information
+ * @cesta_client_idx:   CESTA Client idx for hw client based src clocks
  * @disable_irq:        Boolean flag:
  *                          TRUE: Disable IRQ in soc_info Now.
  *                          False: Don't disable IRQ Now. Driver will
@@ -441,7 +478,7 @@ int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
  * @return:             Success or failure
  */
 int cam_soc_util_disable_platform_resource(struct cam_hw_soc_info *soc_info,
-	bool disable_clocks, bool disable_irq);
+	int cesta_client_idx, bool disable_clocks, bool disable_irq);
 
 /**
  * cam_soc_util_get_clk_round_rate()
@@ -461,15 +498,21 @@ long cam_soc_util_get_clk_round_rate(struct cam_hw_soc_info *soc_info,
 /**
  * cam_soc_util_set_src_clk_rate()
  *
- * @brief:              Set the rate on the source clock.
+ * @brief:              Set the rate on the source clock for sw or hw clients. Requires a valid
+ *                      CESTA client idx for hw client voting.
  *
  * @soc_info:           Device soc information
- * @clk_rate:           Clock rate associated with the src clk
+ * @cesta_client_idx:   CESTA client idx if src clock belongs to cesta client, otherwise -1
+ * @clk_rate_high:      High clock rate associated with the src clk, applies to sw client vote
+ *                      if not cesta client
+ * @clk_rate_low:       Low clock rate associated with the src clk, only applies to cesta based
+ *                      hw client vote
  *
  * @return:             success or failure
  */
-int cam_soc_util_set_src_clk_rate(struct cam_hw_soc_info *soc_info,
-	int64_t clk_rate);
+int cam_soc_util_set_src_clk_rate(struct cam_hw_soc_info *soc_info, int cesta_client_idx,
+	unsigned long clk_rate_high, unsigned long clk_rate_low);
+
 
 /**
  * cam_soc_util_get_option_clk_by_name()
@@ -505,6 +548,7 @@ int cam_soc_util_put_optional_clk(struct cam_hw_soc_info *soc_info,
  * @brief:              Enable clock specified in params
  *
  * @soc_info:           Device soc information
+ * @cesta_client_idx:   CESTA Client idx for hw client based src clocks
  * @optional_clk:       Whether to set optional clk or normal clk with
  *                      the idx given
  * @clk_idx:            Clock index to set
@@ -513,13 +557,11 @@ int cam_soc_util_put_optional_clk(struct cam_hw_soc_info *soc_info,
  *                      any other value indicate level for normal clocks
  *                      For optional clocks any other value means the rate saved
  *                      in soc_info
- * @applied_clock_rate  Final Clock rate applied to the clk
  *
  * @return:             Success or failure
  */
-int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info,
-	bool optional_clk, int32_t clk_idx, int32_t apply_level,
-	unsigned long *applied_clock_rate);
+int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info, int cesta_client_idx,
+	bool optional_clk, int32_t clk_idx, int32_t apply_level);
 
 /**
  * cam_soc_util_set_clk_rate_level()
@@ -529,13 +571,16 @@ int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info,
  *                      the clocks listed in DT based on their values.
  *
  * @soc_info:           Device soc information
- * @clk_level:          Clock level number to set
+ * @cesta_client_idx:   CESTA client idx for HW client based src clocks
+ * @clk_level_high:     Clock level number to set, high value if crm based src clock
+ * @clk_level_low:      Low clock level value if crm based src clock
  * @do_not_set_src_clk: If true, set clock rates except the src clk
  *
  * @return:             Success or failure
  */
 int cam_soc_util_set_clk_rate_level(struct cam_hw_soc_info *soc_info,
-	enum cam_vote_level clk_level, bool do_not_set_src_clk);
+	int cesta_client_idx, enum cam_vote_level clk_level_high,
+	enum cam_vote_level clk_level_low, bool do_not_set_src_clk);
 
 /**
  * cam_soc_util_clk_disable()
@@ -543,13 +588,14 @@ int cam_soc_util_set_clk_rate_level(struct cam_hw_soc_info *soc_info,
  * @brief:              Disable clock specified in params
  *
  * @soc_info:           Device soc information
+ * @cesta_client_idx:   CESTA Client idx for hw client based src clocks
  * @optional_clk:       Whether to set optional clk or normal clk with
  *                      the idx given
  * @clk_idx:            Clock index to disable
  *
  * @return:             Success or failure
  */
-int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info,
+int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info, int cesta_client_idx,
 	bool optional_clk, int32_t clk_idx);
 
 /**
@@ -716,9 +762,10 @@ static inline uint32_t cam_soc_util_r_mb(struct cam_hw_soc_info *soc_info,
 int cam_soc_util_reg_dump(struct cam_hw_soc_info *soc_info,
 	uint32_t base_index, uint32_t offset, int size);
 
-void cam_soc_util_clk_disable_default(struct cam_hw_soc_info *soc_info);
+void cam_soc_util_clk_disable_default(struct cam_hw_soc_info *soc_info,
+	int cesta_client_idx);
 
-int cam_soc_util_clk_enable_default(struct cam_hw_soc_info *soc_info,
+int cam_soc_util_clk_enable_default(struct cam_hw_soc_info *soc_info, int cesta_client_idx,
 	enum cam_vote_level clk_level);
 
 int cam_soc_util_get_clk_level(struct cam_hw_soc_info *soc_info,
@@ -787,5 +834,51 @@ int cam_soc_util_select_pinctrl_state(
  * @return:             Number of regulators enabled
  */
 int cam_soc_util_regulators_enabled(struct cam_hw_soc_info *soc_info);
+
+/**
+ * cam_soc_util_cesta_populate_crm_device()
+ *
+ * @brief:              This function populates the camera cesta crm device in soc util
+ *
+ * @return:             success or failure
+ */
+inline int cam_soc_util_cesta_populate_crm_device(void);
+
+/**
+ * cam_soc_util_cesta_channel_switch()
+ *
+ * @brief:              This function triggers the application of power states to crm
+ *                      and channel switch operation in hw. Also, for camera it applies
+ *                      the high vote of the active channel
+ * @cesta_client_idx:   CESTA client index through which power states need to be applied
+ * @identifier:         Identifying the caller triggerring channel switch
+ *
+ * @return:             success or failure
+ */
+int cam_soc_util_cesta_channel_switch(uint32_t cesta_client_idx, const char *identifier);
+
+/**
+ * cam_soc_util_get_applied_src_clk()
+ *
+ * @brief:              Inline function to get applied src clk rate.
+
+ * @soc_info:           Device soc struct to be populated
+ * @is_max:             Is max of all hw clients if cesta is enabled
+ *
+ * @return:             success or failure
+ */
+inline unsigned long cam_soc_util_get_applied_src_clk(
+	struct cam_hw_soc_info *soc_info, bool is_max);
+
+/**
+ * cam_soc_util_get_string_from_level()
+ *
+ * @brief:     Returns the string for a given clk level
+ *
+ * @level:     Clock level
+ *
+ * @return:    String corresponding to the clk level
+ */
+const char *cam_soc_util_get_string_from_level(enum cam_vote_level level);
 
 #endif /* _CAM_SOC_UTIL_H_ */

@@ -158,7 +158,20 @@ const char *cam_cpas_axi_util_drv_vote_lvl_to_string(
 }
 EXPORT_SYMBOL(cam_cpas_axi_util_drv_vote_lvl_to_string);
 
-int cam_cpas_query_drv_enable(bool *is_drv_enabled)
+const char *cam_cpas_util_vote_type_to_string(enum cam_cpas_vote_type vote_type)
+{
+	switch (vote_type) {
+	case CAM_CPAS_VOTE_TYPE_HLOS:
+		return "VOTE_TYPE_HLOS";
+	case CAM_CPAS_VOTE_TYPE_DRV:
+		return "VOTE_TYPE_DRV";
+	default:
+		return "VOTE_TYPE_INVALID";
+	}
+}
+EXPORT_SYMBOL(cam_cpas_util_vote_type_to_string);
+
+int cam_cpas_query_drv_enable(bool *is_ddr_drv_enabled, bool *is_clk_drv_enabled)
 {
 	struct cam_hw_info *cpas_hw = NULL;
 	struct cam_cpas_private_soc *soc_private = NULL;
@@ -168,15 +181,20 @@ int cam_cpas_query_drv_enable(bool *is_drv_enabled)
 		return -ENODEV;
 	}
 
-	if (!is_drv_enabled) {
-		CAM_ERR(CAM_CPAS, "invalid input %pK", is_drv_enabled);
+	if (!is_ddr_drv_enabled && !is_clk_drv_enabled) {
+		CAM_ERR(CAM_CPAS, "invalid input ddr: %pK clk: %pK", is_ddr_drv_enabled,
+			is_clk_drv_enabled);
 		return -EINVAL;
 	}
 
 	cpas_hw = (struct cam_hw_info  *) g_cpas_intf->hw_intf->hw_priv;
 	soc_private = (struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 
-	*is_drv_enabled = soc_private->enable_cam_ddr_drv;
+	if (is_ddr_drv_enabled)
+		*is_ddr_drv_enabled = soc_private->enable_cam_ddr_drv;
+
+	if (is_clk_drv_enabled)
+		*is_clk_drv_enabled = soc_private->enable_cam_clk_drv;
 
 	return 0;
 }
@@ -391,9 +409,9 @@ int cam_cpas_get_hw_info(uint32_t *camera_family,
 	}
 
 	CAM_DBG(CAM_CPAS, "Family %d, version %d.%d cam_caps %d, domain_id: %s",
-		CAM_BOOL_TO_YESNO(soc_private->domain_id_info.domain_id_supported),
 		*camera_family, camera_version->major,
-		camera_version->minor, *cam_caps);
+		camera_version->minor, *cam_caps,
+		CAM_BOOL_TO_YESNO(soc_private->domain_id_info.domain_id_supported));
 
 	return 0;
 }

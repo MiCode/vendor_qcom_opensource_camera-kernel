@@ -307,7 +307,8 @@ static int tpg_hw_soc_disable(struct tpg_hw *hw)
 		return -EINVAL;
 	}
 
-	rc = cam_soc_util_disable_platform_resource(hw->soc_info, true, false);
+	rc = cam_soc_util_disable_platform_resource(hw->soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+		false);
 	if (rc) {
 		CAM_ERR(CAM_TPG, "TPG[%d] Disable platform failed %d",
 			hw->hw_idx, rc);
@@ -356,7 +357,7 @@ static int tpg_hw_soc_enable(
 		goto end;
 	}
 
-	rc = cam_soc_util_enable_platform_resource(hw->soc_info, true,
+	rc = cam_soc_util_enable_platform_resource(hw->soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 		clk_level, false);
 	if (rc) {
 		CAM_ERR(CAM_TPG, "TPG[%d] enable platform failed",
@@ -963,7 +964,8 @@ int tpg_hw_reset(struct tpg_hw *hw)
 	/* disable the hw */
 	mutex_lock(&hw->mutex);
 	if (hw->state != TPG_HW_STATE_HW_DISABLED) {
-		rc = cam_soc_util_disable_platform_resource(hw->soc_info, true, false);
+		rc = cam_soc_util_disable_platform_resource(hw->soc_info, CAM_CLK_SW_CLIENT_IDX,
+			true, false);
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] Disable platform failed %d", hw->hw_idx, rc);
 			return rc;

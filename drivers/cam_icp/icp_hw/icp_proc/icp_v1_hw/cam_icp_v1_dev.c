@@ -102,7 +102,7 @@ static int cam_icp_v1_soc_info_init(struct cam_hw_soc_info *soc_info,
 	soc_info->dev_name = pdev->name;
 	soc_info->soc_private = icp_soc_info;
 
-	icp_soc_info->dev_type = CAM_ICP_DEV_ICP_V1;
+	icp_soc_info->dev_type = CAM_ICP_HW_ICP_V1;
 
 	return 0;
 }
@@ -134,7 +134,7 @@ static int cam_icp_v1_component_bind(struct device *dev,
 	icp_v1_dev_intf->hw_ops.init = cam_icp_v1_init_hw;
 	icp_v1_dev_intf->hw_ops.deinit = cam_icp_v1_deinit_hw;
 	icp_v1_dev_intf->hw_ops.process_cmd = cam_icp_v1_process_cmd;
-	icp_v1_dev_intf->hw_type = CAM_ICP_DEV_ICP_V1;
+	icp_v1_dev_intf->hw_type = CAM_ICP_HW_ICP_V1;
 
 	CAM_DBG(CAM_ICP, "type %d index %d",
 		icp_v1_dev_intf->hw_type,
@@ -175,6 +175,7 @@ static int cam_icp_v1_component_bind(struct device *dev,
 		CAM_ERR(CAM_ICP, "icp_v1 cpas registration failed");
 		goto cpas_reg_failed;
 	}
+	core_info->hfi_handle = HFI_HANDLE_INIT_VALUE;
 	icp_v1_dev->hw_state = CAM_HW_STATE_POWER_DOWN;
 	mutex_init(&icp_v1_dev->hw_mutex);
 	spin_lock_init(&icp_v1_dev->hw_lock);

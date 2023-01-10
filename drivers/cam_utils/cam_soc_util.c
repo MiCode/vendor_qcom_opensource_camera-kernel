@@ -16,6 +16,11 @@
 #include "cam_presil_hw_access.h"
 #include "cam_compat.h"
 
+#if IS_ENABLED(CONFIG_QCOM_CRM)
+#include <soc/qcom/crm.h>
+#include <linux/clk/qcom.h>
+#endif
+
 #define CAM_TO_MASK(bitn)          (1 << (int)(bitn))
 #define CAM_IS_BIT_SET(mask, bit)  ((mask) & CAM_TO_MASK(bit))
 #define CAM_SET_BIT(mask, bit)     ((mask) |= CAM_TO_MASK(bit))
@@ -85,6 +90,135 @@ static char supported_clk_info[256];
 
 static DEFINE_MUTEX(wrapper_lock);
 static LIST_HEAD(wrapper_clk_list);
+
+#define CAM_IS_VALID_CESTA_IDX(idx) ((idx >= 0) && (idx < CAM_CESTA_MAX_CLIENTS))
+
+#define CAM_CRM_DEV_IDENTIFIER "cam_crm"
+
+const struct device *cam_cesta_crm_dev;
+
+#if IS_ENABLED(CONFIG_QCOM_CRM)
+inline int cam_soc_util_cesta_populate_crm_device(void)
+{
+	cam_cesta_crm_dev =  crm_get_device(CAM_CRM_DEV_IDENTIFIER);
+	if (!cam_cesta_crm_dev) {
+		CAM_ERR(CAM_UTIL, "Failed to get cesta crm dev for %s", CAM_CRM_DEV_IDENTIFIER);
+		return -ENODEV;
+	}
+
+	return 0;
+}
+
+int cam_soc_util_cesta_channel_switch(uint32_t cesta_client_idx, const char *identifier)
+{
+	int rc = 0;
+
+	if (!cam_cesta_crm_dev) {
+		CAM_ERR(CAM_UTIL, "camera cesta crm device is null");
+		return -EINVAL;
+	}
+
+	if (!CAM_IS_VALID_CESTA_IDX(cesta_client_idx)) {
+		CAM_ERR(CAM_UTIL, "Invalid client index for camera cesta idx: %d max: %d",
+			cesta_client_idx, CAM_CESTA_MAX_CLIENTS);
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_PERF, "CESTA Channel switch : hw client idx %d identifier=%s",
+		cesta_client_idx, identifier);
+
+	rc = crm_write_pwr_states(cam_cesta_crm_dev, cesta_client_idx);
+	if (rc) {
+		CAM_ERR(CAM_UTIL,
+			"Failed to trigger cesta channel switch cesta_client_idx: %u rc: %d",
+			cesta_client_idx, rc);
+		return rc;
+	}
+
+	return rc;
+}
+#else
+inline int cam_soc_util_cesta_populate_crm_device(void)
+{
+	CAM_ERR(CAM_UTIL, "Not supported");
+
+	return -EOPNOTSUPP;
+}
+
+inline int cam_soc_util_cesta_channel_switch(uint32_t cesta_client_idx, const char *identifier)
+{
+	CAM_ERR(CAM_UTIL, "Not supported, cesta_client_idx=%d, identifier=%s",
+		cesta_client_idx, identifier);
+
+	return -EOPNOTSUPP;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_QCOM_CRM) && IS_ENABLED(CONFIG_SPECTRA_USE_CLK_CRM_API)
+static int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
+	uint32_t cesta_client_idx, unsigned long high_val, unsigned long low_val,
+	unsigned long *applied_high_val, unsigned long *applied_low_val)
+{
+	int32_t src_clk_idx;
+	struct clk *clk = NULL;
+	int rc = 0;
+
+	if (!soc_info || (soc_info->src_clk_idx < 0) ||
+		(soc_info->src_clk_idx >= CAM_SOC_MAX_CLK)) {
+		CAM_ERR(CAM_UTIL, "Invalid src_clk_idx: %d",
+			soc_info ? soc_info->src_clk_idx : -1);
+		return -EINVAL;
+	}
+
+	if (!CAM_IS_VALID_CESTA_IDX(cesta_client_idx)) {
+		CAM_ERR(CAM_UTIL, "Invalid client index for camera cesta idx: %d max: %d",
+			cesta_client_idx, CAM_CESTA_MAX_CLIENTS);
+		return -EINVAL;
+	}
+
+	/* Only source clocks are supported by this API to set HW client clock votes */
+	src_clk_idx = soc_info->src_clk_idx;
+	clk = soc_info->clk[src_clk_idx];
+
+	CAM_DBG(CAM_UTIL, "%s Requested clk rate [high low]: [%llu %llu] cesta_client_idx: %d",
+		soc_info->clk_name[src_clk_idx], high_val, low_val, cesta_client_idx);
+
+	rc = qcom_clk_crm_set_rate(clk, CRM_HW_DRV, cesta_client_idx, CRM_PWR_STATE1, high_val);
+	if (rc) {
+		CAM_ERR(CAM_UTIL,
+			"Failed in setting cesta high clk rate, client idx: %u pwr state: %u clk_val: %llu rc: %d",
+			cesta_client_idx, CRM_PWR_STATE1, high_val, rc);
+		return rc;
+	}
+
+	rc = qcom_clk_crm_set_rate(clk, CRM_HW_DRV, cesta_client_idx, CRM_PWR_STATE0, low_val);
+	if (rc) {
+		CAM_ERR(CAM_UTIL,
+			"Failed in setting cesta low clk rate, client idx: %u pwr state: %u clk_val: %llu rc: %d",
+			cesta_client_idx, CRM_PWR_STATE0, low_val, rc);
+		return rc;
+	}
+
+	if (applied_high_val)
+		*applied_high_val = high_val;
+
+	if (applied_low_val)
+		*applied_low_val = low_val;
+
+	return rc;
+}
+
+#else
+static inline int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
+	uint32_t cesta_client_idx, unsigned long high_val, unsigned long low_val,
+	unsigned long *applied_high_val, unsigned long *applied_low_val)
+{
+	CAM_ERR(CAM_UTIL, "Not supported, dev=%s, cesta_client_idx=%d, high_val=%ld, low_val=%ld",
+		soc_info->dev_name, cesta_client_idx, high_val, low_val);
+
+	return -EOPNOTSUPP;
+}
+#endif
 
 #if IS_REACHABLE(CONFIG_MSM_MMRM)
 bool cam_is_mmrm_supported_on_current_chip(void)
@@ -559,17 +693,7 @@ int cam_soc_util_get_clk_level(struct cam_hw_soc_info *soc_info,
 	return -EINVAL;
 }
 
-/**
- * cam_soc_util_get_string_from_level()
- *
- * @brief:     Returns the string for a given clk level
- *
- * @level:     Clock level
- *
- * @return:    String corresponding to the clk level
- */
-static const char *cam_soc_util_get_string_from_level(
-	enum cam_vote_level level)
+const char *cam_soc_util_get_string_from_level(enum cam_vote_level level)
 {
 	switch (level) {
 	case CAM_SUSPEND_VOTE:
@@ -648,32 +772,64 @@ static const struct file_operations cam_soc_util_clk_lvl_options = {
 	.read = cam_soc_util_clk_lvl_options_read,
 };
 
-static int cam_soc_util_set_clk_lvl(void *data, u64 val)
+static int cam_soc_util_set_clk_lvl_override(void *data, u64 val)
 {
 	struct cam_hw_soc_info *soc_info = (struct cam_hw_soc_info *)data;
 
-	if (val <= CAM_SUSPEND_VOTE || val >= CAM_MAX_VOTE)
+	if ((val <= CAM_SUSPEND_VOTE) || (val >= CAM_MAX_VOTE)) {
+		CAM_WARN(CAM_UTIL, "Invalid clk lvl override %d", val);
 		return 0;
+	}
 
-	if (soc_info->clk_level_valid[val] == true)
-		soc_info->clk_level_override = val;
+	if (soc_info->clk_level_valid[val])
+		soc_info->clk_level_override_high = val;
 	else
-		soc_info->clk_level_override = 0;
+		soc_info->clk_level_override_high = 0;
 
 	return 0;
 }
 
-static int cam_soc_util_get_clk_lvl(void *data, u64 *val)
+static int cam_soc_util_get_clk_lvl_override(void *data, u64 *val)
 {
 	struct cam_hw_soc_info *soc_info = (struct cam_hw_soc_info *)data;
 
-	*val = soc_info->clk_level_override;
+	*val = soc_info->clk_level_override_high;
+
+	return 0;
+}
+
+static int cam_soc_util_set_clk_lvl_override_low(void *data, u64 val)
+{
+	struct cam_hw_soc_info *soc_info = (struct cam_hw_soc_info *)data;
+
+	if ((val <= CAM_SUSPEND_VOTE) || (val >= CAM_MAX_VOTE)) {
+		CAM_WARN(CAM_UTIL, "Invalid clk lvl override %d", val);
+		return 0;
+	}
+
+	if (soc_info->clk_level_valid[val])
+		soc_info->clk_level_override_low = val;
+	else
+		soc_info->clk_level_override_low = 0;
+
+	return 0;
+}
+
+static int cam_soc_util_get_clk_lvl_override_low(void *data, u64 *val)
+{
+	struct cam_hw_soc_info *soc_info = (struct cam_hw_soc_info *)data;
+
+	*val = soc_info->clk_level_override_low;
 
 	return 0;
 }
 
 DEFINE_SIMPLE_ATTRIBUTE(cam_soc_util_clk_lvl_control,
-	cam_soc_util_get_clk_lvl, cam_soc_util_set_clk_lvl, "%08llu");
+	cam_soc_util_get_clk_lvl_override, cam_soc_util_set_clk_lvl_override, "%08llu");
+
+DEFINE_SIMPLE_ATTRIBUTE(cam_soc_util_clk_lvl_control_low,
+	cam_soc_util_get_clk_lvl_override_low, cam_soc_util_set_clk_lvl_override_low, "%08llu");
+
 
 /**
  * cam_soc_util_create_clk_lvl_debugfs()
@@ -722,6 +878,8 @@ static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_options);
 	dbgfileptr = debugfs_create_file("clk_lvl_control", 0644,
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_control);
+	dbgfileptr = debugfs_create_file("clk_lvl_control_low", 0644,
+		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_control_low);
 	rc = PTR_ERR_OR_ZERO(dbgfileptr);
 end:
 	return rc;
@@ -799,8 +957,9 @@ static int cam_soc_util_get_clk_level_to_apply(
 		}
 	}
 
-	CAM_DBG(CAM_UTIL, "Req level %d, Applying %d",
-		req_level, *apply_level);
+	CAM_DBG(CAM_UTIL, "Req level %s, Applying %s",
+		cam_soc_util_get_string_from_level(req_level),
+		cam_soc_util_get_string_from_level(*apply_level));
 
 	return 0;
 }
@@ -961,8 +1120,8 @@ static int cam_soc_util_set_clk_rate(struct cam_hw_soc_info *soc_info,
 	return rc;
 }
 
-int cam_soc_util_set_src_clk_rate(struct cam_hw_soc_info *soc_info,
-	int64_t clk_rate)
+int cam_soc_util_set_src_clk_rate(struct cam_hw_soc_info *soc_info, int cesta_client_idx,
+	unsigned long clk_rate_high, unsigned long clk_rate_low)
 {
 	int rc = 0;
 	int i = 0;
@@ -970,7 +1129,7 @@ int cam_soc_util_set_src_clk_rate(struct cam_hw_soc_info *soc_info,
 	int32_t scl_clk_idx;
 	struct clk *clk = NULL;
 	int32_t apply_level;
-	uint32_t clk_level_override = 0;
+	uint32_t clk_level_override_high = 0, clk_level_override_low = 0;
 
 	if (!soc_info || (soc_info->src_clk_idx < 0) ||
 		(soc_info->src_clk_idx >= CAM_SOC_MAX_CLK)) {
@@ -980,40 +1139,59 @@ int cam_soc_util_set_src_clk_rate(struct cam_hw_soc_info *soc_info,
 	}
 
 	src_clk_idx = soc_info->src_clk_idx;
-	clk_level_override = soc_info->clk_level_override;
-	if (clk_level_override && clk_rate)
-		clk_rate =
-			soc_info->clk_rate[clk_level_override][src_clk_idx];
+	clk_level_override_high = soc_info->clk_level_override_high;
+	clk_level_override_low = soc_info->clk_level_override_low;
+
+	if (clk_level_override_high && clk_rate_high)
+		clk_rate_high = soc_info->clk_rate[clk_level_override_high][src_clk_idx];
+
+	if (clk_level_override_low && clk_rate_low)
+		clk_rate_low = soc_info->clk_rate[clk_level_override_low][src_clk_idx];
 
 	clk = soc_info->clk[src_clk_idx];
-	rc = cam_soc_util_get_clk_level(soc_info, clk_rate, src_clk_idx,
+	rc = cam_soc_util_get_clk_level(soc_info, clk_rate_high, src_clk_idx,
 		&apply_level);
 	if (rc || (apply_level < 0) || (apply_level >= CAM_MAX_VOTE)) {
 		CAM_ERR(CAM_UTIL,
 			"set %s, rate %lld dev_name = %s apply level = %d",
-			soc_info->clk_name[src_clk_idx], clk_rate,
+			soc_info->clk_name[src_clk_idx], clk_rate_high,
 			soc_info->dev_name, apply_level);
 			return -EINVAL;
 	}
 
-	CAM_DBG(CAM_UTIL, "set %s, rate %lld dev_name = %s apply level = %d",
-		soc_info->clk_name[src_clk_idx], clk_rate,
+	CAM_DBG(CAM_UTIL,
+		"set %s, cesta_client_idx: %d rate [%ld %ld] dev_name = %s apply level = %d",
+		soc_info->clk_name[src_clk_idx], cesta_client_idx, clk_rate_high, clk_rate_low,
 		soc_info->dev_name, apply_level);
 
-	if ((soc_info->cam_cx_ipeak_enable) && (clk_rate >= 0)) {
+	if ((soc_info->cam_cx_ipeak_enable) && (clk_rate_high > 0)) {
 		cam_cx_ipeak_update_vote_cx_ipeak(soc_info,
 			apply_level);
 	}
 
+	if (soc_info->is_clk_drv_en && CAM_IS_VALID_CESTA_IDX(cesta_client_idx)) {
+		rc = cam_soc_util_set_cesta_clk_rate(soc_info, cesta_client_idx, clk_rate_high,
+			clk_rate_low,
+			&soc_info->applied_src_clk_rates.hw_client[cesta_client_idx].high,
+			&soc_info->applied_src_clk_rates.hw_client[cesta_client_idx].low);
+		if (rc) {
+			CAM_ERR(CAM_UTIL,
+				"Failed in setting cesta clk rates[high low]:[%ld %ld] client_idx:%d rc:%d",
+				clk_rate_high, clk_rate_low, cesta_client_idx, rc);
+			return rc;
+		}
+		goto end;
+	}
+
 	rc = cam_soc_util_set_clk_rate(soc_info, clk,
-		soc_info->clk_name[src_clk_idx], clk_rate,
+		soc_info->clk_name[src_clk_idx], clk_rate_high,
 		CAM_IS_BIT_SET(soc_info->shared_clk_mask, src_clk_idx),
 		true, soc_info->clk_id[src_clk_idx],
-		&soc_info->applied_src_clk_rate);
+		&soc_info->applied_src_clk_rates.sw_client);
 	if (rc) {
 		CAM_ERR(CAM_UTIL,
 			"SET_RATE Failed: src clk: %s, rate %lld, dev_name = %s rc: %d",
-			soc_info->clk_name[src_clk_idx], clk_rate,
+			soc_info->clk_name[src_clk_idx], clk_rate_high,
 			soc_info->dev_name, rc);
 		return rc;
 	}
@@ -1042,6 +1220,7 @@ int cam_soc_util_set_src_clk_rate(struct cam_hw_soc_info *soc_info,
 		}
 	}
 
+end:
 	return 0;
 }
 
@@ -1199,14 +1378,13 @@ error:
 	return rc;
 }
 
-int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info,
-	bool optional_clk, int32_t clk_idx, int32_t apply_level,
-	unsigned long *applied_clock_rate)
+int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info, int cesta_client_idx,
+	bool optional_clk, int32_t clk_idx, int32_t apply_level)
 {
 	int rc = 0;
 	struct clk *clk;
 	const char *clk_name;
-	int32_t clk_rate;
+	unsigned long clk_rate;
 	uint32_t shared_clk_mask;
 	uint32_t clk_id;
 	bool is_src_clk = false;
@@ -1235,12 +1413,37 @@ int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info,
 	}
 	if (!clk)
 		return 0;
-	rc = cam_soc_util_set_clk_rate(soc_info, clk, clk_name, clk_rate,
-		CAM_IS_BIT_SET(shared_clk_mask, clk_idx), is_src_clk, clk_id,
-		applied_clock_rate);
-	if (rc)
-		return rc;
 
+	if (is_src_clk && soc_info->is_clk_drv_en && CAM_IS_VALID_CESTA_IDX(cesta_client_idx)) {
+		rc = cam_soc_util_set_cesta_clk_rate(soc_info, cesta_client_idx, clk_rate, clk_rate,
+			&soc_info->applied_src_clk_rates.hw_client[cesta_client_idx].high,
+			&soc_info->applied_src_clk_rates.hw_client[cesta_client_idx].low);
+		if (rc) {
+			CAM_ERR(CAM_UTIL,
+				"[%s] Failed in setting cesta clk rates[high low]:[%ld %ld] client_idx:%d rc:%d",
+				soc_info->dev_name, clk_rate, clk_rate, cesta_client_idx, rc);
+			return rc;
+		}
+
+		rc = cam_soc_util_cesta_channel_switch(cesta_client_idx, soc_info->dev_name);
+		if (rc) {
+			CAM_ERR(CAM_UTIL,
+				"[%s] Failed to apply power states for cesta client:%d rc:%d",
+				soc_info->dev_name, cesta_client_idx, rc);
+			return rc;
+		}
+	} else {
+		rc = cam_soc_util_set_clk_rate(soc_info, clk, clk_name, clk_rate,
+			CAM_IS_BIT_SET(shared_clk_mask, clk_idx), is_src_clk, clk_id,
+			&soc_info->applied_src_clk_rates.sw_client);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "[%s] Failed in setting clk rate %ld rc:%d",
+				soc_info->dev_name, clk_rate, rc);
+			return rc;
+		}
+	}
+
+	CAM_DBG(CAM_UTIL, "[%s] : clk enable %s", soc_info->dev_name, clk_name);
 	rc = clk_prepare_enable(clk);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "enable failed for %s: rc(%d)", clk_name, rc);
@@ -1250,10 +1453,10 @@ int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info,
 	return rc;
 }
 
-int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info,
+int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info, int cesta_client_idx,
 	bool optional_clk, int32_t clk_idx)
 {
-
+	int rc = 0;
 	struct clk *clk;
 	const char *clk_name;
 	uint32_t shared_clk_mask;
@@ -1279,21 +1482,43 @@ int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info,
 	CAM_DBG(CAM_UTIL, "disable %s", clk_name);
 	if (!clk)
 		return 0;
+
 	clk_disable_unprepare(clk);
 
-	if (CAM_IS_BIT_SET(shared_clk_mask, clk_idx)) {
-		CAM_DBG(CAM_UTIL,
-			"Dev %s clk %s Disabling Shared clk, set 0 rate",
-			soc_info->dev_name, clk_name);
-		cam_soc_util_clk_wrapper_set_clk_rate(clk_id, soc_info, clk, 0);
-	} else if (soc_info->mmrm_handle && (!skip_mmrm_set_rate) &&
-			(soc_info->src_clk_idx == clk_idx)) {
-		CAM_DBG(CAM_UTIL,
-			"Dev %s Disabling %s clk, set 0 rate", soc_info->dev_name, clk_name);
-		cam_soc_util_set_rate_through_mmrm(
-			soc_info->mmrm_handle,
-			soc_info->is_nrt_dev,
-			0, 0, 1);
+	if ((clk_idx == soc_info->src_clk_idx) && soc_info->is_clk_drv_en &&
+		CAM_IS_VALID_CESTA_IDX(cesta_client_idx)) {
+		rc = cam_soc_util_set_cesta_clk_rate(soc_info, cesta_client_idx, 0, 0,
+			&soc_info->applied_src_clk_rates.hw_client[cesta_client_idx].high,
+			&soc_info->applied_src_clk_rates.hw_client[cesta_client_idx].low);
+		if (rc) {
+			CAM_ERR(CAM_UTIL,
+				"Failed in setting cesta clk rates[high low]:[0 0] client_idx:%d rc:%d",
+				cesta_client_idx, rc);
+			return rc;
+		}
+
+		rc = cam_soc_util_cesta_channel_switch(cesta_client_idx, soc_info->dev_name);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY,
+				"Failed to apply power states for cesta_client_idx:%d rc:%d",
+				cesta_client_idx, rc);
+			return rc;
+		}
+	} else {
+		if (CAM_IS_BIT_SET(shared_clk_mask, clk_idx)) {
+			CAM_DBG(CAM_UTIL,
+				"Dev %s clk %s Disabling Shared clk, set 0 rate",
+				soc_info->dev_name, clk_name);
+			cam_soc_util_clk_wrapper_set_clk_rate(clk_id, soc_info, clk, 0);
+		} else if (soc_info->mmrm_handle && (!skip_mmrm_set_rate) &&
+				(soc_info->src_clk_idx == clk_idx)) {
+			CAM_DBG(CAM_UTIL, "Dev %s Disabling %s clk, set 0 rate",
+				soc_info->dev_name, clk_name);
+			cam_soc_util_set_rate_through_mmrm(
+				soc_info->mmrm_handle,
+				soc_info->is_nrt_dev,
+				0, 0, 1);
+		}
 	}
 
 	return 0;
@@ -1306,16 +1531,16 @@ int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info,
  *                      in soc_info
  *
  * @soc_info:           Device soc struct to be populated
+ * @cesta_client_idx:   CESTA Client idx for hw client based src clocks
  * @clk_level:          Clk level to apply while enabling
  *
  * @return:             success or failure
  */
 int cam_soc_util_clk_enable_default(struct cam_hw_soc_info *soc_info,
-	enum cam_vote_level clk_level)
+	int cesta_client_idx, enum cam_vote_level clk_level)
 {
 	int                          i, rc = 0;
 	enum cam_vote_level          apply_level;
-	unsigned long                applied_clk_rate;
 
 	if ((soc_info->num_clk == 0) ||
 		(soc_info->num_clk >= CAM_SOC_MAX_CLK)) {
@@ -1326,29 +1551,35 @@ int cam_soc_util_clk_enable_default(struct cam_hw_soc_info *soc_info,
 
 	rc = cam_soc_util_get_clk_level_to_apply(soc_info, clk_level,
 		&apply_level);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "[%s] : failed to get level clk_level=%d, rc=%d",
+			soc_info->dev_name, clk_level, rc);
 		return rc;
+	}
 
 	if (soc_info->cam_cx_ipeak_enable)
 		cam_cx_ipeak_update_vote_cx_ipeak(soc_info, apply_level);
 
+	CAM_DBG(CAM_UTIL, "Dev[%s] : cesta client %d, request level %s, apply level %s",
+		soc_info->dev_name, cesta_client_idx,
+		cam_soc_util_get_string_from_level(clk_level),
+		cam_soc_util_get_string_from_level(apply_level));
+
+	memset(&soc_info->applied_src_clk_rates, 0, sizeof(struct cam_soc_util_clk_rates));
+
 	for (i = 0; i < soc_info->num_clk; i++) {
-		rc = cam_soc_util_clk_enable(soc_info, false, i, apply_level,
-			&applied_clk_rate);
-		if (rc)
+		rc = cam_soc_util_clk_enable(soc_info, cesta_client_idx, false, i, apply_level);
+		if (rc) {
+			CAM_ERR(CAM_UTIL,
+				"[%s] : failed to enable clk apply_level=%d, rc=%d, cesta_client_idx=%d",
+				soc_info->dev_name, apply_level, rc, cesta_client_idx);
 			goto clk_disable;
-
-		if (i == soc_info->src_clk_idx)
-			soc_info->applied_src_clk_rate = applied_clk_rate;
-
-		if (soc_info->cam_cx_ipeak_enable) {
-			CAM_DBG(CAM_UTIL,
-			"dev name = %s clk name = %s idx = %d\n"
-			"apply_level = %d clc idx = %d",
-			soc_info->dev_name, soc_info->clk_name[i], i,
-			apply_level, i);
 		}
 
+		if (soc_info->cam_cx_ipeak_enable)
+			CAM_DBG(CAM_UTIL,
+				"dev name = %s clk name = %s idx = %d apply_level = %d clc idx = %d",
+				soc_info->dev_name, soc_info->clk_name[i], i, apply_level, i);
 	}
 
 	return rc;
@@ -1357,7 +1588,7 @@ clk_disable:
 	if (soc_info->cam_cx_ipeak_enable)
 		cam_cx_ipeak_update_vote_cx_ipeak(soc_info, 0);
 	for (i--; i >= 0; i--) {
-		cam_soc_util_clk_disable(soc_info, false, i);
+		cam_soc_util_clk_disable(soc_info, cesta_client_idx, false, i);
 	}
 
 	return rc;
@@ -1370,10 +1601,12 @@ clk_disable:
  *                      in soc_info
  *
  * @soc_info:           device soc struct to be populated
+ * @cesta_client_idx:   CESTA Client idx for hw client based src clocks
  *
  * @return:             success or failure
  */
-void cam_soc_util_clk_disable_default(struct cam_hw_soc_info *soc_info)
+void cam_soc_util_clk_disable_default(struct cam_hw_soc_info *soc_info,
+	int cesta_client_idx)
 {
 	int i;
 
@@ -1383,7 +1616,7 @@ void cam_soc_util_clk_disable_default(struct cam_hw_soc_info *soc_info)
 	if (soc_info->cam_cx_ipeak_enable)
 		cam_cx_ipeak_unvote_cx_ipeak(soc_info);
 	for (i = soc_info->num_clk - 1; i >= 0; i--)
-		cam_soc_util_clk_disable(soc_info, false, i);
+		cam_soc_util_clk_disable(soc_info, cesta_client_idx, false, i);
 }
 
 /**
@@ -1650,26 +1883,40 @@ end:
 }
 
 int cam_soc_util_set_clk_rate_level(struct cam_hw_soc_info *soc_info,
-	enum cam_vote_level clk_level, bool do_not_set_src_clk)
+	int cesta_client_idx, enum cam_vote_level clk_level_high,
+	enum cam_vote_level clk_level_low, bool do_not_set_src_clk)
 {
 	int i, rc = 0;
-	enum cam_vote_level apply_level;
+	enum cam_vote_level apply_level_high;
+	enum cam_vote_level apply_level_low = CAM_LOWSVS_VOTE;
 	unsigned long applied_clk_rate;
 
 	if ((soc_info->num_clk == 0) ||
 		(soc_info->num_clk >= CAM_SOC_MAX_CLK)) {
-		CAM_ERR(CAM_UTIL, "Invalid number of clock %d",
-			soc_info->num_clk);
+		CAM_ERR(CAM_UTIL, "Invalid number of clock %d", soc_info->num_clk);
 		return -EINVAL;
 	}
 
-	rc = cam_soc_util_get_clk_level_to_apply(soc_info, clk_level,
-		&apply_level);
-	if (rc)
+	rc = cam_soc_util_get_clk_level_to_apply(soc_info, clk_level_high,
+		&apply_level_high);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "[%s] : failed to get level clk_level_high=%d, rc=%d",
+			soc_info->dev_name, clk_level_high, rc);
 		return rc;
+	}
+
+	if (soc_info->is_clk_drv_en && CAM_IS_VALID_CESTA_IDX(cesta_client_idx)) {
+		rc = cam_soc_util_get_clk_level_to_apply(soc_info, clk_level_low,
+			&apply_level_low);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "[%s] : failed to get level clk_level_low=%d, rc=%d",
+				soc_info->dev_name, clk_level_low, rc);
+			return rc;
+		}
+	}
 
 	if (soc_info->cam_cx_ipeak_enable)
-		cam_cx_ipeak_update_vote_cx_ipeak(soc_info, apply_level);
+		cam_cx_ipeak_update_vote_cx_ipeak(soc_info, apply_level_high);
 
 	for (i = 0; i < soc_info->num_clk; i++) {
 		if (do_not_set_src_clk && (i == soc_info->src_clk_idx)) {
@@ -1678,30 +1925,47 @@ int cam_soc_util_set_clk_rate_level(struct cam_hw_soc_info *soc_info,
 			continue;
 		}
 
-		CAM_DBG(CAM_UTIL, "Set rate for clk %s rate %d",
-			soc_info->clk_name[i],
-			soc_info->clk_rate[apply_level][i]);
+		if (soc_info->is_clk_drv_en && CAM_IS_VALID_CESTA_IDX(cesta_client_idx) &&
+			(i == soc_info->src_clk_idx)) {
+			rc = cam_soc_util_set_cesta_clk_rate(soc_info, cesta_client_idx,
+				soc_info->clk_rate[apply_level_high][i],
+				soc_info->clk_rate[apply_level_low][i],
+				&soc_info->applied_src_clk_rates.hw_client[cesta_client_idx].high,
+				&soc_info->applied_src_clk_rates.hw_client[cesta_client_idx].low);
+			if (rc) {
+				CAM_ERR(CAM_UTIL,
+					"Failed to set the req clk level[high low]: [%s %s] cesta_client_idx: %d",
+					cam_soc_util_get_string_from_level(apply_level_high),
+					cam_soc_util_get_string_from_level(apply_level_low),
+					cesta_client_idx);
+				break;
+			}
+
+			continue;
+		}
+
+		CAM_DBG(CAM_UTIL, "Set rate for clk %s rate %d", soc_info->clk_name[i],
+			soc_info->clk_rate[apply_level_high][i]);
 
 		rc = cam_soc_util_set_clk_rate(soc_info, soc_info->clk[i],
 			soc_info->clk_name[i],
-			soc_info->clk_rate[apply_level][i],
+			soc_info->clk_rate[apply_level_high][i],
 			CAM_IS_BIT_SET(soc_info->shared_clk_mask, i),
 			(i == soc_info->src_clk_idx) ? true : false,
 			soc_info->clk_id[i],
 			&applied_clk_rate);
 		if (rc < 0) {
 			CAM_DBG(CAM_UTIL,
-				"dev name = %s clk_name = %s idx = %d\n"
-				"apply_level = %d",
+				"dev name = %s clk_name = %s idx = %d apply_level = %s",
 				soc_info->dev_name, soc_info->clk_name[i],
-				i, apply_level);
+				i, cam_soc_util_get_string_from_level(apply_level_high));
 			if (soc_info->cam_cx_ipeak_enable)
 				cam_cx_ipeak_update_vote_cx_ipeak(soc_info, 0);
 			break;
 		}
 
 		if (i == soc_info->src_clk_idx)
-			soc_info->applied_src_clk_rate = applied_clk_rate;
+			soc_info->applied_src_clk_rates.sw_client = applied_clk_rate;
 	}
 
 	return rc;
@@ -2182,8 +2446,8 @@ int cam_soc_util_regulator_enable(struct regulator *rgltr,
 	}
 
 	if (regulator_count_voltages(rgltr) > 0) {
-		CAM_DBG(CAM_UTIL, "voltage min=%d, max=%d",
-			rgltr_min_volt, rgltr_max_volt);
+		CAM_DBG(CAM_UTIL, "[%s] voltage min=%d, max=%d",
+			rgltr_name, rgltr_min_volt, rgltr_max_volt);
 
 		rc = regulator_set_voltage(
 			rgltr, rgltr_min_volt, rgltr_max_volt);
@@ -2410,6 +2674,8 @@ static int cam_soc_util_regulator_enable_default(
 	}
 
 	for (j = 0; j < num_rgltr; j++) {
+		CAM_DBG(CAM_UTIL, "[%s] : start regulator %s enable, rgltr_ctrl_support %d",
+			soc_info->dev_name, soc_info->rgltr_name[j], soc_info->rgltr_ctrl_support);
 		if (soc_info->rgltr_ctrl_support == true) {
 			rc = cam_soc_util_regulator_enable(soc_info->rgltr[j],
 				soc_info->rgltr_name[j],
@@ -2851,7 +3117,8 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 }
 
 int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
-	bool enable_clocks, enum cam_vote_level clk_level, bool enable_irq)
+	int cesta_client_idx, bool enable_clocks, enum cam_vote_level clk_level,
+	bool enable_irq)
 {
 	int rc = 0;
 
@@ -2865,7 +3132,7 @@ int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 	}
 
 	if (enable_clocks) {
-		rc = cam_soc_util_clk_enable_default(soc_info, clk_level);
+		rc = cam_soc_util_clk_enable_default(soc_info, cesta_client_idx, clk_level);
 		if (rc)
 			goto disable_regulator;
 	}
@@ -2880,7 +3147,7 @@ int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 
 disable_clk:
 	if (enable_clocks)
-		cam_soc_util_clk_disable_default(soc_info);
+		cam_soc_util_clk_disable_default(soc_info, cesta_client_idx);
 
 disable_regulator:
 	cam_soc_util_regulator_disable_default(soc_info);
@@ -2889,7 +3156,7 @@ disable_regulator:
 }
 
 int cam_soc_util_disable_platform_resource(struct cam_hw_soc_info *soc_info,
-	bool disable_clocks, bool disable_irq)
+	int cesta_client_idx, bool disable_clocks, bool disable_irq)
 {
 	int rc = 0;
 
@@ -2900,7 +3167,7 @@ int cam_soc_util_disable_platform_resource(struct cam_hw_soc_info *soc_info,
 		rc |= cam_soc_util_irq_disable(soc_info);
 
 	if (disable_clocks)
-		cam_soc_util_clk_disable_default(soc_info);
+		cam_soc_util_clk_disable_default(soc_info, cesta_client_idx);
 
 	cam_soc_util_regulator_disable_default(soc_info);
 
@@ -3647,6 +3914,33 @@ int cam_soc_util_print_clk_freq(struct cam_hw_soc_info *soc_info)
 	}
 
 	return 0;
+}
+
+inline unsigned long cam_soc_util_get_applied_src_clk(
+	struct cam_hw_soc_info *soc_info, bool is_max)
+{
+	unsigned long clk_rate;
+
+	/*
+	 * For CRMC type, exa - ife, csid, cphy
+	 *     final clk = max(hw_client_0, hw_client_1, hw_client_2, sw_client)
+	 * For CRMB type, exa - camnoc axi
+	 *     final clk = max(hw_client_0 + hw_client_1 + hw_client_2, sw_client)
+	 */
+
+	if (is_max) {
+		clk_rate = max(soc_info->applied_src_clk_rates.hw_client[0].high,
+			soc_info->applied_src_clk_rates.hw_client[1].high);
+		clk_rate = max(clk_rate, soc_info->applied_src_clk_rates.hw_client[2].high);
+		clk_rate = max(clk_rate, soc_info->applied_src_clk_rates.sw_client);
+	} else {
+		clk_rate = max((soc_info->applied_src_clk_rates.hw_client[0].high +
+			soc_info->applied_src_clk_rates.hw_client[1].high +
+			soc_info->applied_src_clk_rates.hw_client[2].high),
+			soc_info->applied_src_clk_rates.sw_client);
+	}
+
+	return clk_rate;
 }
 
 int cam_soc_util_regulators_enabled(struct cam_hw_soc_info *soc_info)

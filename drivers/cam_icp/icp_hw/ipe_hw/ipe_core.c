@@ -366,7 +366,7 @@ int cam_ipe_process_cmd(void *device_priv, uint32_t cmd_type,
 		return -EINVAL;
 	}
 
-	if (cmd_type >= CAM_ICP_IPE_CMD_MAX) {
+	if (cmd_type >= CAM_ICP_DEV_CMD_MAX) {
 		CAM_ERR(CAM_ICP, "Invalid command : %x", cmd_type);
 		return -EINVAL;
 	}
@@ -376,7 +376,7 @@ int cam_ipe_process_cmd(void *device_priv, uint32_t cmd_type,
 	hw_info = core_info->ipe_hw_info;
 
 	switch (cmd_type) {
-	case CAM_ICP_IPE_CMD_VOTE_CPAS: {
+	case CAM_ICP_DEV_CMD_VOTE_CPAS: {
 		struct cam_icp_cpas_vote *cpas_vote = cmd_args;
 
 		if (!cmd_args)
@@ -386,7 +386,7 @@ int cam_ipe_process_cmd(void *device_priv, uint32_t cmd_type,
 		break;
 	}
 
-	case CAM_ICP_IPE_CMD_CPAS_START: {
+	case CAM_ICP_DEV_CMD_CPAS_START: {
 		struct cam_icp_cpas_vote *cpas_vote = cmd_args;
 
 		if (!cmd_args)
@@ -400,20 +400,20 @@ int cam_ipe_process_cmd(void *device_priv, uint32_t cmd_type,
 		break;
 	}
 
-	case CAM_ICP_IPE_CMD_CPAS_STOP:
+	case CAM_ICP_DEV_CMD_CPAS_STOP:
 		if (core_info->cpas_start) {
 			cam_cpas_stop(core_info->cpas_handle);
 			core_info->cpas_start = false;
 		}
 		break;
-	case CAM_ICP_IPE_CMD_POWER_COLLAPSE:
+	case CAM_ICP_DEV_CMD_POWER_COLLAPSE:
 		rc = cam_ipe_handle_pc(ipe_dev);
 		break;
-	case CAM_ICP_IPE_CMD_POWER_RESUME:
+	case CAM_ICP_DEV_CMD_POWER_RESUME:
 		rc = cam_ipe_handle_resume(ipe_dev);
 		break;
-	case CAM_ICP_IPE_CMD_UPDATE_CLK: {
-		struct cam_icp_clk_update_cmd *clk_upd_cmd = cmd_args;
+	case CAM_ICP_DEV_CMD_UPDATE_CLK: {
+		struct cam_icp_dev_clk_update_cmd *clk_upd_cmd = cmd_args;
 		struct cam_ahb_vote ahb_vote;
 		uint32_t clk_rate = clk_upd_cmd->curr_clk_rate;
 		int32_t clk_level  = 0, err = 0;
@@ -457,12 +457,12 @@ int cam_ipe_process_cmd(void *device_priv, uint32_t cmd_type,
 		}
 		break;
 	}
-	case CAM_ICP_IPE_CMD_DISABLE_CLK:
+	case CAM_ICP_DEV_CMD_DISABLE_CLK:
 		if (core_info->clk_enable == true)
 			cam_ipe_toggle_clk(soc_info, false);
 		core_info->clk_enable = false;
 		break;
-	case CAM_ICP_IPE_CMD_RESET:
+	case CAM_ICP_DEV_CMD_RESET:
 		rc = cam_ipe_cmd_reset(soc_info, core_info);
 		break;
 	default:

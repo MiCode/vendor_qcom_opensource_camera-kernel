@@ -12,15 +12,21 @@
 #include "hfi_intf.h"
 #include "cam_icp_soc_common.h"
 
-static int __ubwc_config_get(struct device_node *np, char *name, uint32_t *cfg)
+static int __ubwc_config_get(struct device_node *np, char *name, uint32_t *cfg, bool *ubwc_listed)
 {
-	int nconfig;
-	int i, rc;
+	int nconfig, i, rc;
 
 	nconfig = of_property_count_u32_elems(np, name);
-	if (nconfig < 0 || nconfig > ICP_UBWC_CFG_MAX) {
-		CAM_ERR(CAM_ICP, "Invalid number of UBWC configs[=%d]",
-			nconfig);
+	if (nconfig < 0) {
+		CAM_DBG(CAM_ICP, "prop: %s is not listed", name);
+		*ubwc_listed = false;
+		return 0;
+	}
+	*ubwc_listed = true;
+
+	if (nconfig > ICP_UBWC_CFG_MAX) {
+		CAM_ERR(CAM_ICP, "Invalid number of UBWC configs[=%d] MAX UBWC=%d",
+			nconfig, ICP_UBWC_CFG_MAX);
 		return -EINVAL;
 	}
 
@@ -40,38 +46,83 @@ static int __ubwc_config_get(struct device_node *np, char *name, uint32_t *cfg)
 static int cam_icp_soc_ubwc_config_get(struct device_node *np,
 	struct cam_icp_soc_info *icp_soc_info)
 {
-	struct cam_icp_ubwc_cfg *ubwc_cfg_ext = NULL;
+	struct cam_icp_ubwc_cfg *ubwc_cfg_ext;
 	int rc;
 	uint32_t dev_type;
+	bool ubwc_listed, ubwc_fetch_found, ubwc_write_found;
 
 	dev_type = icp_soc_info->dev_type;
-	ubwc_cfg_ext = &icp_soc_info->uconfig.ubwc_cfg_ext;
 
-	rc = __ubwc_config_get(np, "ubwc-ipe-fetch-cfg", ubwc_cfg_ext->ipe_fetch);
-	if (rc) {
-		if (dev_type == CAM_ICP_DEV_ICP_V1) {
-			rc = __ubwc_config_get(np, "ubwc-cfg", icp_soc_info->uconfig.ubwc_cfg);
-			if (rc)
-				return rc;
+	rc = __ubwc_config_get(np, "ubwc-cfg", icp_soc_info->uconfig.ubwc_cfg,
+		&ubwc_listed);
+	if (ubwc_listed) {
+		if (dev_type == CAM_ICP_HW_ICP_V1)
 			icp_soc_info->is_ubwc_cfg = true;
-		}
 		return rc;
 	}
 
-	rc = __ubwc_config_get(np, "ubwc-ipe-write-cfg",
-		icp_soc_info->uconfig.ubwc_cfg_ext.ipe_write);
+	ubwc_cfg_ext = &icp_soc_info->uconfig.ubwc_cfg_ext;
+	rc = __ubwc_config_get(np, "ubwc-ipe-fetch-cfg",
+		ubwc_cfg_ext->ipe_fetch, &ubwc_fetch_found);
 	if (rc)
 		return rc;
 
+	rc = __ubwc_config_get(np, "ubwc-ipe-write-cfg",
+		ubwc_cfg_ext->ipe_write, &ubwc_write_found);
+	if (rc)
+		return rc;
+
+	if (ubwc_fetch_found && ubwc_write_found)
+		ubwc_cfg_ext->found_ubwc_cfg_mask |= BIT(CAM_ICP_DEV_IPE);
+	else {
+		if (ubwc_fetch_found ^ ubwc_write_found) {
+			CAM_ERR(CAM_ICP, "Missing %s ipe ubwc config",
+				ubwc_fetch_found ? "write" : "fetch");
+			return -EINVAL;
+		}
+	}
+
 	rc = __ubwc_config_get(np, "ubwc-bps-fetch-cfg",
-		icp_soc_info->uconfig.ubwc_cfg_ext.bps_fetch);
+		ubwc_cfg_ext->bps_fetch, &ubwc_fetch_found);
 	if (rc)
 		return rc;
 
 	rc = __ubwc_config_get(np, "ubwc-bps-write-cfg",
-		icp_soc_info->uconfig.ubwc_cfg_ext.bps_write);
+		ubwc_cfg_ext->bps_write, &ubwc_write_found);
+	if (rc)
+		return rc;
 
-	return rc;
+	if (ubwc_fetch_found && ubwc_write_found)
+		ubwc_cfg_ext->found_ubwc_cfg_mask |= BIT(CAM_ICP_DEV_BPS);
+	else {
+		if (ubwc_fetch_found ^ ubwc_write_found) {
+			CAM_ERR(CAM_ICP, "Missing %s bps ubwc config",
+				ubwc_fetch_found ? "write" : "fetch");
+			return -EINVAL;
+		}
+	}
+
+	rc = __ubwc_config_get(np, "ubwc-ofe-fetch-cfg",
+		ubwc_cfg_ext->ofe_fetch, &ubwc_fetch_found);
+	if (rc)
+		return rc;
+
+	rc = __ubwc_config_get(np, "ubwc-ofe-write-cfg",
+		ubwc_cfg_ext->ofe_write, &ubwc_write_found);
+	if (rc)
+		return rc;
+
+	if (ubwc_fetch_found && ubwc_write_found)
+		ubwc_cfg_ext->found_ubwc_cfg_mask |= BIT(CAM_ICP_DEV_OFE);
+	else {
+		if (ubwc_fetch_found ^ ubwc_write_found) {
+			CAM_ERR(CAM_ICP, "Missing %s ofe ubwc config",
+				ubwc_fetch_found ? "write" : "fetch");
+			return -EINVAL;
+		}
+	}
+
+	return 0;
 }
 
 static inline void cam_icp_soc_qos_get(struct device_node *np,
@@ -181,7 +232,7 @@ int cam_icp_soc_resources_enable(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 		CAM_SVS_VOTE, true);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to enable soc resources rc=%d", rc);
@@ -193,7 +244,7 @@ int cam_icp_soc_resources_disable(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to disable soc resources rc=%d", rc);
 
@@ -201,7 +252,7 @@ int cam_icp_soc_resources_disable(struct cam_hw_soc_info *soc_info)
 }
 
 int cam_icp_soc_update_clk_rate(struct cam_hw_soc_info *soc_info,
-	int32_t clk_level)
+	int32_t clk_level, int hfi_handle)
 {
 	int32_t src_clk_idx = 0;
 	int32_t clk_rate = 0;
@@ -242,10 +293,10 @@ int cam_icp_soc_update_clk_rate(struct cam_hw_soc_info *soc_info,
 		clk_rate = soc_info->clk_rate[CAM_TURBO_VOTE][src_clk_idx];
 	}
 
-	rc = cam_soc_util_set_src_clk_rate(soc_info, clk_rate);
+	rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX, clk_rate, 0);
 	if (rc)
 		return rc;
 
-	hfi_send_freq_info(clk_rate);
+	hfi_send_freq_info(hfi_handle, clk_rate);
 	return 0;
 }

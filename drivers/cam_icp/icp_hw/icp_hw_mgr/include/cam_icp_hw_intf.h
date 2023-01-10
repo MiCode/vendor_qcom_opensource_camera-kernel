@@ -23,15 +23,31 @@
 #define CAM_ICP_DUMP_STATUS_REGISTERS BIT(0)
 #define CAM_ICP_DUMP_CSR_REGISTERS    BIT(1)
 
-#define CAM_ICP_MAX_ICP_DEV_TYPE 2
+#define CAM_ICP_MAX_ICP_HW_TYPE 2
+#define CAM_ICP_DEV_START_IDX CAM_ICP_MAX_ICP_HW_TYPE
 
 enum cam_icp_hw_type {
-	CAM_ICP_DEV_ICP_V1,
-	CAM_ICP_DEV_ICP_V2,
+	CAM_ICP_HW_ICP_V1,
+	CAM_ICP_HW_ICP_V2,
 	CAM_ICP_DEV_IPE,
 	CAM_ICP_DEV_BPS,
 	CAM_ICP_DEV_OFE,
-	CAM_ICP_DEV_MAX,
+	CAM_ICP_HW_MAX,
+};
+
+#define CAM_ICP_DEV_NUM          (CAM_ICP_HW_MAX - CAM_ICP_DEV_START_IDX)
+
+enum cam_icp_dev_cmd_type {
+	CAM_ICP_DEV_CMD_POWER_COLLAPSE,
+	CAM_ICP_DEV_CMD_POWER_RESUME,
+	CAM_ICP_DEV_CMD_SET_FW_BUF,
+	CAM_ICP_DEV_CMD_VOTE_CPAS,
+	CAM_ICP_DEV_CMD_CPAS_START,
+	CAM_ICP_DEV_CMD_CPAS_STOP,
+	CAM_ICP_DEV_CMD_UPDATE_CLK,
+	CAM_ICP_DEV_CMD_DISABLE_CLK,
+	CAM_ICP_DEV_CMD_RESET,
+	CAM_ICP_DEV_CMD_MAX
 };
 
 enum cam_icp_cmd_type {
@@ -51,6 +67,7 @@ enum cam_icp_cmd_type {
 	CAM_ICP_CMD_HW_DUMP,
 	CAM_ICP_CMD_HW_MINI_DUMP,
 	CAM_ICP_CMD_HW_REG_DUMP,
+	CAM_ICP_CMD_SET_HFI_HANDLE,
 	CAM_ICP_CMD_MAX,
 };
 
@@ -82,7 +99,7 @@ struct cam_icp_boot_args {
 };
 
 /**
- * struct cam_icp_clk_update_cmd - Payload for hw manager command
+ * struct cam_icp_dev_clk_update_cmd - Payload for hw manager command
  *
  * @curr_clk_rate:        clk rate to HW
  * @clk_level:            clk level corresponding to the clk rate
@@ -90,10 +107,21 @@ struct cam_icp_boot_args {
  *                        updated to the given rate
  * @dev_pc_enable:        power collpase enable flag
  */
-struct cam_icp_clk_update_cmd {
+struct cam_icp_dev_clk_update_cmd {
 	uint32_t  curr_clk_rate;
 	int32_t clk_level;
 	bool  dev_pc_enable;
+};
+
+/**
+ * struct cam_icp_ubwc_cfg_cmd - ubwc cmd to send
+ *
+ * @ubwc_cfg_dev_mask: mask to indicate which device ubwc cfg to send to fw
+ * @disable_ubwc_comp: flag to force disable ubwc
+ */
+struct cam_icp_ubwc_cfg_cmd {
+	uint32_t ubwc_cfg_dev_mask;
+	bool disable_ubwc_comp;
 };
 
 #endif

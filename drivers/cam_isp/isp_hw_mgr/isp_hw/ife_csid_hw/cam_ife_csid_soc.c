@@ -176,10 +176,20 @@ int cam_ife_csid_enable_soc_resources(
 		goto end;
 	}
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	if (!soc_private->is_ife_csid_lite) {
+		/* query this everytime to support debugfs to disable clk drv */
+		rc = cam_cpas_query_drv_enable(NULL, &soc_info->is_clk_drv_en);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Failed to query DRV enable rc:%d", rc);
+			goto stop_cpas;
+		}
+	}
+
+	rc = cam_soc_util_enable_platform_resource(soc_info,
+		(soc_info->is_clk_drv_en ? soc_info->index : CAM_CLK_SW_CLIENT_IDX), true,
 		clk_level, true);
 	if (rc) {
-		CAM_ERR(CAM_ISP, "enable platform failed");
+		CAM_ERR(CAM_ISP, "enable platform failed rc %d", rc);
 		goto stop_cpas;
 	}
 
@@ -202,7 +212,9 @@ int cam_ife_csid_disable_soc_resources(struct cam_hw_soc_info *soc_info)
 	}
 	soc_private = soc_info->soc_private;
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info,
+		((soc_info->is_clk_drv_en && (!soc_private->is_ife_csid_lite)) ?
+		soc_info->index : CAM_CLK_SW_CLIENT_IDX), true, true);
 	if (rc)
 		CAM_ERR(CAM_ISP, "Disable platform failed");
 

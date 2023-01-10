@@ -67,11 +67,15 @@ struct cam_isp_bw_control_args {
  * @hw_intf:             Isp hw intf pointer
  * @request_id:          Request Id
  * @skip_clk_data_rst:   Skip resetting any clk info
+ * @is_drv_config_en:    Enable clk DRV while setting this clk rate
+ * @clock_updated:       If clock is updated for any of the cores
  */
 struct cam_isp_apply_clk_bw_args {
 	struct cam_hw_intf                *hw_intf;
 	uint64_t                           request_id;
 	bool                               skip_clk_data_rst;
+	bool                               is_drv_config_en;
+	bool                               clock_updated;
 };
 
 /*
@@ -205,6 +209,7 @@ enum cam_isp_hw_cmd_type {
 	CAM_IFE_CSID_TOP_CONFIG,
 	CAM_IFE_CSID_PROGRAM_OFFLINE_CMD,
 	CAM_IFE_CSID_SET_DUAL_SYNC_CONFIG,
+	CAM_IFE_CSID_RESET_OUT_OF_SYNC_CNT,
 	CAM_ISP_HW_CMD_CSID_DYNAMIC_SWITCH_UPDATE,
 	CAM_ISP_HW_CMD_CSID_DISCARD_INIT_FRAMES,
 	CAM_ISP_HW_CMD_BUF_UPDATE,

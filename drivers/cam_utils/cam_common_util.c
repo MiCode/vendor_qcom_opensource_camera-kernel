@@ -18,7 +18,7 @@
 #include "cam_hw.h"
 #if IS_REACHABLE(CONFIG_QCOM_VA_MINIDUMP)
 #include <soc/qcom/minidump.h>
-static  struct cam_common_mini_dump_dev_info g_minidump_dev_info;
+static struct cam_common_mini_dump_dev_info g_minidump_dev_info;
 #endif
 
 #define CAM_PRESIL_POLL_DELAY 20
@@ -191,7 +191,7 @@ static void cam_common_mini_dump_handler(void *dst, unsigned long len)
 			strlen(g_minidump_dev_info.name[i]));
 		md->waddr[i] = (void *)waddr;
 		bytes_written = g_minidump_dev_info.dump_cb[i](
-			(void *)waddr, remain_len);
+			(void *)waddr, remain_len, g_minidump_dev_info.priv_data[i]);
 		md->size[i] = bytes_written;
 		if (bytes_written >= len) {
 			CAM_WARN(CAM_UTIL, "No more space to dump");
@@ -234,9 +234,10 @@ static struct notifier_block cam_common_md_notify_blk = {
 
 int cam_common_register_mini_dump_cb(
 	cam_common_mini_dump_cb mini_dump_cb,
-	uint8_t *dev_name)
+	uint8_t *dev_name, void *priv_data)
 {
 	int rc = 0;
+	uint32_t idx;
 
 	if (g_minidump_dev_info.num_devs >= CAM_COMMON_MINI_DUMP_DEV_NUM) {
 		CAM_ERR(CAM_UTIL, "No free index available");
@@ -248,10 +249,12 @@ int cam_common_register_mini_dump_cb(
 		return -EINVAL;
 	}
 
-	g_minidump_dev_info.dump_cb[g_minidump_dev_info.num_devs] =
+	idx = g_minidump_dev_info.num_devs;
+	g_minidump_dev_info.dump_cb[idx] =
 		mini_dump_cb;
-	scnprintf(g_minidump_dev_info.name[g_minidump_dev_info.num_devs],
+	scnprintf(g_minidump_dev_info.name[idx],
 		CAM_COMMON_MINI_DUMP_DEV_NAME_LEN, dev_name);
+	g_minidump_dev_info.priv_data[idx] = priv_data;
 	g_minidump_dev_info.num_devs++;
 	if (!g_minidump_dev_info.is_registered) {
 		rc = qcom_va_md_register("Camera", &cam_common_md_notify_blk);
@@ -280,7 +283,8 @@ void *cam_common_user_dump_clock(
 	}
 
 	addr = (uint64_t *)addr_ptr;
-	*addr++ = hw_info->soc_info.applied_src_clk_rate;
+	*addr++ = cam_soc_util_get_applied_src_clk(&hw_info->soc_info, true);
+
 	return addr;
 }
 

@@ -33,6 +33,7 @@ struct cam_icp_v2_core_info {
 	struct cam_icp_v2_hw_info *hw_info;
 	int32_t reg_base_idx[ICP_V2_BASE_MAX];
 	uint32_t cpas_handle;
+	int hfi_handle;
 	enum cam_icp_v2_reg_base irq_regbase_idx;
 	struct {
 		const struct firmware *fw_elf;

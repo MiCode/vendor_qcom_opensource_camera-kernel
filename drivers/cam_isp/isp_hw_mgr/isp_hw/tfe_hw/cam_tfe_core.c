@@ -962,7 +962,7 @@ static int cam_tfe_top_set_hw_clk_rate(
 		soc_info->clk_name[soc_info->src_clk_idx],
 		soc_info->src_clk_idx, max_clk_rate);
 
-	rc = cam_soc_util_set_src_clk_rate(soc_info, max_clk_rate);
+	rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX, max_clk_rate, 0);
 
 	if (!rc)
 		top_priv->hw_clk_rate = max_clk_rate;

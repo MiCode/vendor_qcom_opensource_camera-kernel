@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -130,8 +131,8 @@ int cam_fd_soc_enable_resources(struct cam_hw_soc_info *soc_info)
 		return -EFAULT;
 	}
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true, CAM_SVS_VOTE,
-		true);
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+		CAM_SVS_VOTE, true);
 	if (rc) {
 		CAM_ERR(CAM_FD, "Error enable platform failed, rc=%d", rc);
 		goto stop_cpas;
@@ -158,7 +159,7 @@ int cam_fd_soc_disable_resources(struct cam_hw_soc_info *soc_info)
 	}
 	soc_private = soc_info->soc_private;
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 	if (rc) {
 		CAM_ERR(CAM_FD, "disable platform resources failed, rc=%d", rc);
 		return rc;

@@ -192,33 +192,77 @@ int cam_icp_proc_mini_dump(struct cam_icp_hw_dump_args *args,
 	return 0;
 }
 
-int cam_icp_proc_ubwc_configure(struct cam_icp_ubwc_cfg ubwc_cfg,
-	uint32_t force_disable_ubwc)
+static int cam_icp_proc_validate_ubwc_cfg(struct cam_icp_ubwc_cfg *ubwc_cfg,
+	uint32_t ubwc_cfg_dev_mask)
 {
+	uint32_t found_ubwc_cfg_mask = ubwc_cfg->found_ubwc_cfg_mask;
+
+	if ((ubwc_cfg_dev_mask & BIT(CAM_ICP_DEV_IPE)) &&
+		!(found_ubwc_cfg_mask & BIT(CAM_ICP_DEV_IPE))) {
+		CAM_ERR(CAM_ICP, "IPE does not have UBWC cfg value");
+		return -ENODATA;
+	}
+
+	if ((ubwc_cfg_dev_mask & BIT(CAM_ICP_DEV_BPS)) &&
+		!(found_ubwc_cfg_mask & BIT(CAM_ICP_DEV_BPS))) {
+		CAM_ERR(CAM_ICP, "BPS does not have UBWC cfg value");
+		return -ENODATA;
+	}
+
+	if ((ubwc_cfg_dev_mask & BIT(CAM_ICP_DEV_OFE)) &&
+		!(found_ubwc_cfg_mask & BIT(CAM_ICP_DEV_OFE))) {
+		CAM_ERR(CAM_ICP, "OFE does not have UBWC cfg value");
+		return -ENODATA;
+	}
+
+	return 0;
+}
+
+int cam_icp_proc_ubwc_configure(struct cam_icp_proc_ubwc_cfg_cmd *ubwc_cfg_cmd,
+	bool force_disable_ubwc, int hfi_handle)
+{
+	struct cam_icp_ubwc_cfg *ubwc_cfg;
 	int i = 0, ddr_type, rc;
-	uint32_t ipe_ubwc_cfg[ICP_UBWC_CFG_MAX];
-	uint32_t bps_ubwc_cfg[ICP_UBWC_CFG_MAX];
+	uint32_t ipe_ubwc_cfg[ICP_UBWC_CFG_MAX] = {0};
+	uint32_t bps_ubwc_cfg[ICP_UBWC_CFG_MAX] = {0};
+	uint32_t ofe_ubwc_cfg[ICP_UBWC_CFG_MAX] = {0};
+
+	if (!ubwc_cfg_cmd) {
+		CAM_ERR(CAM_ICP, "ubwc config command is NULL");
+		return -EINVAL;
+	}
+
+	ubwc_cfg = ubwc_cfg_cmd->ubwc_cfg;
+	rc = cam_icp_proc_validate_ubwc_cfg(ubwc_cfg, ubwc_cfg_cmd->ubwc_cfg_dev_mask);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "UBWC config failed validation rc:%d", rc);
+		return rc;
+	}
 
 	ddr_type = cam_get_ddr_type();
 
 	if (ddr_type == DDR_TYPE_LPDDR5 || ddr_type == DDR_TYPE_LPDDR5X)
 		i = 1;
 
-	ipe_ubwc_cfg[0] = ubwc_cfg.ipe_fetch[i];
-	ipe_ubwc_cfg[1] = ubwc_cfg.ipe_write[i];
+	ipe_ubwc_cfg[0] = ubwc_cfg->ipe_fetch[i];
+	ipe_ubwc_cfg[1] = ubwc_cfg->ipe_write[i];
 
-	bps_ubwc_cfg[0] = ubwc_cfg.bps_fetch[i];
-	bps_ubwc_cfg[1] = ubwc_cfg.bps_write[i];
+	bps_ubwc_cfg[0] = ubwc_cfg->bps_fetch[i];
+	bps_ubwc_cfg[1] = ubwc_cfg->bps_write[i];
+
+	ofe_ubwc_cfg[0] = ubwc_cfg->ofe_fetch[i];
+	ofe_ubwc_cfg[1] = ubwc_cfg->ofe_write[i];
 
 	if (force_disable_ubwc) {
 		ipe_ubwc_cfg[1] &= ~CAM_ICP_UBWC_COMP_EN;
 		bps_ubwc_cfg[1] &= ~CAM_ICP_UBWC_COMP_EN;
+		ofe_ubwc_cfg[1] &= ~CAM_ICP_UBWC_COMP_EN;
 		CAM_DBG(CAM_ICP,
-			"Force disable UBWC compression, ipe_ubwc_cfg: 0x%x, bps_ubwc_cfg: 0x%x",
-			ipe_ubwc_cfg[1], bps_ubwc_cfg[1]);
+			"Force disable UBWC compression, ipe_ubwc_cfg: 0x%x, bps_ubwc_cfg: 0x%x ofe_ubwc_cfg: 0x%x",
+			ipe_ubwc_cfg[1], bps_ubwc_cfg[1], ofe_ubwc_cfg[1]);
 	}
 
-	rc = hfi_cmd_ubwc_config_ext(ipe_ubwc_cfg, bps_ubwc_cfg);
+	rc = hfi_cmd_ubwc_config_ext(hfi_handle, ipe_ubwc_cfg, bps_ubwc_cfg, ofe_ubwc_cfg);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "Failed to write UBWC configure rc=%d", rc);
 		return rc;

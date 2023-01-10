@@ -1908,7 +1908,7 @@ int cam_hw_cdm_get_cdm_config(struct cam_hw_info *cdm_hw)
 
 	core = (struct cam_cdm *)cdm_hw->core_info;
 	soc_info = &cdm_hw->soc_info;
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 			CAM_SVS_VOTE, true);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Enable platform failed for dev %s",
@@ -1983,8 +1983,7 @@ int cam_hw_cdm_get_cdm_config(struct cam_hw_info *cdm_hw)
 	}
 
 disable_platform_resource:
-	ret = cam_soc_util_disable_platform_resource(soc_info, true, true);
-
+	ret = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 	if (ret) {
 		CAM_ERR(CAM_CDM, "disable platform failed for dev %s",
 				soc_info->dev_name);
@@ -2012,7 +2011,7 @@ int cam_hw_cdm_init(void *hw_priv,
 	soc_info = &cdm_hw->soc_info;
 	cdm_core = (struct cam_cdm *)cdm_hw->core_info;
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 		CAM_SVS_VOTE, true);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Enable platform failed for %s%d",
@@ -2054,7 +2053,7 @@ disable_return:
 	flags = cam_hw_util_hw_lock_irqsave(cdm_hw);
 	cdm_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
 	cam_hw_util_hw_unlock_irqrestore(cdm_hw, flags);
-	cam_soc_util_disable_platform_resource(soc_info, true, true);
+	cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 end:
 	return rc;
 }
@@ -2102,7 +2101,7 @@ int cam_hw_cdm_pf_deinit(void *hw_priv,
 	cdm_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
 	cam_hw_util_hw_unlock_irqrestore(cdm_hw, flags);
 
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 	if (rc)
 		CAM_ERR(CAM_CDM, "disable platform failed for %s%u",
 			soc_info->label_name, soc_info->index);
@@ -2178,7 +2177,7 @@ int cam_hw_cdm_deinit(void *hw_priv,
 	flags = cam_hw_util_hw_lock_irqsave(cdm_hw);
 	cdm_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
 	cam_hw_util_hw_unlock_irqrestore(cdm_hw, flags);
-	rc = cam_soc_util_disable_platform_resource(soc_info, true, true);
+	rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "disable platform failed for %s%u",
 			soc_info->label_name, soc_info->index);

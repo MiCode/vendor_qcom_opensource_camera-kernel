@@ -31,6 +31,7 @@ static void cam_cpas_update_monitor_array(struct cam_hw_info *cpas_hw,
 	const char *identifier_string, int32_t identifier_value);
 static void cam_cpas_dump_monitor_array(
 	struct cam_hw_info *cpas_hw);
+static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw, bool ddr_only);
 
 static void cam_cpas_process_drv_bw_overrides(
 	struct cam_cpas_bus_client *bus_client, uint64_t *high_ab, uint64_t *high_ib,
@@ -764,7 +765,7 @@ static bool cam_cpas_calculate_smart_qos(
 	struct cam_cpas_tree_node *niu_node;
 	uint8_t i;
 	bool needs_update = false;
-	uint64_t bw_per_kb, max_bw_per_kb = 0, remainder, ramp_val;
+	uint64_t bw_per_kb, total_camnoc_bw, max_bw_per_kb = 0, remainder, ramp_val;
 	uint64_t total_bw_per_kb = 0, total_bw_ramp_val = 0;
 	int8_t pos;
 	uint64_t priority;
@@ -773,7 +774,17 @@ static bool cam_cpas_calculate_smart_qos(
 	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
 
-		bw_per_kb = niu_node->camnoc_bw;
+		bw_per_kb = niu_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.camnoc;
+
+		if (soc_private->enable_cam_clk_drv)
+			bw_per_kb += niu_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.high.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.low.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.high.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.low.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.high.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.low.camnoc;
+
+		total_camnoc_bw = bw_per_kb;
 		remainder = do_div(bw_per_kb, niu_node->niu_size);
 		total_bw_per_kb += bw_per_kb;
 
@@ -781,8 +792,8 @@ static bool cam_cpas_calculate_smart_qos(
 			max_bw_per_kb = bw_per_kb;
 
 		CAM_DBG(CAM_PERF,
-			"NIU[%d][%s]camnoc_bw %llu, niu_size %u, bw_per_kb %lld, remainder %lld, max_bw_per_kb %lld, total_bw_per_kb %lld",
-			i, niu_node->node_name, niu_node->camnoc_bw, niu_node->niu_size,
+			"NIU[%d][%s]camnoc_bw %llu, niu_size %u, init_bw_per_kb %lld, remainder %lld, max_bw_per_kb %lld, total_bw_per_kb %lld",
+			i, niu_node->node_name, total_camnoc_bw, niu_node->niu_size,
 			bw_per_kb, remainder, max_bw_per_kb, total_bw_per_kb);
 	}
 
@@ -794,7 +805,16 @@ static bool cam_cpas_calculate_smart_qos(
 	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
 
-		bw_per_kb = niu_node->camnoc_bw;
+		bw_per_kb = niu_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.camnoc;
+
+		if (soc_private->enable_cam_clk_drv)
+			bw_per_kb += niu_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.high.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.low.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.high.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.low.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.high.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.low.camnoc;
+
 		remainder = do_div(bw_per_kb, niu_node->niu_size); // --> dropping remainder
 
 		if ((bw_per_kb * CAM_CPAS_MAX_STRESS_INDICATOR) >
@@ -897,11 +917,24 @@ static bool cam_cpas_calculate_smart_qos(
 	}
 
 	if (cpas_core->smart_qos_dump && needs_update) {
+		uint64_t total_camnoc;
 		for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 			niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
+
+			total_camnoc = niu_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.camnoc;
+
+			if (soc_private->enable_cam_clk_drv)
+				total_camnoc +=
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.high.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.low.camnoc  +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.high.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.low.camnoc  +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.high.camnoc +
+				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.low.camnoc;
+
 			CAM_INFO(CAM_PERF,
-				"Node[%d][%s]camnoc_bw=%lld, niu_size=%d, offset high 0x%x, low 0x%x, Priority new high 0x%x low 0x%x, applied high 0x%x low 0x%x",
-				i, niu_node->node_name, niu_node->camnoc_bw, niu_node->niu_size,
+				"Node[%d][%s] camnoc_bw=%lld, niu_size=%d, offset high 0x%x, low 0x%x, Priority new high 0x%x low 0x%x, applied high 0x%x low 0x%x",
+				i, niu_node->node_name, total_camnoc, niu_node->niu_size,
 				niu_node->pri_lut_high_offset, niu_node->pri_lut_low_offset,
 				niu_node->curr_priority_high, niu_node->curr_priority_low,
 				niu_node->applied_priority_high, niu_node->applied_priority_low);
@@ -955,93 +988,251 @@ static int cam_cpas_apply_smart_qos(
 	return 0;
 }
 
-static int cam_cpas_util_set_camnoc_axi_clk_rate(
-	struct cam_hw_info *cpas_hw)
+static int cam_cpas_util_camnoc_drv_idx_to_cesta_hw_client_idx(int camnoc_drv_idx)
+{
+	int hw_client = -1;
+
+	switch (camnoc_drv_idx) {
+	case CAM_CPAS_PORT_HLOS_DRV:
+		hw_client = -1;
+		break;
+	case CAM_CPAS_PORT_DRV_0:
+		hw_client = 0;
+		break;
+	case CAM_CPAS_PORT_DRV_1:
+		hw_client = 1;
+		break;
+	case CAM_CPAS_PORT_DRV_2:
+		hw_client = 2;
+		break;
+	default:
+		CAM_WARN(CAM_CPAS, "Invalid drv idx %d", camnoc_drv_idx);
+		break;
+	}
+
+	return hw_client;
+}
+
+static int cam_cpas_util_set_camnoc_axi_drv_clk_rate(struct cam_hw_soc_info *soc_info,
+	struct cam_cpas_private_soc *soc_private, struct cam_cpas *cpas_core, int cesta_drv_idx)
+{
+	struct cam_cpas_tree_node *tree_node = NULL;
+	uint64_t req_drv_high_camnoc_bw = 0, intermediate_drv_high_result = 0,
+		req_drv_low_camnoc_bw = 0, intermediate_drv_low_result = 0;
+	int64_t drv_high_clk_rate = 0, drv_low_clk_rate = 0;
+	int i, rc = 0;
+
+	if (!soc_private->enable_cam_clk_drv) {
+		CAM_ERR(CAM_CPAS, "Clk DRV not enabled, can't set clk rates through cesta APIs");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < CAM_CPAS_MAX_TREE_NODES; i++) {
+		tree_node = soc_private->tree_node[i];
+		if (!tree_node ||
+			!tree_node->camnoc_max_needed)
+			continue;
+
+		if (req_drv_high_camnoc_bw <
+			(tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc *
+			tree_node->bus_width_factor))
+			req_drv_high_camnoc_bw =
+				(tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc *
+				tree_node->bus_width_factor);
+
+		if (req_drv_low_camnoc_bw <
+			(tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc *
+			tree_node->bus_width_factor))
+			req_drv_low_camnoc_bw =
+				(tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc *
+				tree_node->bus_width_factor);
+	}
+
+	intermediate_drv_high_result = req_drv_high_camnoc_bw *
+		soc_private->camnoc_axi_clk_bw_margin;
+	intermediate_drv_low_result = req_drv_low_camnoc_bw *
+		soc_private->camnoc_axi_clk_bw_margin;
+	do_div(intermediate_drv_high_result, 100);
+	do_div(intermediate_drv_low_result, 100);
+	req_drv_high_camnoc_bw += intermediate_drv_high_result;
+	req_drv_low_camnoc_bw += intermediate_drv_low_result;
+
+	/*
+	 * Since all low votes are considered as part of high votes as well, add low camnoc bw
+	 * to final requested high camnoc bw value.
+	 */
+	req_drv_high_camnoc_bw += req_drv_low_camnoc_bw;
+
+	intermediate_drv_high_result = req_drv_high_camnoc_bw;
+	intermediate_drv_low_result = req_drv_low_camnoc_bw;
+	do_div(intermediate_drv_high_result, soc_private->camnoc_bus_width);
+	do_div(intermediate_drv_low_result, soc_private->camnoc_bus_width);
+	drv_high_clk_rate = intermediate_drv_high_result;
+	drv_low_clk_rate = intermediate_drv_low_result;
+
+	if (cpas_core->streamon_clients) {
+		int hw_client_idx;
+
+		/*
+		 * cesta_drv_idx is based on enum we set in dtsi properties which is +1 of actual
+		 * corresponding hw client index
+		 */
+		hw_client_idx = cam_cpas_util_camnoc_drv_idx_to_cesta_hw_client_idx(cesta_drv_idx);
+		if (hw_client_idx == -1) {
+			CAM_ERR(CAM_CPAS, "Invalid hw client idx %d, cesta_drv_idx %d",
+				hw_client_idx, cesta_drv_idx);
+			return rc;
+		}
+
+		if (debug_drv)
+			CAM_INFO(CAM_PERF,
+				"Setting camnoc axi cesta clk rate[BW Clk] : High [%llu %lld] Low [%llu %lld] cesta/hw_client_idx:[%d][%d]",
+				req_drv_high_camnoc_bw, drv_high_clk_rate, req_drv_low_camnoc_bw,
+				drv_low_clk_rate, cesta_drv_idx, hw_client_idx);
+		else
+			CAM_DBG(CAM_PERF,
+				"Setting camnoc axi cesta clk rate[BW Clk] : High [%llu %lld] Low [%llu %lld] cesta/hw_client_idx:[%d][%d]",
+				req_drv_high_camnoc_bw, drv_high_clk_rate, req_drv_low_camnoc_bw,
+				drv_low_clk_rate, cesta_drv_idx, hw_client_idx);
+
+		rc = cam_soc_util_set_src_clk_rate(soc_info, hw_client_idx,
+			drv_high_clk_rate, drv_low_clk_rate);
+		if (rc) {
+			CAM_ERR(CAM_CPAS,
+				"Failed in setting camnoc cesta clk rates[high low]:[%ld %ld] client_idx:%d rc:%d",
+				drv_high_clk_rate, drv_low_clk_rate, hw_client_idx,
+				rc);
+			return rc;
+		}
+
+		cpas_core->applied_camnoc_axi_rate.hw_client[hw_client_idx].high =
+			drv_high_clk_rate;
+		cpas_core->applied_camnoc_axi_rate.hw_client[hw_client_idx].low =
+			drv_low_clk_rate;
+
+		if (debug_drv)
+			CAM_INFO(CAM_PERF, "Triggering channel switch for cesta client %d",
+				hw_client_idx);
+		else
+			CAM_DBG(CAM_PERF, "Triggering channel switch for cesta client %d",
+				hw_client_idx);
+
+		rc = cam_soc_util_cesta_channel_switch(hw_client_idx, "cpas_update");
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Failed to apply power states for cesta client:%d rc:%d",
+				hw_client_idx, rc);
+			return rc;
+		}
+	}
+
+	return rc;
+}
+
+static int cam_cpas_util_set_camnoc_axi_hlos_clk_rate(struct cam_hw_soc_info *soc_info,
+	struct cam_cpas_private_soc *soc_private, struct cam_cpas *cpas_core)
+{
+	struct cam_cpas_tree_node *tree_node = NULL;
+	uint64_t req_hlos_camnoc_bw = 0, intermediate_hlos_result = 0;
+	int64_t hlos_clk_rate = 0;
+	int i, rc = 0;
+	const struct camera_debug_settings *cam_debug = NULL;
+
+	for (i = 0; i < CAM_CPAS_MAX_TREE_NODES; i++) {
+		tree_node = soc_private->tree_node[i];
+		if (!tree_node || !tree_node->camnoc_max_needed)
+			continue;
+
+		if (req_hlos_camnoc_bw <
+			(tree_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.camnoc *
+			tree_node->bus_width_factor)) {
+			req_hlos_camnoc_bw =
+				(tree_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.camnoc *
+				tree_node->bus_width_factor);
+		}
+	}
+
+	intermediate_hlos_result = req_hlos_camnoc_bw * soc_private->camnoc_axi_clk_bw_margin;
+	do_div(intermediate_hlos_result, 100);
+	req_hlos_camnoc_bw += intermediate_hlos_result;
+
+	if (cpas_core->streamon_clients && (req_hlos_camnoc_bw == 0)) {
+		CAM_DBG(CAM_CPAS,
+			"Set min vote if streamon_clients is non-zero : streamon_clients=%d",
+			cpas_core->streamon_clients);
+		req_hlos_camnoc_bw = CAM_CPAS_DEFAULT_AXI_BW;
+	}
+
+	if ((req_hlos_camnoc_bw > 0) && (req_hlos_camnoc_bw < soc_private->camnoc_axi_min_ib_bw))
+		req_hlos_camnoc_bw = soc_private->camnoc_axi_min_ib_bw;
+
+	cam_debug = cam_debug_get_settings();
+	if (cam_debug && cam_debug->cpas_settings.camnoc_bw) {
+		if (cam_debug->cpas_settings.camnoc_bw < soc_private->camnoc_bus_width)
+			req_hlos_camnoc_bw = soc_private->camnoc_bus_width;
+
+		else
+			req_hlos_camnoc_bw = cam_debug->cpas_settings.camnoc_bw;
+		CAM_INFO(CAM_CPAS, "Overriding camnoc bw: %llu", req_hlos_camnoc_bw);
+	}
+
+	intermediate_hlos_result = req_hlos_camnoc_bw;
+	do_div(intermediate_hlos_result, soc_private->camnoc_bus_width);
+	hlos_clk_rate = intermediate_hlos_result;
+
+	CAM_DBG(CAM_PERF, "Setting camnoc axi HLOS clk rate[BW Clk] : [%llu %lld]",
+		req_hlos_camnoc_bw, hlos_clk_rate);
+
+	/*
+	 * CPAS hw is not powered on for the first client.
+	 * Also, clk_rate will be overwritten with default
+	 * value while power on. So, skipping this for first
+	 * client.
+	 */
+	if (cpas_core->streamon_clients) {
+		rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX,
+			hlos_clk_rate, 0);
+		if (rc)
+			CAM_ERR(CAM_CPAS,
+				"Failed in setting camnoc axi clk [BW Clk]:[%llu %lld] rc:%d",
+				req_hlos_camnoc_bw, hlos_clk_rate, rc);
+
+		cpas_core->applied_camnoc_axi_rate.sw_client = hlos_clk_rate;
+	}
+
+	return rc;
+}
+
+static int cam_cpas_util_set_camnoc_axi_clk_rate(struct cam_hw_info *cpas_hw,
+	int cesta_drv_idx)
 {
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
-	struct cam_cpas_tree_node *tree_node = NULL;
-	int rc = 0, i = 0;
-	const struct camera_debug_settings *cam_debug = NULL;
+	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
+	int rc = 0;
 
+	CAM_DBG(CAM_CPAS, "control_camnoc_axi_clk=%d", soc_private->control_camnoc_axi_clk);
 
-	CAM_DBG(CAM_CPAS, "control_camnoc_axi_clk=%d",
-		soc_private->control_camnoc_axi_clk);
-
-	if (soc_private->control_camnoc_axi_clk) {
-		struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
-		uint64_t required_camnoc_bw = 0, intermediate_result = 0;
-		int64_t clk_rate = 0;
-
-		for (i = 0; i < CAM_CPAS_MAX_TREE_NODES; i++) {
-			tree_node = soc_private->tree_node[i];
-			if (!tree_node ||
-				!tree_node->camnoc_max_needed)
-				continue;
-
-			if (required_camnoc_bw < (tree_node->camnoc_bw *
-				tree_node->bus_width_factor)) {
-				required_camnoc_bw = tree_node->camnoc_bw *
-					tree_node->bus_width_factor;
-			}
+	if (cesta_drv_idx == CAM_CPAS_PORT_HLOS_DRV) {
+		rc = cam_cpas_util_set_camnoc_axi_hlos_clk_rate(soc_info,
+			soc_private, cpas_core);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Failed in setting hlos clk rate rc: %d",
+				rc);
+			goto end;
 		}
-
-		intermediate_result = required_camnoc_bw *
-			soc_private->camnoc_axi_clk_bw_margin;
-		do_div(intermediate_result, 100);
-		required_camnoc_bw += intermediate_result;
-
-		if (cpas_core->streamon_clients && (required_camnoc_bw == 0)) {
-			CAM_DBG(CAM_CPAS,
-				"Set min vote if streamon_clients is non-zero : streamon_clients=%d",
-				cpas_core->streamon_clients);
-			required_camnoc_bw = CAM_CPAS_DEFAULT_AXI_BW;
-		}
-
-		if ((required_camnoc_bw > 0) &&
-			(required_camnoc_bw <
-			soc_private->camnoc_axi_min_ib_bw))
-			required_camnoc_bw = soc_private->camnoc_axi_min_ib_bw;
-
-		cam_debug = cam_debug_get_settings();
-		if (cam_debug && cam_debug->cpas_settings.camnoc_bw) {
-			if (cam_debug->cpas_settings.camnoc_bw <
-				soc_private->camnoc_bus_width)
-				required_camnoc_bw =
-					soc_private->camnoc_bus_width;
-			else
-				required_camnoc_bw =
-					cam_debug->cpas_settings.camnoc_bw;
-			CAM_INFO(CAM_CPAS, "Overriding camnoc bw: %llu",
-				required_camnoc_bw);
-		}
-
-		intermediate_result = required_camnoc_bw;
-		do_div(intermediate_result, soc_private->camnoc_bus_width);
-		clk_rate = intermediate_result;
-
-		CAM_DBG(CAM_CPAS,
-			"Setting camnoc axi clk rate[BW Clk] : [%llu %lld]",
-			required_camnoc_bw, clk_rate);
-
-		/*
-		 * CPAS hw is not powered on for the first client.
-		 * Also, clk_rate will be overwritten with default
-		 * value while power on. So, skipping this for first
-		 * client.
-		 */
-		if (cpas_core->streamon_clients) {
-			rc = cam_soc_util_set_src_clk_rate(soc_info, clk_rate);
-			if (rc)
-				CAM_ERR(CAM_CPAS,
-				"Failed in setting camnoc axi clk %llu %lld %d",
-				required_camnoc_bw, clk_rate, rc);
-
-			cpas_core->applied_camnoc_axi_rate = clk_rate;
+	} else {
+		rc = cam_cpas_util_set_camnoc_axi_drv_clk_rate(soc_info,
+			soc_private, cpas_core, cesta_drv_idx);
+		if (rc) {
+			CAM_ERR(CAM_CPAS,
+				"Failed in setting drv clk rate drv_idx:%d rc: %d",
+				cesta_drv_idx, rc);
+			goto end;
 		}
 	}
 
+end:
 	return rc;
 }
 
@@ -1169,75 +1360,62 @@ static int cam_cpas_axi_consolidate_path_votes(
 static int cam_cpas_update_axi_vote_bw(
 	struct cam_hw_info *cpas_hw,
 	struct cam_cpas_tree_node *cpas_tree_node,
-	int drv_voting_idx,
+	int ddr_drv_idx, int cesta_drv_idx,
 	bool   *mnoc_axi_port_updated,
 	bool   *camnoc_axi_port_updated)
 {
-	int i, axi_port_idx = -1;
+	int axi_port_idx = -1;
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
-	bool is_mnoc_updated = false;
 
-	for (i = 0; i < CAM_CPAS_MAX_DRV_PORTS; i++) {
-		axi_port_idx = cpas_tree_node->axi_port_idx_arr[i];
-		if ((axi_port_idx < 0) || (i != drv_voting_idx))
-			continue;
+	axi_port_idx = cpas_tree_node->axi_port_idx_arr[ddr_drv_idx];
 
-		if (axi_port_idx >= CAM_CPAS_MAX_AXI_PORTS) {
-			CAM_ERR(CAM_CPAS, "Invalid axi_port_idx: %d drv_idx: %d", axi_port_idx, i);
-			return -EINVAL;
-		}
-
-		memcpy(&cpas_core->axi_port[axi_port_idx].curr_bw, &cpas_tree_node->bw_info[i],
-			sizeof(struct cam_cpas_axi_bw_info));
-
-		/* Add low value to high for drv */
-		if (i > CAM_CPAS_PORT_HLOS_DRV) {
-			cpas_core->axi_port[axi_port_idx].curr_bw.drv_vote.high.ab +=
-				cpas_core->axi_port[axi_port_idx].curr_bw.drv_vote.low.ab;
-			cpas_core->axi_port[axi_port_idx].curr_bw.drv_vote.high.ib +=
-				cpas_core->axi_port[axi_port_idx].curr_bw.drv_vote.low.ib;
-		}
-
-		mnoc_axi_port_updated[axi_port_idx] = true;
-		is_mnoc_updated = true;
-	}
-
-	if (!is_mnoc_updated) {
-		CAM_ERR(CAM_CPAS, "No mnoc port was updated");
+	if ((axi_port_idx < 0) || (axi_port_idx >= CAM_CPAS_MAX_AXI_PORTS)) {
+		CAM_ERR(CAM_CPAS, "Invalid axi_port_idx: %d drv_idx: %d", axi_port_idx,
+			ddr_drv_idx);
 		return -EINVAL;
 	}
+
+	memcpy(&cpas_core->axi_port[axi_port_idx].curr_bw, &cpas_tree_node->bw_info[ddr_drv_idx],
+		sizeof(struct cam_cpas_axi_bw_info));
+
+	/* Add low value to high for drv */
+	if (ddr_drv_idx > CAM_CPAS_PORT_HLOS_DRV) {
+		cpas_core->axi_port[axi_port_idx].curr_bw.drv_vote.high.ab +=
+			cpas_core->axi_port[axi_port_idx].curr_bw.drv_vote.low.ab;
+		cpas_core->axi_port[axi_port_idx].curr_bw.drv_vote.high.ib +=
+			cpas_core->axi_port[axi_port_idx].curr_bw.drv_vote.low.ib;
+	}
+
+	mnoc_axi_port_updated[axi_port_idx] = true;
 
 	if (soc_private->control_camnoc_axi_clk)
 		return 0;
 
-	cpas_core->camnoc_axi_port[cpas_tree_node->axi_port_idx_arr[CAM_CPAS_PORT_HLOS_DRV]]
-		.camnoc_bw = cpas_tree_node->camnoc_bw;
+	if (cesta_drv_idx > CAM_CPAS_PORT_HLOS_DRV)
+		cpas_core->camnoc_axi_port[cpas_tree_node->axi_port_idx_arr[CAM_CPAS_PORT_HLOS_DRV]]
+			.curr_bw.hlos_vote.camnoc =
+			cpas_tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc +
+			cpas_tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc;
+	else
+		cpas_core->camnoc_axi_port[cpas_tree_node->axi_port_idx_arr[CAM_CPAS_PORT_HLOS_DRV]]
+			.curr_bw.hlos_vote.camnoc =
+			cpas_tree_node->bw_info[cesta_drv_idx].hlos_vote.camnoc;
+
 	camnoc_axi_port_updated[cpas_tree_node->camnoc_axi_port_idx] = true;
 	return 0;
 }
 
-static int cam_cpas_camnoc_set_vote_axi_clk_rate(
-	struct cam_hw_info *cpas_hw,
+static int cam_cpas_camnoc_set_bw_vote(struct cam_hw_info *cpas_hw,
 	bool   *camnoc_axi_port_updated)
 {
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
-	struct cam_cpas_private_soc *soc_private =
-		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	int i;
 	int rc = 0;
 	struct cam_cpas_axi_port *camnoc_axi_port = NULL;
 	uint64_t camnoc_bw;
 	uint64_t applied_ab = 0, applied_ib = 0;
-
-	if (soc_private->control_camnoc_axi_clk) {
-		rc = cam_cpas_util_set_camnoc_axi_clk_rate(cpas_hw);
-		if (rc)
-			CAM_ERR(CAM_CPAS,
-				"Failed in setting axi clk rate rc=%d", rc);
-		return rc;
-	}
 
 	/* Below code is executed if we just vote and do not set the clk rate
 	 * for camnoc
@@ -1257,10 +1435,10 @@ static int cam_cpas_camnoc_set_vote_axi_clk_rate(
 
 		CAM_DBG(CAM_PERF, "Port[%s] : camnoc_bw=%lld",
 			camnoc_axi_port->axi_port_name,
-			camnoc_axi_port->camnoc_bw);
+			camnoc_axi_port->curr_bw.hlos_vote.camnoc);
 
-		if (camnoc_axi_port->camnoc_bw)
-			camnoc_bw = camnoc_axi_port->camnoc_bw;
+		if (camnoc_axi_port->curr_bw.hlos_vote.camnoc)
+			camnoc_bw = camnoc_axi_port->curr_bw.hlos_vote.camnoc;
 		else if (camnoc_axi_port->additional_bw)
 			camnoc_bw = camnoc_axi_port->additional_bw;
 		else if (cpas_core->streamon_clients)
@@ -1304,13 +1482,14 @@ static int cam_cpas_util_apply_client_axi_vote(
 	uint32_t path_data_type;
 	bool mnoc_axi_port_updated[CAM_CPAS_MAX_AXI_PORTS] = {false};
 	bool camnoc_axi_port_updated[CAM_CPAS_MAX_AXI_PORTS] = {false};
-	uint64_t curr_camnoc_old = 0, par_camnoc_old = 0;
-	struct cam_cpas_axi_bw_info curr_mnoc_old = {0}, par_mnoc_old = {0}, curr_port_bw = {0},
-		applied_port_bw = {0};
-	int rc = 0, i = 0, drv_voting_idx;
+	struct cam_cpas_axi_bw_info curr_mnoc_old = {0}, par_mnoc_old = {0}, curr_camnoc_old = {0},
+		par_camnoc_old = {0}, curr_port_bw = {0}, applied_port_bw = {0};
+	int rc = 0, i = 0, ddr_drv_idx, merge_type_factor = 1;
 	bool apply_smart_qos = false;
 	bool rt_bw_updated = false;
 	bool camnoc_unchanged;
+	int cesta_drv_idx = CAM_CPAS_PORT_HLOS_DRV;
+	int first_ddr_drv_idx = -1, first_cesta_drv_idx = -1;
 
 	mutex_lock(&cpas_core->tree_lock);
 	if (!cpas_client->tree_node_valid) {
@@ -1362,6 +1541,7 @@ static int cam_cpas_util_apply_client_axi_vote(
 	con_axi_vote = &cpas_client->axi_vote;
 
 	cam_cpas_dump_axi_vote_info(cpas_client, "Consolidated Vote", con_axi_vote);
+	cam_cpas_dump_full_tree_state(cpas_hw, "BeforeClientVoteUpdate");
 
 	/* Traverse through node tree and update bw vote values */
 	for (i = 0; i < con_axi_vote->num_paths; i++) {
@@ -1369,131 +1549,213 @@ static int cam_cpas_util_apply_client_axi_vote(
 		path_data_type = con_axi_vote->axi_path[i].path_data_type;
 		transac_type = con_axi_vote->axi_path[i].transac_type;
 		curr_tree_node = cpas_client->tree_node[path_data_type][transac_type];
-		drv_voting_idx = curr_tree_node->drv_voting_idx;
+		ddr_drv_idx = curr_tree_node->drv_voting_idx;
+		cesta_drv_idx = curr_tree_node->drv_voting_idx;
 
-		if (cpas_core->force_hlos_drv)
-			drv_voting_idx = CAM_CPAS_PORT_HLOS_DRV;
+		if (!soc_private->enable_cam_ddr_drv || cpas_core->force_hlos_drv) {
+			ddr_drv_idx = CAM_CPAS_PORT_HLOS_DRV;
+			cesta_drv_idx = CAM_CPAS_PORT_HLOS_DRV;
+		} else if (!soc_private->enable_cam_clk_drv || cpas_core->force_cesta_sw_client) {
+			cesta_drv_idx = CAM_CPAS_PORT_HLOS_DRV;
+		}
 
-		if (curr_tree_node->camnoc_bw == con_axi_vote->axi_path[i].camnoc_bw)
-			camnoc_unchanged = true;
+		if ((ddr_drv_idx < 0) || (ddr_drv_idx > CAM_CPAS_PORT_DRV_2) ||
+			(cesta_drv_idx < 0) || (cesta_drv_idx > CAM_CPAS_PORT_DRV_2)) {
+			CAM_ERR(CAM_CPAS, "Invalid drv idx : ddr_drv_idx=%d, cesta_drv_idx=%d",
+				ddr_drv_idx, cesta_drv_idx);
+			goto unlock_tree;
+		}
 
-		curr_camnoc_old = curr_tree_node->camnoc_bw;
-		memcpy(&curr_mnoc_old, &curr_tree_node->bw_info[drv_voting_idx],
+		if (i == 0) {
+			first_ddr_drv_idx = ddr_drv_idx;
+			first_cesta_drv_idx = cesta_drv_idx;
+		} else if ((first_ddr_drv_idx != ddr_drv_idx) ||
+			(first_cesta_drv_idx != cesta_drv_idx)) {
+			/*
+			 * drv indices won't change for a given client for different paths in a
+			 * given axi vote update
+			 */
+			CAM_WARN(CAM_CPAS, "DRV indices different : DDR: %d, %d, CESTA %d %d",
+				first_ddr_drv_idx, ddr_drv_idx, first_cesta_drv_idx, cesta_drv_idx);
+		}
+
+		memcpy(&curr_camnoc_old, &curr_tree_node->bw_info[cesta_drv_idx],
+					sizeof(struct cam_cpas_axi_bw_info));
+		memcpy(&curr_mnoc_old, &curr_tree_node->bw_info[ddr_drv_idx],
 			sizeof(struct cam_cpas_axi_bw_info));
+		cam_cpas_dump_tree_vote_info(cpas_hw, curr_tree_node, "Level0 before update",
+			ddr_drv_idx, cesta_drv_idx);
 
-		cam_cpas_dump_tree_vote_info(curr_tree_node, "Level0 before update",
-			drv_voting_idx);
+		/* Check and update camnoc bw first */
+		if (con_axi_vote->axi_path[i].vote_level == CAM_CPAS_VOTE_LEVEL_HIGH) {
+			if ((apply_type != CAM_CPAS_APPLY_TYPE_STOP) &&
+				(curr_tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc ==
+				con_axi_vote->axi_path[i].camnoc_bw)) {
+				camnoc_unchanged = true;
+				goto update_l0_mnoc;
+			}
 
-		if (soc_private->enable_cam_ddr_drv && (con_axi_vote->axi_path[i].vote_level ==
-			CAM_CPAS_VOTE_LEVEL_HIGH)) {
+			curr_tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc =
+				con_axi_vote->axi_path[i].camnoc_bw;
+			curr_tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc = 0;
+		} else {
+			if (cesta_drv_idx > CAM_CPAS_PORT_HLOS_DRV) {
+				if ((apply_type != CAM_CPAS_APPLY_TYPE_STOP) &&
+					(curr_tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc
+					== con_axi_vote->axi_path[i].camnoc_bw)) {
+					camnoc_unchanged = true;
+					goto update_l0_mnoc;
+				}
+
+				curr_tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc =
+					con_axi_vote->axi_path[i].camnoc_bw;
+				curr_tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc = 0;
+			} else {
+				if (curr_tree_node->bw_info[cesta_drv_idx].hlos_vote.camnoc ==
+					con_axi_vote->axi_path[i].camnoc_bw) {
+					camnoc_unchanged = true;
+					goto update_l0_mnoc;
+				}
+
+				curr_tree_node->bw_info[cesta_drv_idx].hlos_vote.camnoc =
+					con_axi_vote->axi_path[i].camnoc_bw;
+			}
+		}
+
+update_l0_mnoc:
+		/* Check and update mnoc ab and ib */
+		if (con_axi_vote->axi_path[i].vote_level == CAM_CPAS_VOTE_LEVEL_HIGH) {
 			if ((apply_type != CAM_CPAS_APPLY_TYPE_STOP) && camnoc_unchanged &&
-				(curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ab ==
+				(curr_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ab ==
 				con_axi_vote->axi_path[i].mnoc_ab_bw) &&
-				(curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ib ==
+				(curr_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ib ==
 				con_axi_vote->axi_path[i].mnoc_ib_bw))
 				continue;
 
-			curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ab =
+			curr_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ab =
 				con_axi_vote->axi_path[i].mnoc_ab_bw;
-			curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ib =
+			curr_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ib =
 				con_axi_vote->axi_path[i].mnoc_ib_bw;
-			curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ab = 0;
-			curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ib = 0;
+			curr_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ab = 0;
+			curr_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ib = 0;
 		} else {
-			if ((drv_voting_idx > CAM_CPAS_PORT_HLOS_DRV) &&
-				!cpas_core->force_hlos_drv) {
+			if (ddr_drv_idx > CAM_CPAS_PORT_HLOS_DRV) {
 				if ((apply_type != CAM_CPAS_APPLY_TYPE_STOP) && camnoc_unchanged &&
-					(curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ab ==
+					(curr_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ab ==
 					con_axi_vote->axi_path[i].mnoc_ab_bw) &&
-					(curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ib ==
+					(curr_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ib ==
 					con_axi_vote->axi_path[i].mnoc_ib_bw))
 					continue;
 
-				curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ab =
+				curr_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ab =
 					con_axi_vote->axi_path[i].mnoc_ab_bw;
-				curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ib =
+				curr_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ib =
 					con_axi_vote->axi_path[i].mnoc_ib_bw;
-				curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ab = 0;
-				curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ib = 0;
+				curr_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ab = 0;
+				curr_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ib = 0;
 			} else {
 				if (camnoc_unchanged &&
-					(curr_tree_node->bw_info[drv_voting_idx].hlos_vote.ab ==
+					(curr_tree_node->bw_info[ddr_drv_idx].hlos_vote.ab ==
 					con_axi_vote->axi_path[i].mnoc_ab_bw) &&
-					(curr_tree_node->bw_info[drv_voting_idx].hlos_vote.ib ==
+					(curr_tree_node->bw_info[ddr_drv_idx].hlos_vote.ib ==
 					con_axi_vote->axi_path[i].mnoc_ib_bw))
 					continue;
 
-				curr_tree_node->bw_info[drv_voting_idx].hlos_vote.ab =
+				curr_tree_node->bw_info[ddr_drv_idx].hlos_vote.ab =
 					con_axi_vote->axi_path[i].mnoc_ab_bw;
-				curr_tree_node->bw_info[drv_voting_idx].hlos_vote.ib =
+				curr_tree_node->bw_info[ddr_drv_idx].hlos_vote.ib =
 					con_axi_vote->axi_path[i].mnoc_ib_bw;
 			}
 		}
 
-		curr_tree_node->camnoc_bw = con_axi_vote->axi_path[i].camnoc_bw;
-		cam_cpas_dump_tree_vote_info(curr_tree_node, "Level0 after update", drv_voting_idx);
+		cam_cpas_dump_tree_vote_info(cpas_hw, curr_tree_node, "Level0 after update",
+			ddr_drv_idx, cesta_drv_idx);
 
 		while (curr_tree_node->parent_node) {
 			par_tree_node = curr_tree_node->parent_node;
-			par_camnoc_old = par_tree_node->camnoc_bw;
-			memcpy(&par_mnoc_old, &par_tree_node->bw_info[drv_voting_idx],
+			memcpy(&par_camnoc_old, &par_tree_node->bw_info[cesta_drv_idx],
 				sizeof(struct cam_cpas_axi_bw_info));
-			cam_cpas_dump_tree_vote_info(par_tree_node, "Parent before update",
-				drv_voting_idx);
-
-			/*
-			 * Remove contribution of current node old bw from parent,
-			 * then add new bw of current level to the parent
-			 */
-			if (drv_voting_idx > CAM_CPAS_PORT_HLOS_DRV) {
-				par_tree_node->bw_info[drv_voting_idx].drv_vote.high.ab -=
-					curr_mnoc_old.drv_vote.high.ab;
-				par_tree_node->bw_info[drv_voting_idx].drv_vote.high.ib -=
-					curr_mnoc_old.drv_vote.high.ib;
-				par_tree_node->bw_info[drv_voting_idx].drv_vote.low.ab -=
-					curr_mnoc_old.drv_vote.low.ab;
-				par_tree_node->bw_info[drv_voting_idx].drv_vote.low.ib -=
-					curr_mnoc_old.drv_vote.low.ib;
-
-				par_tree_node->bw_info[drv_voting_idx].drv_vote.high.ab +=
-					curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ab;
-				par_tree_node->bw_info[drv_voting_idx].drv_vote.high.ib +=
-					curr_tree_node->bw_info[drv_voting_idx].drv_vote.high.ib;
-				par_tree_node->bw_info[drv_voting_idx].drv_vote.low.ab +=
-					curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ab;
-				par_tree_node->bw_info[drv_voting_idx].drv_vote.low.ib +=
-					curr_tree_node->bw_info[drv_voting_idx].drv_vote.low.ib;
-			} else {
-				par_tree_node->bw_info[drv_voting_idx].hlos_vote.ab -=
-					curr_mnoc_old.hlos_vote.ab;
-				par_tree_node->bw_info[drv_voting_idx].hlos_vote.ib -=
-					curr_mnoc_old.hlos_vote.ib;
-
-				par_tree_node->bw_info[drv_voting_idx].hlos_vote.ab +=
-					curr_tree_node->bw_info[drv_voting_idx].hlos_vote.ab;
-				par_tree_node->bw_info[drv_voting_idx].hlos_vote.ib +=
-					curr_tree_node->bw_info[drv_voting_idx].hlos_vote.ib;
-			}
+			memcpy(&par_mnoc_old, &par_tree_node->bw_info[ddr_drv_idx],
+				sizeof(struct cam_cpas_axi_bw_info));
+			cam_cpas_dump_tree_vote_info(cpas_hw, par_tree_node, "Parent before update",
+				ddr_drv_idx, cesta_drv_idx);
 
 			if (par_tree_node->merge_type == CAM_CPAS_TRAFFIC_MERGE_SUM) {
-				par_tree_node->camnoc_bw -= curr_camnoc_old;
-				par_tree_node->camnoc_bw += curr_tree_node->camnoc_bw;
+				merge_type_factor = 1;
 			} else if (par_tree_node->merge_type ==
 				CAM_CPAS_TRAFFIC_MERGE_SUM_INTERLEAVE) {
-				par_tree_node->camnoc_bw -= (curr_camnoc_old / 2);
-				par_tree_node->camnoc_bw += (curr_tree_node->camnoc_bw / 2);
+				merge_type_factor = 2;
 			} else {
 				CAM_ERR(CAM_CPAS, "Invalid Merge type");
 				rc = -EINVAL;
 				goto unlock_tree;
 			}
 
-			cam_cpas_dump_tree_vote_info(par_tree_node, "Parent after update",
-				drv_voting_idx);
+			/*
+			 * Remove contribution of current node old camnoc bw from parent,
+			 * then add new camnoc bw of current level to the parent
+			 */
+			if (cesta_drv_idx > CAM_CPAS_PORT_HLOS_DRV) {
+				par_tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc -=
+					(curr_camnoc_old.drv_vote.high.camnoc/merge_type_factor);
+				par_tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc -=
+					(curr_camnoc_old.drv_vote.low.camnoc/merge_type_factor);
+
+				par_tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc +=
+				(curr_tree_node->bw_info[cesta_drv_idx].drv_vote.high.camnoc/
+					merge_type_factor);
+				par_tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc +=
+				(curr_tree_node->bw_info[cesta_drv_idx].drv_vote.low.camnoc/
+					merge_type_factor);
+			} else {
+				par_tree_node->bw_info[cesta_drv_idx].hlos_vote.camnoc -=
+					(curr_camnoc_old.hlos_vote.camnoc/merge_type_factor);
+
+				par_tree_node->bw_info[cesta_drv_idx].hlos_vote.camnoc +=
+					(curr_tree_node->bw_info[cesta_drv_idx].hlos_vote.camnoc/
+					merge_type_factor);
+			}
+
+			/*
+			 * Remove contribution of current node old mnoc bw from parent,
+			 * then add new mnoc bw of current level to the parent
+			 */
+			if (ddr_drv_idx > CAM_CPAS_PORT_HLOS_DRV) {
+				par_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ab -=
+					curr_mnoc_old.drv_vote.high.ab;
+				par_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ib -=
+					curr_mnoc_old.drv_vote.high.ib;
+				par_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ab -=
+					curr_mnoc_old.drv_vote.low.ab;
+				par_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ib -=
+					curr_mnoc_old.drv_vote.low.ib;
+
+				par_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ab +=
+					curr_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ab;
+				par_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ib +=
+					curr_tree_node->bw_info[ddr_drv_idx].drv_vote.high.ib;
+				par_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ab +=
+					curr_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ab;
+				par_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ib +=
+					curr_tree_node->bw_info[ddr_drv_idx].drv_vote.low.ib;
+			} else {
+				par_tree_node->bw_info[ddr_drv_idx].hlos_vote.ab -=
+					curr_mnoc_old.hlos_vote.ab;
+				par_tree_node->bw_info[ddr_drv_idx].hlos_vote.ib -=
+					curr_mnoc_old.hlos_vote.ib;
+
+				par_tree_node->bw_info[ddr_drv_idx].hlos_vote.ab +=
+					curr_tree_node->bw_info[ddr_drv_idx].hlos_vote.ab;
+				par_tree_node->bw_info[ddr_drv_idx].hlos_vote.ib +=
+					curr_tree_node->bw_info[ddr_drv_idx].hlos_vote.ib;
+			}
+
+			cam_cpas_dump_tree_vote_info(cpas_hw, par_tree_node, "Parent after update",
+				ddr_drv_idx, cesta_drv_idx);
 
 			if (!par_tree_node->parent_node) {
 				rc = cam_cpas_update_axi_vote_bw(cpas_hw, par_tree_node,
-					drv_voting_idx, mnoc_axi_port_updated,
+					ddr_drv_idx, cesta_drv_idx, mnoc_axi_port_updated,
 					camnoc_axi_port_updated);
 				if (rc) {
 					CAM_ERR(CAM_CPAS, "Update Vote failed");
@@ -1502,10 +1764,13 @@ static int cam_cpas_util_apply_client_axi_vote(
 			}
 
 			curr_tree_node = par_tree_node;
-			curr_camnoc_old = par_camnoc_old;
+			memcpy(&curr_camnoc_old, &par_camnoc_old,
+				sizeof(struct cam_cpas_axi_bw_info));
 			memcpy(&curr_mnoc_old, &par_mnoc_old, sizeof(struct cam_cpas_axi_bw_info));
 		}
 	}
+
+	cam_cpas_dump_full_tree_state(cpas_hw, "AfterClientVoteUpdate");
 
 	if (!par_tree_node) {
 		CAM_DBG(CAM_CPAS, "No change in BW for all paths");
@@ -1675,10 +1940,18 @@ vote_start_clients:
 			sizeof(struct cam_cpas_axi_bw_info));
 	}
 
-	rc = cam_cpas_camnoc_set_vote_axi_clk_rate(cpas_hw, camnoc_axi_port_updated);
-	if (rc) {
-		CAM_ERR(CAM_CPAS, "Failed in setting axi clk rate rc=%d", rc);
-		goto unlock_tree;
+	if (soc_private->control_camnoc_axi_clk) {
+		rc = cam_cpas_util_set_camnoc_axi_clk_rate(cpas_hw, cesta_drv_idx);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Failed in setting axi clk rate rc=%d", rc);
+			goto unlock_tree;
+		}
+	} else {
+		rc = cam_cpas_camnoc_set_bw_vote(cpas_hw, camnoc_axi_port_updated);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Failed in setting camnoc bw vote rc=%d", rc);
+			goto unlock_tree;
+		}
 	}
 
 	if (soc_private->enable_smart_qos && apply_smart_qos) {
@@ -1900,8 +2173,8 @@ static int cam_cpas_util_apply_client_ahb_vote(struct cam_hw_info *cpas_hw,
 	}
 
 	if (cpas_core->streamon_clients) {
-		rc = cam_soc_util_set_clk_rate_level(&cpas_hw->soc_info,
-			highest_level, true);
+		rc = cam_soc_util_set_clk_rate_level(&cpas_hw->soc_info, CAM_CLK_SW_CLIENT_IDX,
+			highest_level, 0, true);
 		if (rc) {
 			CAM_ERR(CAM_CPAS,
 				"Failed in scaling clock rate level %d for AHB",
@@ -2129,12 +2402,18 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 	cam_cpas_dump_axi_vote_info(cpas_client, "CPAS Start Translated Vote", &axi_vote);
 
 	if (cpas_core->streamon_clients == 0) {
-		if (cpas_core->force_hlos_drv)
+		if (cpas_core->force_hlos_drv) {
 			soc_private->enable_cam_ddr_drv = false;
+			soc_private->enable_cam_clk_drv = false;
+		}
+
+		if (cpas_core->force_cesta_sw_client)
+			soc_private->enable_cam_clk_drv = false;
 
 		if (debug_drv)
-			CAM_INFO(CAM_CPAS, "DDR DRV enable:%s",
-				CAM_BOOL_TO_YESNO(soc_private->enable_cam_ddr_drv));
+			CAM_INFO(CAM_CPAS, "DRV enable[DDR CLK]:[%s %s]",
+				CAM_BOOL_TO_YESNO(soc_private->enable_cam_ddr_drv),
+				CAM_BOOL_TO_YESNO(soc_private->enable_cam_clk_drv));
 
 		rc = cam_cpas_util_apply_default_axi_vote(cpas_hw, true);
 		if (rc)
@@ -2184,8 +2463,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 				goto remove_ahb_vote;
 			}
 		}
-		CAM_DBG(CAM_CPAS, "irq_count=%d\n",
-			atomic_read(&cpas_core->irq_count));
+		CAM_DBG(CAM_CPAS, "irq_count=%d\n", atomic_read(&cpas_core->irq_count));
 
 		if (soc_private->enable_smart_qos)
 			cam_cpas_reset_niu_priorities(cpas_hw);
@@ -2205,6 +2483,11 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 
 	cpas_client->started = true;
 	cpas_core->streamon_clients++;
+
+	if (debug_drv && (cpas_core->streamon_clients == 1)) {
+		cam_cpas_log_vote(cpas_hw, false);
+		cam_cpas_dump_full_tree_state(cpas_hw, "StartFirstClient");
+	}
 
 	CAM_DBG(CAM_CPAS, "client=[%d][%s][%d] streamon_clients=%d",
 		client_indx, cpas_client->data.identifier,
@@ -2341,6 +2624,12 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		goto done;
 
 	cpas_client->started = false;
+
+	if (debug_drv && (cpas_core->streamon_clients == 1)) {
+		cam_cpas_log_vote(cpas_hw, false);
+		cam_cpas_dump_full_tree_state(cpas_hw, "StopLastClient");
+	}
+
 	cpas_core->streamon_clients--;
 
 	if (cpas_core->streamon_clients == 0) {
@@ -2613,7 +2902,6 @@ static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw, bool ddr_only)
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	uint32_t i;
-	struct cam_cpas_tree_node *curr_node;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 
 	if ((cpas_core->streamon_clients > 0) && soc_private->enable_smart_qos && !ddr_only)
@@ -2690,8 +2978,18 @@ static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw, bool ddr_only)
 	}
 
 	if (soc_private->control_camnoc_axi_clk) {
-		CAM_INFO(CAM_CPAS, "applied camnoc axi clk[%lld]",
-			cpas_core->applied_camnoc_axi_rate);
+		CAM_INFO(CAM_CPAS, "applied camnoc axi clk sw_client[%lld]",
+			cpas_core->applied_camnoc_axi_rate.sw_client);
+
+		if (soc_private->enable_cam_clk_drv)
+			CAM_INFO(CAM_CPAS,
+				"applied camnoc axi clk hw_client[high low] cesta_idx0:[%lld %lld] cesta_idx1:[%lld %lld] cesta_idx2:[%lld %lld]",
+				cpas_core->applied_camnoc_axi_rate.hw_client[0].high,
+				cpas_core->applied_camnoc_axi_rate.hw_client[0].low,
+				cpas_core->applied_camnoc_axi_rate.hw_client[1].high,
+				cpas_core->applied_camnoc_axi_rate.hw_client[1].low,
+				cpas_core->applied_camnoc_axi_rate.hw_client[2].high,
+				cpas_core->applied_camnoc_axi_rate.hw_client[2].low);
 	} else {
 		for (i = 0; i < cpas_core->num_camnoc_axi_ports; i++) {
 			CAM_INFO(CAM_CPAS,
@@ -2713,47 +3011,8 @@ static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw, bool ddr_only)
 		return 0;
 	}
 
-	/* This will traverse through all nodes in the tree and print stats*/
-	for (i = 0; i < CAM_CPAS_MAX_TREE_NODES; i++) {
-		if (!soc_private->tree_node[i])
-			continue;
-
-		curr_node = soc_private->tree_node[i];
-
-		CAM_INFO(CAM_CPAS,
-			"[%s] Cell[%d] level[%d] PortIdx[%d][%d] camnoc_bw[%d %d %lld %lld] mnoc_bw[%lld %lld]",
-			curr_node->node_name, curr_node->cell_idx,
-			curr_node->level_idx,
-			curr_node->axi_port_idx_arr[CAM_CPAS_PORT_HLOS_DRV],
-			curr_node->camnoc_axi_port_idx,
-			curr_node->camnoc_max_needed,
-			curr_node->bus_width_factor,
-			curr_node->camnoc_bw,
-			curr_node->camnoc_bw * curr_node->bus_width_factor,
-			curr_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.ab,
-			curr_node->bw_info[CAM_CPAS_PORT_HLOS_DRV].hlos_vote.ib);
-
-		if (!soc_private->enable_cam_ddr_drv)
-			continue;
-
-		CAM_INFO(CAM_CPAS,
-				"DRV PortIdx[%d][%d][%d] mnoc_bw DRV_0: [high[%lld %lld] low[%lld %lld]] DRV_1: [high[%lld %lld] low[%lld %lld]] DRV_2: [high[%lld %lld] low[%lld %lld]]",
-				curr_node->axi_port_idx_arr[CAM_CPAS_PORT_DRV_0],
-				curr_node->axi_port_idx_arr[CAM_CPAS_PORT_DRV_1],
-				curr_node->axi_port_idx_arr[CAM_CPAS_PORT_DRV_2],
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.high.ab,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.high.ib,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.low.ab,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_0].drv_vote.low.ib,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.high.ab,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.high.ib,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.low.ab,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_1].drv_vote.low.ib,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.high.ab,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.high.ib,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.low.ab,
-				curr_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.low.ib);
-	}
+	/* This will traverse through all nodes in the tree and print stats */
+	cam_cpas_dump_full_tree_state(cpas_hw, "state_dump_on_error");
 
 	cam_cpas_dump_monitor_array(cpas_hw);
 
@@ -2800,13 +3059,16 @@ static void cam_cpas_update_monitor_array(struct cam_hw_info *cpas_hw,
 		entry->axi_info[i].axi_port_name = cpas_core->axi_port[i].axi_port_name;
 		memcpy(&entry->axi_info[i].curr_bw, &cpas_core->axi_port[i].curr_bw,
 			sizeof(struct cam_cpas_axi_bw_info));
-		entry->axi_info[i].camnoc_bw = cpas_core->axi_port[i].camnoc_bw;
+
+		/* camnoc bw value not applicable for mnoc ports */
+		entry->axi_info[i].camnoc_bw = 0;
 		memcpy(&entry->axi_info[i].applied_bw, &cpas_core->axi_port[i].applied_bw,
 			sizeof(struct cam_cpas_axi_bw_info));
 		entry->axi_info[i].is_drv_started = cpas_core->axi_port[i].is_drv_started;
 	}
 
-	entry->applied_camnoc_clk = cpas_core->applied_camnoc_axi_rate;
+	memcpy(&entry->applied_camnoc_clk, &cpas_core->applied_camnoc_axi_rate,
+		sizeof(struct cam_soc_util_clk_rates));
 	entry->applied_ahb_level = cpas_core->ahb_bus_client.curr_vote_level;
 
 	if ((cpas_core->streamon_clients > 0) &&
@@ -2933,32 +3195,37 @@ static void cam_cpas_dump_monitor_array(
 		len = 0;
 
 		CAM_INFO(CAM_CPAS,
-			"**** %llu:%llu:%llu.%llu : Index[%d] Identifier[%s][%d] camnoc=%lld, ahb=%d",
+			"**** %llu:%llu:%llu.%llu : Index[%d] Identifier[%s][%d] camnoc=sw : %ld, hw clients [%ld %ld][%ld %ld][%ld %ld], ahb=%d",
 			hrs, min, sec, ms,
 			index,
 			entry->identifier_string, entry->identifier_value,
-			entry->applied_camnoc_clk, entry->applied_ahb_level);
+			entry->applied_camnoc_clk.sw_client,
+			entry->applied_camnoc_clk.hw_client[0].high,
+			entry->applied_camnoc_clk.hw_client[0].low,
+			entry->applied_camnoc_clk.hw_client[1].high,
+			entry->applied_camnoc_clk.hw_client[1].low,
+			entry->applied_camnoc_clk.hw_client[2].high,
+			entry->applied_camnoc_clk.hw_client[2].low,
+			entry->applied_ahb_level);
 
 		for (j = 0; j < cpas_core->num_axi_ports; j++) {
 			if ((entry->axi_info[j].applied_bw.vote_type == CAM_CPAS_VOTE_TYPE_DRV) &&
 				!cpas_core->force_hlos_drv)
 				CAM_INFO(CAM_CPAS,
-					"BW [%s] : DRV started:%s high=[%lld %lld], low=[%lld %lld], camnoc=%lld",
+					"BW [%s] : DRV started:%s high=[%lld %lld], low=[%lld %lld]",
 					entry->axi_info[j].axi_port_name,
 					CAM_BOOL_TO_YESNO(entry->axi_info[j].is_drv_started),
 					entry->axi_info[j].applied_bw.drv_vote.high.ab,
 					entry->axi_info[j].applied_bw.drv_vote.high.ib,
 					entry->axi_info[j].applied_bw.drv_vote.low.ab,
-					entry->axi_info[j].applied_bw.drv_vote.low.ib,
-					entry->axi_info[j].camnoc_bw);
+					entry->axi_info[j].applied_bw.drv_vote.low.ib);
 
 			else
 				CAM_INFO(CAM_CPAS,
-					"BW [%s] : HLOS ab=%lld, ib=%lld, DRV high_ab=%lld, high_ib=%lld, low_ab=%lld, low_ib=%lld, camnoc=%lld",
+					"BW [%s] : HLOS ab=%lld, ib=%lld, DRV high_ab=%lld, high_ib=%lld, low_ab=%lld, low_ib=%lld",
 					entry->axi_info[j].axi_port_name,
 					entry->axi_info[j].applied_bw.hlos_vote.ab,
-					entry->axi_info[j].applied_bw.hlos_vote.ib,
-					entry->axi_info[j].camnoc_bw);
+					entry->axi_info[j].applied_bw.hlos_vote.ib);
 		}
 
 		if (cpas_core->regbase_index[CAM_CPAS_REG_RPMH] != -1) {
@@ -3237,8 +3504,8 @@ static int cam_cpas_hw_enable_domain_id_clks(struct cam_hw_info *cpas_hw,
 
 	if (enable) {
 		for (i = 0; i < domain_id_clks->number_clks; i++) {
-			rc = cam_soc_util_clk_enable(&cpas_hw->soc_info, true,
-				domain_id_clks->clk_idx[i], 0, NULL);
+			rc = cam_soc_util_clk_enable(&cpas_hw->soc_info, CAM_CLK_SW_CLIENT_IDX,
+				true, domain_id_clks->clk_idx[i], 0);
 			if (rc) {
 				CAM_ERR(CAM_CPAS, "Domain-id clk %s enable failed, rc: %d",
 					domain_id_clks->clk_names[i], i);
@@ -3248,8 +3515,8 @@ static int cam_cpas_hw_enable_domain_id_clks(struct cam_hw_info *cpas_hw,
 		CAM_DBG(CAM_CPAS, "Domain-id clks enable success");
 	} else {
 		for (i = 0; i < domain_id_clks->number_clks; i++) {
-			rc = cam_soc_util_clk_disable(&cpas_hw->soc_info, true,
-				domain_id_clks->clk_idx[i]);
+			rc = cam_soc_util_clk_disable(&cpas_hw->soc_info, CAM_CLK_SW_CLIENT_IDX,
+				true, domain_id_clks->clk_idx[i]);
 			if (rc)
 				CAM_WARN(CAM_CPAS, "Domain-id clk %s disable failed, rc: %d",
 					domain_id_clks->clk_names[i], rc);
@@ -3262,7 +3529,7 @@ static int cam_cpas_hw_enable_domain_id_clks(struct cam_hw_info *cpas_hw,
 
 clean_up:
 	for (--i; i >= 0; i--)
-		cam_soc_util_clk_disable(&cpas_hw->soc_info, true,
+		cam_soc_util_clk_disable(&cpas_hw->soc_info, CAM_CLK_SW_CLIENT_IDX, true,
 			domain_id_clks->clk_idx[i]);
 
 	return rc;
@@ -3636,6 +3903,10 @@ static int cam_cpas_util_create_debugfs(struct cam_cpas *cpas_core)
 
 	debugfs_create_bool("force_hlos_drv", 0644,
 		cpas_core->dentry, &cpas_core->force_hlos_drv);
+
+	debugfs_create_bool("force_cesta_sw_client", 0644,
+		cpas_core->dentry, &cpas_core->force_cesta_sw_client);
+
 end:
 	return rc;
 }
