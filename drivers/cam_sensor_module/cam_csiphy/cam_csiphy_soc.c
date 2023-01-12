@@ -162,7 +162,8 @@ enum cam_vote_level get_clk_voting_dynamic(
 		if (soc_info->clk_rate[cam_vote_level]
 			[csiphy_dev->rx_clk_src_idx] > phy_data_rate) {
 			CAM_DBG(CAM_CSIPHY,
-				"match detected %s : %llu:%d level : %d",
+				"Found match PHY:%d clk_name:%s data_rate:%llu clk_rate:%d level:%d",
+				soc_info->index,
 				soc_info->clk_name[csiphy_dev->rx_clk_src_idx],
 				phy_data_rate,
 				soc_info->clk_rate[cam_vote_level]
@@ -181,6 +182,7 @@ int32_t cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 	struct cam_hw_soc_info   *soc_info;
 	enum cam_vote_level vote_level;
 	struct cam_csiphy_param *param = &csiphy_dev->csiphy_info[index];
+	int i;
 
 	soc_info = &csiphy_dev->soc_info;
 
@@ -191,6 +193,13 @@ int32_t cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 	}
 
 	vote_level = csiphy_dev->ctrl_reg->getclockvoting(csiphy_dev, index);
+
+	for (i = 0; i < soc_info->num_clk; i++) {
+		CAM_DBG(CAM_CSIPHY, "PHY:%d %s:%d",
+			soc_info->index,
+			soc_info->clk_name[i],
+			soc_info->clk_rate[vote_level][i]);
+	}
 
 	rc = cam_soc_util_enable_platform_resource(soc_info,
 		(soc_info->is_clk_drv_en && param->use_hw_client_voting) ?
