@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interrupt.h>
@@ -200,13 +200,17 @@ static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
 int cam_icp_soc_resources_init(struct cam_hw_soc_info *soc_info,
 	irq_handler_t handler, void *data)
 {
-	int rc;
+	int rc, i;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	rc = cam_icp_soc_dt_properties_get(soc_info);
 	if (rc)
 		return rc;
 
-	rc = cam_soc_util_request_platform_resource(soc_info, handler, data);
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = data;
+
+	rc = cam_soc_util_request_platform_resource(soc_info, handler, &(irq_data[0]));
 	if (rc) {
 		CAM_ERR(CAM_ICP,
 			"request for soc platform resource failed rc=%d", rc);

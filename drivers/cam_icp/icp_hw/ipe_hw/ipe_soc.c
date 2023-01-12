@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -77,12 +77,15 @@ static int cam_ipe_get_dt_properties(struct cam_hw_soc_info *soc_info)
 
 static int cam_ipe_request_platform_resource(
 	struct cam_hw_soc_info *soc_info,
-	irq_handler_t ipe_irq_handler, void *irq_data)
+	irq_handler_t ipe_irq_handler, void *data)
 {
-	int rc = 0;
+	int rc, i;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
-	rc = cam_soc_util_request_platform_resource(soc_info, ipe_irq_handler,
-		irq_data);
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = data;
+
+	rc = cam_soc_util_request_platform_resource(soc_info, ipe_irq_handler, &(irq_data[0]));
 
 	return rc;
 }

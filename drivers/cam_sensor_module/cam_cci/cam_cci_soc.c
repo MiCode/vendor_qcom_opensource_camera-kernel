@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_cci_dev.h"
@@ -389,6 +389,7 @@ int cam_cci_parse_dt_info(struct platform_device *pdev,
 	int rc = 0, i = 0;
 	struct cam_hw_soc_info *soc_info =
 		&new_cci_dev->soc_info;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc < 0) {
@@ -398,8 +399,11 @@ int cam_cci_parse_dt_info(struct platform_device *pdev,
 
 	new_cci_dev->ref_count = 0;
 
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = new_cci_dev;
+
 	rc = cam_soc_util_request_platform_resource(soc_info,
-		cam_cci_irq, new_cci_dev);
+		cam_cci_irq, &(irq_data[0]));
 	if (rc < 0) {
 		CAM_ERR(CAM_CCI, "requesting platform resources failed:%d", rc);
 		return -EINVAL;

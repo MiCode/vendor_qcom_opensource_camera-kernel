@@ -683,9 +683,9 @@ int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
-	soc_info->irq_num = platform_get_irq(soc_info->pdev, 0);
-	if (soc_info->irq_num < 0) {
-		rc = soc_info->irq_num;
+	soc_info->irq_num[0] = platform_get_irq(soc_info->pdev, 0);
+	if (soc_info->irq_num[0] < 0) {
+		rc = soc_info->irq_num[0];
 		return rc;
 	}
 
@@ -734,16 +734,19 @@ int cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 
 int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
 {
-	int rc = 0;
+	int rc = 0, i;
 
-	soc_info->irq_line =
-		platform_get_resource_byname(soc_info->pdev,
-		IORESOURCE_IRQ, soc_info->irq_name);
-	if (!soc_info->irq_line) {
-		rc = -ENODEV;
-		return rc;
+	for (i = 0; i < soc_info->irq_count; i++) {
+		soc_info->irq_line[i] = platform_get_resource_byname(soc_info->pdev,
+			IORESOURCE_IRQ, soc_info->irq_name[i]);
+		if (!soc_info->irq_line[i]) {
+			CAM_ERR(CAM_UTIL, "Failed to get IRQ line for irq: %s of %s",
+				soc_info->irq_name[i], soc_info->dev_name);
+			rc = -ENODEV;
+			return rc;
+		}
+		soc_info->irq_num[i] = soc_info->irq_line[i]->start;
 	}
-	soc_info->irq_num = soc_info->irq_line->start;
 
 	return rc;
 }

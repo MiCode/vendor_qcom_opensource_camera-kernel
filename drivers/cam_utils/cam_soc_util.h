@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SOC_UTIL_H_
@@ -47,6 +47,9 @@
 
 /* maximum number of pinctrl mapping */
 #define CAM_SOC_MAX_PINCTRL_MAP     2
+
+/* maximum number of irq per device */
+#define CAM_SOC_MAX_IRQ_LINES_PER_DEV 2
 
 /* DDR device types */
 #define DDR_TYPE_LPDDR4        6
@@ -178,11 +181,12 @@ struct cam_soc_gpio_data {
  * @index:                  Instance id for the camera device
  * @dev_name:               Device Name
  * @is_nrt_dev:             Whether this is a non-real time device
- * @irq_name:               Name of the irq associated with the device
+ * @irq_name:               Array of irq name associated with the device
  * @label_name:             label name
- * @irq_line:               Irq resource
- * @irq_num:                Irq number
- * @irq_data:               Private data that is passed when IRQ is requested
+ * @irq_line:               Array of Irq resources
+ * @irq_num:                Array of Irq numbers
+ * @irq_data:               Array of Irq Private data that are passed when IRQs are requested
+ * @irq_count:              The number of IRQ lines associated with the device
  * @compatible:             Compatible string associated with the device
  * @num_mem_block:          Number of entry in the "reg-names"
  * @mem_block_name:         Array of the reg block name
@@ -247,11 +251,12 @@ struct cam_hw_soc_info {
 	uint32_t                        index;
 	const char                     *dev_name;
 	bool                            is_nrt_dev;
-	const char                     *irq_name;
+	const char                     *irq_name[CAM_SOC_MAX_IRQ_LINES_PER_DEV];
 	const char                     *label_name;
-	struct resource                *irq_line;
-	int                             irq_num;
-	void                           *irq_data;
+	struct resource                *irq_line[CAM_SOC_MAX_IRQ_LINES_PER_DEV];
+	int                             irq_num[CAM_SOC_MAX_IRQ_LINES_PER_DEV];
+	void                           *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV];
+	uint32_t                        irq_count;
 	const char                     *compatible;
 
 	uint32_t                        num_mem_block;
@@ -425,7 +430,7 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info);
  * @return:             Success or failure
  */
 int cam_soc_util_request_platform_resource(struct cam_hw_soc_info *soc_info,
-	irq_handler_t handler, void *irq_data);
+	irq_handler_t handler, void **irq_data);
 
 /**
  * cam_soc_util_release_platform_resource()
@@ -452,7 +457,7 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info);
  * @clk_level:          Clock level to be applied.
  *                      Applicable only if enable_clocks is true
  *                          Valid range : 0 to (CAM_MAX_VOTE - 1)
- * @enable_irq:         Boolean flag:
+ * @irq_enable:         Boolean flag:
  *                          TRUE: Enable IRQ in soc_info Now.
  *                          False: Don't enable IRQ Now. Driver will
  *                                 enable independently.
@@ -461,7 +466,7 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info);
  */
 int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 	int cesta_client_idx, bool enable_clocks, enum cam_vote_level clk_level,
-	bool enable_irq);
+	bool irq_enable);
 
 /**
  * cam_soc_util_disable_platform_resource()

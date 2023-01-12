@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -24,11 +24,12 @@ static bool cam_tfe_cpas_cb(uint32_t client_handle, void *userdata,
 }
 
 int cam_tfe_init_soc_resources(struct cam_hw_soc_info *soc_info,
-	irq_handler_t tfe_irq_handler, void *irq_data)
+	irq_handler_t tfe_irq_handler, void *data)
 {
 	struct cam_tfe_soc_private       *soc_private;
 	struct cam_cpas_register_params   cpas_register_param;
 	int    rc = 0,  i = 0, num_pid = 0;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	soc_private = kzalloc(sizeof(struct cam_tfe_soc_private),
 		GFP_KERNEL);
@@ -70,9 +71,10 @@ clk_option:
 	if (rc)
 		CAM_WARN(CAM_ISP, "Option clk get failed with rc %d", rc);
 
-	rc = cam_soc_util_request_platform_resource(soc_info, tfe_irq_handler,
-		irq_data);
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = data;
 
+	rc = cam_soc_util_request_platform_resource(soc_info, tfe_irq_handler, &(irq_data[0]));
 	if (rc < 0) {
 		CAM_ERR(CAM_ISP,
 			"Error! Request platform resources failed rc=%d", rc);

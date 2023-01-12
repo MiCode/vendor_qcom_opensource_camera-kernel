@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_csiphy_soc.h"
@@ -279,6 +279,7 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 	char      *csi_3p_clk_name = "csi_phy_3p_clk";
 	char      *csi_3p_clk_src_name = "csiphy_3p_clk_src";
 	struct cam_hw_soc_info   *soc_info;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	soc_info = &csiphy_dev->soc_info;
 
@@ -368,8 +369,11 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 	csiphy_dev->csiphy_max_clk =
 		soc_info->clk_rate[0][soc_info->src_clk_idx];
 
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = csiphy_dev;
+
 	rc = cam_soc_util_request_platform_resource(&csiphy_dev->soc_info,
-		cam_csiphy_irq, csiphy_dev);
+		cam_csiphy_irq, &(irq_data[0]));
 
 	return rc;
 }

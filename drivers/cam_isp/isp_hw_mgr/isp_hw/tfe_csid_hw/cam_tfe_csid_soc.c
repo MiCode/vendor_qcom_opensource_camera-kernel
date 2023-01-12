@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/slab.h>
 #include "cam_tfe_csid_soc.h"
@@ -10,11 +10,12 @@
 
 
 int cam_tfe_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
-	irq_handler_t csid_irq_handler, void *irq_data)
+	irq_handler_t csid_irq_handler, void *data)
 {
-	int rc = 0;
+	int rc = 0, i;
 	struct cam_cpas_register_params   cpas_register_param;
 	struct cam_tfe_csid_soc_private      *soc_private;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	soc_private = kzalloc(sizeof(struct cam_tfe_csid_soc_private),
 		GFP_KERNEL);
@@ -28,10 +29,11 @@ int cam_tfe_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	if (rc < 0)
 		return rc;
 
-	/* Need to see if we want post process the clock list */
-	rc = cam_soc_util_request_platform_resource(soc_info, csid_irq_handler,
-		irq_data);
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = data;
 
+	/* Need to see if we want post process the clock list */
+	rc = cam_soc_util_request_platform_resource(soc_info, csid_irq_handler, &(irq_data[0]));
 	if (rc < 0) {
 		CAM_ERR(CAM_ISP,
 			"Error Request platform resources failed rc=%d", rc);
