@@ -144,7 +144,7 @@ struct cam_sensor_ctrl_t {
 	uint16_t                       pipeline_delay;
 	uint16_t                       modeswitch_delay;
 	char                           sensor_name[CAM_SENSOR_NAME_MAX_SIZE];
-	uint8_t                        aon_camera_id;
+	uint32_t                       aon_camera_id;
 	int64_t                        last_updated_req;
 	int64_t                        last_applied_req;
 	bool                           is_stopped_by_user;
