@@ -60,6 +60,7 @@ int camera_component_match_add_drivers(struct device *master_dev,
 	struct component_match **match_list);
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 	bool protect, int32_t offset);
+bool cam_is_mink_api_available(void);
 void cam_free_clear(const void *);
 void cam_check_iommu_faults(struct iommu_domain *domain,
 	struct cam_smmu_pf_info *pf_info);

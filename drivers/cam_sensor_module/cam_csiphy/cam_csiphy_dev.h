@@ -118,7 +118,7 @@ enum cam_csiphy_common_reg_program {
 struct cam_csiphy_secure_info {
 	uint32_t phy_lane_sel_mask;
 	uint32_t lane_assign;
-	uint32_t vc_mask;
+	uint64_t vc_mask;
 	uint32_t csid_hw_idx_mask;
 	uint32_t cdm_hw_idx_mask;
 };

@@ -5350,6 +5350,13 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 			}
 		}
 
+		if (in_port[i].usage_type && in_port[i].secure_mode) {
+			CAM_ERR(CAM_ISP,
+				"Dual IFE mode is not supported in secure camera usecases");
+			rc = -EINVAL;
+			goto free_mem;
+		}
+
 		cam_ife_hw_mgr_preprocess_port(ife_ctx, &in_port[i]);
 		total_pix_port += in_port[i].ipp_count +
 					in_port[i].ife_rd_count +

@@ -552,7 +552,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 struct cam_ife_csid_secure_info {
 	uint32_t phy_sel;
 	uint32_t lane_cfg;
-	uint32_t vc_mask;
+	uint64_t vc_mask;
 	uint32_t csid_hw_idx_mask;
 	uint32_t cdm_hw_idx_mask;
 };

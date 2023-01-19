@@ -26,6 +26,7 @@
 #include "cam_cdm_util.h"
 #include "cam_common_util.h"
 #include "cam_subdev.h"
+#include "cam_compat.h"
 
 /* CSIPHY TPG VC/DT values */
 #define CAM_IFE_CPHY_TPG_VC_VAL                         0x0
@@ -4720,9 +4721,6 @@ static void cam_ife_csid_ver2_send_secure_info(
 	secure_info.vc_mask = 0;
 	secure_info.csid_hw_idx_mask = BIT(csid_hw->hw_intf->hw_idx);
 
-	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_MASTER)
-		secure_info.csid_hw_idx_mask |= BIT(csid_hw->dual_core_idx);
-
 	CAM_DBG(CAM_ISP,
 		"PHY secure info for CSID[%u], lane_cfg: 0x%x, ife: 0x%x, cdm: 0x%x, vc_mask: 0x%llx",
 		csid_hw->hw_intf->hw_idx,
@@ -4877,7 +4875,7 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	 */
 	if ((csid_hw->sync_mode != CAM_ISP_HW_SYNC_SLAVE) &&
 		start_args->is_secure &&
-		csid_hw->flags.domain_id_security)
+		cam_is_mink_api_available())
 		cam_ife_csid_ver2_send_secure_info(start_args, csid_hw);
 
 	/*

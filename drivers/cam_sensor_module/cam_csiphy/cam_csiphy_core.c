@@ -482,8 +482,8 @@ static int cam_csiphy_update_secure_info(struct csiphy_device *csiphy_dev, int32
 	uint32_t cpas_version;
 	int rc;
 
-	if (csiphy_dev->domain_id_security) {
-		CAM_DBG(CAM_CSIPHY, "Domain ID scheme for CSIPHY [%u], skipping legacy update",
+	if (cam_is_mink_api_available()) {
+		CAM_DBG(CAM_CSIPHY, "Using MINK API for CSIPHY [%u], skipping legacy update",
 			csiphy_dev->soc_info.index);
 
 		return 0;
@@ -2502,7 +2502,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 				rc = cam_csiphy_program_secure_mode(csiphy_dev,
 					CAM_SECURE_MODE_SECURE, offset);
-				if (rc < 0) {
+				if (rc) {
 					csiphy_dev->csiphy_info[offset]
 						.secure_mode =
 						CAM_SECURE_MODE_NON_SECURE;
@@ -2570,7 +2570,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			rc = cam_csiphy_program_secure_mode(
 				csiphy_dev,
 				CAM_SECURE_MODE_SECURE, offset);
-			if (rc < 0) {
+			if (rc) {
 				csiphy_dev->csiphy_info[offset].secure_mode =
 					CAM_SECURE_MODE_NON_SECURE;
 				goto cpas_stop;
