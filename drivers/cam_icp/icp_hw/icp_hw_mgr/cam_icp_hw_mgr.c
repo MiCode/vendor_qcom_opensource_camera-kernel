@@ -7309,7 +7309,8 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np,
 	if (!CAM_ICP_IS_VALID_HW_DEV_TYPE(icp_hw_type)) {
 		CAM_ERR(CAM_ICP, "[%s] Invalid hw dev type: %u",
 			hw_mgr->hw_mgr_name, icp_hw_type);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto free_devs;
 	}
 
 	hw_mgr->devices[icp_hw_type] = devices;
