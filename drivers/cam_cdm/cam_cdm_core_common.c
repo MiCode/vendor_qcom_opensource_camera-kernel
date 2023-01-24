@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -335,11 +335,7 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 
 static int cam_cdm_stream_handle_init(void *hw_priv, bool init)
 {
-	struct cam_hw_info *cdm_hw = hw_priv;
-	struct cam_cdm *core = NULL;
 	int rc = -EPERM;
-
-	core = (struct cam_cdm *)cdm_hw->core_info;
 
 	if (init) {
 		rc = cam_hw_cdm_init(hw_priv, NULL, 0);
@@ -557,7 +553,6 @@ int cam_cdm_process_cmd(void *hw_priv,
 	uint32_t cmd, void *cmd_args, uint32_t arg_size)
 {
 	struct cam_hw_info *cdm_hw = hw_priv;
-	struct cam_hw_soc_info *soc_data = NULL;
 	struct cam_cdm *core = NULL;
 	int rc = -EINVAL;
 
@@ -565,7 +560,6 @@ int cam_cdm_process_cmd(void *hw_priv,
 		(cmd >= CAM_CDM_HW_INTF_CMD_INVALID))
 		return rc;
 
-	soc_data = &cdm_hw->soc_info;
 	core = (struct cam_cdm *)cdm_hw->core_info;
 
 	/*
@@ -890,7 +884,7 @@ int cam_cdm_process_cmd(void *hw_priv,
 			break;
 		}
 
-		rc = cam_hw_cdm_handle_error(cdm_hw, *handle);
+		rc = cam_hw_cdm_handle_error_info(cdm_hw, *handle);
 		if (rc) {
 			CAM_ERR(CAM_CDM,
 				"CDM HW handle error failed for handle 0x%x rc = %d",

@@ -1116,7 +1116,6 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 				break;
 			}
 
-			rc = 0;
 			hw_vaddr_ptr = (dma_addr_t)cdm_cmd->cmd[i].bl_addr.hw_iova;
 			len = cdm_cmd->cmd[i].len + cdm_cmd->cmd[i].offset;
 		} else {
@@ -1858,20 +1857,6 @@ int cam_hw_cdm_flush_hw(struct cam_hw_info *cdm_hw, uint32_t handle)
 	set_bit(CAM_CDM_FLUSH_HW_STATUS, &cdm_core->cdm_status);
 	rc = cam_hw_cdm_reset_hw(cdm_hw, handle);
 	clear_bit(CAM_CDM_FLUSH_HW_STATUS, &cdm_core->cdm_status);
-
-	return rc;
-}
-
-int cam_hw_cdm_handle_error(
-	struct cam_hw_info *cdm_hw,
-	uint32_t            handle)
-{
-	struct cam_cdm *cdm_core = NULL;
-	int rc = 0;
-
-	cdm_core = (struct cam_cdm *)cdm_hw->core_info;
-
-	rc = cam_hw_cdm_handle_error_info(cdm_hw, handle);
 
 	return rc;
 }
