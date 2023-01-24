@@ -95,6 +95,7 @@ struct cam_tfe_camif_data {
 	uint32_t                           core_cfg;
 	bool                               shdr_en;
 	bool                               is_shdr_master;
+	uint32_t                           epoch_factor;
 };
 
 struct cam_tfe_rdi_data {
@@ -113,6 +114,7 @@ struct cam_tfe_rdi_data {
 	uint32_t                                     last_line;
 	bool                                         shdr_en;
 	bool                                         is_shdr_master;
+	uint32_t                                     epoch_factor;
 };
 
 struct cam_tfe_ppp_data {
@@ -1575,6 +1577,54 @@ static int cam_tfe_top_get_reg_update(
 	return 0;
 }
 
+static int cam_tfe_top_init_config_update(
+	struct cam_tfe_top_priv *top_priv,
+	void *cmd_args, uint32_t arg_size)
+{
+	int i = 0;
+	struct cam_isp_hw_init_config_update *init_cfg = NULL;
+	struct cam_isp_resource_node *rsrc_node = NULL;
+	struct cam_tfe_camif_data *camif_data;
+
+	init_cfg = (struct cam_isp_hw_init_config_update *)cmd_args;
+
+	if (arg_size != sizeof(struct cam_isp_hw_init_config_update)) {
+		CAM_ERR(CAM_ISP, "Invalid args size expected: %zu actual: %zu",
+			sizeof(struct cam_isp_hw_init_config_update), arg_size);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < CAM_TFE_TOP_IN_PORT_MAX; i++) {
+		if (top_priv->in_rsrc[i].res_id == CAM_ISP_HW_TFE_IN_CAMIF) {
+			rsrc_node = &top_priv->in_rsrc[i];
+			break;
+		}
+	}
+
+	if (!rsrc_node) {
+		CAM_ERR(CAM_ISP, "TFE %d null input res node",
+			top_priv->common_data.hw_intf->hw_idx);
+		return -EINVAL;
+	}
+
+	if (rsrc_node->res_type != CAM_ISP_RESOURCE_TFE_IN) {
+		CAM_ERR(CAM_ISP, "TFE %d Invalid res_type %d res id %d ",
+			rsrc_node->hw_intf->hw_idx, rsrc_node->res_type,
+			rsrc_node->res_id);
+		return -EINVAL;
+	}
+
+	camif_data = (struct cam_tfe_camif_data *)rsrc_node->res_priv;
+	camif_data->epoch_factor = init_cfg->init_config->epoch_cfg.epoch_factor;
+
+	CAM_DBG(CAM_ISP,
+		"Init Update TFE %d res type: %d res id %d epoch_factor: %u",
+		rsrc_node->hw_intf->hw_idx, rsrc_node->res_type,
+		rsrc_node->res_id, camif_data->epoch_factor);
+
+	return 0;
+}
+
 static int cam_tfe_top_clock_update(
 	struct cam_tfe_top_priv *top_priv,
 	void *cmd_args, uint32_t arg_size)
@@ -2309,7 +2359,7 @@ static int cam_tfe_camif_resource_start(
 	struct cam_tfe_camif_data           *rsrc_data;
 	struct cam_tfe_soc_private          *soc_private;
 	struct cam_tfe_top_priv             *top_priv;
-	uint32_t                             val = 0;
+	uint32_t                             val = 0, epoch_factor = 50;
 	uint32_t                             epoch0_irq_mask;
 	uint32_t                             epoch1_irq_mask;
 	uint32_t                             computed_epoch_line_cfg;
@@ -2403,8 +2453,12 @@ static int cam_tfe_camif_resource_start(
 	}
 
 	/* Epoch config */
+	if ((rsrc_data->epoch_factor) && (rsrc_data->epoch_factor <= 100))
+		epoch_factor = rsrc_data->epoch_factor;
+
 	epoch0_irq_mask = (((rsrc_data->last_line + rsrc_data->vbi_value) -
-			rsrc_data->first_line) / 2);
+		rsrc_data->first_line) * epoch_factor / 100);
+
 	if (epoch0_irq_mask > (rsrc_data->last_line - rsrc_data->first_line))
 		epoch0_irq_mask = (rsrc_data->last_line -
 					rsrc_data->first_line);
@@ -2421,11 +2475,11 @@ static int cam_tfe_camif_resource_start(
 			rsrc_data->camif_reg->epoch_irq_cfg);
 	CAM_DBG(CAM_ISP, "TFE:%d first_line: %u\n"
 			"last_line: %u\n"
-			"epoch_line_cfg: 0x%x",
+			"epoch_line_cfg: 0x%x epoch factor %d",
 			core_info->core_index,
 			rsrc_data->first_line,
 			rsrc_data->last_line,
-			computed_epoch_line_cfg);
+			computed_epoch_line_cfg, epoch_factor);
 
 	camif_res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
 
@@ -3342,6 +3396,10 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		break;
 	case CAM_ISP_HW_CMD_DYNAMIC_CLOCK_UPDATE:
 		rc = cam_tfe_top_dynamic_clock_update(core_info->top_priv, cmd_args,
+			arg_size);
+		break;
+	case CAM_ISP_HW_CMD_INIT_CONFIG_UPDATE:
+		rc = cam_tfe_top_init_config_update(core_info->top_priv, cmd_args,
 			arg_size);
 		break;
 	case CAM_ISP_HW_CMD_GET_BUF_UPDATE:
