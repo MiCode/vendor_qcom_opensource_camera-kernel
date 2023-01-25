@@ -1148,7 +1148,7 @@ static int cam_cpastop_init_hw_version(struct cam_hw_info *cpas_hw,
 		}
 	}
 
-	return 0;
+	return rc;
 }
 
 static int cam_cpastop_setup_qos_settings(struct cam_hw_info *cpas_hw,

@@ -815,8 +815,6 @@ static bool cam_cpas_calculate_smart_qos(
 				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.high.camnoc +
 				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.low.camnoc;
 
-		remainder = do_div(bw_per_kb, niu_node->niu_size); // --> dropping remainder
-
 		if ((bw_per_kb * CAM_CPAS_MAX_STRESS_INDICATOR) >
 			(total_bw_per_kb *
 			soc_private->smart_qos_info->highstress_indicator_th)) {
@@ -2447,7 +2445,6 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 						rc);
 					/* Do not return error, passthrough */
 				}
-				rc = 0;
 			}
 		}
 
@@ -4338,6 +4335,8 @@ int cam_cpas_hw_probe(struct platform_device *pdev,
 		goto axi_cleanup;
 
 	rc = cam_cpas_util_create_debugfs(cpas_core);
+	if (unlikely(rc))
+		CAM_WARN(CAM_CPAS, "failed to create cpas debugfs rc: %d", rc);
 
 	*hw_intf = cpas_hw_intf;
 	return 0;
