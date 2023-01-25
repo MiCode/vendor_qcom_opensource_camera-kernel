@@ -62,6 +62,10 @@ static void cam_ife_csid_ver2_print_debug_reg_status(
 	struct cam_ife_csid_ver2_hw *csid_hw,
 	struct cam_isp_resource_node    *res);
 
+static int cam_ife_csid_ver2_print_hbi_vbi(
+	struct cam_ife_csid_ver2_hw  *csid_hw,
+	struct cam_isp_resource_node *res);
+
 static bool cam_ife_csid_ver2_cpas_cb(
 	uint32_t handle, void *user_data, struct cam_cpas_irq_data *irq_data)
 {
@@ -1841,15 +1845,16 @@ void cam_ife_csid_ver2_print_format_measure_info(
 		csid_reg->path_reg[res->res_id];
 	struct cam_hw_soc_info *soc_info = &csid_hw->hw_info->soc_info;
 	void __iomem *base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
-	uint32_t expected_frame = 0, actual_frame = 0;
+	uint32_t expected_frame = 0, actual_frame = 0, format_measure_cfg0 = 0;
 	int data_idx = 0;
 
 	actual_frame = cam_io_r_mb(base + path_reg->format_measure0_addr);
 	expected_frame = cam_io_r_mb(base + path_reg->format_measure_cfg1_addr);
+	format_measure_cfg0 = cam_io_r_mb(base + path_reg->format_measure_cfg0_addr);
 
-	CAM_INFO(CAM_ISP, "CSID[%u] res [id :%d name : %s]",
-		csid_hw->hw_intf->hw_idx,
-		res->res_id, res->res_name);
+	CAM_INFO(CAM_ISP, "CSID[%u] res [id :%d name : %s] format_measure_cfg0:0x%x",
+		csid_hw->hw_intf->hw_idx, res->res_id, res->res_name,
+		format_measure_cfg0);
 	CAM_ERR(CAM_ISP, "CSID[%u] Frame Size Error Expected[h: %u w: %u] Actual[h: %u w: %u]",
 		csid_hw->hw_intf->hw_idx, ((expected_frame >>
 		csid_reg->cmn_reg->format_measure_height_shift_val) &
@@ -1861,6 +1866,8 @@ void cam_ife_csid_ver2_print_format_measure_info(
 		csid_reg->cmn_reg->format_measure_height_mask_val),
 		actual_frame &
 		csid_reg->cmn_reg->format_measure_width_mask_val);
+
+	cam_ife_csid_ver2_print_hbi_vbi(csid_hw, res);
 
 	/* AUX settings update to phy for pix and line count errors */
 	data_idx = (int)(csid_hw->rx_cfg.phy_sel - csid_reg->cmn_reg->phy_sel_base_idx);

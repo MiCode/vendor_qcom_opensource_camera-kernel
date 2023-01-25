@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_LITE_780_H_
@@ -180,7 +180,7 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_780_path_irq_desc[] 
 	{
 		.bitmask = BIT(14),
 		.err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE,
-		.desc = "ERROR_PIX_COUNT",
+		.desc = "ERROR_LINE_COUNT",
 		.err_handler = cam_ife_csid_ver2_print_format_measure_info,
 	},
 	{
@@ -455,6 +455,10 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.global_reset                                 = 1,
 	.rup_supported                                = 1,
 	.only_master_rup                              = 1,
+	.format_measure_height_mask_val               = 0xFFFF,
+	.format_measure_height_shift_val              = 0x10,
+	.format_measure_width_mask_val                = 0xFFFF,
+	.format_measure_width_shift_val               = 0x0,
 	.top_reset_irq_mask                           = 0x1,
 	.top_buf_done_irq_mask                        = 0x2000,
 	.decode_format_payload_only                   = 0xF,
@@ -627,8 +631,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.overflow_ctrl_mode_val               = 0x8,
 		.min_hbi_shift_val                    = 4,
 		.start_master_sel_shift_val           = 4,
-		.fatal_err_mask                       = 0x7,
-		.non_fatal_err_mask                   = 0x10080000,
+		.fatal_err_mask                       = 0x20186001,
+		.non_fatal_err_mask                   = 0x12000006,
 		.sof_irq_mask                         = 0x10,
 		.rup_irq_mask                         = 0x800000,
 		.epoch0_irq_mask                      = 0x200000,
@@ -718,9 +722,10 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.format_measure_en_shift_val         = 3,
 		.timestamp_en_shift_val              = 6,
 		.debug_byte_cntr_rst_shift_val       = 2,
+		.sof_retiming_dis_shift              = 5,
 		.ccif_violation_en                   = 1,
-		.fatal_err_mask                      = 0x5,
-		.non_fatal_err_mask                  = 0x10080000,
+		.fatal_err_mask                      = 0x20186001,
+		.non_fatal_err_mask                  = 0x12000004,
 		.sof_irq_mask                         = 0x10,
 		.rup_irq_mask                         = 0x800000,
 		.epoch0_irq_mask                      = 0x200000,
@@ -811,8 +816,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.timestamp_en_shift_val              = 6,
 		.debug_byte_cntr_rst_shift_val       = 2,
 		.ccif_violation_en                   = 1,
-		.fatal_err_mask                      = 0x5,
-		.non_fatal_err_mask                  = 0x10080000,
+		.fatal_err_mask                      = 0x20186001,
+		.non_fatal_err_mask                  = 0x12000004,
 		.sof_irq_mask                         = 0x10,
 		.rup_irq_mask                         = 0x800000,
 		.epoch0_irq_mask                      = 0x200000,
@@ -903,8 +908,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.timestamp_en_shift_val              = 6,
 		.debug_byte_cntr_rst_shift_val       = 2,
 		.ccif_violation_en                   = 1,
-		.fatal_err_mask                      = 0x5,
-		.non_fatal_err_mask                  = 0x10080000,
+		.fatal_err_mask                      = 0x20186001,
+		.non_fatal_err_mask                  = 0x12000004,
 		.sof_irq_mask                         = 0x10,
 		.rup_irq_mask                         = 0x800000,
 		.epoch0_irq_mask                      = 0x200000,
@@ -995,8 +1000,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.timestamp_en_shift_val              = 6,
 		.debug_byte_cntr_rst_shift_val       = 2,
 		.ccif_violation_en                   = 1,
-		.fatal_err_mask                      = 0x5,
-		.non_fatal_err_mask                  = 0x10080000,
+		.fatal_err_mask                      = 0x20186001,
+		.non_fatal_err_mask                  = 0x12000004,
 		.sof_irq_mask                         = 0x10,
 		.rup_irq_mask                         = 0x800000,
 		.epoch0_irq_mask                      = 0x200000,
