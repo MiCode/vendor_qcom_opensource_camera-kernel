@@ -1803,7 +1803,8 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 	if (!dbg_prop) {
 		CAM_ERR(CAM_ICP, "%s Allocate command prop failed",
 			ctx_data->ctx_id_string);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto end;
 	}
 
 	dbg_prop->size = size;
@@ -1822,7 +1823,8 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 	default:
 		CAM_ERR(CAM_ICP, "%s Invalid hw dev type: %u",
 			ctx_data->ctx_id_string, hw_dev_type);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto free_dbg_prop;
 	}
 
 	dbg_prop->prop_data[1] = hw_mgr->dev_pc_flag;
@@ -1830,6 +1832,7 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 
 	hfi_write_cmd(hw_mgr->hfi_handle, dbg_prop);
 
+free_dbg_prop:
 	kfree(dbg_prop);
 
 end:
@@ -4528,7 +4531,6 @@ static unsigned long cam_icp_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
 
 		dumped_len += icp_dump_args.offset;
 		md->fw_img = (void *)icp_dump_args.cpu_addr;
-		remain_len = len - dumped_len;
 	}
 end:
 	return dumped_len;
@@ -4948,7 +4950,6 @@ static int cam_icp_mgr_enqueue_config(struct cam_icp_hw_mgr *hw_mgr,
 	uint64_t request_id = 0;
 	struct crm_workq_task *task;
 	struct hfi_cmd_work_data *task_data;
-	struct hfi_cmd_dev_async *hfi_cmd;
 	struct cam_hw_update_entry *hw_update_entries;
 	struct icp_frame_info *frame_info = NULL;
 
@@ -4966,7 +4967,6 @@ static int cam_icp_mgr_enqueue_config(struct cam_icp_hw_mgr *hw_mgr,
 
 	task_data = (struct hfi_cmd_work_data *)task->payload;
 	task_data->data = (void *)hw_update_entries->addr;
-	hfi_cmd = (struct hfi_cmd_dev_async *)hw_update_entries->addr;
 	task_data->request_id = request_id;
 	task_data->type = ICP_WORKQ_TASK_CMD_TYPE;
 	task->process_cb = cam_icp_mgr_process_cmd;
@@ -5339,7 +5339,6 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 {
 	int rc = 0;
 	int i;
-	int num_cmd_buf = 0;
 	dma_addr_t addr;
 	size_t len;
 	struct cam_cmd_buf_desc *cmd_desc = NULL;
@@ -5352,16 +5351,13 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 		return rc;
 
 	*fw_cmd_buf_iova_addr = 0;
-	for (i = 0; i < packet->num_cmd_buf; i++, num_cmd_buf++) {
+	for (i = 0; i < packet->num_cmd_buf; i++) {
 		if (cmd_desc[i].type == CAM_CMD_BUF_FW) {
 			rc = cam_mem_get_io_buf(cmd_desc[i].mem_handle,
 				hw_mgr->iommu_hdl, &addr, &len, NULL);
 			if (rc) {
 				CAM_ERR(CAM_ICP, "%s: get cmd buf failed %x",
 					ctx_data->ctx_id_string, hw_mgr->iommu_hdl);
-
-				if (num_cmd_buf > 0)
-					num_cmd_buf--;
 				return rc;
 			}
 			/* FW buffers are expected to be within 32-bit address range */
@@ -5385,9 +5381,6 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 				CAM_ERR(CAM_ICP, "%s: get cmd buf failed %x",
 					ctx_data->ctx_id_string, hw_mgr->iommu_hdl);
 				*fw_cmd_buf_iova_addr = 0;
-
-				if (num_cmd_buf > 0)
-					num_cmd_buf--;
 				return rc;
 			}
 			if ((len <= cmd_desc[i].offset) ||
@@ -6630,10 +6623,6 @@ static int cam_icp_mgr_create_handle(struct cam_icp_hw_mgr *hw_mgr,
 	int rc = 0;
 	uint32_t handle_type;
 
-	task = cam_req_mgr_workq_get_task(hw_mgr->cmd_work);
-	if (!task)
-		return -ENOMEM;
-
 	if (ctx_data->hw_dev_type == CAM_ICP_DEV_OFE) {
 		create_handle.pkt_type = HFI_CMD_OFE_CREATE_HANDLE;
 		switch (dev_type) {
@@ -6646,6 +6635,9 @@ static int cam_icp_mgr_create_handle(struct cam_icp_hw_mgr *hw_mgr,
 		case CAM_ICP_RES_TYPE_OFE_SEMI_RT:
 			handle_type = HFI_OFE_HANDLE_TYPE_OFE_SEMI_RT;
 			break;
+		default:
+			CAM_ERR(CAM_ICP, "Invalid OFE stream type: %u", dev_type);
+			return -EINVAL;
 		}
 	} else {
 		create_handle.pkt_type = HFI_CMD_IPEBPS_CREATE_HANDLE;
@@ -6668,10 +6660,17 @@ static int cam_icp_mgr_create_handle(struct cam_icp_hw_mgr *hw_mgr,
 		case CAM_ICP_RES_TYPE_BPS_SEMI_RT:
 			handle_type = HFI_IPEBPS_HANDLE_TYPE_BPS_SEMI_RT;
 			break;
+		default:
+			CAM_ERR(CAM_ICP, "Invalid IPE/BPS stream type: %u", dev_type);
+			return -EINVAL;
 		}
 	}
+	task = cam_req_mgr_workq_get_task(hw_mgr->cmd_work);
+	if (!task)
+		return -ENOMEM;
+
 	create_handle.size = sizeof(struct hfi_cmd_create_handle);
-	create_handle.handle_type = dev_type;
+	create_handle.handle_type = handle_type;
 	create_handle.user_data1 = PTR_TO_U64(ctx_data);
 	reinit_completion(&ctx_data->wait_complete);
 	task_data = (struct hfi_cmd_work_data *)task->payload;
