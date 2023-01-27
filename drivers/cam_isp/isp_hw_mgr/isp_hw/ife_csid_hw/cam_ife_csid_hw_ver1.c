@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -2619,10 +2619,13 @@ static int cam_ife_csid_ver1_enable_hw(struct cam_ife_csid_ver1_hw *csid_hw)
 			csid_hw->core_info->csid_reg;
 	soc_info = &csid_hw->hw_info->soc_info;
 
+	mutex_lock(&csid_hw->hw_info->hw_mutex);
+
 	/* overflow check before increment */
 	if (csid_hw->hw_info->open_count == UINT_MAX) {
 		CAM_ERR(CAM_ISP, "CSID:%d Open count reached max",
 			csid_hw->hw_intf->hw_idx);
+			mutex_unlock(&csid_hw->hw_info->hw_mutex);
 		return -EINVAL;
 	}
 
@@ -2631,8 +2634,10 @@ static int cam_ife_csid_ver1_enable_hw(struct cam_ife_csid_ver1_hw *csid_hw)
 
 	if (csid_hw->hw_info->open_count > 1) {
 		CAM_DBG(CAM_ISP, "CSID hw has already been enabled");
+		mutex_unlock(&csid_hw->hw_info->hw_mutex);
 		return rc;
 	}
+	mutex_unlock(&csid_hw->hw_info->hw_mutex);
 
 	rc = cam_soc_util_get_clk_level(soc_info, csid_hw->clk_rate,
 		soc_info->src_clk_idx, &clk_lvl);
@@ -2709,7 +2714,9 @@ disable_soc:
 	cam_ife_csid_disable_soc_resources(soc_info);
 	csid_hw->hw_info->hw_state = CAM_HW_STATE_POWER_DOWN;
 err:
+	mutex_lock(&csid_hw->hw_info->hw_mutex);
 	csid_hw->hw_info->open_count--;
+	mutex_unlock(&csid_hw->hw_info->hw_mutex);
 	return rc;
 }
 
@@ -2851,17 +2858,22 @@ static int cam_ife_csid_ver1_disable_hw(
 	int rc = 0;
 	unsigned long                             flags;
 
+	mutex_lock(&csid_hw->hw_info->hw_mutex);
 	/* Check for refcount */
 	if (!csid_hw->hw_info->open_count) {
 		CAM_WARN(CAM_ISP, "Unbalanced disable_hw");
+		mutex_unlock(&csid_hw->hw_info->hw_mutex);
 		return rc;
 	}
 
 	/* Decrement ref Count */
 	csid_hw->hw_info->open_count--;
 
-	if (csid_hw->hw_info->open_count)
+	if (csid_hw->hw_info->open_count) {
+		mutex_unlock(&csid_hw->hw_info->hw_mutex);
 		return rc;
+	}
+	mutex_unlock(&csid_hw->hw_info->hw_mutex);
 
 	soc_info = &csid_hw->hw_info->soc_info;
 	csid_reg = (struct cam_ife_csid_ver1_reg_info *)

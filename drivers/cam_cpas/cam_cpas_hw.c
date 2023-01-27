@@ -2419,7 +2419,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 		if (rc)
 			goto remove_ahb_vote;
 
-		atomic_set(&cpas_core->irq_count, 1);
+		atomic_set(&cpas_core->soc_access_count, 1);
 
 		count = cam_soc_util_regulators_enabled(&cpas_hw->soc_info);
 		if (count > 0)
@@ -2428,7 +2428,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 		rc = cam_cpas_soc_enable_resources(&cpas_hw->soc_info,
 			applied_level);
 		if (rc) {
-			atomic_set(&cpas_core->irq_count, 0);
+			atomic_set(&cpas_core->soc_access_count, 0);
 			CAM_ERR(CAM_CPAS, "enable_resorce failed, rc=%d", rc);
 			goto remove_ahb_vote;
 		}
@@ -2454,7 +2454,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 		if (cpas_core->internal_ops.power_on) {
 			rc = cpas_core->internal_ops.power_on(cpas_hw);
 			if (rc) {
-				atomic_set(&cpas_core->irq_count, 0);
+				atomic_set(&cpas_core->soc_access_count, 0);
 				cam_cpas_soc_disable_resources(
 					&cpas_hw->soc_info, true, true);
 				CAM_ERR(CAM_CPAS,
@@ -2463,7 +2463,8 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 				goto remove_ahb_vote;
 			}
 		}
-		CAM_DBG(CAM_CPAS, "irq_count=%d\n", atomic_read(&cpas_core->irq_count));
+		CAM_DBG(CAM_CPAS, "soc_access_count=%d\n",
+			atomic_read(&cpas_core->soc_access_count));
 
 		if (soc_private->enable_smart_qos)
 			cam_cpas_reset_niu_priorities(cpas_hw);
@@ -2511,9 +2512,9 @@ error:
 	return rc;
 }
 
-static int _check_irq_count(struct cam_cpas *cpas_core)
+static int _check_soc_access_count(struct cam_cpas *cpas_core)
 {
-	return (atomic_read(&cpas_core->irq_count) > 0) ? 0 : 1;
+	return (atomic_read(&cpas_core->soc_access_count) > 0) ? 0 : 1;
 }
 
 static int cam_cpas_util_validate_stop_bw(struct cam_cpas_private_soc *soc_private,
@@ -2659,12 +2660,12 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		}
 
 		/* Wait for any IRQs still being handled */
-		atomic_dec(&cpas_core->irq_count);
-		result = wait_event_timeout(cpas_core->irq_count_wq,
-			_check_irq_count(cpas_core), HZ);
+		atomic_dec(&cpas_core->soc_access_count);
+		result = wait_event_timeout(cpas_core->soc_access_count_wq,
+			_check_soc_access_count(cpas_core), HZ);
 		if (result == 0) {
-			CAM_ERR(CAM_CPAS, "Wait failed: irq_count=%d",
-				atomic_read(&cpas_core->irq_count));
+			CAM_ERR(CAM_CPAS, "Wait failed: soc_access_count=%d",
+				atomic_read(&cpas_core->soc_access_count));
 		}
 
 		/* try again incase camnoc is still not idle */
@@ -2683,8 +2684,8 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 			CAM_ERR(CAM_CPAS, "disable_resorce failed, rc=%d", rc);
 			goto done;
 		}
-		CAM_DBG(CAM_CPAS, "Disabled all the resources: irq_count=%d",
-			atomic_read(&cpas_core->irq_count));
+		CAM_DBG(CAM_CPAS, "Disabled all the resources: soc_access_count=%d",
+			atomic_read(&cpas_core->soc_access_count));
 
 		count = cam_soc_util_regulators_enabled(&cpas_hw->soc_info);
 		if (count > 0)
@@ -2903,6 +2904,8 @@ static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw, bool ddr_only)
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	uint32_t i;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
+	struct cam_camnoc_info *camnoc_info =
+		(struct cam_camnoc_info *) cpas_core->camnoc_info;
 
 	if ((cpas_core->streamon_clients > 0) && soc_private->enable_smart_qos && !ddr_only)
 		cam_cpas_print_smart_qos_priority(cpas_hw);
@@ -2951,6 +2954,46 @@ static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw, bool ddr_only)
 		}
 	}
 
+	if ((cpas_core->streamon_clients > 0) &&
+		cpas_core->regbase_index[CAM_CPAS_REG_CESTA] != -1) {
+		int reg_base_index =
+			cpas_core->regbase_index[CAM_CPAS_REG_CESTA];
+		void __iomem *cesta_base =
+			soc_info->reg_map[reg_base_index].mem_base;
+		uint32_t vcd_base_inc =
+			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.vcd_base_inc;
+		uint32_t num_vcds =
+			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.num_vcds;
+		uint32_t vcd_curr_lvl_base =
+			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.reg_offset;
+		uint32_t cesta_vcd_curr_perfol_offset, cesta_vcd_curr_perfol_val;
+
+		if (!atomic_inc_not_zero(&cpas_core->soc_access_count))
+			goto skip_vcd_dump;
+
+		for (i = 0; i <= num_vcds; i++) {
+			if (i == camnoc_info->cesta_info->vcd_info[i].index) {
+				cesta_vcd_curr_perfol_offset = vcd_curr_lvl_base +
+					(vcd_base_inc * i);
+				cesta_vcd_curr_perfol_val =
+					cam_io_r_mb(cesta_base + cesta_vcd_curr_perfol_offset);
+				CAM_INFO(CAM_CPAS,
+					"i=%d, VCD[index=%d, type=%d, name=%s] [offset=0x%x, value=0x%x]",
+					i, camnoc_info->cesta_info->vcd_info[i].index,
+					camnoc_info->cesta_info->vcd_info[i].type,
+					camnoc_info->cesta_info->vcd_info[i].clk,
+					cesta_vcd_curr_perfol_offset,
+					cesta_vcd_curr_perfol_val);
+			} else {
+				CAM_WARN(CAM_CPAS, "cesta vcd index out of range");
+			}
+		}
+
+		atomic_dec(&cpas_core->soc_access_count);
+		wake_up(&cpas_core->soc_access_count_wq);
+	}
+
+skip_vcd_dump:
 	if (ddr_only)
 		return 0;
 
@@ -3110,6 +3153,39 @@ static void cam_cpas_update_monitor_array(struct cam_hw_info *cpas_hw,
 			entry->be_mnoc);
 	}
 
+	if ((cpas_core->streamon_clients > 0) &&
+		cpas_core->regbase_index[CAM_CPAS_REG_CESTA] != -1) {
+		int reg_base_index =
+			cpas_core->regbase_index[CAM_CPAS_REG_CESTA];
+		void __iomem *cesta_base =
+			soc_info->reg_map[reg_base_index].mem_base;
+		uint32_t vcd_base_inc =
+			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.vcd_base_inc;
+		uint32_t num_vcds =
+			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.num_vcds;
+		uint32_t vcd_curr_lvl_base =
+			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.reg_offset;
+		uint32_t cesta_vcd_curr_perfol_offset, cesta_vcd_curr_perfol_val;
+
+		if (atomic_inc_not_zero(&cpas_core->soc_access_count)) {
+			for (i = 0; i <= num_vcds; i++) {
+				if (i == camnoc_info->cesta_info->vcd_info[i].index) {
+					cesta_vcd_curr_perfol_offset = vcd_curr_lvl_base +
+						(vcd_base_inc * i);
+					cesta_vcd_curr_perfol_val =
+						cam_io_r_mb(cesta_base +
+						cesta_vcd_curr_perfol_offset);
+					entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[i].index =
+						camnoc_info->cesta_info->vcd_info[i].index;
+					entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[i]
+						.reg_value = cesta_vcd_curr_perfol_val;
+				}
+			}
+			atomic_dec(&cpas_core->soc_access_count);
+			wake_up(&cpas_core->soc_access_count_wq);
+		}
+	}
+
 	for (i = 0; i < camnoc_info->specific_size; i++) {
 		if ((!camnoc_info->specific[i].enable) ||
 			(!camnoc_info->specific[i].maxwr_low.enable))
@@ -3153,7 +3229,7 @@ static void cam_cpas_dump_monitor_array(
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
-	int i = 0, j = 0;
+	int i = 0, j = 0, k = 0;
 	int64_t state_head = 0;
 	uint32_t index, num_entries, oldest_entry;
 	uint64_t ms, hrs, min, sec;
@@ -3161,6 +3237,9 @@ static void cam_cpas_dump_monitor_array(
 	struct timespec64 curr_timestamp;
 	char log_buf[CAM_CPAS_LOG_BUF_LEN];
 	size_t len;
+	uint8_t vcd_index;
+	struct cam_camnoc_info *camnoc_info =
+		(struct cam_camnoc_info *) cpas_core->camnoc_info;
 
 	if (!cpas_core->full_state_dump)
 		return;
@@ -3233,6 +3312,30 @@ static void cam_cpas_dump_monitor_array(
 				"fe_ddr=0x%x, fe_mnoc=0x%x, be_ddr=0x%x, be_mnoc=0x%x, be_shub=0x%x",
 				entry->fe_ddr, entry->fe_mnoc,
 				entry->be_ddr, entry->be_mnoc, entry->be_shub);
+		}
+
+		if (cpas_core->regbase_index[CAM_CPAS_REG_CESTA] != -1) {
+			uint32_t vcd_base_inc =
+				camnoc_info->cesta_info->cesta_reg_info->vcd_currol.vcd_base_inc;
+			uint32_t vcd_curr_lvl_base =
+				camnoc_info->cesta_info->cesta_reg_info->vcd_currol.reg_offset;
+			uint32_t reg_offset;
+			uint32_t num_vcds =
+				camnoc_info->cesta_info->cesta_reg_info->vcd_currol.num_vcds;
+
+			for (k = 0; k <= num_vcds; k++) {
+				reg_offset = vcd_curr_lvl_base + (vcd_base_inc * i);
+				vcd_index =
+					entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[k].index;
+				CAM_INFO(CAM_CPAS,
+					"VCD[index=%d, type=%d, name=%s] [offset=0x%x, value=0x%x]",
+					vcd_index,
+					camnoc_info->cesta_info->vcd_info[vcd_index].type,
+					camnoc_info->cesta_info->vcd_info[vcd_index].clk,
+					reg_offset,
+					entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[k]
+					.reg_value);
+			}
 		}
 
 		for (j = 0; j < entry->num_camnoc_lvl_regs; j++) {
@@ -3992,8 +4095,8 @@ int cam_cpas_hw_probe(struct platform_device *pdev,
 	soc_private = (struct cam_cpas_private_soc *)
 		cpas_hw->soc_info.soc_private;
 	cpas_core->num_clients = soc_private->num_clients;
-	atomic_set(&cpas_core->irq_count, 0);
-	init_waitqueue_head(&cpas_core->irq_count_wq);
+	atomic_set(&cpas_core->soc_access_count, 0);
+	init_waitqueue_head(&cpas_core->soc_access_count_wq);
 
 	if (internal_ops->setup_regbase) {
 		rc = internal_ops->setup_regbase(&cpas_hw->soc_info,

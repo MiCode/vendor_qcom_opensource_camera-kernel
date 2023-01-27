@@ -10,6 +10,9 @@
 #include "cam_ois_dev.h"
 
 #define OIS_NAME_LEN 32
+#define OIS_ENDIANNESS_MASK_FW              0x0F
+#define OIS_ENDIANNESS_MASK_INPUTPARAM      0xF0
+
 
 /**
  * @power_info: power setting info to control the power

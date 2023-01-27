@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -87,8 +87,8 @@ static inline int hfi_get_client_info(int client_handle, struct hfi_info **hfi)
 
 	*hfi = g_hfi.hfi[idx];
 	if (!g_hfi.hfi[idx]) {
-		CAM_ERR(CAM_HFI, "HFI interface not setup for client hdl: %d",
-			client_handle);
+		CAM_ERR(CAM_HFI, "[%s] HFI interface not setup for client hdl: %d",
+			g_hfi.hfi[idx]->client_name, client_handle);
 		return -ENODEV;
 	}
 
@@ -137,8 +137,8 @@ void cam_hfi_mini_dump(int client_handle, struct hfi_mini_dump_info *dst)
 
 	hfi_mem = &hfi->map;
 	if (!hfi_mem) {
-		CAM_ERR(CAM_HFI, "hfi mem info NULL... unable to dump queues for hdl: %d",
-			client_handle);
+		CAM_ERR(CAM_HFI, "[%s] hfi mem info NULL... unable to dump queues for hdl: %d",
+			hfi->client_name, client_handle);
 		return;
 	}
 
@@ -165,25 +165,23 @@ void cam_hfi_queue_dump(int client_handle, bool dump_queue_data)
 
 	rc = hfi_get_client_info(client_handle, &hfi);
 	if (rc) {
-		CAM_ERR(CAM_HFI, "Failed to get hfi info rc: %d for hdl: %d",
+		CAM_ERR(CAM_HFI, "Failed to get hfi info rc:%d for hdl:%d",
 			rc, client_handle);
 		return;
 	}
 
 	hfi_mem = &hfi->map;
 	if (!hfi_mem) {
-		CAM_ERR(CAM_HFI, "mem info NULL... unable to dump queues for hdl: %d",
-			client_handle);
+		CAM_ERR(CAM_HFI, "[%s] mem info NULL... unable to dump queues for hdl: %d",
+			hfi->client_name, client_handle);
 		return;
 	}
 
 	qtbl = (struct hfi_qtbl *)hfi_mem->qtbl.kva;
 	CAM_INFO(CAM_HFI,
-		"hfi hdl: %u qtbl header: version=0x%08x tbl_size=%u numq=%u qhdr_size=%u",
-		client_handle,
-		qtbl->q_tbl_hdr.qtbl_version,
-		qtbl->q_tbl_hdr.qtbl_size,
-		qtbl->q_tbl_hdr.qtbl_num_q,
+		"[%s] hfi hdl: %u qtbl header: version=0x%08x tbl_size=%u numq=%u qhdr_size=%u",
+		hfi->client_name, client_handle, qtbl->q_tbl_hdr.qtbl_version,
+		qtbl->q_tbl_hdr.qtbl_size, qtbl->q_tbl_hdr.qtbl_num_q,
 		qtbl->q_tbl_hdr.qtbl_qhdr_size);
 
 	q_hdr = &qtbl->q_hdr[Q_CMD];
@@ -233,16 +231,17 @@ int hfi_write_cmd(int client_handle, void *cmd_ptr)
 	}
 
 	if (!cmd_ptr) {
-		CAM_ERR(CAM_HFI, "command is null for hfi hdl: %d",
-			client_handle);
+		CAM_ERR(CAM_HFI, "[%s] command is null for hfi hdl: %d",
+			hfi->client_name, client_handle);
 		return -EINVAL;
 	}
 
 	mutex_lock(&hfi->cmd_q_lock);
 	if (hfi->hfi_state != HFI_READY ||
 		!hfi->cmd_q_state) {
-		CAM_ERR(CAM_HFI, "Invalid hfi state: %u cmd q state: %u hfi hdl: %d",
-			hfi->hfi_state, hfi->cmd_q_state, client_handle);
+		CAM_ERR(CAM_HFI, "[%s] Invalid hfi state: %u cmd q state: %u hfi hdl: %d",
+			hfi->client_name, hfi->hfi_state,
+			hfi->cmd_q_state, client_handle);
 		rc = -ENODEV;
 		goto err;
 	}
@@ -254,7 +253,8 @@ int hfi_write_cmd(int client_handle, void *cmd_ptr)
 
 	size_in_words = (*(uint32_t *)cmd_ptr) >> BYTE_WORD_SHIFT;
 	if (!size_in_words) {
-		CAM_DBG(CAM_HFI, "hfi hdl: %u word size is NULL");
+		CAM_DBG(CAM_HFI, "[%s] hfi hdl: %u word size is NULL",
+			hfi->client_name, client_handle);
 		rc = -EINVAL;
 		goto err;
 	}
@@ -264,8 +264,8 @@ int hfi_write_cmd(int client_handle, void *cmd_ptr)
 		(q->qhdr_q_size - (q->qhdr_write_idx - read_idx)) :
 		(read_idx - q->qhdr_write_idx);
 	if (empty_space <= size_in_words) {
-		CAM_ERR(CAM_HFI, "hfi hdl: %u failed: empty space %u, size_in_words %u",
-			empty_space, size_in_words);
+		CAM_ERR(CAM_HFI, "[%s] hfi hdl: %u failed: empty space %u, size_in_words %u",
+			hfi->client_name, client_handle, empty_space, size_in_words);
 		rc = -EIO;
 		goto err;
 	}
@@ -325,20 +325,23 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	}
 
 	if (!pmsg) {
-		CAM_ERR(CAM_HFI, "client hdl: %d Invalid msg", client_handle);
+		CAM_ERR(CAM_HFI, "[%s] client hdl: %d Invalid msg",
+			hfi->client_name, client_handle);
 		return -EINVAL;
 	}
 
 	if (!((q_id == Q_MSG) || (q_id == Q_DBG))) {
-		CAM_ERR(CAM_HFI, "Invalid q :%u", q_id);
+		CAM_ERR(CAM_HFI, "[%s] Invalid q :%u",
+			hfi->client_name, q_id);
 		return -EINVAL;
 	}
 
 	mutex_lock(&hfi->msg_q_lock);
 	if (hfi->hfi_state != HFI_READY ||
 		!hfi->msg_q_state) {
-		CAM_ERR(CAM_HFI, "Invalid hfi state:%u msg q state: %u hfi hdl: %d",
-			hfi->hfi_state, hfi->msg_q_state, client_handle);
+		CAM_ERR(CAM_HFI, "[%s] Invalid hfi state:%u msg q state: %u hfi hdl: %d",
+			hfi->client_name, hfi->hfi_state, hfi->msg_q_state,
+			client_handle);
 		rc = -ENODEV;
 		goto err;
 	}
@@ -347,8 +350,9 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	q = &q_tbl_ptr->q_hdr[q_id];
 
 	if (q->qhdr_read_idx == q->qhdr_write_idx) {
-		CAM_DBG(CAM_HFI, "hfi hdl: %d Q not ready, state:%u, r idx:%u, w idx:%u",
-			client_handle, hfi->hfi_state, q->qhdr_read_idx, q->qhdr_write_idx);
+		CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d Q not ready, state:%u, r idx:%u, w idx:%u",
+			hfi->client_name, client_handle, hfi->hfi_state,
+			q->qhdr_read_idx, q->qhdr_write_idx);
 		rc = -EIO;
 		goto err;
 	}
@@ -371,8 +375,9 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 
 	if ((size_in_words == 0) ||
 		(size_in_words > size_upper_bound)) {
-		CAM_ERR(CAM_HFI, "Invalid HFI message packet size - 0x%08x hfi hdl:%d",
-			size_in_words << BYTE_WORD_SHIFT, client_handle);
+		CAM_ERR(CAM_HFI, "[%s] Invalid HFI message packet size - 0x%08x hfi hdl:%d",
+			hfi->client_name, size_in_words << BYTE_WORD_SHIFT,
+			client_handle);
 		q->qhdr_read_idx = q->qhdr_write_idx;
 		rc = -EIO;
 		goto err;
@@ -406,14 +411,23 @@ int hfi_cmd_ubwc_config(int client_handle, uint32_t *ubwc_cfg)
 {
 	uint8_t *prop;
 	struct hfi_cmd_prop *dbg_prop;
+	struct hfi_info *hfi;
 	uint32_t size = 0;
+	int rc;
 
 	size = sizeof(struct hfi_cmd_prop) +
 		sizeof(struct hfi_cmd_ubwc_cfg);
 
+	rc = hfi_get_client_info(client_handle, &hfi);
+	if (rc) {
+		CAM_ERR(CAM_HFI, "Failed to get hfi info rc: %d for hdl:%d",
+			rc, client_handle);
+		return rc;
+	}
+
 	CAM_DBG(CAM_HFI,
-		"hfi hdl: %d size of ubwc %u, ubwc_cfg [rd-0x%x,wr-0x%x]",
-		client_handle, size, ubwc_cfg[0], ubwc_cfg[1]);
+		"[%s] hfi hdl: %d size of ubwc %u, ubwc_cfg [rd-0x%x,wr-0x%x]",
+		hfi->client_name, client_handle, size, ubwc_cfg[0], ubwc_cfg[1]);
 
 	prop = kzalloc(size, GFP_KERNEL);
 	if (!prop)
@@ -438,14 +452,24 @@ int hfi_cmd_ubwc_config_ext(int client_handle, uint32_t *ubwc_ipe_cfg,
 {
 	uint8_t *prop;
 	struct hfi_cmd_prop *dbg_prop;
+	struct hfi_info *hfi;
 	uint32_t size = 0;
+	int rc;
+
+	rc = hfi_get_client_info(client_handle, &hfi);
+	if (rc) {
+		CAM_ERR(CAM_HFI, "Failed to get hfi info rc: %d for hdl:%d",
+			rc, client_handle);
+		return rc;
+	}
 
 	size = sizeof(struct hfi_cmd_prop) +
 		sizeof(struct hfi_cmd_ubwc_cfg_ext);
 
 	CAM_DBG(CAM_HFI,
-		"hfi hdl: %d size of ubwc %u, ubwc_ipe_cfg[rd-0x%x,wr-0x%x] ubwc_bps_cfg[rd-0x%x,wr-0x%x] ubwc_ofe_cfg[rd-0x%x,wr-0x%x]",
-		client_handle, size, ubwc_ipe_cfg[0], ubwc_ipe_cfg[1], ubwc_bps_cfg[0],
+		"[%s] hfi hdl: %d size of ubwc %u, ubwc_ipe_cfg[rd-0x%x,wr-0x%x] ubwc_bps_cfg[rd-0x%x,wr-0x%x] ubwc_ofe_cfg[rd-0x%x,wr-0x%x]",
+		hfi->client_name, client_handle, size,
+		ubwc_ipe_cfg[0], ubwc_ipe_cfg[1], ubwc_bps_cfg[0],
 		ubwc_bps_cfg[1], ubwc_ofe_cfg[0], ubwc_ofe_cfg[1]);
 
 	prop = kzalloc(size, GFP_KERNEL);
@@ -536,8 +560,8 @@ int hfi_set_fw_dump_levels(int client_handle, uint32_t hang_dump_lvl,
 		return rc;
 	}
 
-	CAM_DBG(CAM_HFI, "hfi hdl: %d fw dump ENTER",
-		client_handle);
+	CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d fw dump ENTER",
+		hfi->client_name, client_handle);
 
 	size = sizeof(struct hfi_cmd_prop) + sizeof(uint32_t);
 	prop = kzalloc(size, GFP_KERNEL);
@@ -560,11 +584,9 @@ int hfi_set_fw_dump_levels(int client_handle, uint32_t hang_dump_lvl,
 
 	hfi_write_cmd(client_handle, prop);
 	CAM_DBG(CAM_HFI,
-		"hfi hdl: %d prop->size = %d prop->pkt_type = %d prop->num_prop = %d hang_dump_lvl = %u ram_dump_lvl = %u",
-		client_handle,
-		fw_dump_level_switch_prop->size,
-		fw_dump_level_switch_prop->pkt_type,
-		fw_dump_level_switch_prop->num_prop,
+		"[%s] hfi hdl: %d prop->size = %d prop->pkt_type = %d prop->num_prop = %d hang_dump_lvl = %u ram_dump_lvl = %u",
+		hfi->client_name, client_handle, fw_dump_level_switch_prop->size,
+		fw_dump_level_switch_prop->pkt_type, fw_dump_level_switch_prop->num_prop,
 		hang_dump_lvl, ram_dump_lvl);
 
 	kfree(prop);
@@ -602,13 +624,14 @@ int hfi_send_freq_info(int client_handle, int32_t freq)
 	dbg_prop->prop_data[1] = freq;
 
 	CAM_DBG(CAM_HFI,
-			 "hfi hdl: %d\n"
+			 "[%s] hfi hdl: %d\n"
 			 "prop->size = %d\n"
 			 "prop->pkt_type = %d\n"
 			 "prop->num_prop = %d\n"
 			 "prop->prop_data[0] = %d\n"
 			 "prop->prop_data[1] = %d\n"
 			 "dbg_lvl = 0x%x\n",
+			 hfi->client_name,
 			 client_handle,
 			 dbg_prop->size,
 			 dbg_prop->pkt_type,
@@ -625,10 +648,13 @@ int hfi_send_freq_info(int client_handle, int32_t freq)
 int hfi_send_system_cmd(int client_handle, uint32_t type, uint64_t data, uint32_t size)
 {
 	int rc = 0;
+	struct hfi_info *hfi;
 
-	if (!IS_VALID_HFI_INDEX(client_handle)) {
-		CAM_ERR(CAM_HFI, "Invalid client handle: %d", client_handle);
-		return -EINVAL;
+	rc = hfi_get_client_info(client_handle, &hfi);
+	if (rc) {
+		CAM_ERR(CAM_HFI, "Failed to get hfi info rc: %d for hdl: %d",
+			rc, client_handle);
+		return rc;
 	}
 
 	switch (type) {
@@ -693,8 +719,8 @@ int hfi_send_system_cmd(int client_handle, uint32_t type, uint64_t data, uint32_
 	case HFI_CMD_IPEBPS_ASYNC_COMMAND_INDIRECT:
 		break;
 	default:
-		CAM_ERR(CAM_HFI, "command not supported: %u client handle: %d",
-			type, client_handle);
+		CAM_ERR(CAM_HFI, "[%s] command not supported: %u client handle: %d",
+			hfi->client_name, type, client_handle);
 		break;
 	}
 
@@ -751,8 +777,8 @@ int cam_hfi_resume(int client_handle)
 	icp_base = hfi_iface_addr(hfi);
 
 	if (!icp_base) {
-		CAM_ERR(CAM_HFI, "invalid HFI interface address for hdl:%d",
-			client_handle);
+		CAM_ERR(CAM_HFI, "[%s] Invalid HFI interface address for hdl:%d",
+			hfi->client_name, client_handle);
 		return -EINVAL;
 	}
 
@@ -760,15 +786,16 @@ int cam_hfi_resume(int client_handle)
 		HFI_REG_ICP_HOST_INIT_RESPONSE,
 		HFI_POLL_DELAY_US, HFI_POLL_TIMEOUT_US,
 		(uint32_t)UINT_MAX, ICP_INIT_RESP_SUCCESS, &status)) {
-		CAM_ERR(CAM_HFI, "response poll timed out: status=0x%08x hfi hdl: %d",
-			status, client_handle);
+		CAM_ERR(CAM_HFI, "[%s] response poll timed out: status=0x%08x hfi hdl: %d",
+			hfi->client_name, status, client_handle);
 		return -ETIMEDOUT;
 	}
 
 	hfi_irq_enable(hfi);
 
 	fw_version = cam_io_r(icp_base + HFI_REG_FW_VERSION);
-	CAM_DBG(CAM_HFI, "hfi hdl: %d fw version : [%x]", client_handle, fw_version);
+	CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d fw version : [%x]",
+		hfi->client_name, client_handle, fw_version);
 
 	hfi_mem = &hfi->map;
 	cam_io_w_mb((uint32_t)hfi_mem->qtbl.iova, icp_base + HFI_REG_QTBL_PTR);
@@ -856,8 +883,8 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 
 	if (!hfi_mem || !hfi_ops || !priv) {
 		CAM_ERR(CAM_HFI,
-			"invalid arg: hfi_mem=%pK hfi_ops=%pK priv=%pK hfi hdl:%d",
-			hfi_mem, hfi_ops, priv, client_handle);
+			"[%s] Invalid arg: hfi_mem=%pK hfi_ops=%pK priv=%pK hfi hdl:%d",
+			hfi->client_name, hfi_mem, hfi_ops, priv, client_handle);
 		return -EINVAL;
 	}
 
@@ -976,8 +1003,8 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 		break;
 
 	default:
-		CAM_ERR(CAM_HFI, "Invalid event driven mode :%u for hdl:%d",
-			event_driven_mode, client_handle);
+		CAM_ERR(CAM_HFI, "[%s] Invalid event driven mode :%u for hdl:%d",
+			hfi->client_name, event_driven_mode, client_handle);
 		break;
 	}
 
@@ -986,8 +1013,8 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 
 	icp_base = hfi_iface_addr(hfi);
 	if (!icp_base) {
-		CAM_ERR(CAM_HFI, "invalid HFI interface address for hdl: %d",
-			client_handle);
+		CAM_ERR(CAM_HFI, "[%s] Invalid HFI interface address for hdl: %d",
+			hfi->client_name, client_handle);
 		rc = -EINVAL;
 		goto regions_fail;
 	}
@@ -1029,7 +1056,8 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 	cam_io_w_mb((uint32_t)hfi_mem->hwmutex.len,
 		icp_base + HFI_REG_DEVICE_HWMUTEX_SIZE);
 
-	CAM_DBG(CAM_HFI, "HFI handle: %d", client_handle);
+	CAM_DBG(CAM_HFI, "[%s] HFI handle: %d",
+		hfi->client_name, client_handle);
 
 	CAM_DBG(CAM_HFI, "IO1 : [0x%x 0x%x] IO2 [0x%x 0x%x]",
 		hfi_mem->io_mem.iova, hfi_mem->io_mem.len,
@@ -1064,8 +1092,8 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 		HFI_REG_ICP_HOST_INIT_RESPONSE,
 		HFI_POLL_DELAY_US, HFI_POLL_TIMEOUT_US,
 		(uint32_t)UINT_MAX, ICP_INIT_RESP_SUCCESS, &status)) {
-		CAM_ERR(CAM_HFI, "response poll timed out: status=0x%08x",
-			status);
+		CAM_ERR(CAM_HFI, "[%s] hfi hdl:%u response poll timed out: status=0x%08x",
+			hfi->client_name, client_handle, status);
 		rc = -ETIMEDOUT;
 		goto regions_fail;
 	}
@@ -1104,8 +1132,8 @@ void cam_hfi_deinit(int client_handle)
 
 	if (cam_presil_mode_enabled()) {
 		CAM_DBG(CAM_HFI,
-			"HFI hdl: %d SYS_RESET Needed in presil for back to back hfi_init success",
-			client_handle);
+			"[%s] HFI hdl: %d SYS_RESET Needed in presil for back to back hfi_init success",
+			hfi->client_name, client_handle);
 		hfi_send_system_cmd(client_handle, HFI_CMD_SYS_RESET, 0, 0);
 	}
 
@@ -1142,11 +1170,10 @@ static int hfi_get_free_index(uint32_t *free_index)
 	return -EUSERS;
 }
 
-int cam_hfi_register(int *client_handle)
+int cam_hfi_register(int *client_handle, const char *client_name)
 {
 	struct hfi_info *hfi = NULL;
-	uint32_t hfi_index;
-	int rc = 0;
+	int hfi_index, rc = 0;
 
 	if (!client_handle) {
 		CAM_ERR(CAM_HFI, "Client handle is NULL");
@@ -1162,8 +1189,9 @@ int cam_hfi_register(int *client_handle)
 			rc = -EINVAL;
 			goto failed_hfi_register;
 		}
-		CAM_ERR(CAM_HFI, "HFI client handle:%d is already established",
-			*client_handle);
+
+		CAM_ERR(CAM_HFI, "[%s] HFI client handle:%d is already established",
+			hfi->client_name, *client_handle);
 		rc = -EINVAL;
 		goto failed_hfi_register;
 	}
@@ -1190,6 +1218,7 @@ int cam_hfi_register(int *client_handle)
 	g_hfi.hfi[hfi_index] = hfi;
 	g_hfi.num_hfi++;
 	*client_handle = HFI_GET_CLIENT_HANDLE(hfi_index);
+	memcpy(hfi->client_name, client_name, HFI_CLIENT_NAME_LEN);
 	mutex_unlock(&g_hfi_lock);
 
 	mutex_init(&hfi->cmd_q_lock);
@@ -1275,7 +1304,8 @@ int hfi_write_cmd(int client_handle, void *cmd_ptr)
 	}
 
 	if (!cmd_ptr) {
-		CAM_ERR(CAM_HFI, "command is null for hfi hdl:%d", client_handle);
+		CAM_ERR(CAM_HFI, "[%s] command is null for hfi hdl:%d",
+			hfi->client_name, client_handle);
 		return -EINVAL;
 	}
 
@@ -1285,12 +1315,12 @@ int hfi_write_cmd(int client_handle, void *cmd_ptr)
 		CAM_PRESIL_CLIENT_ID_CAMERA);
 
 	if ((presil_rc != CAM_PRESIL_SUCCESS) && (presil_rc != CAM_PRESIL_BLOCKED)) {
-		CAM_ERR(CAM_HFI, "hfi hdl: %d failed presil rc %d",
-			client_handle, presil_rc);
+		CAM_ERR(CAM_HFI, "[%s] hfi hdl: %d failed presil rc %d",
+			hfi->client_name, client_handle, presil_rc);
 		rc = -EINVAL;
 	} else {
-		CAM_DBG(CAM_HFI, "hfi hdl: %d presil rc %d",
-			client_handle, presil_rc);
+		CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d presil rc %d",
+			hfi->client_name, client_handle, presil_rc);
 	}
 
 	mutex_unlock(&hfi->cmd_q_lock);
@@ -1312,13 +1342,14 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	}
 
 	if (!pmsg) {
-		CAM_ERR(CAM_HFI, "Invalid msg for hdl: %d", client_handle);
+		CAM_ERR(CAM_HFI, "[%s] Invalid msg for hdl: %d",
+			hfi->client_name, client_handle);
 		return -EINVAL;
 	}
 
 	if (q_id > Q_DBG) {
-		CAM_ERR(CAM_HFI, "Invalid q :%u hdl: %d",
-			q_id, client_handle);
+		CAM_ERR(CAM_HFI, "[%s] Invalid q :%u hdl: %d",
+			hfi->client_name, q_id, client_handle);
 		return -EINVAL;
 	}
 	mutex_lock(&hfi->msg_q_lock);
@@ -1330,10 +1361,12 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 		CAM_PRESIL_CLIENT_ID_CAMERA);
 
 	if ((presil_rc != CAM_PRESIL_SUCCESS) && (presil_rc != CAM_PRESIL_BLOCKED)) {
-		CAM_ERR(CAM_HFI, "hfi hdl: %d failed presil rc %d", client_handle, presil_rc);
+		CAM_ERR(CAM_HFI, "[%s] hfi hdl: %d failed presil rc %d",
+			hfi->client_name, client_handle, presil_rc);
 		rc = -EINVAL;
 	} else {
-		CAM_DBG(CAM_HFI, "hfi hdl: %d presil rc %d", client_handle, presil_rc);
+		CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d presil rc %d",
+		hfi->client_name, client_handle, presil_rc);
 	}
 
 	mutex_unlock(&hfi->msg_q_lock);

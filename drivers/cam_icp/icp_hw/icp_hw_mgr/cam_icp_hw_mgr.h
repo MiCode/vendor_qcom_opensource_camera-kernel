@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_ICP_HW_MGR_H
@@ -86,6 +86,11 @@
 #define CAM_ICP_IS_DEV_HW_EXIST(hw_cap_mask, hw_dev_type)  \
 ({                                                         \
 	(hw_cap_mask) & BIT((hw_dev_type));                \
+})
+
+#define CAM_ICP_IS_VALID_HW_DEV_TYPE(type)                          \
+({                                                                  \
+	((type) >= CAM_ICP_HW_ICP_V1) && ((type) < CAM_ICP_HW_MAX); \
 })
 
 struct hfi_mini_dump_info;
@@ -346,7 +351,7 @@ struct cam_icp_hw_ctx_data {
 	char ctx_id_string[128];
 	struct cam_icp_ctx_perf_stats perf_stats;
 	struct cam_hw_inject_evt_param evt_inject_params;
-	uint32_t hw_dev_type;
+	enum cam_icp_hw_type hw_dev_type;
 	uint32_t hw_clk_type;
 	bool abort_timed_out;
 };
@@ -557,6 +562,7 @@ struct cam_icp_hw_ctx_mini_dump {
 /**
  * struct cam_icp_hw_mini_dump_info
  *
+ * @hw_mgr_name: name of the hw mgr that is dumped
  * @ctx: Context for minidump
  * @hfi_info: hfi info
  * @hfi_mem_info: hfi mem info
@@ -571,6 +577,7 @@ struct cam_icp_hw_ctx_mini_dump {
  * @icp_use_pil: Is PIL used
  */
 struct cam_icp_hw_mini_dump_info {
+	char                               hw_mgr_name[CAM_ICP_HW_MGR_NAME_SIZE];
 	struct cam_icp_hw_ctx_mini_dump   *ctx[CAM_ICP_CTX_MAX];
 	struct hfi_mini_dump_info          hfi_info;
 	struct icp_hfi_mem_info            hfi_mem_info;

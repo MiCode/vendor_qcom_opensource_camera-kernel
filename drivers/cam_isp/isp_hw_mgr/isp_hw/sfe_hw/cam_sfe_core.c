@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -411,6 +411,7 @@ int cam_sfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_GET_WM_SECURE_MODE:
 	case CAM_ISP_HW_SFE_SYS_CACHE_WM_CONFIG:
 	case CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG:
+	case CAM_ISP_HW_SFE_BUS_MINI_DUMP:
 	case CAM_ISP_HW_USER_DUMP:
 		rc = core_info->sfe_bus_wr->hw_ops.process_cmd(
 			core_info->sfe_bus_wr->bus_priv, cmd_type,

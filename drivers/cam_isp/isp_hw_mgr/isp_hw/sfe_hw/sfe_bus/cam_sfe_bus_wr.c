@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/ratelimit.h>
@@ -143,7 +143,7 @@ struct cam_sfe_bus_wr_wm_resource_data {
 
 struct cam_sfe_bus_wr_comp_grp_data {
 	enum cam_sfe_bus_wr_comp_grp_type          comp_grp_type;
-	uint32_t                                   comp_done_shift;
+	uint32_t                                   comp_done_mask;
 	struct cam_sfe_bus_wr_common_data         *common_data;
 
 	uint32_t                                   is_master;
@@ -287,69 +287,6 @@ static enum cam_sfe_bus_sfe_out_type
 	default:
 		return CAM_SFE_BUS_SFE_OUT_MAX;
 	}
-}
-
-static int cam_sfe_bus_get_comp_sfe_out_res_id_list(
-	uint32_t comp_mask, uint32_t *out_list, int *num_out)
-{
-	int count = 0;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_RDI0)))
-		out_list[count++] = CAM_ISP_SFE_OUT_RES_RDI_0;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_RDI1)))
-		out_list[count++] = CAM_ISP_SFE_OUT_RES_RDI_1;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_RDI2)))
-		out_list[count++] = CAM_ISP_SFE_OUT_RES_RDI_2;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_RDI3)))
-		out_list[count++] = CAM_ISP_SFE_OUT_RES_RDI_3;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_RDI4)))
-		out_list[count++] = CAM_ISP_SFE_OUT_RES_RDI_4;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_RAW_DUMP)))
-		out_list[count++] = CAM_ISP_SFE_OUT_RES_RAW_DUMP;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BE_0)))
-		out_list[count++] = CAM_ISP_SFE_OUT_BE_STATS_0;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BHIST_0)))
-		out_list[count++] = CAM_ISP_SFE_OUT_BHIST_STATS_0;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BE_1)))
-		out_list[count++] = CAM_ISP_SFE_OUT_BE_STATS_1;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BHIST_1)))
-		out_list[count++] = CAM_ISP_SFE_OUT_BHIST_STATS_1;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BE_2)))
-		out_list[count++] = CAM_ISP_SFE_OUT_BE_STATS_2;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BHIST_2)))
-		out_list[count++] = CAM_ISP_SFE_OUT_BHIST_STATS_2;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_LCR)))
-		out_list[count++] = CAM_ISP_SFE_OUT_RES_LCR;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_IR)))
-		out_list[count++] = CAM_ISP_SFE_OUT_RES_IR;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BAYER_RS_0)))
-		out_list[count++] = CAM_ISP_SFE_OUT_BAYER_RS_STATS_0;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BAYER_RS_1)))
-		out_list[count++] = CAM_ISP_SFE_OUT_BAYER_RS_STATS_1;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_BAYER_RS_2)))
-		out_list[count++] = CAM_ISP_SFE_OUT_BAYER_RS_STATS_2;
-
-	if (comp_mask & (BIT(CAM_SFE_BUS_SFE_OUT_HDR_STATS)))
-		out_list[count++] = CAM_ISP_SFE_OUT_HDR_STATS;
-
-	*num_out = count;
-	return 0;
 }
 
 bool cam_sfe_is_mipi_pcking_needed(
@@ -1249,7 +1186,7 @@ static int cam_sfe_bus_start_comp_grp(
 		return 0;
 
 	/* CSID buf done register */
-	bus_irq_reg_mask[0] = BIT(rsrc_data->comp_done_shift);
+	bus_irq_reg_mask[0] = rsrc_data->comp_done_mask;
 
 	CAM_DBG(CAM_SFE, "Start Done SFE:%d comp_grp:%d buf_done_mask:0x%x",
 		rsrc_data->common_data->core_index,
@@ -1290,7 +1227,7 @@ static int cam_sfe_bus_wr_init_comp_grp(uint32_t index,
 	rsrc_data->comp_grp_type   = index;
 	rsrc_data->common_data     = &bus_priv->common_data;
 	rsrc_data->dual_slave_core = CAM_SFE_CORE_MAX;
-	rsrc_data->comp_done_shift = hw_info->comp_done_shift[index];
+	rsrc_data->comp_done_mask = hw_info->comp_done_mask[index];
 
 	list_add_tail(&comp_grp->list, &bus_priv->free_comp_grp);
 
@@ -1475,6 +1412,7 @@ static int cam_sfe_bus_acquire_sfe_out(void *priv, void *acquire_args,
 
 	rsrc_node->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
 	out_acquire_args->rsrc_node = rsrc_node;
+	out_acquire_args->comp_grp_id = comp_grp_id;
 
 	CAM_DBG(CAM_SFE, "Acquire successful");
 	return rc;
@@ -1773,6 +1711,7 @@ static int cam_sfe_bus_handle_sfe_out_done_top_half(
 	struct cam_sfe_bus_wr_out_data             *rsrc_data = NULL;
 	struct cam_sfe_bus_wr_irq_evt_payload      *evt_payload;
 	struct cam_sfe_bus_wr_comp_grp_data        *resource_data;
+	struct cam_sfe_bus_wr_wm_resource_data     *wm_rsrc_data = NULL;
 	uint32_t                                    status_0;
 
 	sfe_out = th_payload->handler_priv;
@@ -1810,7 +1749,12 @@ static int cam_sfe_bus_handle_sfe_out_done_top_half(
 
 	status_0 = th_payload->evt_status_arr[CAM_SFE_IRQ_BUS_WR_REG_STATUS0];
 
-	if (status_0 & BIT(resource_data->comp_done_shift)) {
+	if (status_0 & resource_data->comp_done_mask) {
+		/* All SFE out ports have single WM */
+		wm_rsrc_data = rsrc_data->wm_res->res_priv;
+		evt_payload->last_consumed_addr = cam_io_r_mb(
+			wm_rsrc_data->common_data->mem_base +
+			wm_rsrc_data->hw_regs->addr_status_0);
 		trace_cam_log_event("bufdone", "bufdone_IRQ",
 			status_0, resource_data->comp_grp_type);
 	}
@@ -1821,7 +1765,7 @@ static int cam_sfe_bus_handle_sfe_out_done_top_half(
 static int cam_sfe_bus_handle_comp_done_bottom_half(
 	void                *handler_priv,
 	void                *evt_payload_priv,
-	uint32_t            *comp_mask)
+	uint32_t            *comp_grp_id)
 {
 	int rc = CAM_SFE_IRQ_STATUS_ERR;
 	struct cam_isp_resource_node          *comp_grp = handler_priv;
@@ -1842,7 +1786,7 @@ static int cam_sfe_bus_handle_comp_done_bottom_half(
 	cam_sfe_irq_regs = evt_payload->irq_reg_val;
 	status_0 = cam_sfe_irq_regs[CAM_SFE_IRQ_BUS_WR_REG_STATUS0];
 
-	if (status_0 & BIT(rsrc_data->comp_done_shift)) {
+	if (status_0 & rsrc_data->comp_done_mask) {
 		evt_payload->evt_id = CAM_ISP_HW_EVENT_DONE;
 		rc = CAM_SFE_IRQ_STATUS_SUCCESS;
 	}
@@ -1851,62 +1795,32 @@ static int cam_sfe_bus_handle_comp_done_bottom_half(
 		rsrc_data->common_data->core_index, rsrc_data->comp_grp_type,
 		status_0, rc);
 
-	*comp_mask = rsrc_data->composite_mask;
+	*comp_grp_id = rsrc_data->comp_grp_type;
 
 	return rc;
-}
-
-static uint32_t cam_sfe_bus_get_last_consumed_addr(
-	struct cam_sfe_bus_wr_priv *bus_priv,
-	uint32_t res_type,
-	uint32_t *val)
-{
-	struct cam_isp_resource_node             *rsrc_node = NULL;
-	struct cam_sfe_bus_wr_out_data           *rsrc_data = NULL;
-	struct cam_sfe_bus_wr_wm_resource_data   *wm_rsrc_data = NULL;
-	enum cam_sfe_bus_sfe_out_type             res_id;
-
-	res_id = cam_sfe_bus_wr_get_out_res_id(res_type);
-
-	if (res_id >= CAM_SFE_BUS_SFE_OUT_MAX) {
-		CAM_ERR(CAM_ISP, "invalid res id:%u", res_id);
-		return 0;
-	}
-
-	rsrc_node = &bus_priv->sfe_out[res_id];
-	rsrc_data = rsrc_node->res_priv;
-
-	/* All SFE out ports have single WM */
-	wm_rsrc_data = rsrc_data->wm_res->res_priv;
-	*val = cam_io_r_mb(
-		wm_rsrc_data->common_data->mem_base +
-		wm_rsrc_data->hw_regs->addr_status_0);
-
-	return 0;
 }
 
 static int cam_sfe_bus_handle_sfe_out_done_bottom_half(
 	void                *handler_priv,
 	void                *evt_payload_priv)
 {
-	int rc = -EINVAL, num_out = 0, i;
-	uint32_t evt_id = 0, comp_mask = 0, val = 0;
+	int rc = -EINVAL;
+	uint32_t evt_id = 0;
 	struct cam_isp_resource_node           *sfe_out = handler_priv;
 	struct cam_sfe_bus_wr_out_data         *rsrc_data = sfe_out->res_priv;
 	struct cam_sfe_bus_wr_irq_evt_payload  *evt_payload = evt_payload_priv;
 	struct cam_isp_hw_event_info            evt_info;
-	struct cam_isp_hw_compdone_event_info   compdone_evt_info = {0};
+	struct cam_isp_hw_bufdone_event_info    bufdone_evt_info = {0};
 	void                                   *ctx = NULL;
-	uint32_t                       out_list[CAM_SFE_BUS_SFE_OUT_MAX];
+	uint32_t                                comp_grp_id = 0;
 
 	rc = cam_sfe_bus_handle_comp_done_bottom_half(
-		rsrc_data->comp_grp, evt_payload_priv, &comp_mask);
-	CAM_DBG(CAM_SFE, "SFE:%d out_type:0x%X rc:%d",
+		rsrc_data->comp_grp, evt_payload_priv, &comp_grp_id);
+	CAM_DBG(CAM_SFE, "SFE:%d out_type:0x%x comp_grp_id:%d rc:%d",
 		rsrc_data->common_data->core_index,
-		rsrc_data->out_type, rc);
+		rsrc_data->out_type, comp_grp_id, rc);
 
 	ctx = rsrc_data->priv;
-	memset(out_list, 0, sizeof(out_list));
 
 	switch (rc) {
 	case CAM_SFE_IRQ_STATUS_SUCCESS:
@@ -1915,30 +1829,12 @@ static int cam_sfe_bus_handle_sfe_out_done_bottom_half(
 		evt_info.res_type = sfe_out->res_type;
 		evt_info.hw_idx   = sfe_out->hw_intf->hw_idx;
 		evt_info.hw_type  = CAM_ISP_HW_TYPE_SFE;
+		evt_info.res_id = sfe_out->res_id;
+		bufdone_evt_info.res_id = sfe_out->res_id;
+		bufdone_evt_info.comp_grp_id = comp_grp_id;
+		bufdone_evt_info.last_consumed_addr = evt_payload->last_consumed_addr;
+		evt_info.event_data = (void *)&bufdone_evt_info;
 
-		cam_sfe_bus_get_comp_sfe_out_res_id_list(
-			comp_mask, out_list, &num_out);
-		if (num_out > CAM_NUM_OUT_PER_COMP_IRQ_MAX) {
-			CAM_ERR(CAM_ISP,
-				"num_out: %d  exceeds max_port_per_comp_grp: %d for comp_mask: %u",
-				num_out, CAM_NUM_OUT_PER_COMP_IRQ_MAX, comp_mask);
-			for (i = 0; i < num_out; i++)
-				CAM_ERR(CAM_ISP,
-					"Skipping buf done notify for outport: %u",
-					out_list[i]);
-			rc = -EINVAL;
-			goto end;
-		}
-
-		compdone_evt_info.num_res = num_out;
-		for (i = 0; i < num_out; i++) {
-			compdone_evt_info.res_id[i] = out_list[i];
-			cam_sfe_bus_get_last_consumed_addr(
-				rsrc_data->bus_priv,
-				compdone_evt_info.res_id[i], &val);
-			compdone_evt_info.last_consumed_addr[i] = val;
-		}
-		evt_info.event_data = (void *)&compdone_evt_info;
 		if (rsrc_data->common_data->event_cb)
 			rsrc_data->common_data->event_cb(ctx, evt_id,
 				(void *)&evt_info);
@@ -1947,7 +1843,6 @@ static int cam_sfe_bus_handle_sfe_out_done_bottom_half(
 		break;
 	}
 
-end:
 	cam_sfe_bus_wr_put_evt_payload(rsrc_data->common_data, &evt_payload);
 
 	return rc;
@@ -2124,13 +2019,81 @@ static int cam_sfe_bus_wr_print_dimensions(
 			wm_res->res_priv;
 		wm_idx = wm_data->index;
 		if (wm_idx < 0 || wm_idx >= bus_priv->num_client) {
-			CAM_ERR(CAM_SFE, "Unsupported SFE out %d",
-				sfe_out_res_id);
-			return -EINVAL;
+			CAM_WARN(CAM_SFE, "Unsupported SFE out %d", sfe_out_res_id);
+			continue;
 		}
 
 		__cam_sfe_bus_wr_print_wm_info(wm_data);
 	}
+	return 0;
+}
+
+static int cam_sfe_bus_mini_dump(
+	struct cam_sfe_bus_wr_priv *bus_priv,
+	void *cmd_args)
+{
+	struct cam_isp_resource_node            *rsrc_node = NULL;
+	struct cam_sfe_bus_wr_out_data          *rsrc_data = NULL;
+	struct cam_sfe_bus_wr_wm_resource_data  *wm        = NULL;
+	struct cam_sfe_bus_mini_dump_data       *md;
+	struct cam_sfe_bus_wm_mini_dump         *md_wm;
+	struct cam_hw_mini_dump_args            *md_args;
+	struct cam_hw_info                      *hw_info = NULL;
+	uint32_t                                 bytes_written = 0;
+	uint32_t                                 i, j, k = 0;
+
+	if (!bus_priv || !cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid bus private data");
+		return -EINVAL;
+	}
+
+	hw_info = (struct cam_hw_info *)bus_priv->common_data.hw_intf->hw_priv;
+	md_args = (struct cam_hw_mini_dump_args *)cmd_args;
+
+	if (sizeof(*md) > md_args->len) {
+		md_args->bytes_written = 0;
+		return 0;
+	}
+
+	md = (struct cam_sfe_bus_mini_dump_data *)md_args->start_addr;
+	md->clk_rate = cam_soc_util_get_applied_src_clk(&hw_info->soc_info, true);
+	md->hw_idx = bus_priv->common_data.hw_intf->hw_idx;
+	md->hw_state = hw_info->hw_state;
+	bytes_written += sizeof(*md);
+	md->wm = (struct cam_sfe_bus_wm_mini_dump *)
+			((uint8_t *)md_args->start_addr + bytes_written);
+
+	for (i = 0; i < bus_priv->num_out; i++) {
+		rsrc_node = &bus_priv->sfe_out[i];
+		rsrc_data = rsrc_node->res_priv;
+		if (!rsrc_data)
+			continue;
+
+		for (j = 0; j < rsrc_data->num_wm; j++) {
+			if (bytes_written + sizeof(*md_wm) > md_args->len)
+				goto end;
+
+			md_wm = &md->wm[k];
+			wm = rsrc_data->wm_res[j].res_priv;
+			md_wm->width  = wm->width;
+			md_wm->index  = wm->index;
+			md_wm->height = wm->height;
+			md_wm->stride = wm->stride;
+			md_wm->en_cfg = wm->en_cfg;
+			md_wm->h_init = wm->h_init;
+			md_wm->format = wm->format;
+			md_wm->acquired_width = wm->acquired_width;
+			md_wm->acquired_height = wm->acquired_height;
+			md_wm->state = rsrc_node->res_state;
+			scnprintf(md_wm->name, CAM_ISP_RES_NAME_LEN,
+				"%s", rsrc_data->wm_res[j].res_name);
+			k++;
+			bytes_written += sizeof(*md_wm);
+		}
+	}
+end:
+	md->num_client = k;
+	md_args->bytes_written = bytes_written;
 	return 0;
 }
 
@@ -3410,6 +3373,12 @@ static int cam_sfe_bus_wr_process_cmd(
 			sfe_out_res_id, (struct cam_sfe_bus_wr_priv  *)priv);
 		break;
 		}
+	case CAM_ISP_HW_SFE_BUS_MINI_DUMP: {
+		bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
+
+		rc = cam_sfe_bus_mini_dump(bus_priv, cmd_args);
+		break;
+	}
 	case CAM_ISP_HW_USER_DUMP: {
 		bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_ois_dev.h"
@@ -252,8 +252,6 @@ static void cam_ois_i2c_component_unbind(struct device *dev,
 	struct i2c_client              *client = NULL;
 	struct cam_ois_ctrl_t          *o_ctrl = NULL;
 	struct cam_hw_soc_info         *soc_info;
-	struct cam_ois_soc_private     *soc_private;
-	struct cam_sensor_power_ctrl_t *power_info;
 
 	client = container_of(dev, struct i2c_client, dev);
 	if (!client) {
@@ -284,10 +282,6 @@ static void cam_ois_i2c_component_unbind(struct device *dev,
 	cam_ois_shutdown(o_ctrl);
 	mutex_unlock(&(o_ctrl->ois_mutex));
 	cam_unregister_subdev(&(o_ctrl->v4l2_dev_str));
-
-	soc_private =
-		(struct cam_ois_soc_private *)soc_info->soc_private;
-	power_info = &soc_private->power_info;
 
 	kfree(o_ctrl->soc_info.soc_private);
 	v4l2_set_subdevdata(&o_ctrl->v4l2_dev_str.sd, NULL);
@@ -430,8 +424,6 @@ static void cam_ois_component_unbind(struct device *dev,
 {
 	int                             i;
 	struct cam_ois_ctrl_t          *o_ctrl;
-	struct cam_ois_soc_private     *soc_private;
-	struct cam_sensor_power_ctrl_t *power_info;
 	struct cam_hw_soc_info         *soc_info;
 	bool                            i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
@@ -461,10 +453,6 @@ static void cam_ois_component_unbind(struct device *dev,
 	cam_ois_shutdown(o_ctrl);
 	mutex_unlock(&(o_ctrl->ois_mutex));
 	cam_unregister_subdev(&(o_ctrl->v4l2_dev_str));
-
-	soc_private =
-		(struct cam_ois_soc_private *)o_ctrl->soc_info.soc_private;
-	power_info = &soc_private->power_info;
 
 	kfree(o_ctrl->soc_info.soc_private);
 	kfree(o_ctrl->io_master_info.cci_client);

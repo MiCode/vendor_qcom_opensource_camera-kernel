@@ -1275,6 +1275,51 @@ static struct cam_cpas_hw_errata_wa_list cam880_cpas100_errata_wa_list = {
 	},
 };
 
+static struct cam_cpas_cesta_vcd_reg_info cam_cpas_v880_100_cesta_reg_info = {
+	.vcd_currol = {
+		.reg_offset = 0x300c,
+		.vcd_base_inc = 0x200,
+		.num_vcds = 8,
+	},
+
+};
+
+static struct cam_cpas_vcd_info cam_v880_100_vcd_info[] = {
+	{
+		.index = 0, .type = CAM_CESTA_CRMC, .clk = "cam_cc_ife_0_clk_src",
+	},
+	{
+		.index = 1, .type = CAM_CESTA_CRMC, .clk = "cam_cc_ife_1_clk_src",
+	},
+	{
+		.index = 2, .type = CAM_CESTA_CRMC, .clk = "cam_cc_ife_2_clk_src",
+	},
+	{
+		.index = 3, .type = CAM_CESTA_CRMC, .clk = "cam_cc_sfe_0_clk_src",
+	},
+	{
+		.index = 4, .type = CAM_CESTA_CRMC, .clk = "cam_cc_sfe_1_clk_src",
+	},
+	{
+		.index = 5, .type = CAM_CESTA_CRMC, .clk = "cam_cc_sfe_2_clk_src",
+	},
+	{
+		.index = 6, .type = CAM_CESTA_CRMC, .clk = "cam_cc_csid_clk_src",
+	},
+	{
+		.index = 7, .type = CAM_CESTA_CRMC, .clk = "cam_cc_cphy_rx_clk_src",
+	},
+	{
+		.index = 8, .type = CAM_CESTA_CRMB, .clk = "cam_cc_camnoc_axi_rt_clk_src",
+	},
+};
+
+static struct cam_cpas_cesta_info cam_v880_cesta_info = {
+	 .vcd_info = &cam_v880_100_vcd_info[0],
+	 .num_vcds = ARRAY_SIZE(cam_v880_100_vcd_info),
+	 .cesta_reg_info = &cam_cpas_v880_100_cesta_reg_info,
+};
+
 static struct cam_camnoc_info cam880_cpas100_camnoc_info = {
 	.specific = &cam_cpas_v880_100_camnoc_specific[0],
 	.specific_size = ARRAY_SIZE(cam_cpas_v880_100_camnoc_specific),
@@ -1286,7 +1331,8 @@ static struct cam_camnoc_info cam880_cpas100_camnoc_info = {
 	.test_irq_info = {
 		.sbm_enable_mask = 0x80,
 		.sbm_clear_mask = 0x4,
-	}
+	},
+	.cesta_info = &cam_v880_cesta_info,
 };
 
 static struct cam_cpas_camnoc_qchannel cam880_cpas100_qchannel_info = {

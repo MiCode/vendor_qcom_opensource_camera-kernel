@@ -58,6 +58,7 @@
 #define CAM_CPAS_INC_MONITOR_HEAD(head, ret) \
 	div_u64_rem(atomic64_add_return(1, head),\
 	CAM_CPAS_MONITOR_MAX_ENTRIES, (ret))
+#define CAM_CPAS_MAX_CESTA_VCD_NUM 9
 
 /**
  * enum cam_cpas_access_type - Enum for Register access type
@@ -265,6 +266,23 @@ struct cam_cpas_axi_port_debug_info {
 	bool is_drv_started;
 };
 
+struct cam_cpas_cesta_vcd_curr_lvl_debug_info {
+	uint8_t index;
+	uint32_t reg_value;
+};
+
+/**
+ * struct cam_cpas_cesta_vcd_reg_debug_info : to hold all cesta register information
+ *
+ * @vcd_currol: vcd control reg info
+ *
+ */
+struct cam_cpas_cesta_vcd_reg_debug_info {
+	struct cam_cpas_cesta_vcd_curr_lvl_debug_info
+		vcd_curr_lvl_debug_info[CAM_CPAS_MAX_CESTA_VCD_NUM];
+};
+
+
 /**
  * struct cam_cpas_monitor : CPAS monitor array
  *
@@ -290,6 +308,7 @@ struct cam_cpas_axi_port_debug_info {
  * @camnoc_fill_level: Camnoc fill level register info
  * @rt_wr_niu_pri_lut_low: priority lut low values of RT Wr NIUs
  * @rt_wr_niu_pri_lut_high: priority lut high values of RT Wr NIUs
+ * @vcd_reg_debug_info: vcd reg debug information
  */
 struct cam_cpas_monitor {
 	struct timespec64   timestamp;
@@ -308,6 +327,7 @@ struct cam_cpas_monitor {
 	uint32_t            camnoc_fill_level[CAM_CAMNOC_FILL_LVL_REG_INFO_MAX];
 	uint32_t            rt_wr_niu_pri_lut_low[CAM_CPAS_MAX_RT_WR_NIU_NODES];
 	uint32_t            rt_wr_niu_pri_lut_high[CAM_CPAS_MAX_RT_WR_NIU_NODES];
+	struct cam_cpas_cesta_vcd_reg_debug_info vcd_reg_debug_info;
 };
 
 /**
@@ -331,8 +351,9 @@ struct cam_cpas_monitor {
  * @camnoc_axi_port: CAMNOC AXI port info for a specific camnoc axi index
  * @internal_ops: CPAS HW internal ops
  * @work_queue: Work queue handle
- * @irq_count: atomic irq count
- * @irq_count_wq: wait variable to ensure all irq's are handled
+ * @soc_access_count: atomic soc_access_count count
+ * @soc_access_count_wq: wait variable to ensure CPAS is not stop,
+ *						 while accessing hw through CPAS
  * @dentry: debugfs file entry
  * @ahb_bus_scaling_disable: ahb scaling based on src clk corner for bus
  * @applied_camnoc_axi_rate: applied camnoc axi clock rate through sw, hw clients
@@ -364,8 +385,8 @@ struct cam_cpas {
 	struct cam_cpas_axi_port camnoc_axi_port[CAM_CPAS_MAX_AXI_PORTS];
 	struct cam_cpas_internal_ops internal_ops;
 	struct workqueue_struct *work_queue;
-	atomic_t irq_count;
-	wait_queue_head_t irq_count_wq;
+	atomic_t soc_access_count;
+	wait_queue_head_t soc_access_count_wq;
 	struct dentry *dentry;
 	bool ahb_bus_scaling_disable;
 	struct cam_soc_util_clk_rates applied_camnoc_axi_rate;

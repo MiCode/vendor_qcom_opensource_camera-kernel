@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -177,7 +177,7 @@ struct cam_sfe_bus_sfe_out_hw_info {
  * @bus_client_reg:            Bus client register info
  * @sfe_out_hw_info:           SFE output capability
  * @constraint_error_info:     Constraint Error information
- * @comp_done_shift:           List of buf done mask shift values for
+ * @comp_done_mask:           List of buf done mask shift values for
  *                             each comp grp
  * @num_comp_grp:              Number of composite groups
  * @line_done_cfg:             Line done cfg for wr/rd sync
@@ -198,7 +198,7 @@ struct cam_sfe_bus_wr_hw_info {
 		sfe_out_hw_info[CAM_SFE_BUS_SFE_OUT_MAX];
 	struct cam_sfe_bus_wr_constraint_error_info
 		*constraint_error_info;
-	uint32_t comp_done_shift[CAM_SFE_BUS_WR_COMP_GRP_MAX];
+	uint32_t comp_done_mask[CAM_SFE_BUS_WR_COMP_GRP_MAX];
 	uint32_t num_comp_grp;
 	uint32_t line_done_cfg;
 	uint32_t top_irq_shift;
@@ -207,6 +207,52 @@ struct cam_sfe_bus_wr_hw_info {
 	uint32_t max_bw_counter_limit;
 	uint32_t sys_cache_default_val;
 	uint32_t irq_err_mask;
+};
+
+/**
+ * struct cam_sfe_bus_wm_mini_dump - SFE WM data
+ *
+ * @width                  Width
+ * @height                 Height
+ * @stride                 stride
+ * @h_init                 init height
+ * @acquired_width         acquired width
+ * @acquired_height        acquired height
+ * @en_cfg                 Enable flag
+ * @format                 format
+ * @index                  Index
+ * @state                  state
+ * @name                   Res name
+ */
+struct cam_sfe_bus_wm_mini_dump {
+	uint32_t   width;
+	uint32_t   height;
+	uint32_t   stride;
+	uint32_t   h_init;
+	uint32_t   acquired_width;
+	uint32_t   acquired_height;
+	uint32_t   en_cfg;
+	uint32_t   format;
+	uint32_t   index;
+	uint32_t   state;
+	uint8_t    name[CAM_ISP_RES_NAME_LEN];
+};
+
+/**
+ * struct cam_sfe_bus_mini_dump_data - SFE bus mini dump data
+ *
+ * @wm:              Write Master client information
+ * @clk_rate:        Clock rate
+ * @num_client:      Num client
+ * @hw_state:        hw statte
+ * @hw_idx:          Hw index
+ */
+struct cam_sfe_bus_mini_dump_data {
+	struct cam_sfe_bus_wm_mini_dump *wm;
+	uint64_t                         clk_rate;
+	uint32_t                         num_client;
+	uint8_t                          hw_state;
+	uint8_t                          hw_idx;
 };
 
 /*

@@ -32,6 +32,7 @@ struct tpg_hw;
  * @write       : tpg hw write register
  * @process_cmd : tpg hw process command
  * @dump_status : dump any status registers
+ * @write_settings : write register settings
  */
 struct tpg_hw_ops {
 	int (*init)(struct tpg_hw *hw, void *data);
@@ -42,6 +43,8 @@ struct tpg_hw_ops {
 	int (*write)(struct tpg_hw *hw, uint32_t *addr, uint32_t *val);
 	int (*process_cmd)(struct tpg_hw *hw, uint32_t cmd, void *arg);
 	int (*dump_status)(struct tpg_hw *hw, void *data);
+	int (*write_settings)(struct tpg_hw *hw,
+		struct tpg_settings_config_t *config, struct tpg_reg_settings *settings);
 };
 
 /**
@@ -146,6 +149,8 @@ struct tpg_hw {
 	struct mutex               mutex;
 	struct tpg_vc_slot_info   *vc_slots;
 	struct tpg_global_config_t global_config;
+	struct tpg_settings_config_t settings_config;
+	struct tpg_reg_settings *register_settings;
 };
 
 /**
@@ -415,5 +420,15 @@ int tpg_hw_add_stream_v3(struct tpg_hw *hw, struct tpg_stream_config_v3_t *cmd);
  * @return : 0 on success
  */
 int tpg_hw_copy_global_config(struct tpg_hw *hw, struct tpg_global_config_t *global);
+
+/**
+ * @brief : copy settings config command
+ *
+ * @param hw: tpg hw instance
+ * @param settings: settings config command
+ *
+ * @return : 0 on success
+ */
+int tpg_hw_copy_settings_config(struct tpg_hw *hw, struct tpg_settings_config_t *settings);
 
 #endif

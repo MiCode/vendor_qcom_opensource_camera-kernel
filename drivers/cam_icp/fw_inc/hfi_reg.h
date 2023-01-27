@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_HFI_REG_H_
@@ -283,6 +283,7 @@ struct hfi_qtbl {
  * @msg_q_state: State of message queue
  * @priv: device private data
  * @dbg_lvl: debug level set to FW
+ * @client_name: hfi client's name
  */
 struct hfi_info {
 	struct hfi_mem_info map;
@@ -297,6 +298,7 @@ struct hfi_info {
 	bool msg_q_state;
 	void *priv;
 	u64 dbg_lvl;
+	char client_name[HFI_CLIENT_NAME_LEN];
 };
 
 #endif /* _CAM_HFI_REG_H_ */
