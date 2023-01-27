@@ -441,6 +441,12 @@ static int __cam_req_mgr_notify_frame_skip(
 
 	apply_data = link->req.prev_apply_data;
 
+	if (link->max_delay < 0 || link->max_delay >= CAM_PIPELINE_DELAY_MAX) {
+		CAM_ERR(CAM_CRM, "link->max_delay is out of bounds: %d",
+			link->max_delay);
+		return -EINVAL;
+	}
+
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
 		pd = dev->dev_info.p_delay;
@@ -1203,6 +1209,12 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 	else
 		apply_req.recovery = false;
 
+	if (link->max_delay < 0 || link->max_delay >= CAM_PIPELINE_DELAY_MAX) {
+		CAM_ERR(CAM_CRM, "link->max_delay is out of bounds: %d",
+			link->max_delay);
+		return -EINVAL;
+	}
+
 	apply_data = link->req.apply_data;
 
 	/*
@@ -1829,7 +1841,6 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 	if (sync_slot_idx == -1) {
 		CAM_DBG(CAM_CRM, "Req: %lld not found on link: %x [other link]",
 			req_id, sync_link->link_hdl);
-		sync_ready = false;
 		return -EAGAIN;
 	}
 
@@ -5312,6 +5323,10 @@ int cam_req_mgr_flush_requests(
 	task->process_cb = &cam_req_mgr_process_flush_req;
 	init_completion(&link->workq_comp);
 	rc = cam_req_mgr_workq_enqueue_task(task, link, CRM_TASK_PRIORITY_0);
+	if (rc) {
+		CAM_ERR(CAM_CRM, "Failed to queue flush task rc: %d", rc);
+		goto end;
+	}
 
 	/* Blocking call */
 	rc = cam_common_wait_for_completion_timeout(
@@ -5534,7 +5549,7 @@ int cam_req_mgr_dump_request(struct cam_dump_req_cmd *dump_req)
 		dump_req->issue_req_id, dump_req->offset);
 end:
 	mutex_unlock(&g_crm_core_dev->crm_lock);
-	return 0;
+	return rc;
 }
 
 static unsigned long cam_req_mgr_core_mini_dump_cb(void *dst, unsigned long len,
