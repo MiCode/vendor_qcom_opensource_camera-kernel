@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -333,15 +333,12 @@ int cam_jpeg_enc_reset_hw(void *data,
 int cam_jpeg_enc_test_irq_line(void *data)
 {
 	struct cam_hw_info *jpeg_enc_dev = data;
-	struct cam_jpeg_enc_device_core_info *core_info = NULL;
 	int rc;
 
 	if (!data) {
 		CAM_ERR(CAM_JPEG, "invalid args");
 		return -EINVAL;
 	}
-
-	core_info = jpeg_enc_dev->core_info;
 
 	rc = cam_jpeg_enc_init_hw(data, NULL, 0);
 	if (rc) {
@@ -615,7 +612,6 @@ int cam_jpeg_enc_dump_camnoc_misr_val(struct cam_jpeg_enc_device_hw_info *hw_inf
 		pmisr_args->req_id,
 		camnoc_misr_val[index][3], camnoc_misr_val[index][2],
 		camnoc_misr_val[index][1], camnoc_misr_val[index][0]);
-	mismatch = false;
 	for (i = 0; i < hw_info->camnoc_misr_sigdata; i++)
 		hw_info->prev_camnoc_misr_val[index][i] = camnoc_misr_val[index][i];
 	/* stop misr : cam_noc_cam_noc_0_req_link_misrprb_MiscCtl_Low */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -295,15 +295,12 @@ int cam_jpeg_dma_reset_hw(void *data,
 int cam_jpeg_dma_test_irq_line(void *data)
 {
 	struct cam_hw_info *jpeg_dma_dev = data;
-	struct cam_jpeg_dma_device_core_info *core_info = NULL;
 	int rc;
 
 	if (!data) {
 		CAM_ERR(CAM_JPEG, "invalid args");
 		return -EINVAL;
 	}
-
-	core_info = jpeg_dma_dev->core_info;
 
 	rc = cam_jpeg_dma_init_hw(data, NULL, 0);
 	if (rc) {
@@ -485,7 +482,6 @@ int cam_jpeg_dma_dump_camnoc_misr_val(struct cam_jpeg_dma_device_hw_info *hw_inf
 		pmisr_args->req_id,
 		camnoc_misr_val[index][3], camnoc_misr_val[index][2],
 		camnoc_misr_val[index][1], camnoc_misr_val[index][0]);
-	mismatch = false;
 	for (i = 0; i < hw_info->camnoc_misr_sigdata; i++)
 		hw_info->prev_camnoc_misr_val[index][i] =
 			camnoc_misr_val[index][i];
@@ -500,7 +496,6 @@ int cam_jpeg_dma_dump_hw_misr_val(struct cam_jpeg_dma_device_hw_info *hw_info,
 	struct cam_hw_soc_info *soc_info, void *cmd_args)
 {
 	void __iomem                         *dma_mem_base = NULL;
-	void __iomem                         *camnoc_mem_base = NULL;
 	struct cam_jpeg_misr_dump_args       *pmisr_args;
 	int32_t dma_wr_misr_val[CAM_JPEG_CAMNOC_MISR_VAL_ROW][
 		CAM_JPEG_CAMNOC_MISR_VAL_COL] = {{0}};
@@ -512,7 +507,6 @@ int cam_jpeg_dma_dump_hw_misr_val(struct cam_jpeg_dma_device_hw_info *hw_info,
 	bool mismatch = false;
 
 	dma_mem_base = soc_info->reg_map[0].mem_base;
-	camnoc_mem_base = soc_info->reg_map[1].mem_base;
 	pmisr_args = (struct cam_jpeg_misr_dump_args *)cmd_args;
 	if (!pmisr_args) {
 		CAM_ERR(CAM_JPEG, "Invalid command argument");
@@ -592,7 +586,6 @@ int cam_jpeg_dma_dump_hw_misr_val(struct cam_jpeg_dma_device_hw_info *hw_info,
 		dma_wr_misr_val[index][3], dma_wr_misr_val[index][2],
 		dma_wr_misr_val[index][1], dma_wr_misr_val[index][0]);
 
-	mismatch = false;
 	for (i = 0; i < hw_info->max_misr_wr; i++) {
 		hw_info->prev_dma_wr_misr_val[index][i] =
 			dma_wr_misr_val[index][i];
