@@ -4630,7 +4630,6 @@ static int cam_smmu_get_memory_regions_info(struct device_node *of_node,
 	dma_addr_t region_start = 0;
 	size_t region_len = 0;
 	uint32_t region_id;
-	uint32_t qdss_region_phy_addr;
 	const char *region_name;
 	int num_regions = 0;
 
@@ -4654,8 +4653,6 @@ static int cam_smmu_get_memory_regions_info(struct device_node *of_node,
 	}
 
 	for_each_available_child_of_node(mem_map_node, child_node) {
-		qdss_region_phy_addr = 0;
-
 		num_regions++;
 
 		rc = of_property_read_string(child_node,
@@ -4861,7 +4858,7 @@ static int cam_smmu_get_memory_regions_info(struct device_node *of_node,
 			rc = of_property_read_u32(child_node,
 				"phy-addr", (uint32_t *)&nested_reg_info->region_info.phy_addr);
 			if (rc) {
-				CAM_DBG(CAM_SMMU, "No phy-addr field in fwuncached in cb: %s",
+				CAM_DBG(CAM_SMMU, "No phy-addr field in device in cb: %s",
 					cb->name[0]);
 				rc = 0;
 			}
@@ -4908,7 +4905,7 @@ static int cam_smmu_get_memory_regions_info(struct device_node *of_node,
 		rc = -ENODEV;
 	}
 
-	return 0;
+	return rc;
 
 end:
 	of_node_put(mem_map_node);
@@ -5120,7 +5117,6 @@ static void cam_smmu_mini_dump_entries(
 	int i = 0;
 	int64_t state_head = 0;
 	uint32_t index, num_entries, oldest_entry;
-	struct timespec64 *ts = NULL;
 
 	state_head = atomic64_read(&src->monitor_head);
 
@@ -5138,7 +5134,6 @@ static void cam_smmu_mini_dump_entries(
 	index = oldest_entry;
 
 	for (i = 0; i < num_entries; i++) {
-		ts = &src->monitor_entries[index].timestamp;
 		memcpy(&target->mapping[index],
 			&src->monitor_entries[index],
 			sizeof(struct cam_smmu_monitor));
