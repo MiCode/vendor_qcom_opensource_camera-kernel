@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -2084,8 +2084,10 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 	CAM_DBG(CAM_UTIL, "gpio count %d", gpio_array_size);
 
 	gpio_array = kcalloc(gpio_array_size, sizeof(uint16_t), GFP_KERNEL);
-	if (!gpio_array)
-		goto free_gpio_conf;
+	if (!gpio_array) {
+		rc = -ENOMEM;
+		goto err;
+	}
 
 	for (i = 0; i < gpio_array_size; i++) {
 		gpio_array[i] = of_get_gpio(of_node, i);
@@ -2093,21 +2095,23 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 	}
 
 	gconf = kzalloc(sizeof(*gconf), GFP_KERNEL);
-	if (!gconf)
-		return -ENOMEM;
+	if (!gconf) {
+		rc = -ENOMEM;
+		goto free_gpio_array;
+	}
 
 	rc = cam_soc_util_get_dt_gpio_req_tbl(of_node, gconf, gpio_array,
 		gpio_array_size);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "failed in msm_camera_get_dt_gpio_req_tbl");
-		goto free_gpio_array;
+		goto free_gpio_conf;
 	}
 
 	gconf->cam_gpio_common_tbl = kcalloc(gpio_array_size,
 				sizeof(struct gpio), GFP_KERNEL);
 	if (!gconf->cam_gpio_common_tbl) {
 		rc = -ENOMEM;
-		goto free_gpio_array;
+		goto free_gpio_conf;
 	}
 
 	for (i = 0; i < gpio_array_size; i++)
@@ -2119,12 +2123,12 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 
 	return rc;
 
-free_gpio_array:
-	kfree(gpio_array);
 free_gpio_conf:
 	kfree(gconf);
+free_gpio_array:
+	kfree(gpio_array);
+err:
 	soc_info->gpio_data = NULL;
-
 	return rc;
 }
 
@@ -2197,7 +2201,6 @@ static int cam_soc_util_get_dt_regulator_info
 	if (count != -EINVAL) {
 		if (count <= 0) {
 			CAM_ERR(CAM_UTIL, "no regulators found");
-			count = 0;
 			return -EINVAL;
 		}
 
@@ -2324,7 +2327,6 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 	if (rc) {
 		CAM_DBG(CAM_UTIL, "No interrupt line preset for: %s",
 			soc_info->dev_name);
-		rc = 0;
 	} else {
 		rc = cam_compat_util_get_irq(soc_info);
 		if (rc < 0) {
@@ -2348,7 +2350,6 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 	if (rc) {
 		CAM_DBG(CAM_UTIL, "No compatible string present for: %s",
 			soc_info->dev_name);
-		rc = 0;
 	}
 
 	soc_info->is_nrt_dev = false;
