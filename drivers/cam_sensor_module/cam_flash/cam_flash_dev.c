@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -445,16 +445,15 @@ static int cam_flash_component_bind(struct device *dev,
 	}
 
 	if (of_find_property(pdev->dev.of_node, "cci-master", NULL)) {
+
 		/* Get CCI master */
-		rc = of_property_read_u32(pdev->dev.of_node, "cci-master",
-			&fctrl->cci_i2c_master);
-		CAM_DBG(CAM_FLASH, "cci-master %d, rc %d",
-			fctrl->cci_i2c_master, rc);
-		if (rc < 0) {
+		if (of_property_read_u32(pdev->dev.of_node, "cci-master",
+			&fctrl->cci_i2c_master)) {
 			/* Set default master 0 */
 			fctrl->cci_i2c_master = MASTER_0;
-			rc = 0;
 		}
+		CAM_DBG(CAM_FLASH, "cci-master %d",
+			fctrl->cci_i2c_master);
 
 		fctrl->io_master_info.master_type = CCI_MASTER;
 		rc = cam_flash_init_default_params(fctrl);

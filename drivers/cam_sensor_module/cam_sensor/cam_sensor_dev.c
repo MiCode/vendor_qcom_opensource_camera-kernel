@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_dev.h"
@@ -318,7 +318,6 @@ static void cam_sensor_i2c_component_unbind(struct device *dev,
 {
 	struct i2c_client         *client = NULL;
 	struct cam_sensor_ctrl_t  *s_ctrl = NULL;
-	struct cam_hw_soc_info    *soc_info = NULL;
 
 	client = container_of(dev, struct i2c_client, dev);
 	if (!client) {
@@ -338,7 +337,6 @@ static void cam_sensor_i2c_component_unbind(struct device *dev,
 	cam_sensor_shutdown(s_ctrl);
 	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
 	cam_unregister_subdev(&(s_ctrl->v4l2_dev_str));
-	soc_info = &s_ctrl->soc_info;
 
 	kfree(s_ctrl->i2c_data.per_frame);
 	kfree(s_ctrl->i2c_data.frame_skip);

@@ -384,6 +384,9 @@ static int cam_cci_irq_routine(struct v4l2_subdev *sd, u32 status,
 		&cci_dev->soc_info;
 
 	ret = cam_cci_irq(soc_info->irq_num[0], cci_dev);
+	if (ret == IRQ_NONE)
+		CAM_ERR(CAM_CCI, "Interrupt was not handled properly, ret %d", ret);
+
 	*handled = true;
 	return 0;
 }

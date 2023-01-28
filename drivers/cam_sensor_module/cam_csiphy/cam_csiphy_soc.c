@@ -289,10 +289,9 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 		return  rc;
 	}
 
-	rc = of_property_read_u32(soc_info->dev->of_node, "rgltr-enable-sync",
-		&is_regulator_enable_sync);
-	if (rc) {
-		rc = 0;
+	if (of_property_read_u32(soc_info->dev->of_node, "rgltr-enable-sync",
+		&is_regulator_enable_sync)) {
+		/* this is not fatal, overwrite to 0 */
 		is_regulator_enable_sync = 0;
 	}
 

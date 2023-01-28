@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -488,7 +488,6 @@ static int32_t cam_eeprom_parse_memory_map(
 		}
 
 		*num_map += (i2c_random_wr->header.count - 1);
-		cmd_buf += cmd_length_in_bytes / sizeof(int32_t);
 		processed_size +=
 			cmd_length_in_bytes;
 		break;
@@ -506,7 +505,6 @@ static int32_t cam_eeprom_parse_memory_map(
 		map[*num_map].mem.data_type = i2c_cont_rd->header.data_type;
 		map[*num_map].mem.valid_size =
 			i2c_cont_rd->header.count;
-		cmd_buf += cmd_length_in_bytes / sizeof(int32_t);
 		processed_size +=
 			cmd_length_in_bytes;
 		data->num_data += map[*num_map].mem.valid_size;
@@ -549,7 +547,6 @@ static int32_t cam_eeprom_parse_memory_map(
 			map[*num_map].poll.delay = i2c_poll->timeout;
 			map[*num_map].poll.valid_size = 1;
 		}
-		cmd_buf += cmd_length_in_bytes / sizeof(int32_t);
 		processed_size +=
 			cmd_length_in_bytes;
 		break;
@@ -1261,6 +1258,9 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 				return rc;
 			}
 			rc = cam_eeprom_get_cal_data(e_ctrl, csl_packet);
+			if (rc)
+				CAM_WARN(CAM_EEPROM, "failed to get calibration data rc %d", rc);
+
 			vfree(e_ctrl->cal_data.mapdata);
 			vfree(e_ctrl->cal_data.map);
 			e_ctrl->cal_data.num_data = 0;
@@ -1309,6 +1309,9 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 		}
 
 		rc = cam_eeprom_get_cal_data(e_ctrl, csl_packet);
+		if (rc)
+			CAM_WARN(CAM_EEPROM, "failed to get calibration data rc %d", rc);
+
 		rc = cam_eeprom_power_down(e_ctrl);
 		e_ctrl->cam_eeprom_state = CAM_EEPROM_ACQUIRE;
 		vfree(e_ctrl->cal_data.mapdata);

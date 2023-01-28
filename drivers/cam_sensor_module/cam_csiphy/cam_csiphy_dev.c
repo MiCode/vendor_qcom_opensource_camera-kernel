@@ -184,7 +184,6 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 		if (idx >= CSIPHY_MAX_INSTANCES_PER_PHY) {
 			CAM_ERR(CAM_CSIPHY, "Phy session not found %d %d",
 				csiphy_dev->soc_info.index, conn_csid_info->lane_cfg);
-			rc = -EBADR;
 			break;
 		}
 
@@ -205,7 +204,6 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 		if (idx >= CSIPHY_MAX_INSTANCES_PER_PHY) {
 			CAM_ERR(CAM_CSIPHY, "Phy session not found %d %d",
 				csiphy_dev->soc_info.index, drv_info->lane_cfg);
-			rc = -EBADR;
 			break;
 		}
 
@@ -232,7 +230,6 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 		if (idx >= CSIPHY_MAX_INSTANCES_PER_PHY) {
 			CAM_ERR(CAM_CSIPHY, "Phy session not found %d %d",
 				csiphy_dev->soc_info.index, halt_resume_info->lane_cfg);
-			rc = -EBADR;
 			break;
 		}
 

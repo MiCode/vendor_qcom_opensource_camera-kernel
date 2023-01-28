@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw_v_1_4.h"
@@ -735,17 +735,12 @@ int tpg_hw_v_1_4_stop(struct tpg_hw *hw, void *data)
 
 int tpg_hw_v_1_4_dump_status(struct tpg_hw *hw, void *data)
 {
-	struct cam_hw_soc_info *soc_info = NULL;
-	struct cam_tpg_ver_1_4_reg_offset *tpg_reg = NULL;
 
 	if (!hw || !hw->hw_info || !hw->hw_info->hw_data) {
 		CAM_ERR(CAM_TPG, "invalid params");
 		return -EINVAL;
 	}
 
-	tpg_reg  = hw->hw_info->hw_data;
-
-	soc_info = hw->soc_info;
 	CAM_DBG(CAM_TPG, "TPG V1.4 HWL status dump");
 
 	return 0;
@@ -870,11 +865,6 @@ int tpg_1_4_layer_init(struct tpg_hw *hw)
 {
 	int rc = 0;
 	struct dentry *dbgfileptr_parent = NULL;
-	struct dentry *dbgfileptr = NULL;
-	struct dentry *dbgfileptr_shdr = NULL;
-	struct dentry *dfp_shdr_batch = NULL;
-	struct dentry *dfp_shdr_off0 = NULL;
-	struct dentry *dfp_shdr_off1 = NULL;
 	char dir_name[160];
 
 	snprintf(dir_name, sizeof(dir_name), "tpg%d",
@@ -885,17 +875,16 @@ int tpg_1_4_layer_init(struct tpg_hw *hw)
 		CAM_ERR(CAM_TPG, "Debug fs could not create directory");
 		rc = -ENOENT;
 	}
-
-	dbgfileptr      = debugfs_create_file("tpg_xcfa_test", 0644,
-			dbgfileptr_parent, hw, &tpg_1_4_xcfa_test);
-	dbgfileptr_shdr = debugfs_create_file("tpg_shdr_overlap_test", 0644,
-			dbgfileptr_parent, hw, &tpg_1_4_shdr_overlap_test);
-	dfp_shdr_batch  = debugfs_create_file("tpg_shdr_offset_num_batch", 0644,
-			dbgfileptr_parent, hw, &tpg_1_4_shdr_offset_num_batch);
-	dfp_shdr_off0   = debugfs_create_file("tpg_shdr_line_offset0", 0644,
-			dbgfileptr_parent, hw, &tpg_1_4_shdr_line_offset0);
-	dfp_shdr_off1   = debugfs_create_file("tpg_shdr_line_offset1", 0644,
-			dbgfileptr_parent, hw, &tpg_1_4_shdr_line_offset1);
+	debugfs_create_file("tpg_xcfa_test", 0644,
+		dbgfileptr_parent, hw, &tpg_1_4_xcfa_test);
+	debugfs_create_file("tpg_shdr_overlap_test", 0644,
+		dbgfileptr_parent, hw, &tpg_1_4_shdr_overlap_test);
+	debugfs_create_file("tpg_shdr_offset_num_batch", 0644,
+		dbgfileptr_parent, hw, &tpg_1_4_shdr_offset_num_batch);
+	debugfs_create_file("tpg_shdr_line_offset0", 0644,
+		dbgfileptr_parent, hw, &tpg_1_4_shdr_line_offset0);
+	debugfs_create_file("tpg_shdr_line_offset1", 0644,
+		dbgfileptr_parent, hw, &tpg_1_4_shdr_line_offset1);
 	CAM_INFO(CAM_TPG, "Layer init called");
 	return rc;
 }

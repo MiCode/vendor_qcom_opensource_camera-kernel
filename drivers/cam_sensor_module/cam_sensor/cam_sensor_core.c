@@ -1644,13 +1644,9 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 	if (s_ctrl->bob_pwm_switch) {
-		rc = cam_sensor_bob_pwm_mode_switch(soc_info,
-			s_ctrl->bob_reg_index, true);
-		if (rc) {
-			CAM_WARN(CAM_SENSOR,
-			"BoB PWM setup failed rc: %d", rc);
-			rc = 0;
-		}
+		if (cam_sensor_bob_pwm_mode_switch(soc_info,
+			s_ctrl->bob_reg_index, true))
+			CAM_WARN(CAM_SENSOR, "BoB PWM setup failed");
 	}
 
 	if (s_ctrl->aon_camera_id != NOT_AON_CAM) {

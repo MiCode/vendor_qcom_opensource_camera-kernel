@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw_v_1_0.h"
@@ -174,7 +175,6 @@ static int configure_vc(
 	cam_io_w_mb(stream->hbi,
 			soc_info->reg_map[0].mem_base + tpg_reg->tpg_vc_cfg1);
 
-	val = (1 << tpg_reg->tpg_split_en_shift);
 	cam_io_w_mb(0, soc_info->reg_map[0].mem_base +
 			tpg_reg->tpg_common_gen_cfg);
 

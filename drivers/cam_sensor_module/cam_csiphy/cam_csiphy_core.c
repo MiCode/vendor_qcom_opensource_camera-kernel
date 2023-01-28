@@ -1011,7 +1011,6 @@ irqreturn_t cam_csiphy_irq(int irq_num, void *data)
 {
 	struct csiphy_device *csiphy_dev =
 		(struct csiphy_device *)data;
-	struct cam_hw_soc_info *soc_info = NULL;
 	struct csiphy_reg_parms_t *csiphy_reg = NULL;
 	void __iomem *base = NULL;
 
@@ -1020,7 +1019,6 @@ irqreturn_t cam_csiphy_irq(int irq_num, void *data)
 		return IRQ_NONE;
 	}
 
-	soc_info = &csiphy_dev->soc_info;
 	base = csiphy_dev->soc_info.reg_map[0].mem_base;
 	csiphy_reg = csiphy_dev->ctrl_reg->csiphy_reg;
 
@@ -1273,9 +1271,6 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 	int32_t      rc = 0;
 	uint32_t     lane_enable = 0;
 	uint16_t     i = 0, cfg_size = 0;
-	uint16_t     lane_assign = 0;
-	uint8_t      lane_cnt;
-	int          max_lanes = 0;
 	uint16_t     settle_cnt = 0;
 	uint8_t      skew_cal_enable = 0;
 	uint64_t     intermediate_var;
@@ -1320,7 +1315,6 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 				reg_array = csiphy_dev->ctrl_reg->csiphy_3ph_reg;
 				cfg_size = csiphy_reg->csiphy_3ph_config_array_size;
 			}
-			max_lanes = CAM_CSIPHY_MAX_CPHY_LANES;
 		} else {
 			/* DPHY combo mode*/
 			if (csiphy_dev->ctrl_reg->csiphy_2ph_combo_mode_reg) {
@@ -1332,20 +1326,17 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 				cfg_size = csiphy_reg->csiphy_2ph_config_array_size;
 			}
 
-			max_lanes = MAX_LANES;
 		}
 	} else if (csiphy_dev->cphy_dphy_combo_mode) {
 		/* for CPHY and DPHY combo mode selection */
 		if (csiphy_dev->ctrl_reg->csiphy_2ph_3ph_mode_reg) {
 			reg_array = csiphy_dev->ctrl_reg->csiphy_2ph_3ph_mode_reg;
 			cfg_size = csiphy_reg->csiphy_2ph_3ph_config_array_size;
-			max_lanes = CAM_CSIPHY_MAX_CPHY_DPHY_COMBO_LN;
 		} else {
 			reg_array = csiphy_dev->ctrl_reg->csiphy_3ph_reg;
 			cfg_size = csiphy_reg->csiphy_3ph_config_array_size;
 			CAM_WARN(CAM_CSIPHY,
 					"Unsupported configuration, Falling back to CPHY mission mode");
-			max_lanes = CAM_CSIPHY_MAX_CPHY_LANES;
 		}
 	} else {
 		/* for CPHY(3Phase) or DPHY(2Phase) Non combe mode selection */
@@ -1353,19 +1344,15 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 			CAM_DBG(CAM_CSIPHY,
 				"3phase Non combo mode reg array selected");
 			reg_array = csiphy_dev->ctrl_reg->csiphy_3ph_reg;
-			max_lanes = CAM_CSIPHY_MAX_CPHY_LANES;
 			cfg_size = csiphy_reg->csiphy_3ph_config_array_size;
 		} else {
 			CAM_DBG(CAM_CSIPHY,
 				"2PHASE Non combo mode reg array selected");
 			reg_array = csiphy_dev->ctrl_reg->csiphy_2ph_reg;
 			cfg_size = csiphy_reg->csiphy_2ph_config_array_size;
-			max_lanes = MAX_LANES;
 		}
 	}
 
-	lane_cnt = csiphy_dev->csiphy_info[index].lane_cnt;
-	lane_assign = csiphy_dev->csiphy_info[index].lane_assign;
 	lane_enable = csiphy_dev->csiphy_info[index].lane_enable;
 
 
@@ -1423,7 +1410,6 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 {
 	struct cam_hw_soc_info *soc_info;
-	struct csiphy_reg_parms_t *csiphy_reg;
 	struct cam_csiphy_param *param;
 	int32_t i = 0;
 	int rc = 0;
@@ -1440,8 +1426,6 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 		csiphy_dev->acquire_count =
 			CSIPHY_MAX_INSTANCES_PER_PHY;
 	}
-
-	csiphy_reg = csiphy_dev->ctrl_reg->csiphy_reg;
 
 	if ((csiphy_dev->csiphy_state == CAM_CSIPHY_START) ||
 		csiphy_dev->start_dev_count) {
@@ -1663,7 +1647,6 @@ int cam_csiphy_util_update_aon_registration(uint32_t phy_idx, uint32_t aon_cam_i
 int cam_csiphy_util_update_aon_ops(
 	bool get_access, uint32_t phy_idx)
 {
-	uint32_t cpas_hdl = 0;
 	struct cam_csiphy_aon_sel_params_t *aon_sel_params;
 	int rc = 0;
 
@@ -1682,7 +1665,6 @@ int cam_csiphy_util_update_aon_ops(
 		return -EINVAL;
 	}
 
-	cpas_hdl = g_phy_data[phy_idx].cpas_handle;
 	aon_sel_params = g_phy_data[phy_idx].aon_sel_param;
 
 	mutex_lock(&main_aon_selection);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -161,12 +162,10 @@ static int32_t cam_get_source_node_info(
 			}
 
 			/* Read operational-current */
-			rc = of_property_read_u32(flash_src_node,
+			if (of_property_read_u32(flash_src_node,
 				"qcom,current-ma",
-				&soc_private->flash_op_current[i]);
-			if (rc) {
+				&soc_private->flash_op_current[i])) {
 				CAM_DBG(CAM_FLASH, "op-current: read failed");
-				rc = 0;
 			}
 
 			/* Read max-duration */
