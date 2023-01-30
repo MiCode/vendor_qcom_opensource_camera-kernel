@@ -356,7 +356,8 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 {
 	struct sync_table_row *row = NULL;
 	struct list_head parents_list;
-	int rc = 0;
+	int rc = 0, synx_row_idx = 0;
+	uint32_t synx_obj = 0;
 #if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	struct cam_synx_obj_signal signal_synx_obj;
 #endif
@@ -397,21 +398,11 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 				row->dma_fence_info.dma_fence_fd, row->name, sync_obj);
 	}
 
-#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
-	/*
-	 * Signal associated synx obj
-	 */
+	/* Obtain associated synx hdl if any with the row lock held */
 	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask)) {
-		signal_synx_obj.status = status;
-		signal_synx_obj.synx_obj = row->synx_obj_info.synx_obj;
-		rc = cam_synx_obj_internal_signal(
-			row->synx_obj_info.synx_obj_row_idx, &signal_synx_obj);
-		if (rc)
-			CAM_ERR(CAM_SYNC,
-				"Error: Failed to signal associated synx obj = %d for sync_obj = %s[%d]",
-				row->synx_obj_info.synx_obj, row->name, sync_obj);
+		synx_obj = row->synx_obj_info.synx_obj;
+		synx_row_idx = row->synx_obj_info.synx_obj_row_idx;
 	}
-#endif
 
 	cam_sync_util_dispatch_signaled_cb(sync_obj, status, event_cause);
 
@@ -419,6 +410,21 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 	INIT_LIST_HEAD(&parents_list);
 	list_splice_init(&row->parents_list, &parents_list);
 	spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
+
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
+	/*
+	 * Signal associated synx obj after unlock
+	 */
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask)) {
+		signal_synx_obj.status = status;
+		signal_synx_obj.synx_obj = synx_obj;
+		rc = cam_synx_obj_internal_signal(synx_row_idx, &signal_synx_obj);
+		if (rc)
+			CAM_ERR(CAM_SYNC,
+				"Error: Failed to signal associated synx obj = %d for sync_obj = %d",
+				synx_obj, sync_obj);
+	}
+#endif
 
 	if (list_empty(&parents_list))
 		return 0;
@@ -1629,7 +1635,7 @@ static int cam_sync_synx_associate_obj(int32_t sync_obj, uint32_t synx_obj,
 		signal_synx_obj.status = row->state;
 		signal_synx_obj.synx_obj = synx_obj;
 		*is_sync_obj_signaled = true;
-		rc = cam_synx_obj_signal_obj(&signal_synx_obj);
+		goto signal_synx;
 	} else {
 		row->synx_obj_info.synx_obj_row_idx = synx_obj_row_idx;
 		row->synx_obj_info.sync_created_with_synx = false;
@@ -1640,8 +1646,11 @@ static int cam_sync_synx_associate_obj(int32_t sync_obj, uint32_t synx_obj,
 	}
 
 	spin_unlock(&sync_dev->row_spinlocks[sync_obj]);
-
 	return rc;
+
+signal_synx:
+	spin_unlock(&sync_dev->row_spinlocks[sync_obj]);
+	return cam_synx_obj_signal_obj(&signal_synx_obj);
 }
 
 static int cam_generic_fence_handle_synx_import(
