@@ -1934,11 +1934,11 @@ static int cam_generic_fence_handle_sync_create(
 	struct cam_dma_fence_create_sync_obj_payload dma_sync_create;
 	struct cam_generic_fence_input_info *fence_input_info = NULL;
 	struct cam_generic_fence_config *fence_cfg = NULL;
-	bool synx_obj_created;
+	bool synx_obj_created = false;
 	struct sync_synx_obj_info synx_obj_create;
 #if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 	int32_t fence_flag;
-	int32_t synx_obj_row_idx;
+	int32_t synx_obj_row_idx = 0;
 	struct cam_synx_obj_release_params synx_release_params;
 	struct dma_fence *dma_fence_ptr;
 #endif

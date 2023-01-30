@@ -140,8 +140,7 @@ static void __cam_synx_obj_signal_cb(u32 h_synx, int status, void *data)
 
 	if (!data) {
 		CAM_ERR(CAM_SYNX,
-			"Invalid data passed to synx obj : %d callback function.",
-			synx_obj_row->synx_obj);
+			"Invalid data passed to synx obj : No callback function set.");
 		return;
 	}
 
