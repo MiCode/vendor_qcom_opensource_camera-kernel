@@ -2168,6 +2168,7 @@ end:
 
 	/* Set default hang dump lvl */
 	hw_mgr->icp_fw_dump_lvl = HFI_FW_DUMP_ON_FAILURE;
+	hw_mgr->icp_fw_ramdump_lvl = HFI_FW_RAMDUMP_ENABLED;
 	return rc;
 }
 
