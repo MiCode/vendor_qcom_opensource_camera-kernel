@@ -3287,7 +3287,7 @@ static void cam_icp_free_hfi_mem(struct cam_icp_hw_mgr *hw_mgr)
 		cam_smmu_unmap_phy_mem_region(hw_mgr->iommu_hdl, CAM_SMMU_REGION_FWUNCACHED,
 			CAM_SMMU_SUBREGION_GLOBAL_SYNC_MEM);
 		cam_smmu_unmap_phy_mem_region(hw_mgr->iommu_hdl, CAM_SMMU_REGION_DEVICE,
-			CAM_SMMU_SUBREGION_HWMUTEX);
+			CAM_SMMU_SUBREGION_SYNX_HWMUTEX);
 	}
 }
 
@@ -3463,7 +3463,7 @@ static int cam_icp_allocate_device_hwmutex_mem(struct cam_icp_hw_mgr *hw_mgr)
 	dma_addr_t iova;
 
 	rc = cam_smmu_map_phy_mem_region(hw_mgr->iommu_hdl,
-		CAM_SMMU_REGION_DEVICE, CAM_SMMU_SUBREGION_HWMUTEX, &iova, &len);
+		CAM_SMMU_REGION_DEVICE, CAM_SMMU_SUBREGION_SYNX_HWMUTEX, &iova, &len);
 	if (rc) {
 		CAM_ERR(CAM_ICP,
 			"Failed in allocating hwmutex mem rc %d", rc);
