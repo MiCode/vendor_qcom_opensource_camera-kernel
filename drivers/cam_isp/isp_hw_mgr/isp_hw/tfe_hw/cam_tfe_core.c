@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -352,10 +352,8 @@ static void cam_tfe_log_error_irq_status(
 		CAM_INFO(CAM_ISP, "Top debug [i]:0x%x", i, val_0);
 	}
 
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x20, true, &val_0);
-	CAM_INFO(CAM_ISP, "tfe_niu_MaxWr_Low offset 0x20 val 0x%x",
-		val_0);
+	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
+
 	for (i = 0; i < top_priv->common_data.common_reg->num_perf_cfg; i++) {
 		val_0 = cam_io_r(mem_base  +
 			top_priv->common_data.common_reg->perf_cfg[i].perf_pixel_count);
@@ -1519,10 +1517,7 @@ static int cam_tfe_top_get_reg_dump(
 		wm_offset += reg_dump_data->bus_client_offset;
 	}
 
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x20, true, &val_0);
-	CAM_INFO(CAM_ISP, "tfe_niu_MaxWr_Low offset 0x20 val 0x%x",
-		val_0);
+	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
 
 	/* dump the clock votings */
 	CAM_INFO(CAM_ISP, "TFE:%d clk=%ld",
@@ -1748,9 +1743,7 @@ dump_bw:
 		sizeof(struct cam_isp_hw_dump_header));
 	start = addr;
 	hdr->word_size = sizeof(uint32_t);
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x20, true, &val);
-	*addr++ = val;
+
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset +=  hdr->size +
 		sizeof(struct cam_isp_hw_dump_header);

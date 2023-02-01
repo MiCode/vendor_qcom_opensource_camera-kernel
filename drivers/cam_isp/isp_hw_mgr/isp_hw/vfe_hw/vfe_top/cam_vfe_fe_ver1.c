@@ -391,13 +391,7 @@ static int cam_vfe_fe_reg_dump(
 		CAM_INFO(CAM_ISP, "offset 0x%x val 0x%x", i, val);
 	}
 
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x420, true, &val);
-	CAM_INFO(CAM_ISP, "IFE02_MAXWR_LOW offset 0x420 val 0x%x", val);
-
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x820, true, &val);
-	CAM_INFO(CAM_ISP, "IFE13_MAXWR_LOW offset 0x820 val 0x%x", val);
+	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
 
 	return rc;
 }

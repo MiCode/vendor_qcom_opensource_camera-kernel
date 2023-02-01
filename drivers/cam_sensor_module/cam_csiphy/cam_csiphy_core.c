@@ -1611,7 +1611,7 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 		return rc;
 	}
 
-	cam_cpas_reg_read(cpas_handle, CAM_CPAS_REG_CPASTOP,
+	cam_cpas_reg_read(cpas_handle, CAM_CPAS_REGBASE_CPASTOP,
 		aon_sel_params->aon_cam_sel_offset[g_phy_data[phy_idx].aon_cam_id],
 		true, &aon_config);
 
@@ -1630,7 +1630,7 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 	}
 
 	CAM_DBG(CAM_CSIPHY, "value of aon_config = %u", aon_config);
-	rc = cam_cpas_reg_write(cpas_handle, CAM_CPAS_REG_CPASTOP,
+	rc = cam_cpas_reg_write(cpas_handle, CAM_CPAS_REGBASE_CPASTOP,
 		aon_sel_params->aon_cam_sel_offset[g_phy_data[phy_idx].aon_cam_id],
 		true, aon_config);
 	if (rc)

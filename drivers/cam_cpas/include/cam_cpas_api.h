@@ -31,6 +31,14 @@
 #define CAM_CPAS_QOS_DEFAULT_SETTINGS_MASK 0x1
 #define CAM_CPAS_QOS_CUSTOM_SETTINGS_MASK  0x2
 
+/**
+ * enum cam_cpas_regbase_types - Enum for cpas regbase available for clients
+ *                             to read/write
+ */
+enum cam_cpas_regbase_types {
+	CAM_CPAS_REGBASE_CPASTOP,
+	CAM_CPAS_REGBASE_MAX
+};
 
 /**
  * enum cam_cpas_vote_type - Enum for cpas vote type
@@ -39,20 +47,6 @@ enum cam_cpas_vote_type {
 	CAM_CPAS_VOTE_TYPE_HLOS,
 	CAM_CPAS_VOTE_TYPE_DRV,
 	CAM_CPAS_VOTE_TYPE_MAX,
-};
-
-/**
- * enum cam_cpas_reg_base - Enum for register base identifier. These
- *                          are the identifiers used in generic register
- *                          write/read APIs provided by cpas driver.
- */
-enum cam_cpas_reg_base {
-	CAM_CPAS_REG_CPASTOP,
-	CAM_CPAS_REG_CAMNOC,
-	CAM_CPAS_REG_CAMSS,
-	CAM_CPAS_REG_RPMH,
-	CAM_CPAS_REG_CESTA,
-	CAM_CPAS_REG_MAX
 };
 
 /**
@@ -685,7 +679,7 @@ int cam_cpas_update_axi_vote(
  */
 int cam_cpas_reg_write(
 	uint32_t                  client_handle,
-	enum cam_cpas_reg_base    reg_base,
+	enum cam_cpas_regbase_types reg_base,
 	uint32_t                  offset,
 	bool                      mb,
 	uint32_t                  value);
@@ -706,7 +700,7 @@ int cam_cpas_reg_write(
  */
 int cam_cpas_reg_read(
 	uint32_t                  client_handle,
-	enum cam_cpas_reg_base    reg_base,
+	enum cam_cpas_regbase_types reg_base,
 	uint32_t                  offset,
 	bool                      mb,
 	uint32_t                 *value);

@@ -170,7 +170,7 @@ int cam_tfe_csid_enable_tfe_force_clock_on(struct cam_hw_soc_info  *soc_info,
 	soc_private = soc_info->soc_private;
 	cpass_tfe_force_clk_offset =
 		cpas_tfe_base_offset + (0x4 * soc_info->index);
-	rc = cam_cpas_reg_write(soc_private->cpas_handle, CAM_CPAS_REG_CPASTOP,
+	rc = cam_cpas_reg_write(soc_private->cpas_handle, CAM_CPAS_REGBASE_CPASTOP,
 		cpass_tfe_force_clk_offset, 1, 1);
 
 	if (rc)
@@ -198,7 +198,7 @@ int cam_tfe_csid_disable_tfe_force_clock_on(struct cam_hw_soc_info *soc_info,
 	soc_private = soc_info->soc_private;
 	cpass_tfe_force_clk_offset =
 		cpas_tfe_base_offset + (0x4 * soc_info->index);
-	rc = cam_cpas_reg_write(soc_private->cpas_handle, CAM_CPAS_REG_CPASTOP,
+	rc = cam_cpas_reg_write(soc_private->cpas_handle, CAM_CPAS_REGBASE_CPASTOP,
 		cpass_tfe_force_clk_offset,  1, 0);
 
 	if (rc)
