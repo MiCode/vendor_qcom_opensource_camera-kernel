@@ -1499,26 +1499,54 @@ void cam_ife_csid_hw_ver2_drv_err_handler(void *csid)
 void cam_ife_csid_hw_ver2_mup_mismatch_handler(
 	void *csid, void *resource)
 {
+	uint32_t                           idx = 0;
+	struct timespec64                  current_ts;
 	struct cam_ife_csid_ver2_hw       *csid_hw = csid;
-        struct cam_isp_resource_node      *res = resource;
+	struct cam_isp_resource_node      *res = resource;
 	struct cam_ife_csid_ver2_path_cfg *path_cfg =
 		(struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
 	struct cam_ife_csid_cid_data      *cid_data = &csid_hw->cid_data[path_cfg->cid];
+	struct cam_hw_soc_info            *soc_info = &csid_hw->hw_info->soc_info;
+	struct cam_ife_csid_ver2_reg_info *csid_reg = NULL;
+	const struct cam_ife_csid_ver2_path_reg_info *path_reg = NULL;
 
 	CAM_INFO(CAM_ISP, "CSID:%u Last MUP value 0x%x programmed for res [id: %d name: %s]",
 		csid_hw->hw_intf->hw_idx, csid_hw->rx_cfg.mup, res->res_id, res->res_name);
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
+	path_reg = csid_reg->path_reg[res->res_id];
 
 	if (cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].valid) {
 		CAM_INFO(CAM_ISP, "CSID:%u vc0 %d vc1 %d",
 			csid_hw->hw_intf->hw_idx,
 			cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].vc,
 			cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].vc);
+
+		if (path_cfg->ts_comb_vcdt_en) {
+			ktime_get_boottime_ts64(&current_ts);
+
+			idx = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+				path_reg->timestamp_curr0_sof_addr) &
+				csid_reg->cmn_reg->ts_comb_vcdt_mask;
+
+			if (idx < CAM_IFE_CSID_MULTI_VC_DT_GRP_MAX)
+				CAM_INFO(CAM_ISP,
+					"CSID:%d Received frame with vc:%d on [id: %d name: %s] timestamp: %lld.%09lld",
+					csid_hw->hw_intf->hw_idx, cid_data->vc_dt[idx].vc,
+					res->res_id, res->res_name, current_ts.tv_sec,
+					current_ts.tv_nsec);
+			else
+				CAM_ERR(CAM_ISP,
+					"CSID:%d Get invalid vc index: %d on [id: %d name: %s] timestamp: %lld.%09lld",
+					csid_hw->hw_intf->hw_idx, idx, res->res_id,
+					res->res_name, current_ts.tv_sec, current_ts.tv_nsec);
+		}
 	} else {
 		CAM_ERR(CAM_ISP, "CSID:%u Multi-VCDT is not enabled, vc0 %d",
 			csid_hw->hw_intf->hw_idx,
 			cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_0].vc);
 	}
-
 }
 
 void cam_ife_csid_ver2_print_illegal_programming_irq_status(
@@ -3376,6 +3404,8 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 	CAM_DBG(CAM_ISP, "CSID[%u] %s cfg0_addr 0x%x",
 		csid_hw->hw_intf->hw_idx, res->res_name, cfg0);
 
+	path_cfg->ts_comb_vcdt_en = false;
+
 	/*Configure Multi VC DT combo */
 	if (cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].valid) {
 		val = (cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].vc <<
@@ -3384,9 +3414,14 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 				 cmn_reg->multi_vcdt_dt1_shift_val) |
 			(1 << cmn_reg->multi_vcdt_en_shift_val);
 
-		if (csid_reg->cmn_reg->decode_format1_supported)
+		if (cmn_reg->ts_comb_vcdt_en) {
+			val |= (1 << cmn_reg->multi_vcdt_ts_combo_en_shift_val);
+			path_cfg->ts_comb_vcdt_en = true;
+		}
+
+		if (cmn_reg->decode_format1_supported)
 			val |= (path_cfg->path_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].decode_fmt <<
-				csid_reg->cmn_reg->decode_format1_shift_val);
+				cmn_reg->decode_format1_shift_val);
 
 		cam_io_w_mb(val, mem_base + path_reg->multi_vcdt_cfg0_addr);
 		CAM_DBG(CAM_ISP, "CSID:%u RDI:%u multi_vcdt_cfg0:0x%x",
@@ -3462,7 +3497,7 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 		CAM_IFE_CSID_DEBUG_ENABLE_HBI_VBI_INFO) {
 		val = cam_io_r_mb(mem_base +
 			path_reg->format_measure_cfg0_addr);
-		val |= csid_reg->cmn_reg->measure_en_hbi_vbi_cnt_mask;
+		val |= cmn_reg->measure_en_hbi_vbi_cnt_mask;
 		cam_io_w_mb(val, mem_base +
 			path_reg->format_measure_cfg0_addr);
 	}
@@ -3539,6 +3574,8 @@ static int cam_ife_csid_ver2_init_config_pxl_path(
 
 	cam_io_w_mb(cfg0, mem_base + path_reg->cfg0_addr);
 
+	path_cfg->ts_comb_vcdt_en = false;
+
 	/*Configure Multi VC DT combo */
 	if (cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].valid) {
 		val = (cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].vc <<
@@ -3547,9 +3584,14 @@ static int cam_ife_csid_ver2_init_config_pxl_path(
 				 cmn_reg->multi_vcdt_dt1_shift_val) |
 			(1 << cmn_reg->multi_vcdt_en_shift_val);
 
-		if(csid_reg->cmn_reg->decode_format1_supported)
+		if (cmn_reg->ts_comb_vcdt_en) {
+			val |= (1 << cmn_reg->multi_vcdt_ts_combo_en_shift_val);
+			path_cfg->ts_comb_vcdt_en = true;
+		}
+
+		if (cmn_reg->decode_format1_supported)
 			val |= (path_cfg->path_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].decode_fmt <<
-				csid_reg->cmn_reg->decode_format1_shift_val);
+				cmn_reg->decode_format1_shift_val);
 
 		cam_io_w_mb(val, mem_base + path_reg->multi_vcdt_cfg0_addr);
 	}
@@ -5597,13 +5639,17 @@ static int cam_ife_csid_ver2_program_offline_go_cmd(
 	return 0;
 }
 
-static uint64_t __cam_ife_csid_ver2_get_time_stamp(void __iomem *mem_base, uint32_t timestamp0_addr,
-	uint32_t timestamp1_addr)
+static uint64_t __cam_ife_csid_ver2_get_time_stamp(void __iomem *mem_base,
+	uint32_t timestamp0_addr, uint32_t timestamp1_addr,
+	bool ts_comb_vcdt_en, uint32_t ts_comb_vcdt_mask)
 {
 	uint64_t timestamp_val, time_hi, time_lo;
 
 	time_hi = cam_io_r_mb(mem_base + timestamp1_addr);
 	time_lo = cam_io_r_mb(mem_base + timestamp0_addr);
+	if (ts_comb_vcdt_en)
+		time_lo &= ~ts_comb_vcdt_mask;
+
 	timestamp_val = (time_hi << 32) | time_lo;
 
 	return mul_u64_u32_div(timestamp_val,
@@ -5615,11 +5661,12 @@ static int cam_ife_csid_ver2_get_time_stamp(
 	struct cam_ife_csid_ver2_hw  *csid_hw, void *cmd_args)
 {
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg;
-	struct cam_isp_resource_node         *res = NULL;
-	struct cam_hw_soc_info              *soc_info;
-	struct cam_csid_get_time_stamp_args *timestamp_args;
-	struct cam_ife_csid_ver2_reg_info *csid_reg;
-	struct timespec64 ts;
+	struct cam_isp_resource_node                 *res = NULL;
+	struct cam_ife_csid_ver2_path_cfg            *path_cfg = NULL;
+	struct cam_hw_soc_info                       *soc_info;
+	struct cam_csid_get_time_stamp_args          *timestamp_args;
+	struct cam_ife_csid_ver2_reg_info            *csid_reg;
+	struct timespec64                             ts;
 
 	timestamp_args = (struct cam_csid_get_time_stamp_args *)cmd_args;
 	res = timestamp_args->node_res;
@@ -5642,6 +5689,7 @@ static int cam_ife_csid_ver2_get_time_stamp(
 		return -EINVAL;
 	}
 
+	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
 	path_reg = csid_reg->path_reg[res->res_id];
 
 	if (!path_reg) {
@@ -5654,13 +5702,17 @@ static int cam_ife_csid_ver2_get_time_stamp(
 		timestamp_args->prev_time_stamp_val = __cam_ife_csid_ver2_get_time_stamp(
 			soc_info->reg_map[0].mem_base,
 			path_reg->timestamp_perv0_sof_addr,
-			path_reg->timestamp_perv1_sof_addr);
+			path_reg->timestamp_perv1_sof_addr,
+			path_cfg->ts_comb_vcdt_en,
+			csid_reg->cmn_reg->ts_comb_vcdt_mask);
 	}
 
 	timestamp_args->time_stamp_val = __cam_ife_csid_ver2_get_time_stamp(
 		soc_info->reg_map[0].mem_base,
 		path_reg->timestamp_curr0_sof_addr,
-		path_reg->timestamp_curr1_sof_addr);
+		path_reg->timestamp_curr1_sof_addr,
+		path_cfg->ts_comb_vcdt_en,
+		csid_reg->cmn_reg->ts_comb_vcdt_mask);
 
 	if (qtime_to_boottime == 0) {
 		ktime_get_boottime_ts64(&ts);

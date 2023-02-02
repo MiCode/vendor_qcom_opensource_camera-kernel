@@ -179,6 +179,7 @@ struct cam_ife_csid_ver2_camif_data {
  *                          the corresponding paths
  * @sfe_shdr:               flag to indicate if sfe is inline shdr
  * @lcr_en:                 Flag to indicate if path is part can be input to LCR
+ * @ts_comb_vcdt_en:        Indicates if Timestamp combined vcdt flag is enabled
  *
  */
 struct cam_ife_csid_ver2_path_cfg {
@@ -224,6 +225,7 @@ struct cam_ife_csid_ver2_path_cfg {
 	bool                                 lcr_en;
 	bool                                 csid_out_unpack_msb;
 	bool                                 handle_camif_irq;
+	bool                                 ts_comb_vcdt_en;
 };
 
 struct cam_ife_csid_ver2_top_reg_info {
@@ -296,7 +298,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t timestamp_curr1_eof_addr;
 	uint32_t timestamp_perv0_eof_addr;
 	uint32_t timestamp_perv1_eof_addr;
-        uint32_t lut_bank_cfg_addr;
+	uint32_t lut_bank_cfg_addr;
 	uint32_t batch_id_cfg0_addr;
 	uint32_t batch_id_cfg1_addr;
 	uint32_t batch_period_cfg_addr;
@@ -335,7 +337,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t crop_h_en_shift_val;
 	uint32_t drop_v_en_shift_val;
 	uint32_t drop_h_en_shift_val;
-        uint32_t pix_store_en_shift_val;
+	uint32_t pix_store_en_shift_val;
 	uint32_t early_eof_en_shift_val;
 	uint32_t bin_h_en_shift_val;
 	uint32_t bin_v_en_shift_val;
@@ -497,10 +499,12 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t phy_sel_base_idx;
 	bool     timestamp_enabled_in_cfg0;
 	bool     camif_irq_support;
+	bool     ts_comb_vcdt_en;
 	uint32_t drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_MAX];
 	uint32_t drv_path_idle_en_val_map[CAM_ISP_MAX_PATHS];
 
 	/* Masks */
+	uint32_t ts_comb_vcdt_mask;
 	uint32_t pxl_cnt_mask;
 	uint32_t line_cnt_mask;
 	uint32_t hblank_max_mask;
