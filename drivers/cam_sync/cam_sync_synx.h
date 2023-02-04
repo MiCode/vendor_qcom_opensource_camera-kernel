@@ -102,7 +102,8 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
  * @param synx_obj : New synx obj handle
  * @param row_idx  : Imported obj table row idx
  *
- * @return 0 upon success, -EINVAL if synx object is bad state
+ * @return Status of operation. Zero in case of success
+ * -EINVAL if synx object is bad state
  */
 int cam_synx_obj_import_dma_fence(const char *name, uint32_t flags, void *fence,
 	uint32_t *synx_obj, int32_t *row_idx);
@@ -112,7 +113,7 @@ int cam_synx_obj_import_dma_fence(const char *name, uint32_t flags, void *fence,
  *
  * @param release_params : Synx obj release info
  *
- * @return 0 upon success, negative value otherwise
+ * @return Status of operation. Zero upon success. Negative value otherwise
  */
 int cam_synx_obj_release(struct cam_synx_obj_release_params *release_params);
 
@@ -121,7 +122,7 @@ int cam_synx_obj_release(struct cam_synx_obj_release_params *release_params);
  *
  * @param signal_synx_obj : Signal info
  *
- * @return 0 upon success, negative value otherwise
+ * @return Status of operation. Zero upon success. Negative value otherwise
  */
 int cam_synx_obj_signal_obj(struct cam_synx_obj_signal *signal_synx_obj);
 

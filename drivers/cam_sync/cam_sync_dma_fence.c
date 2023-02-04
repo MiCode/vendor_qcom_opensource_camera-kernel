@@ -350,8 +350,7 @@ struct dma_fence *cam_dma_fence_get_fence_from_fd(
 int cam_dma_fence_register_cb(int32_t *sync_obj, int32_t *dma_fence_idx,
 	cam_sync_callback_for_dma_fence sync_cb)
 {
-	int rc = 0;
-	int dma_fence_row_idx = 0;
+	int rc = 0, dma_fence_row_idx;
 	struct cam_dma_fence_row *row = NULL;
 	struct dma_fence *dma_fence = NULL;
 
@@ -403,7 +402,7 @@ int cam_dma_fence_register_cb(int32_t *sync_obj, int32_t *dma_fence_idx,
 		CAM_WARN(CAM_DMA_FENCE,
 			"dma fence at idx: %d fd: %d seqno: %llu has already registered a cb for sync: %d - same fd for 2 fences?",
 			dma_fence_row_idx, row->fd, dma_fence->seqno, row->sync_obj);
-		goto end;
+		goto monitor_dump;
 	}
 
 	rc = dma_fence_add_callback(row->fence, &row->fence_cb,
@@ -432,8 +431,6 @@ int cam_dma_fence_register_cb(int32_t *sync_obj, int32_t *dma_fence_idx,
 
 monitor_dump:
 	__cam_dma_fence_dump_monitor_array(dma_fence_row_idx);
-
-end:
 	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
 	return rc;
 }
@@ -496,11 +493,11 @@ int cam_dma_fence_internal_signal(
 	}
 
 	if (row->state == CAM_DMA_FENCE_STATE_SIGNALED) {
-		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
 		CAM_WARN(CAM_DMA_FENCE,
 			"dma fence fd: %d[seqno: %llu] already in signaled state",
 			signal_dma_fence->dma_fence_fd, dma_fence->seqno);
-		return 0;
+		rc = 0;
+		goto monitor_dump;
 	}
 
 	if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &cam_sync_monitor_mask))
