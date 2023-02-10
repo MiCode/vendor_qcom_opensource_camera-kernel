@@ -825,7 +825,6 @@ static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr, bool *in_map
 
 		if (start_addr <= current_addr && current_addr <= end_addr) {
 			closest_mapping = mapping;
-			*in_map_region = true;
 			CAM_INFO(CAM_SMMU,
 				"Found va 0x%lx in:0x%lx-0x%lx, fd %d i_ino %lu cb:%s",
 				current_addr, start_addr,
@@ -852,12 +851,16 @@ static uint32_t cam_smmu_find_closest_mapping(int idx, void *vaddr, bool *in_map
 end:
 	if (closest_mapping) {
 		buf_info = closest_mapping->ion_fd;
+		start_addr = (unsigned long)closest_mapping->paddr;
+		end_addr = (unsigned long)closest_mapping->paddr + closest_mapping->len;
+		if (start_addr <= current_addr && current_addr < end_addr)
+			*in_map_region = true;
 		CAM_INFO(CAM_SMMU,
-			"Closest map fd %d i_ino %lu 0x%lx %llu-%llu 0x%lx-0x%lx buf=%pK",
-			closest_mapping->ion_fd, closest_mapping->i_ino, current_addr,
+			"Faulting addr 0x%lx closest map fd %d i_ino %lu %llu-%llu 0x%lx-0x%lx buf=%pK",
+			current_addr, closest_mapping->ion_fd, closest_mapping->i_ino,
 			mapping->len, closest_mapping->len,
 			(unsigned long)closest_mapping->paddr,
-			(unsigned long)closest_mapping->paddr + mapping->len,
+			(unsigned long)closest_mapping->paddr + closest_mapping->len,
 			closest_mapping->buf);
 	} else
 		CAM_ERR(CAM_SMMU,
@@ -1026,21 +1029,13 @@ static int cam_smmu_iommu_fault_handler(struct iommu_domain *domain,
 	cam_smmu_page_fault_work(&iommu_cb_set.smmu_work);
 
 	/*
-	 * If cb has faults marked as non fatal, return handled to SMMU
-	 * This will skip printing any debug info from SMMU, which is also available as
-	 * part of fault handler cb. This will avoid any transaction retries which could
-	 * lead to further fault irqs being triggered
+	 * If cb has faults marked as non-fatal, but if the debugfs is set for panic
+	 * trigger a panic on fault
 	 */
 	if (iommu_cb_set.cb_info[idx].non_fatal_faults_en) {
-		/* Panic if debugfs is set for a context bank */
 		if (iommu_cb_set.debug_cfg.fatal_pf_mask & BIT(idx))
 			CAM_TRIGGER_PANIC("SMMU context fault from soc: %s[cb_idx: %u]",
 				iommu_cb_set.cb_info[idx].name[0], idx);
-
-		CAM_DBG(CAM_SMMU,
-			"PF marked as non-fatal for cb: %s, return success to SMMU",
-			cb_name);
-		return 0;
 	}
 
 	return -ENOSYS;
