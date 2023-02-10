@@ -16,7 +16,7 @@ DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 LOCAL_MODULE_DDK_BUILD := true
 
 # List of board platforms for which MMRM driver API should be enabled
-MMRM_BOARDS := taro parrot kalama pineapple
+MMRM_BOARDS := taro parrot kalama pineapple crow
 
 # List of board platforms for which Synx V2 vendor driver API should be enabled
 SYNX_VENDOR_BOARDS := pineapple
