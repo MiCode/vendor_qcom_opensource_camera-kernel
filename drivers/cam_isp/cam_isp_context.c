@@ -606,7 +606,6 @@ static int __cam_isp_ctx_user_dump_state_monitor_array(
 		return -EINVAL;
 	}
 
-	state_head = 0;
 	state_head = atomic64_read(&ctx_isp->state_monitor_head);
 
 	if (state_head == -1) {
@@ -3596,7 +3595,6 @@ static int __cam_isp_ctx_handle_recovery_req_util(
 	int rc = 0;
 	struct cam_context *ctx = ctx_isp->base;
 	struct cam_ctx_request *req_to_reapply = NULL;
-	struct cam_isp_ctx_req *req_isp = NULL;
 
 	if (list_empty(&ctx->pending_req_list)) {
 		CAM_WARN(CAM_ISP,
@@ -3606,7 +3604,6 @@ static int __cam_isp_ctx_handle_recovery_req_util(
 
 	req_to_reapply = list_first_entry(&ctx->pending_req_list,
 		struct cam_ctx_request, list);
-	req_isp = (struct cam_isp_ctx_req *)req_to_reapply->req_priv;
 	ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_EPOCH;
 	ctx_isp->recovery_req_id = req_to_reapply->request_id;
 	atomic_set(&ctx_isp->internal_recovery_set, 1);
@@ -3808,14 +3805,12 @@ move_to_pending:
 	if (found) {
 		list_for_each_entry_safe_reverse(req, req_temp,
 			&ctx->active_req_list, list) {
-			req_isp = (struct cam_isp_ctx_req *) req->req_priv;
 			list_del_init(&req->list);
 			list_add(&req->list, &ctx->pending_req_list);
 			ctx_isp->active_req_cnt--;
 		}
 		list_for_each_entry_safe_reverse(req, req_temp,
 			&ctx->wait_req_list, list) {
-			req_isp = (struct cam_isp_ctx_req *) req->req_priv;
 			list_del_init(&req->list);
 			list_add(&req->list, &ctx->pending_req_list);
 		}
@@ -4936,7 +4931,6 @@ static int __cam_isp_ctx_dump_req_info(
 	uint32_t                            min_len;
 	size_t                              remain_len;
 	struct cam_isp_ctx_req             *req_isp;
-	struct cam_isp_context             *ctx_isp;
 	struct cam_ctx_request             *req_temp;
 
 	if (!req || !ctx || !dump_args) {
@@ -4945,7 +4939,6 @@ static int __cam_isp_ctx_dump_req_info(
 		return -EINVAL;
 	}
 	req_isp = (struct cam_isp_ctx_req *)req->req_priv;
-	ctx_isp = (struct cam_isp_context *)ctx->ctx_priv;
 
 	if (dump_args->buf_len <= dump_args->offset) {
 		CAM_WARN(CAM_ISP,
@@ -5269,7 +5262,6 @@ static int __cam_isp_ctx_flush_req(struct cam_context *ctx,
 	struct list_head *req_list, struct cam_req_mgr_flush_request *flush_req)
 {
 	int i, rc, tmp = 0;
-	uint32_t cancel_req_id_found = 0;
 	struct cam_ctx_request           *req;
 	struct cam_ctx_request           *req_temp;
 	struct cam_isp_ctx_req           *req_isp;
@@ -5301,7 +5293,6 @@ static int __cam_isp_ctx_flush_req(struct cam_context *ctx,
 			} else {
 				list_del_init(&req->list);
 				list_add_tail(&req->list, &flush_list);
-				cancel_req_id_found = 1;
 				__cam_isp_ctx_update_state_monitor_array(
 					ctx_isp,
 					CAM_ISP_STATE_CHANGE_TRIGGER_FLUSH,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_vfe_top_common.h"
@@ -211,7 +211,6 @@ int cam_vfe_top_clock_update(struct cam_vfe_top_priv_common *top_common,
 {
 	struct cam_vfe_clock_update_args     *clk_update = NULL;
 	struct cam_isp_resource_node         *res = NULL;
-	struct cam_hw_info                   *hw_info = NULL;
 	int                                   i;
 
 	clk_update =
@@ -222,8 +221,6 @@ int cam_vfe_top_clock_update(struct cam_vfe_top_priv_common *top_common,
 		CAM_ERR(CAM_PERF, "Invalid input res %pK", res);
 		return -EINVAL;
 	}
-
-	hw_info = res->hw_intf->hw_priv;
 
 	if (res->res_type != CAM_ISP_RESOURCE_VFE_IN ||
 		res->res_id >= CAM_ISP_HW_VFE_IN_MAX) {
@@ -424,7 +421,6 @@ int cam_vfe_top_bw_update_v2(struct cam_vfe_soc_private *soc_private,
 {
 	struct cam_vfe_bw_update_args_v2        *bw_update = NULL;
 	struct cam_isp_resource_node         *res = NULL;
-	struct cam_hw_info                   *hw_info = NULL;
 	int                                   rc = 0;
 	int                                   i;
 
@@ -433,8 +429,6 @@ int cam_vfe_top_bw_update_v2(struct cam_vfe_soc_private *soc_private,
 
 	if (!res || !res->hw_intf || !res->hw_intf->hw_priv)
 		return -EINVAL;
-
-	hw_info = res->hw_intf->hw_priv;
 
 	if (res->res_type != CAM_ISP_RESOURCE_VFE_IN ||
 		res->res_id >= CAM_ISP_HW_VFE_IN_MAX) {
@@ -464,12 +458,9 @@ int cam_vfe_top_bw_update(struct cam_vfe_soc_private *soc_private,
 {
 	struct cam_vfe_bw_update_args        *bw_update = NULL;
 	struct cam_isp_resource_node         *res = NULL;
-	struct cam_hw_info                   *hw_info = NULL;
 	int                                   rc = 0;
 	int                                   i;
 	struct cam_axi_vote                  *mux_axi_vote;
-	bool                                  vid_exists = false;
-	bool                                  rdi_exists = false;
 
 	bw_update = (struct cam_vfe_bw_update_args *)cmd_args;
 	res = bw_update->node_res;
@@ -477,7 +468,6 @@ int cam_vfe_top_bw_update(struct cam_vfe_soc_private *soc_private,
 	if (!res || !res->hw_intf || !res->hw_intf->hw_priv)
 		return -EINVAL;
 
-	hw_info = res->hw_intf->hw_priv;
 
 	CAM_DBG(CAM_PERF, "res_id=%d, BW=[%lld %lld]",
 		res->res_id, bw_update->camnoc_bw_bytes,
@@ -523,16 +513,6 @@ int cam_vfe_top_bw_update(struct cam_vfe_soc_private *soc_private,
 			break;
 		}
 
-		if (mux_axi_vote->num_paths == 1) {
-			if (mux_axi_vote->axi_path[0].path_data_type ==
-				CAM_AXI_PATH_DATA_IFE_VID)
-				vid_exists = true;
-			else if ((mux_axi_vote->axi_path[0].path_data_type >=
-				CAM_AXI_PATH_DATA_IFE_RDI0) &&
-				(mux_axi_vote->axi_path[0].path_data_type <=
-				CAM_AXI_PATH_DATA_IFE_RDI3))
-				rdi_exists = true;
-		}
 	}
 
 	return rc;

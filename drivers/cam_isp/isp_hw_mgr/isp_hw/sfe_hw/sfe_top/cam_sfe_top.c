@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -566,7 +566,6 @@ int cam_sfe_top_bw_update(struct cam_sfe_soc_private *soc_private,
 {
 	struct cam_sfe_bw_update_args        *bw_update = NULL;
 	struct cam_isp_resource_node         *res = NULL;
-	struct cam_hw_info                   *hw_info = NULL;
 	int                                   rc = 0;
 	int                                   i;
 
@@ -576,7 +575,6 @@ int cam_sfe_top_bw_update(struct cam_sfe_soc_private *soc_private,
 	if (!res || !res->hw_intf || !res->hw_intf->hw_priv)
 		return -EINVAL;
 
-	hw_info = res->hw_intf->hw_priv;
 
 	if (res->res_type != CAM_ISP_RESOURCE_SFE_IN ||
 		res->res_id >= CAM_ISP_HW_SFE_IN_MAX) {
@@ -813,7 +811,6 @@ static int cam_sfe_top_clock_update(
 {
 	struct cam_sfe_clock_update_args     *clk_update = NULL;
 	struct cam_isp_resource_node         *res = NULL;
-	struct cam_hw_info                   *hw_info = NULL;
 	int i;
 
 	if (arg_size != sizeof(struct cam_sfe_clock_update_args)) {
@@ -836,7 +833,6 @@ static int cam_sfe_top_clock_update(
 		return -EINVAL;
 	}
 
-	hw_info = res->hw_intf->hw_priv;
 
 	if (res->res_type != CAM_ISP_RESOURCE_SFE_IN ||
 		res->res_id >= CAM_ISP_HW_SFE_IN_MAX) {
@@ -1228,7 +1224,6 @@ int cam_sfe_top_reserve(void *device_priv,
 	struct cam_sfe_top_priv                 *top_priv;
 	struct cam_sfe_acquire_args             *args;
 	struct cam_sfe_hw_sfe_in_acquire_args   *acquire_args;
-	struct cam_sfe_path_data                *path_data;
 	int rc = -EINVAL, i;
 
 	if (!device_priv || !reserve_args) {
@@ -1258,8 +1253,6 @@ int cam_sfe_top_reserve(void *device_priv,
 		if ((top_priv->in_rsrc[i].res_id == acquire_args->res_id) &&
 			(top_priv->in_rsrc[i].res_state ==
 			CAM_ISP_RESOURCE_STATE_AVAILABLE)) {
-			path_data = (struct cam_sfe_path_data *)
-				top_priv->in_rsrc[i].res_priv;
 			CAM_DBG(CAM_SFE,
 				"SFE [%u] for rsrc: %u acquired",
 				top_priv->in_rsrc[i].hw_intf->hw_idx,
@@ -1655,7 +1648,6 @@ int cam_sfe_top_start(
 	struct cam_hw_info                   *hw_info = NULL;
 	struct cam_sfe_path_data             *path_data;
 	struct cam_hw_soc_info               *soc_info = NULL;
-	struct cam_sfe_soc_private           *soc_private = NULL;
 	uint32_t   error_mask[CAM_SFE_IRQ_REGISTERS_MAX];
 	uint32_t   sof_eof_mask[CAM_SFE_IRQ_REGISTERS_MAX];
 	uint32_t core_cfg = 0, i = 0;
@@ -1668,7 +1660,6 @@ int cam_sfe_top_start(
 	top_priv = (struct cam_sfe_top_priv *)priv;
 	sfe_res = (struct cam_isp_resource_node *) start_args;
 	soc_info = top_priv->common_data.soc_info;
-	soc_private = soc_info->soc_private;
 
 	hw_info = (struct cam_hw_info  *)sfe_res->hw_intf->hw_priv;
 	if (!hw_info) {

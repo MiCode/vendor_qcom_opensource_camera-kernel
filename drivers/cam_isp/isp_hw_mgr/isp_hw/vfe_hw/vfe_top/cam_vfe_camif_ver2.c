@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -353,7 +353,6 @@ static int cam_vfe_camif_resource_start(
 	uint32_t                        epoch0_irq_mask;
 	uint32_t                        epoch1_irq_mask;
 	uint32_t                        computed_epoch_line_cfg;
-	int                             rc = 0;
 	uint32_t                        err_irq_mask[CAM_IFE_IRQ_REGISTERS_MAX];
 	uint32_t                        irq_mask[CAM_IFE_IRQ_REGISTERS_MAX];
 	uint32_t                        dual_vfe_sync_val;
@@ -492,7 +491,6 @@ static int cam_vfe_camif_resource_start(
 			CAM_IRQ_EVT_GROUP_0);
 		if (rsrc_data->irq_handle < 1) {
 			CAM_ERR(CAM_ISP, "IRQ handle subscribe failure");
-			rc = -ENOMEM;
 			rsrc_data->irq_handle = 0;
 		}
 	}
@@ -511,7 +509,6 @@ subscribe_err:
 			CAM_IRQ_EVT_GROUP_0);
 		if (rsrc_data->irq_err_handle < 1) {
 			CAM_ERR(CAM_ISP, "Error IRQ handle subscribe failure");
-			rc = -ENOMEM;
 			rsrc_data->irq_err_handle = 0;
 		}
 	}
@@ -592,7 +589,6 @@ static int cam_vfe_camif_resource_stop(
 	struct cam_isp_resource_node        *camif_res)
 {
 	struct cam_vfe_mux_camif_data       *camif_priv;
-	struct cam_vfe_camif_ver2_reg       *camif_reg;
 	int rc = 0;
 	uint32_t val = 0;
 
@@ -606,7 +602,6 @@ static int cam_vfe_camif_resource_stop(
 		return 0;
 
 	camif_priv = (struct cam_vfe_mux_camif_data *)camif_res->res_priv;
-	camif_reg = camif_priv->camif_reg;
 
 	if ((camif_priv->dsp_mode >= CAM_ISP_DSP_MODE_ONE_WAY) &&
 		(camif_priv->dsp_mode <= CAM_ISP_DSP_MODE_ROUND)) {

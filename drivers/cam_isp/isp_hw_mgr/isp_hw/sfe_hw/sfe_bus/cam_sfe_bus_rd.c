@@ -1666,7 +1666,6 @@ skip_cache_cfg:
 static int cam_sfe_bus_rd_update_rm_core_cfg(
 	void *priv, void *cmd_args, uint32_t arg_size)
 {
-	struct cam_sfe_bus_rd_priv             *bus_priv;
 	struct cam_isp_hw_get_cmd_update       *cmd_update;
 	struct cam_sfe_bus_rd_data             *sfe_bus_rd_data = NULL;
 	struct cam_sfe_bus_rd_rm_resource_data *rm_data = NULL;
@@ -1676,7 +1675,6 @@ static int cam_sfe_bus_rd_update_rm_core_cfg(
 	uint32_t  num_regval_pairs = 0, i, j, size = 0;
 	uint32_t hw_cfg = 0;
 
-	bus_priv   = (struct cam_sfe_bus_rd_priv  *) priv;
 	cmd_update =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
 	enable_disable = *(bool *)cmd_update->data;
 
@@ -1819,13 +1817,11 @@ static int cam_sfe_bus_rd_config_update(
 	void *priv, void *cmd_args, uint32_t arg_size)
 {
 	int i;
-	struct cam_sfe_bus_rd_priv             *bus_priv;
 	struct cam_isp_hw_get_cmd_update       *rm_config_update;
 	struct cam_isp_vfe_wm_config           *rm_config = NULL;
 	struct cam_sfe_bus_rd_data             *sfe_bus_rd_data = NULL;
 	struct cam_sfe_bus_rd_rm_resource_data *rm_data = NULL;
 
-	bus_priv = (struct cam_sfe_bus_rd_priv  *) priv;
 	rm_config_update =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
 	rm_config = (struct cam_isp_vfe_wm_config  *)
 		rm_config_update->data;
@@ -1989,7 +1985,6 @@ int cam_sfe_bus_rd_init(
 	struct cam_sfe_bus                  **sfe_bus)
 {
 	int i, rc = 0;
-	struct cam_sfe_soc_private    *soc_private;
 	struct cam_sfe_bus_rd_priv    *bus_priv = NULL;
 	struct cam_sfe_bus            *sfe_bus_local;
 	struct cam_sfe_bus_rd_hw_info *bus_rd_hw_info = bus_hw_info;
@@ -2002,7 +1997,6 @@ int cam_sfe_bus_rd_init(
 		goto end;
 	}
 
-	soc_private = soc_info->soc_private;
 	sfe_bus_local = kzalloc(sizeof(struct cam_sfe_bus), GFP_KERNEL);
 	if (!sfe_bus_local) {
 		CAM_DBG(CAM_SFE, "Failed to alloc for sfe_bus");

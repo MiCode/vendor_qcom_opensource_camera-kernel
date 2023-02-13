@@ -2546,7 +2546,7 @@ static inline void cam_ife_csid_ver2_maskout_path_irqs(
 
 		path_cfg->top_irq_handle = 0;
 
-		rc = cam_irq_controller_unregister_dependent(
+		(void) cam_irq_controller_unregister_dependent(
 			csid_hw->top_irq_controller,
 			csid_hw->path_irq_controller[res_id]);
 	}
@@ -2606,7 +2606,7 @@ static inline void cam_ife_csid_ver2_disable_path_irqs_evts(
 
 		path_cfg->top_irq_handle = 0;
 
-		rc = cam_irq_controller_unregister_dependent(
+		(void) cam_irq_controller_unregister_dependent(
 			csid_hw->top_irq_controller,
 			csid_hw->path_irq_controller[res_id]);
 	}

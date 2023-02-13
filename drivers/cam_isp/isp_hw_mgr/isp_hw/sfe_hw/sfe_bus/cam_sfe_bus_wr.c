@@ -1106,10 +1106,8 @@ static int cam_sfe_bus_start_comp_grp(
 {
 	int rc = 0;
 	struct cam_sfe_bus_wr_comp_grp_data *rsrc_data = NULL;
-	struct cam_sfe_bus_wr_common_data   *common_data = NULL;
 
 	rsrc_data = comp_grp->res_priv;
-	common_data = rsrc_data->common_data;
 
 	CAM_DBG(CAM_SFE,
 		"Start SFE:%d comp_grp:%d streaming state:%d comp_mask:0x%X",
@@ -1216,7 +1214,6 @@ static int cam_sfe_bus_acquire_sfe_out(void *priv, void *acquire_args,
 	int                                     rc = -ENODEV;
 	int                                     i;
 	enum cam_sfe_bus_sfe_out_type           sfe_out_res_id;
-	uint32_t                                format;
 	struct cam_sfe_bus_wr_priv             *bus_priv = priv;
 	struct cam_sfe_acquire_args            *acq_args = acquire_args;
 	struct cam_sfe_hw_sfe_out_acquire_args *out_acquire_args;
@@ -1233,7 +1230,6 @@ static int cam_sfe_bus_acquire_sfe_out(void *priv, void *acquire_args,
 
 	comp_grp_id = CAM_SFE_BUS_WR_COMP_GRP_MAX;
 	out_acquire_args = &acq_args->sfe_out;
-	format = out_acquire_args->out_port_info->format;
 
 	CAM_DBG(CAM_SFE, "SFE:%d Acquire out_type:0x%X",
 		bus_priv->common_data.core_index,
@@ -1491,7 +1487,6 @@ static int cam_sfe_bus_start_sfe_out(
 	struct cam_sfe_bus_wr_priv          *bus_priv;
 	struct cam_sfe_bus_wr_common_data   *common_data = NULL;
 	uint32_t bus_irq_reg_mask[1];
-	uint32_t source_group = 0;
 
 	if (!sfe_out) {
 		CAM_ERR(CAM_SFE, "Invalid input");
@@ -1501,7 +1496,6 @@ static int cam_sfe_bus_start_sfe_out(
 	rsrc_data = sfe_out->res_priv;
 	bus_priv = rsrc_data->bus_priv;
 	common_data = rsrc_data->common_data;
-	source_group = rsrc_data->source_group;
 
 	if (sfe_out->res_state != CAM_ISP_RESOURCE_STATE_RESERVED) {
 		CAM_ERR(CAM_SFE,
@@ -2751,7 +2745,6 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 static int cam_sfe_bus_wr_update_hfr(void *priv, void *cmd_args,
 	uint32_t arg_size)
 {
-	struct cam_sfe_bus_wr_priv             *bus_priv;
 	struct cam_isp_hw_get_cmd_update       *update_hfr;
 	struct cam_sfe_bus_wr_out_data         *sfe_out_data = NULL;
 	struct cam_sfe_bus_wr_wm_resource_data *wm_data = NULL;
@@ -2761,7 +2754,6 @@ static int cam_sfe_bus_wr_update_hfr(void *priv, void *cmd_args,
 	uint32_t num_regval_pairs = 0;
 	uint32_t  i, j, size = 0;
 
-	bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
 	update_hfr =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
 
 	sfe_out_data = (struct cam_sfe_bus_wr_out_data *)
@@ -3009,7 +3001,6 @@ static int cam_sfe_bus_wr_update_wm_config(
 static int cam_sfe_bus_wr_update_bw_limiter(
 	void *priv, void *cmd_args, uint32_t arg_size)
 {
-	struct cam_sfe_bus_wr_priv             *bus_priv;
 	struct cam_isp_hw_get_cmd_update       *wm_config_update;
 	struct cam_sfe_bus_wr_out_data         *sfe_out_data = NULL;
 	struct cam_cdm_utils_ops               *cdm_util_ops;
@@ -3019,7 +3010,6 @@ static int cam_sfe_bus_wr_update_bw_limiter(
 	uint32_t                               *reg_val_pair, num_regval_pairs = 0;
 	uint32_t                                i, j, size = 0;
 
-	bus_priv         = (struct cam_sfe_bus_wr_priv  *) priv;
 	wm_config_update = (struct cam_isp_hw_get_cmd_update *) cmd_args;
 	wm_bw_limit_cfg  = (struct cam_isp_wm_bw_limiter_config  *)
 			wm_config_update->data;
@@ -3358,7 +3348,6 @@ int cam_sfe_bus_wr_init(
 	struct cam_sfe_bus                  **sfe_bus)
 {
 	int i, rc = 0;
-	struct cam_sfe_soc_private    *soc_private;
 	struct cam_sfe_bus_wr_priv    *bus_priv = NULL;
 	struct cam_sfe_bus            *sfe_bus_local;
 	struct cam_sfe_bus_wr_hw_info *hw_info = bus_hw_info;
@@ -3373,7 +3362,6 @@ int cam_sfe_bus_wr_init(
 		goto end;
 	}
 
-	soc_private = soc_info->soc_private;
 	sfe_bus_local = kzalloc(sizeof(struct cam_sfe_bus), GFP_KERNEL);
 	if (!sfe_bus_local) {
 		CAM_DBG(CAM_SFE, "Failed to alloc for sfe_bus");
