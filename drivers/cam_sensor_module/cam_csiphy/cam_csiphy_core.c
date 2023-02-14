@@ -47,7 +47,7 @@ struct g_csiphy_data {
 	uint32_t cpas_handle;
 	bool is_configured_for_main;
 	uint64_t data_rate_aux_mask;
-	uint8_t aon_cam_id;
+	uint32_t aon_cam_id;
 	struct cam_csiphy_aon_sel_params_t *aon_sel_param;
 };
 
@@ -1641,7 +1641,7 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 	return rc;
 }
 
-int cam_csiphy_util_update_aon_registration(uint32_t phy_idx, uint8_t aon_cam_id)
+int cam_csiphy_util_update_aon_registration(uint32_t phy_idx, uint32_t aon_cam_id)
 {
 	/* aon support enable for the sensor associated with phy idx*/
 	if (phy_idx >= MAX_CSIPHY) {
