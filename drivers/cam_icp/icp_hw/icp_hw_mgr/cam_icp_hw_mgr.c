@@ -2659,23 +2659,6 @@ static int cam_icp_mgr_process_msg_config_io(uint32_t *msg_ptr)
 		}
 		CAM_DBG(CAM_ICP, "%s: received BPS config io response",
 			ctx_data->ctx_id_string);
-	} else if (ioconfig_ack->opcode == HFI_OFE_CMD_OPCODE_CONFIG_IO) {
-		struct hfi_msg_ofe_config *ofe_config_ack = NULL;
-		ofe_config_ack =
-			(struct hfi_msg_ofe_config *)(ioconfig_ack->msg_data);
-		if (ofe_config_ack->rc) {
-			CAM_ERR(CAM_ICP, "rc : %u, opcode :%u",
-				ofe_config_ack->rc, ioconfig_ack->opcode);
-			return -EIO;
-		}
-		ctx_data = (struct cam_icp_hw_ctx_data *)
-			U64_TO_PTR(ioconfig_ack->user_data1);
-		if (!ctx_data) {
-			CAM_ERR(CAM_ICP, "wrong ctx data from OFE config io response");
-			return -EINVAL;
-		}
-		CAM_DBG(CAM_ICP, "%s: received OFE config io response",
-			ctx_data->ctx_id_string);
 	} else {
 		CAM_ERR(CAM_ICP, "Invalid OPCODE: %u", ioconfig_ack->opcode);
 		return -EINVAL;
@@ -2778,12 +2761,30 @@ static int cam_icp_mgr_process_ofe_indirect_ack_msg(uint32_t *msg_ptr)
 	int rc = 0;
 
 	switch (msg_ptr[ICP_PACKET_OPCODE]) {
-	case HFI_OFE_CMD_OPCODE_CONFIG_IO:
-		CAM_DBG(CAM_ICP, "received OFE_CONFIG_IO:");
-		rc = cam_icp_mgr_process_msg_config_io(msg_ptr);
-		if (rc)
-			return rc;
+	case HFI_OFE_CMD_OPCODE_CONFIG_IO: {
+		struct hfi_msg_dev_async_ack *ioconfig_ack =
+			(struct hfi_msg_dev_async_ack *)msg_ptr;
+		struct hfi_msg_ofe_config *ofe_config_ack =
+			(struct hfi_msg_ofe_config *)(ioconfig_ack->msg_data);
+		struct cam_icp_hw_ctx_data *ctx_data = NULL;
+
+		if (ofe_config_ack->rc) {
+			CAM_ERR(CAM_ICP, "rc : %u, error type: %u error: [%s] opcode :%u",
+				ofe_config_ack->rc, ioconfig_ack->err_type,
+				cam_icp_error_handle_id_to_type(ioconfig_ack->err_type),
+				ioconfig_ack->opcode);
+			return -EIO;
+		}
+		ctx_data = (struct cam_icp_hw_ctx_data *)
+			U64_TO_PTR(ioconfig_ack->user_data1);
+		if (!ctx_data) {
+			CAM_ERR(CAM_ICP, "wrong ctx data from OFE config io response");
+			return -EINVAL;
+		}
+		CAM_DBG(CAM_ICP, "%s: received OFE config io response",
+			ctx_data->ctx_id_string);
 		break;
+	}
 	case HFI_OFE_CMD_OPCODE_FRAME_PROCESS:
 		CAM_DBG(CAM_ICP, "received OFE_FRAME_PROCESS:");
 		rc = cam_icp_mgr_process_msg_frame_process(msg_ptr);
