@@ -3741,9 +3741,7 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 			csid_acquire.sync_mode = i == CAM_ISP_HW_SPLIT_LEFT ?
 				CAM_ISP_HW_SYNC_MASTER : CAM_ISP_HW_SYNC_SLAVE;
 
-		csid_acquire.event_cb = cam_ife_hw_mgr_event_handler;
 		csid_acquire.tasklet = ife_ctx->common.tasklet_info;
-		csid_acquire.cb_priv = ife_ctx;
 		csid_acquire.cdm_ops = ife_ctx->cdm_ops;
 
 		rc = cam_ife_hw_mgr_acquire_csid_hw(ife_ctx,
