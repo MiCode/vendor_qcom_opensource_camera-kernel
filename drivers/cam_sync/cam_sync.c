@@ -400,9 +400,9 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 {
 	struct sync_table_row *row = NULL;
 	struct list_head parents_list;
-	int rc = 0, synx_row_idx = 0;
-	uint32_t synx_obj = 0;
+	int rc = 0;
 #if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
+	uint32_t synx_row_idx;
 	struct cam_synx_obj_signal signal_synx_obj;
 #endif
 
@@ -441,11 +441,25 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 				row->dma_fence_info.dma_fence_fd, row->name, sync_obj);
 	}
 
-	/* Obtain associated synx hdl if any with the row lock held */
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
+	/*
+	 * Signal associated synx obj prior to sync
+	 */
 	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask)) {
-		synx_obj = row->synx_obj_info.synx_obj;
+		signal_synx_obj.status = status;
+		signal_synx_obj.synx_obj = row->synx_obj_info.synx_obj;
 		synx_row_idx = row->synx_obj_info.synx_obj_row_idx;
+
+		/* Release & obtain the row lock after synx signal */
+		spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
+		rc = cam_synx_obj_internal_signal(synx_row_idx, &signal_synx_obj);
+		spin_lock_bh(&sync_dev->row_spinlocks[sync_obj]);
+		if (rc)
+			CAM_ERR(CAM_SYNC,
+				"Error: Failed to signal associated synx obj = %d for sync_obj = %d",
+				signal_synx_obj.synx_obj, sync_obj);
 	}
+#endif
 
 	cam_sync_util_dispatch_signaled_cb(sync_obj, status, event_cause);
 
@@ -459,22 +473,6 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 			CAM_FENCE_OP_SIGNAL);
 
 	spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
-
-#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
-	/*
-	 * Signal associated synx obj after unlock
-	 */
-	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask)) {
-		signal_synx_obj.status = status;
-		signal_synx_obj.synx_obj = synx_obj;
-		rc = cam_synx_obj_internal_signal(synx_row_idx, &signal_synx_obj);
-		if (rc)
-			CAM_ERR(CAM_SYNC,
-				"Error: Failed to signal associated synx obj = %d for sync_obj = %d",
-				synx_obj, sync_obj);
-	}
-#endif
-
 	if (list_empty(&parents_list))
 		return 0;
 
