@@ -488,10 +488,13 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 			signal_synx_obj->synx_obj);
 	}
 
+	row->state = CAM_SYNX_OBJ_STATE_SIGNALED;
+
 	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &cam_sync_monitor_mask))
 		cam_generic_fence_update_monitor_array(row_idx,
 			&g_cam_synx_obj_dev->dev_lock, g_cam_synx_obj_dev->monitor_data,
 			CAM_FENCE_OP_SIGNAL);
+	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 
 	rc = synx_signal(g_cam_synx_obj_dev->session_handle,
 		signal_synx_obj->synx_obj, signal_status);
@@ -505,7 +508,6 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 		signal_synx_obj->synx_obj, signal_status, rc);
 
 end:
-	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 	return rc;
 }
 
@@ -560,12 +562,12 @@ int cam_synx_obj_signal_obj(struct cam_synx_obj_signal *signal_synx_obj)
 			signal_synx_obj->synx_obj);
 	}
 	row->state = CAM_SYNX_OBJ_STATE_SIGNALED;
-	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
 
 	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &cam_sync_monitor_mask))
 		cam_generic_fence_update_monitor_array(idx,
 			&g_cam_synx_obj_dev->dev_lock, g_cam_synx_obj_dev->monitor_data,
 			CAM_FENCE_OP_SIGNAL);
+	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
 
 	rc = synx_signal(g_cam_synx_obj_dev->session_handle,
 		signal_synx_obj->synx_obj, signal_status);
@@ -647,19 +649,20 @@ int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
 		cam_generic_fence_update_monitor_array(row_idx,
 			&g_cam_synx_obj_dev->dev_lock, g_cam_synx_obj_dev->monitor_data,
 			CAM_FENCE_OP_REGISTER_CB);
+	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 
 	rc = synx_async_wait(g_cam_synx_obj_dev->session_handle, &cb_params);
 	if (rc) {
 		CAM_ERR(CAM_SYNX,
 			"Failed to register cb for synx obj: %d rc: %d",
 			synx_obj, rc);
-		goto monitor_dump;
+		return rc;
 	}
 
 	CAM_DBG(CAM_SYNX,
 		"CB successfully registered for synx obj: %d for sync_obj: %d",
 		synx_obj, *sync_obj);
-	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
+
 	return rc;
 
 monitor_dump:
