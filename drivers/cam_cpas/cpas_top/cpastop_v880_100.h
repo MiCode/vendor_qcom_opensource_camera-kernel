@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CPASTOP_V880_100_H_
@@ -747,18 +747,18 @@ static struct cam_camnoc_specific
 			.value = 0x2,
 		},
 		.qosgen_shaping_low = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x70A0, /* JPEG : NOC_NRT_1_QOSGEN_SHAPING_LOW */
-			.value = 0x0,
+			.value = 0x10101010,
 		},
 		.qosgen_shaping_high = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x70A4, /* JPEG : NOC_NRT_1_QOSGEN_SHAPING_HIGH */
-			.value = 0x0,
+			.value = 0x10101010,
 		},
 		.maxwr_low = {
 			.enable = false,
