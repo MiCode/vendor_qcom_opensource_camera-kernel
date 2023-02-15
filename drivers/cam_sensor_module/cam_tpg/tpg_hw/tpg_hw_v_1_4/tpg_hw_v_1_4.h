@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_V_1_4_H__
@@ -255,9 +255,13 @@ struct cam_tpg_ver_1_4_reg_offset {
 	int shdr_offset_num_batch_shift;
 	int shdr_line_offset1_shift;
 	int shdr_line_offset0_shift;
+	int tpg_done_status_shift;
+	int rup_done_status_shift;
 	int status_vec_shift;
-	int mask_vec_shift;
-	int clear_vec_shift;
+	int rup_done_mask_vec_shift;
+	int tpg_done_mask_vec_shift;
+	int rup_done_clear_vec_shift;
+	int tpg_done_clear_vec_shift;
 	int set_vec_shift;
 	int set_shift;
 	int clear_shift;
@@ -317,10 +321,26 @@ int tpg_hw_v_1_4_process_cmd(struct tpg_hw *hw,
  * @param hw   : tpg hw instance
  * @param data : argument for status dump
  *
- * @return     : 0 on sucdess
+ * @return     : 0 on success
  */
 int tpg_hw_v_1_4_dump_status(struct tpg_hw *hw, void *data);
 
+/**
+ * @brief  hw layer initialization
+ *
+ * @param hw   : tpg hw instance
+ *
+ * @return     : 0 on success
+ */
 int tpg_1_4_layer_init(struct tpg_hw *hw);
+
+/**
+ * @brief handle tpg irq
+ *
+ * @param hw   : tpg hw instance
+ *
+ * @return     : IRQ_HANDLED on success
+ */
+irqreturn_t tpg_hw_v_1_4_handle_irq(struct tpg_hw *hw);
 
 #endif /* __TPG_HW_V_1_4_H__ */

@@ -14,18 +14,16 @@ enum tpg_hw_v_1_4_encode_fomat_t {
 	RAW_16_BIT
 };
 
-#define  FRAME_INTERLEAVE  0x0
-#define  LINE_INTERLEAVE   0x1
-#define  SHDR_INTERLEAVE   0x2
-#define  SPARSE_PD_INTERLEAVE 0x3
+#define  CAM_TPG_HW_WAIT_TIMEOUT    msecs_to_jiffies(100)
+#define  FRAME_INTERLEAVE           0x0
+#define  LINE_INTERLEAVE            0x1
+#define  SHDR_INTERLEAVE            0x2
+#define  SPARSE_PD_INTERLEAVE       0x3
 #define  CFA_PATTERN_ROW_WIDTH      8
 #define  CFA_PATTERN_BITS_PER_INDEX 2
-#define  Invalid 0x0
-#define  Red     0x0
-#define  Green   0x1
-#define  Blue    0x2
-#define  IR      0x3
-#define  Mono    0x3
+#define  TIMEOUT_MULTIPLIER         1
+#define  TIMEOUT_MULTIPLIER_PRESIL  5
+#define  TPG_DISABLE                0
 
 static int get_tpg_vc_dt_pattern_id(
 		enum tpg_interleaving_format_t vc_dt_pattern)
@@ -155,6 +153,10 @@ static int configure_global_configs(
 	struct tpg_global_config_t *configs)
 {
 	uint32_t val, phy_type = 0;
+	uint32_t timeout_multiplier = -1;
+	int rc = 0;
+	unsigned long wait_jiffies = 0;
+	unsigned long rem_jiffies = 0;
 	struct cam_hw_soc_info *soc_info = NULL;
 	struct cam_tpg_ver_1_4_reg_offset *tpg_reg = NULL;
 
@@ -174,9 +176,10 @@ static int configure_global_configs(
 		return -EINVAL;
 	}
 
-	/* throttle moved to vc config
-	 * Tpg neable bit is moved to TPG_CMD register
-	 **/
+	val = (1 << tpg_reg->rup_done_mask_vec_shift) | (1 << tpg_reg->tpg_done_mask_vec_shift);
+	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
+				tpg_reg->top_irq_mask);
+
 	val = (num_vcs - 1) <<
 		(tpg_reg->num_active_vc_shift) |
 		(configs->lane_count - 1) << (tpg_reg->num_active_lanes_shift) |
@@ -192,7 +195,29 @@ static int configure_global_configs(
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base + tpg_reg->tpg_ctrl_cmd);
 	CAM_DBG(CAM_TPG, "tpg[%d] tpg_ctrl_cmd=0x%x", hw->hw_idx, val);
 
-	return 0;
+	if (hw->settings_update) {
+		cam_io_w_mb(TPG_DISABLE, soc_info->reg_map[0].mem_base + tpg_reg->tpg_ctrl_cmd);
+		if (cam_presil_mode_enabled())
+			timeout_multiplier = TIMEOUT_MULTIPLIER_PRESIL;
+		else
+			timeout_multiplier = TIMEOUT_MULTIPLIER;
+		CAM_DBG(CAM_TPG, "wait for TPG done and RUP done Interrupt");
+		wait_jiffies = CAM_TPG_HW_WAIT_TIMEOUT * timeout_multiplier;
+		reinit_completion(&hw->complete_rup);
+		rem_jiffies =
+			cam_common_wait_for_completion_timeout(&hw->complete_rup, wait_jiffies);
+		if (rem_jiffies) {
+			val = (1 << tpg_reg->test_en_cmd_shift);
+			cam_io_w_mb(val, soc_info->reg_map[0].mem_base + tpg_reg->tpg_ctrl_cmd);
+			hw->settings_update = 0;
+		} else {
+			CAM_ERR(CAM_TPG, "TPG[%d] hw timeout %llu",
+					hw->hw_idx, rem_jiffies);
+			rc = -EBUSY;
+		}
+	}
+
+	return rc;
 }
 
 static int get_pixel_coordinate(
@@ -733,6 +758,48 @@ int tpg_hw_v_1_4_stop(struct tpg_hw *hw, void *data)
 	return 0;
 }
 
+irqreturn_t tpg_hw_v_1_4_handle_irq(struct tpg_hw *hw)
+{
+	struct cam_hw_soc_info            *soc_info = NULL;
+	uint32_t                          val;
+	unsigned long                     flags;
+	struct cam_tpg_ver_1_4_reg_offset *tpg_reg = NULL;
+	bool                              rup_done = false;
+
+	if (!hw || !hw->hw_info || !hw->hw_info->hw_data || !hw->soc_info) {
+		CAM_ERR(CAM_TPG, "Invalid Params");
+		return IRQ_NONE;
+	}
+
+	tpg_reg  = hw->hw_info->hw_data;
+	soc_info = hw->soc_info;
+
+	val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+		tpg_reg->top_irq_status);
+
+	if (val & ((1 << tpg_reg->rup_done_status_shift) |
+		(1 << tpg_reg->tpg_done_status_shift))) {
+		CAM_DBG(CAM_TPG, "Got TPG Interrupt val = 0x%x", val);
+
+		if (val & (1 << tpg_reg->rup_done_status_shift)) {
+			rup_done = true;
+			spin_lock_irqsave(&hw->hw_state_lock, flags);
+			hw->state = TPG_HW_STATE_READY;
+			spin_unlock_irqrestore(&hw->hw_state_lock, flags);
+		}
+
+		cam_io_w_mb(val, soc_info->reg_map[0].mem_base + tpg_reg->top_irq_clear);
+		val = (1 << tpg_reg->clear_shift);
+		cam_io_w_mb(val, soc_info->reg_map[0].mem_base + tpg_reg->irq_cmd);
+
+		if (rup_done)
+			complete(&hw->complete_rup);
+	} else {
+		CAM_ERR(CAM_TPG, "Not a valid event 0x%x", val);
+	}
+
+	return IRQ_HANDLED;
+}
 int tpg_hw_v_1_4_dump_status(struct tpg_hw *hw, void *data)
 {
 
