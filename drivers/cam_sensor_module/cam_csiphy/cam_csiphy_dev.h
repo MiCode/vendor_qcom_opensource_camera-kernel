@@ -227,7 +227,7 @@ struct csiphy_device;
 struct data_rate_reg_info_t {
 	uint64_t bandwidth;
 	ssize_t  data_rate_reg_array_size;
-	struct csiphy_reg_t *data_rate_reg_array[CAM_CSIPHY_MAX_DATARATE_VARIANTS];
+	struct csiphy_reg_t *data_rate_reg_array[MAX_CSIPHY][CAM_CSIPHY_MAX_DATARATE_VARIANTS];
 };
 
 /**
