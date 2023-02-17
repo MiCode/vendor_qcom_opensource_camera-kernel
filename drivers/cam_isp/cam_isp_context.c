@@ -475,8 +475,7 @@ static void __cam_isp_ctx_update_state_monitor_array(
 		trigger_type;
 	ctx_isp->cam_isp_ctx_state_monitor[iterator].req_id =
 		req_id;
-	ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp =
-		jiffies_to_msecs(jiffies) - ctx_isp->init_timestamp;
+	ktime_get_clocktai_ts64(&ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp);
 }
 
 static const char *__cam_isp_ctx_substate_val_to_type(
@@ -539,6 +538,7 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 	int i = 0;
 	int64_t state_head = 0;
 	uint32_t index, num_entries, oldest_entry;
+	struct tm ts;
 
 	state_head = atomic64_read(&ctx_isp->state_monitor_head);
 
@@ -559,10 +559,13 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 	index = oldest_entry;
 
 	for (i = 0; i < num_entries; i++) {
+		time64_to_tm(ctx_isp->cam_isp_ctx_state_monitor[index].evt_time_stamp.tv_sec,
+			0, &ts);
 		CAM_ERR(CAM_ISP,
-		"Index[%d] time[%d] : Substate[%s] Frame[%lld] ReqId[%llu] evt_type[%s]",
+		"Idx[%d] time[%d-%d %d:%d:%d.%lld]:Substate[%s] Frame[%lld] Req[%llu] evt[%s]",
 		index,
-		ctx_isp->cam_isp_ctx_state_monitor[index].evt_time_stamp,
+		ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
+		ctx_isp->cam_isp_ctx_state_monitor[index].evt_time_stamp.tv_nsec / 1000000,
 		__cam_isp_ctx_substate_val_to_type(
 		ctx_isp->cam_isp_ctx_state_monitor[index].curr_state),
 		ctx_isp->cam_isp_ctx_state_monitor[index].frame_id,
@@ -584,7 +587,8 @@ static void *cam_isp_ctx_user_dump_state_monitor_array_info(
 
 	addr = (uint64_t *)addr_ptr;
 
-	*addr++ = evt->evt_time_stamp;
+	*addr++ = evt->evt_time_stamp.tv_sec;
+	*addr++ = evt->evt_time_stamp.tv_nsec / NSEC_PER_USEC;
 	*addr++ = evt->frame_id;
 	*addr++ = evt->req_id;
 	return addr;
