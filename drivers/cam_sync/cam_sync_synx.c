@@ -693,6 +693,7 @@ int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
 	cb_params.userdata = row;
 	cb_params.cancel_cb_func = NULL;
 	cb_params.h_synx = synx_obj;
+	cb_params.timeout_ms = SYNX_NO_TIMEOUT;
 	cb_params.cb_func = __cam_synx_obj_signal_cb;
 
 	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &cam_sync_monitor_mask))
