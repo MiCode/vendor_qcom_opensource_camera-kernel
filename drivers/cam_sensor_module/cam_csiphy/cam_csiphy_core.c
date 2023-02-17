@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -481,6 +481,13 @@ static int cam_csiphy_update_secure_info(struct csiphy_device *csiphy_dev, int32
 	uint8_t lane_cnt;
 	uint32_t cpas_version;
 	int rc;
+
+	if (cam_is_mink_api_available()) {
+		CAM_DBG(CAM_CSIPHY, "Using MINK API for CSIPHY [%u], skipping legacy update",
+			csiphy_dev->soc_info.index);
+
+		return 0;
+	}
 
 	lane_assign = csiphy_dev->csiphy_info[index].lane_assign;
 	lane_cnt = csiphy_dev->csiphy_info[index].lane_cnt;
@@ -1226,22 +1233,26 @@ static int cam_csiphy_program_secure_mode(struct csiphy_device *csiphy_dev,
 {
 	int rc = 0;
 
-	if (!csiphy_dev->domain_id_security)
-		rc = cam_csiphy_notify_secure_mode(csiphy_dev, protect, offset);
+	if (csiphy_dev->domain_id_security && protect) {
+		if (!csiphy_dev->csiphy_info[offset].secure_info_updated) {
+			CAM_ERR(CAM_CSIPHY,
+				"PHY[%u] domain id info not updated, aborting secure call",
+				csiphy_dev->soc_info.index);
 
-	 /* Else a new scm call here */
-	else {
-		if (protect && !csiphy_dev->csiphy_info[offset].secure_info_updated) {
-			CAM_ERR(CAM_CSIPHY, "Secure info not updated prior to stream on");
 			return -EINVAL;
 		}
 
-		csiphy_dev->csiphy_info[offset].secure_info.protect = protect;
-		CAM_DBG(CAM_CSIPHY, "To call new scm, protect: %d, offset: %d",
-			protect, offset);
+		rc = cam_cpas_enable_clks_for_domain_id(true);
+		if (rc)
+			return rc;
+	}
 
-		if (!protect)
-			csiphy_dev->csiphy_info[offset].secure_info_updated = false;
+	rc = cam_csiphy_notify_secure_mode(csiphy_dev, protect, offset);
+
+	if (csiphy_dev->domain_id_security && !protect) {
+		cam_cpas_enable_clks_for_domain_id(false);
+
+		csiphy_dev->csiphy_info[offset].secure_info_updated = false;
 	}
 
 	return rc;
@@ -2491,7 +2502,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 				rc = cam_csiphy_program_secure_mode(csiphy_dev,
 					CAM_SECURE_MODE_SECURE, offset);
-				if (rc < 0) {
+				if (rc) {
 					csiphy_dev->csiphy_info[offset]
 						.secure_mode =
 						CAM_SECURE_MODE_NON_SECURE;
@@ -2559,7 +2570,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			rc = cam_csiphy_program_secure_mode(
 				csiphy_dev,
 				CAM_SECURE_MODE_SECURE, offset);
-			if (rc < 0) {
+			if (rc) {
 				csiphy_dev->csiphy_info[offset].secure_mode =
 					CAM_SECURE_MODE_NON_SECURE;
 				goto cpas_stop;

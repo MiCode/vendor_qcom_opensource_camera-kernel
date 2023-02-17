@@ -364,10 +364,13 @@ static int __cam_req_mgr_notify_frame_skip(
 			apply_data[pd].req_id;
 		frame_skip.trigger_point = trigger;
 		frame_skip.report_if_bubble = 0;
+		frame_skip.last_applied_max_pd_req =
+			 link->req.prev_apply_data[link->max_delay].req_id;
 
 		CAM_DBG(CAM_REQ,
-			"Notify_frame_skip: link: 0x%x pd %d req_id %lld",
-			link->link_hdl, pd, apply_data[pd].req_id);
+			"Notify_frame_skip: link: 0x%x pd %d req_id %lld last_applied %lld",
+			link->link_hdl, pd, apply_data[pd].req_id,
+			link->req.prev_apply_data[link->max_delay].req_id);
 		if ((dev->ops) && (dev->ops->notify_frame_skip))
 			dev->ops->notify_frame_skip(&frame_skip);
 	}
@@ -1123,6 +1126,8 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 				link->req.prev_apply_data[pd].req_id;
 			apply_req.trigger_point = trigger;
 			apply_req.report_if_bubble = 0;
+			apply_req.last_applied_max_pd_req =
+				link->req.prev_apply_data[link->max_delay].req_id;
 			if ((dev->ops) && (dev->ops->notify_frame_skip))
 				dev->ops->notify_frame_skip(&apply_req);
 			continue;
@@ -1203,6 +1208,8 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 					link->req.prev_apply_data[pd].req_id;
 				apply_req.trigger_point = trigger;
 				apply_req.report_if_bubble = 0;
+				apply_req.last_applied_max_pd_req =
+					link->req.prev_apply_data[link->max_delay].req_id;
 				if ((dev->ops) && (dev->ops->notify_frame_skip))
 					dev->ops->notify_frame_skip(&apply_req);
 				continue;
@@ -4147,6 +4154,7 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 	struct cam_req_mgr_connected_device    *dev;
 	struct cam_req_mgr_req_tbl             *pd_tbl;
 	enum cam_pipeline_delay                 max_delay;
+	enum cam_modeswitch_delay               max_modeswitch;
 	uint32_t num_trigger_devices = 0;
 	if (link_info->version == VERSION_1) {
 		if (link_info->u.link_info_v1.num_devices >
@@ -4167,6 +4175,7 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 		return rc;
 
 	max_delay = CAM_PIPELINE_DELAY_0;
+	max_modeswitch = CAM_MODESWITCH_DELAY_0;
 	if (link_info->version == VERSION_1)
 		num_devices = link_info->u.link_info_v1.num_devices;
 	else if (link_info->version == VERSION_2)
@@ -4219,6 +4228,12 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 			CAM_PIPELINE_DELAY_0) {
 			CAM_ERR(CAM_CRM, "get device info failed");
 			goto error;
+		} else if (dev->dev_info.m_delay >=
+			CAM_MODESWITCH_DELAY_MAX ||
+			dev->dev_info.m_delay <
+			CAM_MODESWITCH_DELAY_0) {
+			CAM_ERR(CAM_CRM, "get mode switch info failed");
+			goto error;
 		} else {
 			if (link_info->version == VERSION_1) {
 				CAM_DBG(CAM_CRM, "%x: connected: %s, delay %d",
@@ -4234,6 +4249,9 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 				}
 			if (dev->dev_info.p_delay > max_delay)
 				max_delay = dev->dev_info.p_delay;
+
+			if (dev->dev_info.m_delay > max_modeswitch)
+				max_modeswitch = dev->dev_info.m_delay;
 		}
 
 		if (dev->dev_info.trigger_on)
@@ -4252,6 +4270,7 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 	link_data.link_hdl = link->link_hdl;
 	link_data.crm_cb = &cam_req_mgr_ops;
 	link_data.max_delay = max_delay;
+	link_data.mode_switch_max_delay = max_modeswitch;
 	if (num_trigger_devices == CAM_REQ_MGR_MAX_TRIGGERS)
 		link->dual_trigger = true;
 
@@ -4304,11 +4323,19 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 		/* Communicate with dev to establish the link */
 		dev->ops->link_setup(&link_data);
 
+		/* Compute max/min pipeline delay */
 		if (dev->dev_info.p_delay > link->max_delay)
 			link->max_delay = dev->dev_info.p_delay;
 		if (dev->dev_info.p_delay < link->min_delay)
 			link->min_delay = dev->dev_info.p_delay;
+
+		/* Compute max/min modeswitch delay */
+		if (dev->dev_info.m_delay > link->max_mswitch_delay)
+			link->max_mswitch_delay = dev->dev_info.m_delay;
+		if (dev->dev_info.m_delay < link->min_mswitch_delay)
+			link->min_mswitch_delay = dev->dev_info.m_delay;
 	}
+
 	link->num_devs = num_devices;
 
 	/* Assign id for pd tables */

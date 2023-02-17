@@ -46,6 +46,7 @@
 #define CAM_IFE_CTX_APPLY_DEFAULT_CFG  BIT(3)
 #define CAM_IFE_CTX_SFE_EN             BIT(4)
 #define CAM_IFE_CTX_AEB_EN             BIT(5)
+#define CAM_IFE_CTX_DYNAMIC_SWITCH_EN  BIT(6)
 
 /*
  * Maximum configuration entry size  - This is based on the

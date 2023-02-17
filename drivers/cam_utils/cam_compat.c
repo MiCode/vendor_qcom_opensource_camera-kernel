@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/dma-mapping.h>
@@ -173,23 +173,6 @@ int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 	return rc;
 }
 
-int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
-	bool protect, int32_t offset)
-{
-	int rc = 0;
-
-	if (offset >= CSIPHY_MAX_INSTANCES_PER_PHY) {
-		CAM_ERR(CAM_CSIPHY, "Invalid CSIPHY offset");
-		rc = -EINVAL;
-	} else if (qcom_scm_camera_protect_phy_lanes(protect,
-			csiphy_dev->csiphy_info[offset].csiphy_cpas_cp_reg_mask)) {
-		CAM_ERR(CAM_CSIPHY, "SCM call to hypervisor failed");
-		rc = -EINVAL;
-	}
-
-	return rc;
-}
-
 void cam_cpastop_scm_write(struct cam_cpas_hw_errata_wa *errata_wa)
 {
 	int reg_val;
@@ -257,28 +240,6 @@ int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 	return rc;
 }
 
-int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
-	bool protect, int32_t offset)
-{
-	int rc = 0;
-	struct scm_desc description = {
-		.arginfo = SCM_ARGS(2, SCM_VAL, SCM_VAL),
-		.args[0] = protect,
-		.args[1] = csiphy_dev->csiphy_info[offset]
-			.csiphy_cpas_cp_reg_mask,
-	};
-
-	if (offset >= CSIPHY_MAX_INSTANCES_PER_PHY) {
-		CAM_ERR(CAM_CSIPHY, "Invalid CSIPHY offset");
-		rc = -EINVAL;
-	} else if (scm_call2(SCM_SIP_FNID(0x18, 0x7), &description)) {
-		CAM_ERR(CAM_CSIPHY, "SCM call to hypervisor failed");
-		rc = -EINVAL;
-	}
-
-	return rc;
-}
-
 void cam_cpastop_scm_write(struct cam_cpas_hw_errata_wa *errata_wa)
 {
 	int reg_val;
@@ -308,6 +269,124 @@ void cam_free_clear(const void * ptr)
 void cam_free_clear(const void * ptr)
 {
 	kzfree(ptr);
+}
+#endif
+
+bool cam_is_mink_api_available(void)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	return true;
+#else
+	return false;
+#endif
+}
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
+	bool protect, int32_t offset)
+{
+	int rc = 0;
+	struct Object client_env, sc_object;
+	ITCDriverSensorInfo params = {0};
+	struct cam_csiphy_secure_info *secure_info;
+
+	if (offset >= CSIPHY_MAX_INSTANCES_PER_PHY) {
+		CAM_ERR(CAM_CSIPHY, "Invalid CSIPHY offset");
+		return -EINVAL;
+	}
+
+	rc = get_client_env_object(&client_env);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY, "Failed getting mink env object, rc: %d", rc);
+		return rc;
+	}
+
+	rc = IClientEnv_open(client_env, CTrustedCameraDriver_UID, &sc_object);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY, "Failed getting mink sc_object, rc: %d", rc);
+		return rc;
+	}
+
+	secure_info = &csiphy_dev->csiphy_info[offset].secure_info;
+	params.csid_hw_idx_mask = secure_info->csid_hw_idx_mask;
+	params.cdm_hw_idx_mask = secure_info->cdm_hw_idx_mask;
+	params.vc_mask = secure_info->vc_mask;
+	params.phy_lane_sel_mask =
+		csiphy_dev->csiphy_info[offset].csiphy_phy_lane_sel_mask;
+	params.protect = protect ? 1 : 0;
+
+	rc = ITrustedCameraDriver_dynamicProtectSensor(sc_object, &params);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY, "Mink secure call failed, rc: %d", rc);
+		return rc;
+	}
+
+	rc = Object_release(sc_object);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY, "Failed releasing secure camera object, rc: %d", rc);
+		return rc;
+	}
+	rc = Object_release(client_env);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY, "Failed releasing mink env object, rc: %d", rc);
+		return rc;
+	}
+
+	return 0;
+}
+#elif KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
+int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
+	bool protect, int32_t offset)
+{
+	int rc = 0;
+
+	/**
+	 * A check here is made if the target is using
+	 * an older version of the kernel driver (< 6.0)
+	 * with domain id feature present. In this case,
+	 * we are to fail this call, as the new mink call
+	 * is only supported on kernel driver versions 6.0
+	 * and above, and the new domain id scheme is not
+	 * backwards compatible with the older scheme.
+	 */
+	if (csiphy_dev->domain_id_security) {
+		CAM_ERR(CAM_CSIPHY,
+			"Domain id support not present on current kernel driver: %d",
+			LINUX_VERSION_CODE);
+		return -EINVAL;
+	}
+
+	if (offset >= CSIPHY_MAX_INSTANCES_PER_PHY) {
+		CAM_ERR(CAM_CSIPHY, "Invalid CSIPHY offset");
+		rc = -EINVAL;
+	} else if (qcom_scm_camera_protect_phy_lanes(protect,
+			csiphy_dev->csiphy_info[offset].csiphy_cpas_cp_reg_mask)) {
+		CAM_ERR(CAM_CSIPHY, "SCM call to hypervisor failed");
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+#else
+int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
+	bool protect, int32_t offset)
+{
+	int rc = 0;
+	struct scm_desc description = {
+		.arginfo = SCM_ARGS(2, SCM_VAL, SCM_VAL),
+		.args[0] = protect,
+		.args[1] = csiphy_dev->csiphy_info[offset]
+			.csiphy_cpas_cp_reg_mask,
+	};
+
+	if (offset >= CSIPHY_MAX_INSTANCES_PER_PHY) {
+		CAM_ERR(CAM_CSIPHY, "Invalid CSIPHY offset");
+		rc = -EINVAL;
+	} else if (scm_call2(SCM_SIP_FNID(0x18, 0x7), &description)) {
+		CAM_ERR(CAM_CSIPHY, "SCM call to hypervisor failed");
+		rc = -EINVAL;
+	}
+
+	return rc;
 }
 #endif
 

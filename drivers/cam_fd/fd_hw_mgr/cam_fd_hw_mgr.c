@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1115,6 +1115,13 @@ static int cam_fd_mgr_hw_get_caps(void *hw_mgr_priv, void *hw_get_caps_args)
 	struct cam_fd_query_cap_cmd query_fd;
 	void __user *caps_handle =
 		u64_to_user_ptr(query->caps_handle);
+
+	if (sizeof(struct cam_fd_query_cap_cmd) != query->size) {
+		CAM_ERR(CAM_FD,
+			"Input query cap size:%u does not match expected query cap size: %u",
+			query->size, sizeof(struct cam_fd_query_cap_cmd));
+		return -EFAULT;
+	}
 
 	if (copy_from_user(&query_fd, caps_handle,
 		sizeof(struct cam_fd_query_cap_cmd))) {

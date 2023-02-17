@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -26,8 +26,7 @@
 
 static struct cam_custom_hw_mgr g_custom_hw_mgr;
 
-static int cam_custom_mgr_get_hw_caps(void *hw_mgr_priv,
-	void *hw_caps_args)
+static int cam_custom_mgr_get_hw_caps(void *hw_mgr_priv, void *hw_caps_args)
 {
 	int rc = 0;
 	struct cam_custom_hw_mgr          *hw_mgr = hw_mgr_priv;
@@ -35,6 +34,13 @@ static int cam_custom_mgr_get_hw_caps(void *hw_mgr_priv,
 	struct cam_custom_query_cap_cmd    custom_hw_cap;
 	struct cam_hw_info                *cam_custom_hw;
 	struct cam_hw_soc_info            *soc_info_hw;
+
+	if (sizeof(struct cam_custom_query_cap_cmd) != query->size) {
+		CAM_ERR(CAM_CUSTOM,
+			"Input query cap size:%u does not match expected query cap size: %u",
+			query->size, sizeof(struct cam_custom_query_cap_cmd));
+		return -EFAULT;
+	}
 
 	cam_custom_hw = (struct cam_hw_info *)
 		g_custom_hw_mgr.custom_hw[0]->hw_priv;

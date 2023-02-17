@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __CAM_SYNC_SYNX_H__
 #define __CAM_SYNC_SYNX_H__
@@ -15,6 +15,7 @@
 
 #define CAM_SYNX_MAX_OBJS 256
 #define CAM_SYNX_OBJ_NAME_LEN 64
+#define CAM_SYNX_TABLE_SZ (CAM_SYNX_MAX_OBJS / CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ)
 
 /* Synx obj state */
 enum cam_synx_obj_state {
@@ -135,6 +136,12 @@ int cam_synx_obj_signal_obj(struct cam_synx_obj_signal *signal_synx_obj);
  */
 int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
 	cam_sync_callback_for_synx_obj sync_cb);
+
+/**
+ * @brief: cam synx driver open
+ *
+ */
+void cam_synx_obj_open(void);
 
 /**
  * @brief: cam synx driver close

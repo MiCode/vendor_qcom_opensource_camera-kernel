@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -2545,6 +2545,13 @@ static int cam_ope_mgr_get_hw_caps(void *hw_priv, void *hw_caps_args)
 	if (!hw_priv || !hw_caps_args) {
 		CAM_ERR(CAM_OPE, "Invalid args: %x %x", hw_priv, hw_caps_args);
 		return -EINVAL;
+	}
+
+	if (sizeof(struct ope_query_cap_cmd) != query_cap->size) {
+		CAM_ERR(CAM_OPE,
+			"Input query cap size:%u does not match expected query cap size: %u",
+			query_cap->size, sizeof(struct ope_query_cap_cmd));
+		return -EFAULT;
 	}
 
 	hw_mgr = hw_priv;

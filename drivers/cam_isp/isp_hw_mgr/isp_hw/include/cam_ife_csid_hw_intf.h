@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSID_HW_INTF_H_
@@ -410,11 +410,13 @@ struct cam_ife_sensor_dimension_update_args {
  * @input_core_type:              Input core type for CSID
  * @core_idx:                     Core idx for out core
  * @is_sfe_offline:               flag to indicate if sfe is offline
+ * @is_sfe_fs:                    flag to indicate if use-case is Inline Bayer Fast Shutter (BRF)
  */
 struct cam_ife_csid_top_config_args {
 	uint32_t   input_core_type;
 	uint32_t   core_idx;
 	bool       is_sfe_offline;
+	bool       is_sfe_fs;
 };
 
 /*

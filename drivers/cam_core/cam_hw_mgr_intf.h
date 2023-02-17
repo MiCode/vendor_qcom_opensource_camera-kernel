@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_HW_MGR_INTF_H_
@@ -624,6 +624,8 @@ struct cam_hw_inject_evt_param {
  * @hw_mgr_priv:               HW manager object
  * @hw_get_caps:               Function pointer for get hw caps
  *                               args = cam_query_cap_cmd
+ * @hw_get_caps_v2:            Function pointer for get hw caps v2
+ *                               args = cam_query_cap_cmd_v2
  * @hw_acquire:                Function poniter for acquire hw resources
  *                               args = cam_hw_acquire_args
  * @hw_release:                Function pointer for release hw device resource
@@ -655,6 +657,7 @@ struct cam_hw_mgr_intf {
 	void *hw_mgr_priv;
 
 	int (*hw_get_caps)(void *hw_priv, void *hw_caps_args);
+	int (*hw_get_caps_v2)(void *hw_priv, void *hw_caps_args);
 	int (*hw_acquire)(void *hw_priv, void *hw_acquire_args);
 	int (*hw_release)(void *hw_priv, void *hw_release_args);
 	int (*hw_start)(void *hw_priv, void *hw_start_args);

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_SENSOR_H__
@@ -339,8 +339,14 @@ struct cam_cmd_i2c_info {
 	__u16    reserved;
 } __attribute__((packed));
 
+/**
+ * Below macro definition is the param mask for
+ * cam_cmd_sensor_res_info.
+ */
 #define CAM_SENSOR_FEATURE_MASK                    BIT(0)
+#define CAM_SENSOR_NUM_BATCHED_FRAMES              BIT(1)
 
+/* Below macro definition is the sub definition for CAM_SENSOR_FEATURE_MASK */
 #define CAM_SENSOR_FEATURE_NONE                    0
 #define CAM_SENSOR_FEATURE_AEB_ON                  BIT(0)
 #define CAM_SENSOR_FEATURE_AEB_UPDATE              BIT(1)

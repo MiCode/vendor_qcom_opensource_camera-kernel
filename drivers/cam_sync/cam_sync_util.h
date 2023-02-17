@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CAM_SYNC_UTIL_H__
@@ -182,5 +182,36 @@ void cam_sync_util_cleanup_children_list(struct sync_table_row *row,
  */
 void cam_sync_util_cleanup_parents_list(struct sync_table_row *row,
 	uint32_t list_clean_type, uint32_t sync_obj);
+
+/**
+ * @brief: Function to dump sync obj & monitor data
+ * @row                 : Row whose data to dump
+ *
+ * @return None
+ */
+void cam_sync_dump_monitor_array(struct sync_table_row *row);
+
+/**
+ * @brief: Function to add a new entry to the monitor table
+ * @idx                 : Index of row to update
+ * @mutex               : Mutex lock when expand monitor table
+ * @mon_data            : Pointer to the monitor data array
+ * @op                  : Operation id
+ *
+ * @return None
+ */
+void cam_generic_fence_update_monitor_array(int idx,
+	struct mutex *lock,
+	struct cam_generic_fence_monitor_data **mon_data,
+	enum cam_fence_op                op);
+
+/**
+ * @brief: Function to dump monitor array for sync/dma/synx
+ * @obj_info             : Monitor object that needs to be dumped
+ *
+ * @return None
+ */
+void cam_generic_fence_dump_monitor_array(
+	struct cam_generic_fence_monitor_obj_info *obj_info);
 
 #endif /* __CAM_SYNC_UTIL_H__ */

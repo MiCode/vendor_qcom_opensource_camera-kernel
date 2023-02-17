@@ -283,6 +283,7 @@ struct hfi_qtbl {
  * @msg_q_state: State of message queue
  * @priv: device private data
  * @dbg_lvl: debug level set to FW
+ * @fw_version: firmware version
  * @client_name: hfi client's name
  */
 struct hfi_info {
@@ -298,6 +299,7 @@ struct hfi_info {
 	bool msg_q_state;
 	void *priv;
 	u64 dbg_lvl;
+	uint32_t fw_version;
 	char client_name[HFI_CLIENT_NAME_LEN];
 };
 

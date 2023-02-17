@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -255,9 +255,26 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		sensordata->pos_yaw = 360;
 	}
 
-	if (of_property_read_u8(of_node, "aon-camera-id", &s_ctrl->aon_camera_id)) {
+	if (of_property_read_u32(of_node, "aon-camera-id", &s_ctrl->aon_camera_id)) {
 		CAM_DBG(CAM_SENSOR, "cell_idx: %d is not used for AON usecase", soc_info->index);
 		s_ctrl->aon_camera_id = NOT_AON_CAM;
+	} else {
+		CAM_INFO(CAM_SENSOR,
+			"AON Sensor detected in cell_idx: %d aon_camera_id: %d phy_index: %d",
+			soc_info->index, s_ctrl->aon_camera_id,
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+		if ((s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY] == 2) &&
+			(s_ctrl->aon_camera_id != AON_CAM2)) {
+			CAM_ERR(CAM_SENSOR, "Incorrect AON camera id for cphy_index %d",
+				s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+			s_ctrl->aon_camera_id = NOT_AON_CAM;
+		}
+		if ((s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY] == 4) &&
+			(s_ctrl->aon_camera_id != AON_CAM1)) {
+			CAM_ERR(CAM_SENSOR, "Incorrect AON camera id for cphy_index %d",
+				s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+			s_ctrl->aon_camera_id = NOT_AON_CAM;
+		}
 	}
 
 	rc = cam_sensor_util_aon_registration(

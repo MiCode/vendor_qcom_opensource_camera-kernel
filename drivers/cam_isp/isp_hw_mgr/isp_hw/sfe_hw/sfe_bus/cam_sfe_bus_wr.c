@@ -191,9 +191,6 @@ struct cam_sfe_bus_wr_priv {
 	struct cam_isp_resource_node       *comp_grp;
 	struct cam_isp_resource_node       *sfe_out;
 
-	struct list_head                    free_comp_grp;
-	struct list_head                    used_comp_grp;
-
 	int                                 bus_irq_handle;
 	int                                 error_irq_handle;
 	void                               *tasklet_info;
@@ -946,6 +943,7 @@ static int cam_sfe_bus_init_wm_resource(uint32_t index,
 	struct cam_sfe_bus_wr_priv      *bus_priv,
 	struct cam_sfe_bus_wr_hw_info   *hw_info,
 	struct cam_isp_resource_node    *wm_res,
+	struct cam_isp_resource_node    **comp_grp,
 	uint8_t                         *wm_name,
 	bool                             en_line_done)
 {
@@ -957,12 +955,14 @@ static int cam_sfe_bus_init_wm_resource(uint32_t index,
 		CAM_DBG(CAM_SFE, "Failed to alloc for WM res priv");
 		return -ENOMEM;
 	}
+
 	wm_res->res_priv = rsrc_data;
 
 	rsrc_data->index = index;
 	rsrc_data->en_line_done = en_line_done;
 	rsrc_data->hw_regs = &hw_info->bus_client_reg[index];
 	rsrc_data->common_data = &bus_priv->common_data;
+	*comp_grp = &bus_priv->comp_grp[(&hw_info->bus_client_reg[index])->comp_group];
 
 	wm_res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 	INIT_LIST_HEAD(&wm_res->list);
@@ -1012,70 +1012,24 @@ static void cam_sfe_bus_add_wm_to_comp_grp(
 	rsrc_data->composite_mask |= composite_mask;
 }
 
-static bool cam_sfe_bus_match_comp_grp(
-	struct cam_sfe_bus_wr_priv           *bus_priv,
-	struct cam_isp_resource_node        **comp_grp,
-	uint32_t                              comp_grp_id)
-{
-	struct cam_sfe_bus_wr_comp_grp_data  *rsrc_data = NULL;
-	struct cam_isp_resource_node         *comp_grp_local = NULL;
-
-	list_for_each_entry(comp_grp_local,
-		&bus_priv->used_comp_grp, list) {
-		rsrc_data = comp_grp_local->res_priv;
-		if (rsrc_data->comp_grp_type == comp_grp_id) {
-			/* Match found */
-			*comp_grp = comp_grp_local;
-			return true;
-		}
-	}
-
-	list_for_each_entry(comp_grp_local,
-		&bus_priv->free_comp_grp, list) {
-		rsrc_data = comp_grp_local->res_priv;
-		if (rsrc_data->comp_grp_type == comp_grp_id) {
-			/* Match found */
-			*comp_grp = comp_grp_local;
-			list_del(&comp_grp_local->list);
-			list_add_tail(&comp_grp_local->list,
-			&bus_priv->used_comp_grp);
-			return false;
-		}
-	}
-
-	*comp_grp = NULL;
-	return false;
-}
-
 static int cam_sfe_bus_acquire_comp_grp(
 	struct cam_sfe_bus_wr_priv           *bus_priv,
 	struct cam_isp_out_port_generic_info *out_port_info,
 	void                                 *tasklet,
 	uint32_t                              is_dual,
 	uint32_t                              is_master,
-	struct cam_isp_resource_node        **comp_grp,
+	struct cam_isp_resource_node         *comp_grp,
 	enum cam_sfe_bus_wr_comp_grp_type     comp_grp_id)
 {
 	int rc = 0;
-	struct cam_isp_resource_node         *comp_grp_local = NULL;
 	struct cam_sfe_bus_wr_comp_grp_data  *rsrc_data = NULL;
-	bool previously_acquired = false;
 
-	/* Check if matching comp_grp has already been acquired */
-	previously_acquired = cam_sfe_bus_match_comp_grp(
-		bus_priv, &comp_grp_local, comp_grp_id);
+	rsrc_data = comp_grp->res_priv;
 
-	if (!comp_grp_local) {
-		CAM_ERR(CAM_SFE, "Invalid comp_grp:%d", comp_grp_id);
-		return -ENODEV;
-	}
-
-	rsrc_data = comp_grp_local->res_priv;
-
-	if (!previously_acquired) {
+	if (comp_grp->res_state == CAM_ISP_RESOURCE_STATE_AVAILABLE) {
 		rsrc_data->intra_client_mask = 0x1;
-		comp_grp_local->tasklet_info = tasklet;
-		comp_grp_local->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
+		comp_grp->tasklet_info = tasklet;
+		comp_grp->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
 
 		rsrc_data->is_master = is_master;
 		rsrc_data->is_dual = is_dual;
@@ -1086,12 +1040,12 @@ static int cam_sfe_bus_acquire_comp_grp(
 			rsrc_data->addr_sync_mode = 1;
 
 	} else {
-		rsrc_data = comp_grp_local->res_priv;
+		rsrc_data = comp_grp->res_priv;
 		/* Do not support runtime change in composite mask */
-		if (comp_grp_local->res_state ==
+		if (comp_grp->res_state ==
 			CAM_ISP_RESOURCE_STATE_STREAMING) {
 			CAM_ERR(CAM_SFE, "Invalid State %d comp_grp:%u",
-				comp_grp_local->res_state,
+				comp_grp->res_state,
 				rsrc_data->comp_grp_type);
 			return -EBUSY;
 		}
@@ -1101,7 +1055,6 @@ static int cam_sfe_bus_acquire_comp_grp(
 		rsrc_data->common_data->core_index, rsrc_data->comp_grp_type);
 
 	rsrc_data->acquire_dev_cnt++;
-	*comp_grp = comp_grp_local;
 
 	return rc;
 }
@@ -1110,9 +1063,7 @@ static int cam_sfe_bus_release_comp_grp(
 	struct cam_sfe_bus_wr_priv         *bus_priv,
 	struct cam_isp_resource_node       *in_comp_grp)
 {
-	struct cam_isp_resource_node         *comp_grp = NULL;
 	struct cam_sfe_bus_wr_comp_grp_data  *in_rsrc_data = NULL;
-	int match_found = 0;
 
 	if (!in_comp_grp) {
 		CAM_ERR(CAM_SFE, "Invalid Params comp_grp %pK", in_comp_grp);
@@ -1135,31 +1086,15 @@ static int cam_sfe_bus_release_comp_grp(
 		bus_priv->common_data.core_index,
 		in_rsrc_data->comp_grp_type);
 
-	list_for_each_entry(comp_grp, &bus_priv->used_comp_grp, list) {
-		if (comp_grp == in_comp_grp) {
-			match_found = 1;
-			break;
-		}
-	}
-
-	if (!match_found) {
-		CAM_ERR(CAM_SFE, "Could not find comp_grp:%u",
-			in_rsrc_data->comp_grp_type);
-		return -ENODEV;
-	}
-
 	in_rsrc_data->acquire_dev_cnt--;
 	if (in_rsrc_data->acquire_dev_cnt == 0) {
-		list_del(&comp_grp->list);
 
 		in_rsrc_data->dual_slave_core = CAM_SFE_CORE_MAX;
 		in_rsrc_data->addr_sync_mode = 0;
 		in_rsrc_data->composite_mask = 0;
 
-		comp_grp->tasklet_info = NULL;
-		comp_grp->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
-
-		list_add_tail(&comp_grp->list, &bus_priv->free_comp_grp);
+		in_comp_grp->tasklet_info = NULL;
+		in_comp_grp->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 	}
 
 	return 0;
@@ -1222,14 +1157,11 @@ static int cam_sfe_bus_wr_init_comp_grp(uint32_t index,
 	comp_grp->res_priv = rsrc_data;
 
 	comp_grp->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
-	INIT_LIST_HEAD(&comp_grp->list);
 
 	rsrc_data->comp_grp_type   = index;
 	rsrc_data->common_data     = &bus_priv->common_data;
 	rsrc_data->dual_slave_core = CAM_SFE_CORE_MAX;
 	rsrc_data->comp_done_mask = hw_info->comp_done_mask[index];
-
-	list_add_tail(&comp_grp->list, &bus_priv->free_comp_grp);
 
 	comp_grp->top_half_handler = NULL;
 	comp_grp->hw_intf = bus_priv->common_data.hw_intf;
@@ -1249,7 +1181,6 @@ static int cam_sfe_bus_deinit_comp_grp(
 	comp_grp->bottom_half_handler = NULL;
 	comp_grp->hw_intf = NULL;
 
-	list_del_init(&comp_grp->list);
 	comp_grp->res_state = CAM_ISP_RESOURCE_STATE_UNAVAILABLE;
 
 	comp_grp->res_priv = NULL;
@@ -1394,7 +1325,7 @@ static int cam_sfe_bus_acquire_sfe_out(void *priv, void *acquire_args,
 		acq_args->tasklet,
 		out_acquire_args->is_dual,
 		out_acquire_args->is_master,
-		&rsrc_data->comp_grp,
+		rsrc_data->comp_grp,
 		comp_grp_id);
 	if (rc) {
 		CAM_ERR(CAM_SFE,
@@ -1455,7 +1386,6 @@ static int cam_sfe_bus_release_sfe_out(void *bus_priv, void *release_args,
 	if (rsrc_data->comp_grp)
 		cam_sfe_bus_release_comp_grp(bus_priv,
 			rsrc_data->comp_grp);
-	rsrc_data->comp_grp = NULL;
 
 	sfe_out->tasklet_info = NULL;
 	sfe_out->cdm_ops = NULL;
@@ -1911,6 +1841,7 @@ static int cam_sfe_bus_init_sfe_out_resource(
 			hw_info->sfe_out_hw_info[index].wm_idx,
 			bus_priv, hw_info,
 			&rsrc_data->wm_res[i],
+			&rsrc_data->comp_grp,
 			hw_info->sfe_out_hw_info[index].name,
 			hw_info->sfe_out_hw_info[index].en_line_done);
 	if (rc < 0) {
@@ -1960,6 +1891,7 @@ static int cam_sfe_bus_deinit_sfe_out_resource(
 	if (!rsrc_data)
 		return -ENOMEM;
 
+	rsrc_data->comp_grp = NULL;
 	for (i = 0; i < rsrc_data->num_wm; i++) {
 		rc = cam_sfe_bus_deinit_wm_resource(&rsrc_data->wm_res[i]);
 		if (rc < 0)
@@ -3511,8 +3443,6 @@ int cam_sfe_bus_wr_init(
 		goto free_sfe_out;
 	}
 
-	INIT_LIST_HEAD(&bus_priv->free_comp_grp);
-	INIT_LIST_HEAD(&bus_priv->used_comp_grp);
 
 	for (i = 0; i < bus_priv->num_comp_grp; i++) {
 		rc = cam_sfe_bus_wr_init_comp_grp(i, soc_info,
@@ -3632,10 +3562,11 @@ int cam_sfe_bus_wr_deinit(
 				bus_priv->common_data.core_index, i, rc);
 	}
 
-	INIT_LIST_HEAD(&bus_priv->free_comp_grp);
-	INIT_LIST_HEAD(&bus_priv->used_comp_grp);
+	kfree(bus_priv->comp_grp);
+	kfree(bus_priv->sfe_out);
 
 	mutex_destroy(&bus_priv->common_data.bus_mutex);
+
 	kfree(sfe_bus_local->bus_priv);
 
 free_bus_local:
