@@ -773,12 +773,17 @@ int tpg_hw_config(
 	switch (config_cmd) {
 	case TPG_HW_CMD_INIT_CONFIG:
 		//validate_stream_list(hw);
-		if (hw->stream_version == 1) {
-			tpg_hw_configure_init_settings(hw,
-				(struct tpg_hw_initsettings *)config_args);
-		} else if (hw->stream_version == 3) {
+		if (hw->settings_config.active_count != 0) {
 			tpg_hw_configure_init_settings_v3(hw,
-				(struct tpg_hw_initsettings_v3 *)config_args);
+					(struct tpg_hw_initsettings_v3 *)config_args);
+		} else {
+			if (hw->stream_version == 1) {
+				tpg_hw_configure_init_settings(hw,
+					(struct tpg_hw_initsettings *)config_args);
+			} else if (hw->stream_version == 3) {
+				tpg_hw_configure_init_settings_v3(hw,
+					(struct tpg_hw_initsettings_v3 *)config_args);
+			}
 		}
 		break;
 	default:
