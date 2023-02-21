@@ -3373,6 +3373,12 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 				reg_val_pair[j-1]);
 		}
 
+		val = wm_data->pack_fmt;
+		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			wm_data->hw_regs->packer_cfg, val);
+		CAM_DBG(CAM_ISP, "VFE:%u WM:%d image pack_fmt %d",
+			bus_priv->common_data.core_index, wm_data->index, reg_val_pair[j-1]);
+
 		if (wm_data->en_ubwc) {
 			if (!wm_data->hw_regs->ubwc_regs) {
 				CAM_ERR(CAM_ISP,
@@ -3852,10 +3858,23 @@ static int cam_vfe_bus_ver3_update_wm_config(
 		else
 			wm_data->height = wm_config->height;
 
+		/*
+		 * For RAW10/RAW12/RAW14 sensor mode seamless switch case,
+		 * the format may be changed on RDIs, so we update RDIs WM data.
+		 */
+		if (wm_config->packer_format &&
+			(wm_data->format != wm_config->packer_format)) {
+			wm_data->format = wm_config->packer_format;
+
+			if ((vfe_out_data->out_type >= CAM_VFE_BUS_VER3_VFE_OUT_RDI0) &&
+				(vfe_out_data->out_type <= CAM_VFE_BUS_VER3_VFE_OUT_RDI3))
+				cam_vfe_bus_ver3_config_rdi_wm(wm_data);
+		}
+
 		CAM_DBG(CAM_ISP,
-			"VFE:%u WM:%d en_cfg:0x%X height:%d width:%d",
+			"VFE:%u WM:%d en_cfg:0x%X height:%d width:%d stride:%d pack_fmt:%d",
 			vfe_out_data->common_data->core_index, wm_data->index, wm_data->en_cfg,
-			wm_data->height, wm_data->width);
+			wm_data->height, wm_data->width, wm_data->stride, wm_data->pack_fmt);
 	}
 
 	return 0;
