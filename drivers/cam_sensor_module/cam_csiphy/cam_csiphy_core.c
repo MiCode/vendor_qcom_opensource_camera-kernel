@@ -1473,8 +1473,9 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 
 		cam_csiphy_reset(csiphy_dev);
 		cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true, true);
+		if (g_phy_data[soc_info->index].aon_cam_id == NOT_AON_CAM)
+			cam_cpas_stop(csiphy_dev->cpas_handle);
 
-		cam_cpas_stop(csiphy_dev->cpas_handle);
 		csiphy_dev->csiphy_state = CAM_CSIPHY_ACQUIRE;
 	}
 
@@ -1589,10 +1590,12 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 		return 0;
 	}
 
-	rc = cam_csiphy_cpas_ops(cpas_handle, true);
-	if (rc) {
-		CAM_ERR(CAM_CSIPHY, "voting CPAS: %d failed", rc);
-		return rc;
+	if (get_access) {
+		rc = cam_csiphy_cpas_ops(cpas_handle, true);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "voting CPAS: %d failed", rc);
+			return rc;
+		}
 	}
 
 	cam_cpas_reg_read(cpas_handle, CAM_CPAS_REGBASE_CPASTOP,
@@ -1620,7 +1623,13 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 	if (rc)
 		CAM_ERR(CAM_CSIPHY, "CPAS AON sel register write failed");
 
-	cam_csiphy_cpas_ops(cpas_handle, false);
+	if (!get_access) {
+		rc = cam_csiphy_cpas_ops(cpas_handle, false);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "voting CPAS: %d failed", rc);
+			return rc;
+		}
+	}
 
 	return rc;
 }
@@ -2270,9 +2279,11 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		if (rc < 0)
 			CAM_ERR(CAM_CSIPHY, "Failed in csiphy release");
 
-		if (cam_csiphy_cpas_ops(csiphy_dev->cpas_handle, false)) {
-			CAM_ERR(CAM_CSIPHY, "Failed in de-voting CPAS");
-			rc = -EFAULT;
+		if (!g_phy_data[soc_info->index].is_configured_for_main) {
+			if (cam_csiphy_cpas_ops(csiphy_dev->cpas_handle, false)) {
+				CAM_ERR(CAM_CSIPHY, "Failed in de-voting CPAS");
+				rc = -EFAULT;
+			}
 		}
 
 		csiphy_dev->csiphy_state = CAM_CSIPHY_ACQUIRE;
@@ -2542,10 +2553,12 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			goto release_mutex;
 		}
 
-		rc = cam_csiphy_cpas_ops(csiphy_dev->cpas_handle, true);
-		if (rc) {
-			CAM_ERR(CAM_CSIPHY, "voting CPAS: %d", rc);
-			goto release_mutex;
+		if (!g_phy_data[soc_info->index].is_configured_for_main) {
+			if (cam_csiphy_cpas_ops(csiphy_dev->cpas_handle, true)) {
+				rc = -EFAULT;
+				CAM_ERR(CAM_CSIPHY, "voting CPAS: %d", rc);
+				goto release_mutex;
+			}
 		}
 
 		if (csiphy_dev->csiphy_info[offset].secure_mode == 1) {
