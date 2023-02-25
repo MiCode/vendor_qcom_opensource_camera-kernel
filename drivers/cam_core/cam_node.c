@@ -722,10 +722,10 @@ int cam_node_shutdown(struct cam_node *node)
 
 	for (i = 0; i < node->ctx_size; i++) {
 		if (node->ctx_list[i].dev_hdl > 0) {
-			CAM_DBG(CAM_CORE,
-				"Node [%s] invoking shutdown on context [%d]",
-				node->name, i);
 			rc = cam_context_shutdown(&(node->ctx_list[i]));
+			CAM_DBG(CAM_CORE,
+				"Node [%s] invoking shutdown on context [%d], rc %d",
+				node->name, i, rc);
 		}
 	}
 
