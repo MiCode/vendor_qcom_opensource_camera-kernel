@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_ISP_H__
@@ -137,6 +137,7 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG                28
 #define CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V3              29
 #define CAM_ISP_GENERIC_BLOB_TYPE_NFI_MODE_SWITCH           30
+#define CAM_ISP_GENERIC_BLOB_TYPE_VFE_OUT_CONFIG_V2         32
 
 #define CAM_ISP_VC_DT_CFG    4
 
@@ -209,6 +210,14 @@
  */
 #define CAM_IFE_DECODE_FORMAT_MASK      0xFF
 #define CAM_IFE_DECODE_FORMAT_SHIFT_VAL 8
+
+/*
+ * to indicate if packing is to be done at Bus side.
+ * CSID gives the plain data and packed at bus.
+ * This mask reserves the param_mask for cam_isp_out_port_info_v3.
+ *
+ */
+#define CAM_IFE_USE_WM_PACK                  BIT(0)
 
 /**
  * struct cam_isp_drv_config - CSID config for DRV
@@ -1021,6 +1030,72 @@ struct cam_isp_vfe_wm_config {
 	__u32                      packer_format;
 	__u32                      reserved_3;
 	__u32                      reserved_4;
+};
+
+/**
+ * struct cam_isp_vfe_wm_config_v2  -  VFE write master config per port
+ *
+ * @version          : Version for this structure
+ * @port_type        : Unique ID of output port
+ * @wm_mode          : Write master mode
+ *                     0x0 - Line based mode
+ *                     0x1 - Frame based mode
+ *                     0x2 - Index based mode, valid for BAF only
+ * @h_init           : Horizontal starting coordinate in pixels. Must be a
+ *                     multiple of 3 for TP10 format
+ * @height           : Height in pixels
+ * @width            : Width in pixels
+ * @virtual_frame_en : Enabling virtual frame will prevent actual request from
+ *                     being sent to NOC
+ * @stride           : Write master stride
+ * @offset           : Write master offset
+ * @addr_reuse_en    : Enabling addr-reuse will write output to the same addr
+ *                     after the last addr that was read from FIFO.
+ * @packer_format    : Update packer format for Write master config
+ * @offset_in_bytes  : Offest in bytes
+ * @context_id_mask  : context id mask in case of multi context
+ * @use_pack         : Hint to use WM pack in case of per frame changes
+ * @enable           : Enable/Disable WM at run time
+ * @params           : Indicate params supported, to accommodate future changes
+ * @param_mask       : Indicate params supported, to accommodate future changes
+ */
+struct cam_isp_vfe_wm_config_v2 {
+	__u32                      version;
+	__u32                      port_type;
+	__u32                      wm_mode;
+	__u32                      h_init;
+	__u32                      height;
+	__u32                      width;
+	__u32                      virtual_frame_en;
+	__u32                      stride;
+	__u32                      offset;
+	__u32                      addr_reuse_en;
+	__u32                      packer_format;
+	__u32                      offset_in_bytes;
+	__u32                      context_id_mask;
+	__u32                      use_pack;
+	__u32                      enable;
+	__u32                      param_mask;
+	__u32                      params[5];
+};
+
+/**
+ * struct cam_isp_vfe_out_config_v2  -  VFE write master config
+ *
+ * @version        : Version for this structure
+ * @num_ports      : Number of ports
+ * @reserved       : Reserved field
+ * @wm_config      : VFE out config
+ * @params         : Indicate params supported, to accommodate future changes
+ * @param_mask     : Indicate params supported, to accommodate future changes
+ */
+struct cam_isp_vfe_out_config_v2 {
+	__u32                           version;
+	__u32                           num_ports;
+	__u32                           reserved;
+	struct cam_isp_vfe_wm_config_v2 wm_config[1];
+	__u32                           param_mask;
+	__u32                           params[5];
 };
 
 /**
