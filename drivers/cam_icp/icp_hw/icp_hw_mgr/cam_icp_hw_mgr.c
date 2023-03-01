@@ -57,7 +57,7 @@
 
 DECLARE_RWSEM(frame_in_process_sem);
 
-static struct cam_icp_hw_mgr icp_hw_mgr[CAM_ICP_SUBDEV_MAX];
+static struct cam_icp_hw_mgr *g_icp_hw_mgr[CAM_ICP_SUBDEV_MAX];
 
 static void cam_icp_mgr_process_dbg_buf(struct cam_icp_hw_mgr *hw_mgr);
 
@@ -4413,7 +4413,7 @@ static unsigned long cam_icp_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
 	struct cam_icp_hw_mini_dump_info   *md;
 	struct cam_icp_hw_ctx_mini_dump    *ctx_md;
 	struct cam_icp_hw_ctx_data         *ctx;
-	struct cam_icp_hw_mgr              *hw_mgr;
+	struct cam_icp_hw_mgr              *hw_mgr = NULL;
 	struct cam_hw_mini_dump_args        hw_dump_args;
 	struct cam_icp_hw_dump_args         icp_dump_args;
 	struct cam_hw_intf                 *icp_dev_intf = NULL;
@@ -4434,9 +4434,14 @@ static unsigned long cam_icp_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
 		return -EINVAL;
 	}
 
+	hw_mgr = g_icp_hw_mgr[hw_mgr_idx];
+	if (!hw_mgr) {
+		CAM_ERR(CAM_ICP, "Uninitialized hw mgr for subdev: %u", hw_mgr_idx);
+		return -EINVAL;
+	}
+
 	md = (struct cam_icp_hw_mini_dump_info *)dst;
 	md->num_context = 0;
-	hw_mgr = &icp_hw_mgr[hw_mgr_idx];
 	cam_hfi_mini_dump(hw_mgr->hfi_handle, &md->hfi_info);
 	memcpy(md->hw_mgr_name, hw_mgr->hw_mgr_name, strlen(md->hw_mgr_name));
 	memcpy(&md->hfi_mem_info, &hw_mgr->hfi_mem,
@@ -7780,7 +7785,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	int *iommu_hdl, cam_icp_mini_dump_cb mini_dump_cb, int device_idx)
 {
 	int i, rc = 0;
-	struct cam_icp_hw_mgr  *hw_mgr;
+	struct cam_icp_hw_mgr  *hw_mgr = NULL;
 	struct cam_hw_mgr_intf *hw_mgr_intf;
 	uint32_t size = 0, cpas_cap_dev_cnt[CAM_ICP_HW_MAX];
 
@@ -7790,16 +7795,25 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 			of_node, hw_mgr_intf);
 		return -EINVAL;
 	}
+
+	if (g_icp_hw_mgr[device_idx]) {
+		CAM_ERR(CAM_ICP, "HW mgr for device idx: %u already initialized", device_idx);
+		return -EPERM;
+	}
+
 	memset(hw_mgr_intf, 0, sizeof(struct cam_hw_mgr_intf));
 
-	hw_mgr = &icp_hw_mgr[device_idx];
+	hw_mgr = kzalloc(sizeof(struct cam_icp_hw_mgr), GFP_KERNEL);
+	if (!hw_mgr)
+		return -ENOMEM;
+
 	hw_mgr->hw_mgr_id = device_idx;
 
 	rc = cam_icp_mgr_get_hw_mgr_name(device_idx, hw_mgr->hw_mgr_name);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "Fail to get hw mgr name rc: %d for icp dev[%u]",
 			rc, device_idx);
-		return rc;
+		goto free_hw_mgr;
 	}
 
 	CAM_DBG(CAM_ICP, "Initailize hw mgr[%u] with name: %s",
@@ -7900,6 +7914,8 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	if (rc)
 		goto icp_get_svs_clk_failed;
 
+	g_icp_hw_mgr[device_idx] = hw_mgr;
+
 	CAM_DBG(CAM_ICP, "Done hw mgr[%u] init: icp name:%s",
 		device_idx, hw_mgr->hw_mgr_name);
 
@@ -7927,16 +7943,23 @@ destroy_mutex:
 		if (cam_presil_mode_enabled())
 			kfree(hw_mgr->ctx_data[i].hfi_frame_process.hangdump_mem_regions);
 	}
+free_hw_mgr:
+	kfree(hw_mgr);
 
 	return rc;
 }
 
 void cam_icp_hw_mgr_deinit(int device_idx)
 {
-	struct cam_icp_hw_mgr *hw_mgr;
+	struct cam_icp_hw_mgr *hw_mgr = NULL;
 	int i = 0;
 
-	hw_mgr = &icp_hw_mgr[device_idx];
+	hw_mgr = g_icp_hw_mgr[device_idx];
+	if (!hw_mgr) {
+		CAM_ERR(CAM_ICP, "Uninitialized hw mgr for subdev: %u", device_idx);
+		return;
+	}
+
 	CAM_DBG(CAM_ICP, "hw mgr deinit: %u icp name: %s", device_idx, hw_mgr->hw_mgr_name);
 
 	hw_mgr->dentry = NULL;
@@ -7950,4 +7973,7 @@ void cam_icp_hw_mgr_deinit(int device_idx)
 		if (cam_presil_mode_enabled())
 			kfree(hw_mgr->ctx_data[i].hfi_frame_process.hangdump_mem_regions);
 	}
+
+	kfree(hw_mgr);
+	g_icp_hw_mgr[device_idx] = NULL;
 }
