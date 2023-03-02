@@ -507,6 +507,10 @@ static void cam_tfe_log_error_irq_status(
 		if (evt_payload->irq_reg_val[2] & common_reg->ppp_violation_bit)
 			CAM_INFO(CAM_ISP, "TFE %d PDAF_VIOLATION", core_info->core_index);
 
+		if (evt_payload->irq_reg_val[2] & common_reg->lcr_pd_timing_protocol_violation_bit)
+			CAM_INFO(CAM_ISP, "TFE %d LCR_PD_INPUT_TIMING_PROTOCOL_VIOLATION",
+				core_info->core_index);
+
 		if (evt_payload->irq_reg_val[2] & common_reg->dyamanic_switch_violation_bit)
 			CAM_INFO(CAM_ISP,
 				"TFE %d DYNAMIC_SHDR_MODE_SWITCH_VIOLATION mup val %d",
@@ -1521,6 +1525,7 @@ static int cam_tfe_top_get_reg_update(
 		/*REG CMD is not supported in PDLIB. PD CAMIF takes RUP from IPP CAMIF */
 		CAM_DBG(CAM_ISP, "Reg update not supported for res %d",
 			in_res->res_id);
+		cdm_args->cmd.used_bytes = 0;
 		return 0;
 	}
 

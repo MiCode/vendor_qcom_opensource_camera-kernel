@@ -366,7 +366,7 @@ static int cam_tfe_bus_get_num_wm(
 	case CAM_TFE_BUS_TFE_OUT_PD_PREPROCESSED:
 	case CAM_TFE_BUS_TFE_OUT_PD_PARSED:
 		switch (format) {
-		case CAM_FORMAT_PLAIN16_16:
+		case CAM_FORMAT_PLAIN16_10:
 		case CAM_FORMAT_PLAIN64:
 			return 1;
 		default:
@@ -919,12 +919,11 @@ static int cam_tfe_bus_acquire_wm(
 	} else if (rsrc_data->index == 16) {
 		/* LCR */
 		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN16_16:
-			rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
+		case CAM_FORMAT_PLAIN64:
+			rsrc_data->width = 0;
+			rsrc_data->height = 0;
+			rsrc_data->stride = 1;
 			rsrc_data->en_cfg = 0x1;
-			/* LSB aligned */
-			rsrc_data->pack_fmt |= (1 <<
-				bus_priv->common_data.pack_align_shift);
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid format %d out_type:%d index: %d",
@@ -934,7 +933,7 @@ static int cam_tfe_bus_acquire_wm(
 	} else if (rsrc_data->index == 17) {
 		/* PD_PREPROCESSED */
 		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN16_16:
+		case CAM_FORMAT_PLAIN16_10:
 			rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
 			rsrc_data->en_cfg = 0x1;
 			break;
@@ -946,7 +945,7 @@ static int cam_tfe_bus_acquire_wm(
 	} else if (rsrc_data->index == 18) {
 		/* PD PARSED */
 		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN16_16:
+		case CAM_FORMAT_PLAIN16_10:
 			rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
 			rsrc_data->en_cfg = 0x1;
 			/* LSB aligned */

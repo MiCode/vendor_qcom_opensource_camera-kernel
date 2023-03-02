@@ -1728,13 +1728,14 @@ static int cam_tfe_mgr_acquire_hw_for_ctx(
 	cam_tfe_hw_mgr_preprocess_port(tfe_ctx, in_port, &ipp_count,
 		&rdi_count, &ppp_count, pdaf_enable, &lcr_enable);
 
-	if (!ipp_count && !rdi_count && !ppp_count) {
+	if ((!ipp_count && !rdi_count && !ppp_count) || (!ipp_count && ppp_count)) {
 		CAM_ERR(CAM_ISP,
-			"No PIX or RDI");
+			"Invalid path count : Ipp %d ppp %d rdi %d",
+			ipp_count, ppp_count, rdi_count);
 		return -EINVAL;
 	}
 
-	if (ipp_count || lcr_enable) {
+	if (ipp_count) {
 		/* get tfe csid IPP resource */
 		rc = cam_tfe_hw_mgr_acquire_res_tfe_csid_pxl(tfe_ctx,
 			in_port, true, crop_enable);
@@ -1746,7 +1747,7 @@ static int cam_tfe_mgr_acquire_hw_for_ctx(
 		}
 	}
 
-	if (ppp_count) {
+	if (ppp_count || lcr_enable) {
 		/* get ife csid PPP resource */
 		/* If both IPP and PPP paths are requested with the same vc dt
 		 * it is implied that the sensor is a type 3 PD sensor. Crop
