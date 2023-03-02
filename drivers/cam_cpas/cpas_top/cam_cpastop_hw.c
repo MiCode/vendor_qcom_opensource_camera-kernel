@@ -39,6 +39,7 @@
 #include "cpastop_v880_100.h"
 #include "cpastop_v980_100.h"
 #include "cpastop_v860_100.h"
+#include "cpastop_v770_100.h"
 #include "cam_req_mgr_workq.h"
 #include "cam_common_util.h"
 
@@ -210,6 +211,15 @@ static const uint32_t cam_cpas_hw_version_map
 		0,
 		0,
 	},
+	/* for camera_770 */
+	{
+		CAM_CPAS_TITAN_770_V100,
+		0,
+		0,
+		0,
+		0,
+		0,
+	},
 };
 
 static char *cam_cpastop_get_camnoc_name(enum cam_camnoc_hw_type type)
@@ -293,6 +303,9 @@ static int cam_cpas_translate_camera_cpas_version_id(
 		break;
 	case CAM_CPAS_CAMERA_VERSION_860:
 		*cam_version_id = CAM_CPAS_CAMERA_VERSION_ID_860;
+		break;
+	case CAM_CPAS_CAMERA_VERSION_770:
+		*cam_version_id = CAM_CPAS_CAMERA_VERSION_ID_770;
 		break;
 	default:
 		CAM_ERR(CAM_CPAS, "Invalid cam version %u",
@@ -1438,6 +1451,11 @@ static int cam_cpastop_init_hw_version(struct cam_hw_info *cpas_hw,
 		alloc_camnoc_info[CAM_CAMNOC_HW_COMBINED] = &cam860_cpas100_camnoc_info;
 		cpas_info = &cam860_cpas100_cpas_info;
 		cesta_info = &cam_v860_cesta_info;
+		break;
+	case CAM_CPAS_TITAN_770_V100:
+		alloc_camnoc_info[CAM_CAMNOC_HW_COMBINED] = &cam770_cpas100_camnoc_info;
+		cpas_info = &cam770_cpas100_cpas_info;
+		cpas_top_info = &cam770_cpas100_cpas_top_info;
 		break;
 	default:
 		CAM_ERR(CAM_CPAS, "Camera Version not supported %d.%d.%d",
