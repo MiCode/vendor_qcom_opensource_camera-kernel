@@ -794,9 +794,8 @@ void cam_dma_fence_close(void)
 						g_cam_dma_fence_dev->monitor_data,
 						CAM_FENCE_OP_SIGNAL);
 				__cam_dma_fence_signal_fence(row->fence, -EADV);
-				dma_fence_put(row->fence);
 			}
-
+			dma_fence_put(row->fence);
 			memset(row, 0, sizeof(struct cam_dma_fence_row));
 			clear_bit(i, g_cam_dma_fence_dev->bitmap);
 		}
