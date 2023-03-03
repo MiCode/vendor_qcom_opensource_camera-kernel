@@ -5549,6 +5549,12 @@ static int cam_ife_csid_ver2_reg_update(
 	reg_val_pair[0] = csid_reg->cmn_reg->rup_aup_cmd_addr;
 	reg_val_pair[1] = rup_aup_mask;
 
+	if (rup_args->mup_en) {
+		csid_hw->rx_cfg.mup = rup_args->mup_val;
+		CAM_DBG(CAM_ISP, "CSID[%u] MUP %u",
+			csid_hw->hw_intf->hw_idx, csid_hw->rx_cfg.mup);
+	}
+
 	/* If not an actual request, configure last applied MUP */
 	if (rup_args->reg_write)
 		reg_val_pair[1] |= (rup_args->last_applied_mup <<
@@ -5790,10 +5796,6 @@ static int cam_ife_csid_ver2_set_dynamic_switch_config(
 
 	switch_update =
 		(struct cam_ife_csid_mode_switch_update_args *)cmd_args;
-
-	csid_hw->rx_cfg.mup = switch_update->mup_args.mup;
-	CAM_DBG(CAM_ISP, "CSID[%u] MUP %u",
-		csid_hw->hw_intf->hw_idx, csid_hw->rx_cfg.mup);
 
 	/* Handle number of frames to initially drop based on num starting exposures */
 	if (switch_update->exp_update_args.reset_discard_cfg) {

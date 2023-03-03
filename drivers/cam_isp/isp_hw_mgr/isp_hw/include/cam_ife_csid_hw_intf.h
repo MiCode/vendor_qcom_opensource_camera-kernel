@@ -439,6 +439,8 @@ struct cam_ife_csid_dual_sync_args {
  * @num_res:          Num of resources
  * @last_applied_mup: last applied MUP
  * @reg_write:        if set use AHB to config rup/aup
+ * @mup_val:          MUP value if configured
+ * @mup_en:           Flag if dynamic sensor switch is enabled
  */
 struct cam_isp_csid_reg_update_args {
 	struct cam_isp_hw_cmd_buf_update  cmd;
@@ -446,6 +448,8 @@ struct cam_isp_csid_reg_update_args {
 	uint32_t                          num_res;
 	uint32_t                          last_applied_mup;
 	bool                              reg_write;
+	uint32_t                          mup_val;
+	uint32_t                          mup_en;
 };
 
 /*
@@ -457,15 +461,6 @@ struct cam_isp_csid_reg_update_args {
 struct cam_ife_csid_offline_cmd_update_args {
 	struct cam_isp_hw_cmd_buf_update  cmd;
 	struct cam_isp_resource_node     *res;
-};
-
-/*
- * struct cam_ife_csid_mup_update_args:
- *
- * @mup:                MUP for incoming VC of next frame
- */
-struct cam_ife_csid_mup_update_args {
-	uint32_t mup;
 };
 
 /*
@@ -487,7 +482,6 @@ struct cam_ife_csid_discard_frame_cfg_update {
  * @exp_update_args:  Exposure update arguments
  */
 struct cam_ife_csid_mode_switch_update_args {
-	struct cam_ife_csid_mup_update_args          mup_args;
 	struct cam_ife_csid_discard_frame_cfg_update exp_update_args;
 };
 
