@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -16,6 +16,7 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+#define CAM_OIS_FW_VERSION_CHECK_MASK 0x1
 
 static inline uint64_t swap_high_byte_and_low_byte(uint8_t *src,
 	uint8_t size_bytes)
@@ -362,6 +363,9 @@ static int cam_ois_apply_settings(struct cam_ois_ctrl_t *o_ctrl,
 					CAM_ERR(CAM_OIS,
 						"i2c poll apply setting Fail");
 					return rc;
+				} else if (rc ==  I2C_COMPARE_MISMATCH) {
+					CAM_ERR(CAM_OIS, "i2c poll mismatch");
+					return rc;
 				}
 			}
 		}
@@ -421,13 +425,13 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 
 	while (byte_cnt < size) {
 		if ((size - byte_cnt) < sizeof(struct common_header)) {
-			CAM_ERR(CAM_SENSOR, "Not enough buffer");
+			CAM_ERR(CAM_OIS, "Not enough buffer");
 			rc = -EINVAL;
 			goto end;
 		}
 		cmm_hdr = (struct common_header *)cmd_buf;
 		op_code = cmm_hdr->fifth_byte;
-		CAM_DBG(CAM_SENSOR, "Command Type:%d, Op code:%d",
+		CAM_DBG(CAM_OIS, "Command Type:%d, Op code:%d",
 				 cmm_hdr->cmd_type, op_code);
 
 		switch (cmm_hdr->cmd_type) {
@@ -438,7 +442,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 			(struct cam_cmd_i2c_random_wr *)cmd_buf;
 
 			if ((size - byte_cnt) < sizeof(struct cam_cmd_i2c_random_wr)) {
-				CAM_ERR(CAM_SENSOR,
+				CAM_ERR(CAM_OIS,
 					"Not enough buffer provided,size %d,byte_cnt %d",
 					size, byte_cnt);
 				rc = -EINVAL;
@@ -450,7 +454,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 				reg_settings,
 				&cmd_length_in_bytes, &j, &list);
 			if (rc < 0) {
-				CAM_ERR(CAM_SENSOR,
+				CAM_ERR(CAM_OIS,
 				"Failed in random write %d", rc);
 				goto end;
 			}
@@ -467,7 +471,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 			(struct cam_cmd_i2c_continuous_wr *)cmd_buf;
 
 			if ((size - byte_cnt) < sizeof(struct cam_cmd_i2c_continuous_wr)) {
-				CAM_ERR(CAM_SENSOR,
+				CAM_ERR(CAM_OIS,
 					"Not enough buffer provided,size %d,byte_cnt %d",
 					size, byte_cnt);
 				rc = -EINVAL;
@@ -479,7 +483,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 				reg_settings,
 				&cmd_length_in_bytes, &j, &list);
 			if (rc < 0) {
-				CAM_ERR(CAM_SENSOR,
+				CAM_ERR(CAM_OIS,
 				"Failed in continuous write %d", rc);
 				goto end;
 			}
@@ -494,7 +498,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 				op_code == CAMERA_SENSOR_WAIT_OP_SW_UCND) {
 				if ((size - byte_cnt) <
 					sizeof(struct cam_cmd_unconditional_wait)) {
-					CAM_ERR(CAM_SENSOR,
+					CAM_ERR(CAM_OIS,
 						"Not enough buffer provided,size %d,byte_cnt %d",
 						size, byte_cnt);
 					rc = -EINVAL;
@@ -506,11 +510,35 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 					reg_settings, j, &byte_cnt,
 					list);
 				if (rc < 0) {
-					CAM_ERR(CAM_SENSOR,
+					CAM_ERR(CAM_OIS,
 						"delay hdl failed: %d",
 						rc);
 					goto end;
 				}
+			} else if (op_code == CAMERA_SENSOR_WAIT_OP_COND) {
+				if ((size - byte_cnt) <
+					sizeof(struct cam_cmd_conditional_wait)) {
+					CAM_ERR(CAM_OIS,
+						"Not enough buffer provided,size %d,byte_cnt %d",
+						size, byte_cnt);
+					rc = -EINVAL;
+					goto end;
+				}
+				rc = cam_sensor_handle_poll(
+					(uint32_t **)(&cmd_buf), reg_settings,
+					&byte_cnt, &j, &list);
+				if (rc < 0) {
+					CAM_ERR(CAM_OIS,
+						"parsing POLL fail: %d",
+						rc);
+					goto end;
+				}
+			} else {
+				CAM_ERR(CAM_OIS,
+					"Wrong Wait Command: %d",
+					op_code);
+				rc = -EINVAL;
+				goto end;
 			}
 			break;
 		}
@@ -520,7 +548,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 			(struct cam_cmd_i2c_random_rd *)cmd_buf;
 
 			if ((size - byte_cnt) < sizeof(struct cam_cmd_i2c_random_rd)) {
-				CAM_ERR(CAM_SENSOR,
+				CAM_ERR(CAM_OIS,
 					"Not enough buffer provided,size %d,byte_cnt %d",
 					size, byte_cnt);
 				rc = -EINVAL;
@@ -533,7 +561,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 				&cmd_length_in_bytes, &j, &list,
 				NULL);
 			if (rc < 0) {
-				CAM_ERR(CAM_SENSOR,
+				CAM_ERR(CAM_OIS,
 				"Failed in random read %d", rc);
 				goto end;
 			}
@@ -550,7 +578,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 			(struct cam_cmd_i2c_continuous_rd *)cmd_buf;
 
 			if ((size - byte_cnt) < sizeof(struct cam_cmd_i2c_continuous_rd)) {
-				CAM_ERR(CAM_SENSOR,
+				CAM_ERR(CAM_OIS,
 					"Not enough buffer provided,size %d,byte_cnt %d",
 					size, byte_cnt);
 				rc = -EINVAL;
@@ -563,7 +591,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 				&cmd_length_in_bytes, &j, &list,
 				NULL);
 			if (rc < 0) {
-				CAM_ERR(CAM_SENSOR,
+				CAM_ERR(CAM_OIS,
 				"Failed in continuous read %d", rc);
 				goto end;
 			}
@@ -574,7 +602,7 @@ static int cam_ois_parse_fw_setting(uint8_t *cmd_buf, uint32_t size,
 			break;
 		}
 		default:
-			CAM_ERR(CAM_SENSOR, "Invalid Command Type:%d",
+			CAM_ERR(CAM_OIS, "Invalid Command Type:%d",
 				 cmm_hdr->cmd_type);
 			rc = -EINVAL;
 			goto end;
@@ -591,7 +619,8 @@ static int cam_ois_fw_info_pkt_parser(struct cam_ois_ctrl_t *o_ctrl,
 	int32_t                         rc = 0;
 	struct cam_cmd_ois_fw_info     *ois_fw_info;
 	uint8_t                        *pSettingData = NULL;
-	uint32_t                        size;
+	uint32_t                        size = 0;
+	uint32_t                        version_size = 0;
 	struct i2c_settings_array      *reg_settings = NULL;
 	uint8_t                         count = 0;
 	uint32_t                        idx;
@@ -603,12 +632,29 @@ static int cam_ois_fw_info_pkt_parser(struct cam_ois_ctrl_t *o_ctrl,
 	}
 
 	ois_fw_info = (struct cam_cmd_ois_fw_info *)cmd_buf;
-	CAM_DBG(CAM_SENSOR, "endianness %d, fw_count %d",
+	CAM_DBG(CAM_OIS, "endianness %d, fw_count %d",
 		ois_fw_info->endianness, ois_fw_info->fw_count);
 
 	if (ois_fw_info->fw_count <= MAX_OIS_FW_COUNT) {
 		memcpy(&o_ctrl->fw_info, ois_fw_info, sizeof(struct cam_cmd_ois_fw_info));
 		pSettingData = (uint8_t *)cmd_buf + sizeof(struct cam_cmd_ois_fw_info);
+
+		if ((ois_fw_info->param_mask & CAM_OIS_FW_VERSION_CHECK_MASK) == 0x1) {
+			version_size = ois_fw_info->params[0];
+			CAM_DBG(CAM_OIS, "versionSize: %d", version_size);
+		}
+
+		if ((version_size != 0) && (o_ctrl->i2c_fw_version_data.is_settings_valid == 0)) {
+			reg_settings = &o_ctrl->i2c_fw_version_data;
+			reg_settings->is_settings_valid = 1;
+			rc = cam_ois_parse_fw_setting(pSettingData, version_size, reg_settings);
+			if (rc) {
+				CAM_ERR(CAM_OIS, "Failed to parse fw version settings");
+				return rc;
+			}
+
+			pSettingData += version_size;
+		}
 
 		for (count = 0; count < ois_fw_info->fw_count*2; count++) {
 			idx = count / 2;
@@ -616,15 +662,15 @@ static int cam_ois_fw_info_pkt_parser(struct cam_ois_ctrl_t *o_ctrl,
 			if ((count & 0x1) == 0) {
 				size = ois_fw_info->fw_param[idx].fw_init_size;
 				reg_settings = &o_ctrl->i2c_fw_init_data[idx];
-				CAM_DBG(CAM_SENSOR, "init size %d", size);
+				CAM_DBG(CAM_OIS, "init size %d", size);
 			/* finalize settings */
 			} else if ((count & 0x1) == 1) {
 				size = ois_fw_info->fw_param[idx].fw_finalize_size;
 				reg_settings = &o_ctrl->i2c_fw_finalize_data[idx];
-				CAM_DBG(CAM_SENSOR, "finalize size %d", size);
+				CAM_DBG(CAM_OIS, "finalize size %d", size);
 			} else {
 				size = 0;
-				CAM_DBG(CAM_SENSOR, "Unsupported case");
+				CAM_DBG(CAM_OIS, "Unsupported case");
 				return -EINVAL;
 			}
 
@@ -867,6 +913,33 @@ static int cam_ois_fw_download_v2(struct cam_ois_ctrl_t *o_ctrl)
 		return -EINVAL;
 	}
 
+	if (o_ctrl->i2c_fw_version_data.is_settings_valid == 1) {
+		CAM_DBG(CAM_OIS, "check version to decide FW download");
+		rc = cam_ois_apply_settings(o_ctrl, &o_ctrl->i2c_fw_version_data);
+		if ((rc == -EAGAIN) &&
+			(o_ctrl->io_master_info.master_type == CCI_MASTER)) {
+			CAM_WARN(CAM_OIS,
+			"CCI HW is resetting: Reapplying FW init settings");
+			usleep_range(1000, 1010);
+			rc = cam_ois_apply_settings(o_ctrl,
+				&o_ctrl->i2c_fw_version_data);
+		}
+
+		if (delete_request(&o_ctrl->i2c_fw_version_data) < 0)
+			CAM_WARN(CAM_OIS,
+				"Fail deleting i2c_fw_version_data: rc: %d", rc);
+
+		if (rc == I2C_COMPARE_MATCH) {
+			CAM_INFO(CAM_OIS,
+				"OIS FW version matched, skipping FW download");
+			return rc;
+		} else if (rc == I2C_COMPARE_MISMATCH) {
+			CAM_INFO(CAM_OIS, "OIS FW version not matched, load FW");
+		} else {
+			CAM_WARN(CAM_OIS, "OIS FW version check failed,rc=%d", rc);
+		}
+	}
+
 	for (count = 0; count < o_ctrl->fw_info.fw_count; count++) {
 		fw_param      = &o_ctrl->fw_info.fw_param[count];
 		fw_size       = fw_param->fw_size;
@@ -884,6 +957,7 @@ static int cam_ois_fw_download_v2(struct cam_ois_ctrl_t *o_ctrl)
 
 		if (0 == rc && NULL != fw &&
 			(fw_size <= fw->size - fw_param->fw_start_pos)) {
+
 			/* fw init */
 			CAM_DBG(CAM_OIS, "fw init");
 			if (o_ctrl->i2c_fw_init_data[count].is_settings_valid == 1) {
@@ -1364,7 +1438,7 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 
 		rc = cam_sensor_util_get_current_qtimer_ns(&qtime_ns);
 		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR, "failed to get qtimer rc:%d");
+			CAM_ERR(CAM_OIS, "failed to get qtimer rc:%d");
 			return rc;
 		}
 
@@ -1502,6 +1576,15 @@ void cam_ois_shutdown(struct cam_ois_ctrl_t *o_ctrl)
 					"Fail deleting i2c_fw_finalize_data: rc: %d", rc);
 				rc = 0;
 			}
+		}
+	}
+
+	if (o_ctrl->i2c_fw_version_data.is_settings_valid == 1) {
+		rc = delete_request(&o_ctrl->i2c_fw_version_data);
+		if (rc < 0) {
+			CAM_WARN(CAM_OIS,
+				"Fail deleting i2c_fw_version_data: rc: %d", rc);
+			rc = 0;
 		}
 	}
 
@@ -1673,8 +1756,11 @@ int cam_ois_driver_cmd(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 		}
 		o_ctrl->cam_ois_state = CAM_OIS_CONFIG;
 		break;
+	case CAM_FLUSH_REQ:
+		CAM_DBG(CAM_OIS, "Flush recveived");
+		break;
 	default:
-		CAM_ERR(CAM_OIS, "invalid opcode");
+		CAM_ERR(CAM_OIS, "invalid opcode: %d", cmd->op_code);
 		goto release_mutex;
 	}
 release_mutex:
