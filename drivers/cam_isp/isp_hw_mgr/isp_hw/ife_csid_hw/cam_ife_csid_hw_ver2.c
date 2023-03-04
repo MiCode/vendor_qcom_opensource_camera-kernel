@@ -5299,8 +5299,7 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 	}
 
 	/* Issue a halt & reset to ensure there is no HW activity post the halt block */
-	reset.reset_type = (csid_hw->flags.fatal_err_detected) ? CAM_IFE_CSID_RESET_GLOBAL :
-		CAM_IFE_CSID_RESET_PATH;
+	reset.reset_type = CAM_IFE_CSID_RESET_PATH;
 	cam_ife_csid_ver2_reset(hw_priv, &reset,
 		sizeof(struct cam_csid_reset_cfg_args));
 
