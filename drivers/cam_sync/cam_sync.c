@@ -2488,10 +2488,13 @@ static int cam_sync_close(struct file *filep)
 		}
 
 		if (sync_dev->mon_data) {
-			for (i = 0; i < CAM_SYNC_MONITOR_TABLE_SIZE; i++)
+			for (i = 0; i < CAM_SYNC_MONITOR_TABLE_SIZE; i++) {
 				kfree(sync_dev->mon_data[i]);
+				sync_dev->mon_data[i] = NULL;
+			}
 		}
 		kfree(sync_dev->mon_data);
+		sync_dev->mon_data = NULL;
 	}
 
 	/* Clean dma fence table */

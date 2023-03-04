@@ -810,10 +810,13 @@ void cam_synx_obj_close(void)
 	}
 
 	if (g_cam_synx_obj_dev->monitor_data) {
-		for (i = 0; i < CAM_SYNX_TABLE_SZ; i++)
+		for (i = 0; i < CAM_SYNX_TABLE_SZ; i++) {
 			kfree(g_cam_synx_obj_dev->monitor_data[i]);
+			g_cam_synx_obj_dev->monitor_data[i] = NULL;
+		}
 	}
 	kfree(g_cam_synx_obj_dev->monitor_data);
+	g_cam_synx_obj_dev->monitor_data = NULL;
 
 	mutex_unlock(&g_cam_synx_obj_dev->dev_lock);
 	CAM_DBG(CAM_SYNX, "Close on Camera SYNX driver");

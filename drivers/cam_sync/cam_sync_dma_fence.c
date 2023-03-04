@@ -798,10 +798,13 @@ void cam_dma_fence_close(void)
 	}
 
 	if (g_cam_dma_fence_dev->monitor_data) {
-		for (i = 0; i < CAM_DMA_FENCE_TABLE_SZ; i++)
+		for (i = 0; i < CAM_DMA_FENCE_TABLE_SZ; i++) {
 			kfree(g_cam_dma_fence_dev->monitor_data[i]);
+			g_cam_dma_fence_dev->monitor_data[i] = NULL;
+		}
 	}
 	kfree(g_cam_dma_fence_dev->monitor_data);
+	g_cam_dma_fence_dev->monitor_data = NULL;
 
 	mutex_unlock(&g_cam_dma_fence_dev->dev_lock);
 	CAM_DBG(CAM_DMA_FENCE, "Close on Camera DMA fence driver");
