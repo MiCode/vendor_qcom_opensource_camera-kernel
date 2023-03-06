@@ -14886,15 +14886,17 @@ static ssize_t cam_ife_hw_mgr_perfcnt_write(
 	size_t size, loff_t *loff_t)
 {
 	char *delimiter1, *delimiter2;
-	char input_buf[16];
+	char input_buf[16] = {'\0'};
 	uint32_t counter_idx = 0, counter_val = 0;
 	struct cam_ife_hw_mgr_debug *debug_cfg = &g_ife_hw_mgr.debug_cfg;
 
 	if (size >= 16)
 		return -EINVAL;
 
-	if (copy_from_user(input_buf, ubuf, sizeof(input_buf)))
+	if (copy_from_user(input_buf, ubuf, size))
 		return -EFAULT;
+
+	input_buf[size] = '\0';
 
 	if ((!g_ife_hw_mgr.isp_caps.num_ife_perf_counters) &&
 		(!g_ife_hw_mgr.isp_caps.num_sfe_perf_counters))
