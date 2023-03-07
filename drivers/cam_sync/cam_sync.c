@@ -1152,7 +1152,7 @@ static int cam_generic_fence_alloc_validate_input_info_util(
 
 	*fence_input_info = NULL;
 
-	if (fence_cmd_args->input_data_size !=
+	if (fence_cmd_args->input_data_size <
 		sizeof(struct cam_generic_fence_input_info)) {
 		CAM_ERR(CAM_SYNC, "Size is invalid expected: 0x%llx actual: 0x%llx",
 			sizeof(struct cam_generic_fence_input_info),
