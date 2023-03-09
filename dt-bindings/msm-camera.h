@@ -142,4 +142,11 @@
 #define CAM_CPAS_NON_SECURE_DOMAIN  0
 #define CAM_CPAS_SECURE_DOMAIN      1
 
+/* Debug bypass driver */
+#define CAM_BYPASS_RGLTR      0x1
+#define CAM_BYPASS_RGLTR_MODE 0x2
+#define CAM_BYPASS_CLKS       0x4
+#define CAM_BYPASS_CESTA      0x8
+#define CAM_BYPASS_ICC        0x10
+
 #endif

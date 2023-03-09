@@ -7,6 +7,7 @@
 #ifndef _CAM_DEBUG_UTIL_H_
 #define _CAM_DEBUG_UTIL_H_
 
+#include <dt-bindings/msm-camera.h>
 #include <linux/platform_device.h>
 #include "cam_presil_hw_access.h"
 #include "cam_trace.h"
@@ -15,10 +16,13 @@ extern unsigned long long debug_mdl;
 extern unsigned int debug_type;
 extern unsigned int debug_priority;
 extern unsigned int debug_drv;
+extern unsigned int debug_bypass_drivers;
 
 #define CAM_IS_NULL_TO_STR(ptr) ((ptr) ? "Non-NULL" : "NULL")
 
 #define CAM_LOG_BUF_LEN                  512
+#define BYPASS_VALUE       0xDEADBEEF
+#define DEFAULT_CLK_VALUE  19200000
 
 /* Module IDs used for debug logging */
 enum cam_debug_module_id {

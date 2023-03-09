@@ -1983,7 +1983,7 @@ int cam_sensor_bob_pwm_mode_switch(struct cam_hw_soc_info *soc_info,
 		(flag == true) ? soc_info->rgltr_op_mode[bob_reg_idx] : 0;
 
 	if (soc_info->rgltr[bob_reg_idx] != NULL) {
-		rc = regulator_set_load(soc_info->rgltr[bob_reg_idx],
+		rc = cam_wrapper_regulator_set_load(soc_info->rgltr[bob_reg_idx],
 			op_current);
 		if (rc)
 			CAM_WARN(CAM_SENSOR_UTIL,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_address.h>
@@ -244,7 +244,8 @@ int cam_icp_v2_hw_init(void *priv, void *args, uint32_t arg_size)
 		if (send_freq_info) {
 			int32_t clk_rate = 0;
 
-			clk_rate = clk_get_rate(icp_v2->soc_info.clk[icp_v2->soc_info.src_clk_idx]);
+			clk_rate = cam_wrapper_clk_get_rate(
+				icp_v2->soc_info.clk[icp_v2->soc_info.src_clk_idx]);
 			hfi_send_freq_info(core_info->hfi_handle, clk_rate);
 		}
 	}

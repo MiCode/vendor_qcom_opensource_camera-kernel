@@ -886,4 +886,55 @@ inline unsigned long cam_soc_util_get_applied_src_clk(
  */
 const char *cam_soc_util_get_string_from_level(enum cam_vote_level level);
 
+/**
+ * cam_wrapper_clk_get_rate()
+ *
+ * @brief:     Wrapper for clk get rate
+ *
+ * @clk:       Clock
+ *
+ * @return:    Clock rate
+ */
+inline unsigned long cam_wrapper_clk_get_rate(struct clk *clk);
+
+/**
+ * cam_wrapper_regulator_set_load()
+ *
+ * @brief:     Wrapper for regulator set load
+ *
+ * @regulator: Regulator
+ *
+ * @uA_load:   Load current
+ *
+ * @return:    Success or failure
+ */
+inline int cam_wrapper_regulator_set_load(
+	struct regulator *regulator, int uA_load);
+
+/**
+ * cam_wrapper_regulator_set_mode()
+ *
+ * @brief:     Wrapper for regulator set mode
+ *
+ * @regulator: Regulator
+ *
+ * @mode:      Mode
+ *
+ * @return:    Success or failure
+ */
+inline int cam_wrapper_regulator_set_mode(
+	struct regulator *regulator, unsigned int mode);
+
+/**
+ * cam_soc_util_set_bypass_drivers()
+ *
+ * @brief:          Set bypass drivers
+ *
+ * @bypass_drivers: Bypass drivers
+ *
+ * @return:         Void
+ */
+inline void cam_soc_util_set_bypass_drivers(
+	uint32_t bypass_drivers);
+
 #endif /* _CAM_SOC_UTIL_H_ */

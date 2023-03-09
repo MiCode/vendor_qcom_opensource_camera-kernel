@@ -96,7 +96,7 @@ static inline int cam_ofe_set_regulators_mode(struct cam_hw_soc_info *soc_info, 
 	int i, rc;
 
 	for (i = 0; i < soc_info->num_rgltr; i++) {
-		rc = regulator_set_mode(soc_info->rgltr[i], mode);
+		rc = cam_wrapper_regulator_set_mode(soc_info->rgltr[i], mode);
 		if (rc) {
 			CAM_ERR(CAM_ICP, "Regulator set mode %s failed",
 				soc_info->rgltr_name[i]);
@@ -108,7 +108,7 @@ static inline int cam_ofe_set_regulators_mode(struct cam_hw_soc_info *soc_info, 
 rgltr_set_mode_failed:
 	for (i = i - 1; i >= 0; i--) {
 		if (soc_info->rgltr[i])
-			regulator_set_mode(soc_info->rgltr[i],
+			cam_wrapper_regulator_set_mode(soc_info->rgltr[i],
 				(mode == REGULATOR_MODE_NORMAL ?
 				REGULATOR_MODE_FAST : REGULATOR_MODE_NORMAL));
 	}
