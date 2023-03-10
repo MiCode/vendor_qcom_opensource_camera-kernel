@@ -44,11 +44,6 @@
 #define ICP_MSG_BUF_SIZE        256
 #define ICP_DBG_BUF_SIZE        102400
 
-#define ICP_CLK_HW_IPE          0x0
-#define ICP_CLK_HW_BPS          0x1
-#define ICP_CLK_HW_OFE          0x2
-#define ICP_DEV_CLK_MAX         0x3
-
 #define ICP_OVER_CLK_THRESHOLD  5
 #define ICP_TWO_DEV_BW_SHARE_RATIO 2
 
@@ -74,17 +69,6 @@
 
 #define CAM_ICP_HW_MGR_NAME_SIZE  32
 
-#define CAM_ICP_GET_HW_DEV_TYPE_FROM_HW_CLK_TYPE(hw_clk_type) \
-({                                                            \
-	(hw_clk_type) + (CAM_ICP_DEV_START_IDX);              \
-})
-
-#define CAM_ICP_GET_HW_CLK_TYPE_FROM_HW_DEV_TYPE(hw_dev_type) \
-({                                                            \
-	(hw_dev_type) - (CAM_ICP_DEV_START_IDX);              \
-})
-
-#define CAM_ICP_GET_DEV_INFO_IDX(hw_dev_type) ((hw_dev_type) - (CAM_ICP_DEV_START_IDX))
 #define CAM_ICP_IS_DEV_HW_EXIST(hw_cap_mask, hw_dev_type)  \
 ({                                                         \
 	(hw_cap_mask) & BIT((hw_dev_type));                \
@@ -94,6 +78,8 @@
 ({                                                                  \
 	((type) >= CAM_ICP_HW_ICP_V1) && ((type) < CAM_ICP_HW_MAX); \
 })
+
+#define CAM_ICP_MAX_ICP_PROC_PER_DEV 1
 
 struct hfi_mini_dump_info;
 
@@ -306,59 +292,6 @@ struct cam_ctx_clk_info {
 };
 
 /**
- * struct cam_icp_hw_ctx_data
- * @context_priv: Context private data
- * @hw_mgr_priv: HW MGR of the context
- * @ctx_mutex: Mutex for context
- * @fw_handle: Firmware handle
- * @scratch_mem_size: Scratch memory size
- * @icp_dev_acquire_info: Acquire device info
- * @ctxt_event_cb: Context callback function
- * @state: context state
- * @role: Role of a context in case of chaining
- * @chain_ctx: Peer context
- * @hfi_frame_process: Frame process command
- * @wait_complete: Completion info
- * @ctx_id: Context Id
- * @bw_config_version: BW config version indicator
- * @clk_info: Current clock info of a context
- * @watch_dog: watchdog timer handle
- * @watch_dog_reset_counter: Counter for watch dog reset
- * @last_flush_req: last flush req for this ctx
- * @perf_stats: performance statistics info
- * @evt_inject_params: Event injection data for hw_mgr_ctx
- * @hw_dev_type: hardware device type of this context
- * @hw_clk_type: hardware clock type for this context
- * @abort_timed_out: Indicates if abort timed out
- */
-struct cam_icp_hw_ctx_data {
-	void *context_priv;
-	void *hw_mgr_priv;
-	struct mutex ctx_mutex;
-	uint32_t fw_handle;
-	uint32_t scratch_mem_size;
-	struct cam_icp_acquire_dev_info *icp_dev_acquire_info;
-	cam_hw_event_cb_func ctxt_event_cb;
-	uint32_t state;
-	uint32_t role;
-	struct cam_icp_hw_ctx_data *chain_ctx;
-	struct hfi_frame_process_info hfi_frame_process;
-	struct completion wait_complete;
-	uint32_t ctx_id;
-	uint32_t bw_config_version;
-	struct cam_ctx_clk_info clk_info;
-	struct cam_req_mgr_timer *watch_dog;
-	uint32_t watch_dog_reset_counter;
-	uint64_t last_flush_req;
-	char ctx_id_string[128];
-	struct cam_icp_ctx_perf_stats perf_stats;
-	struct cam_hw_inject_evt_param evt_inject_params;
-	enum cam_icp_hw_type hw_dev_type;
-	uint32_t hw_clk_type;
-	bool abort_timed_out;
-};
-
-/**
  * struct icp_cmd_generic_blob
  * @ctx: Current context info
  * @frame_info_idx: Index used for frame process info
@@ -381,7 +314,6 @@ struct icp_cmd_generic_blob {
  * @compressed_bw: Current compressed bandwidth voting
  * @num_paths: Number of AXI vote paths
  * @axi_path: Current per path bw vote info
- * @hw_type: IPE/BPS device type
  * @watch_dog: watchdog timer handle
  * @watch_dog_reset_counter: Counter for watch dog reset
  * @timeout_cb_data: private cb data to be used when device timeouts
@@ -396,25 +328,95 @@ struct cam_icp_clk_info {
 	uint64_t compressed_bw;
 	uint32_t num_paths;
 	struct cam_cpas_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
-	uint32_t hw_type;
 	struct cam_req_mgr_timer *watch_dog;
 	uint32_t watch_dog_reset_counter;
 	void *timeout_cb_data;
 };
 
 /**
+ * struct cam_icp_hw_device_info
+ * @dev_name: name of IPE/BPS/OFE device
+ * @hw_dev_type: type of IPE/BPS/OFE device
+ * @dev_intf: interface to device hardware layer
+ * @clk_info: clock info for the device
+ * @dev_ctx_info: context related info for the device
+ * @hw_dev_cnt: number of devices for this particular device type
+ *              Exa - for IPE device - IPE0 and IPE1
+ */
+struct cam_icp_hw_device_info {
+	char *dev_name;
+	enum cam_icp_hw_type hw_dev_type;
+	struct cam_hw_intf **dev_intf;
+	struct cam_icp_clk_info clk_info;
+	struct cam_icp_hw_ctx_dev_info dev_ctx_info;
+	uint32_t hw_dev_cnt;
+};
+
+/**
+ * struct cam_icp_hw_ctx_data
+ * @context_priv: Context private data
+ * @hw_mgr_priv: HW MGR of the context
+ * @device_info: device info associated with this ctx
+ * @ctx_mutex: Mutex for context
+ * @fw_handle: Firmware handle
+ * @scratch_mem_size: Scratch memory size
+ * @icp_dev_acquire_info: Acquire device info
+ * @ctxt_event_cb: Context callback function
+ * @state: context state
+ * @role: Role of a context in case of chaining
+ * @chain_ctx: Peer context
+ * @hfi_frame_process: Frame process command
+ * @wait_complete: Completion info
+ * @ctx_id: Context Id
+ * @bw_config_version: BW config version indicator
+ * @clk_info: Current clock info of a context
+ * @watch_dog: watchdog timer handle
+ * @watch_dog_reset_counter: Counter for watch dog reset
+ * @last_flush_req: last flush req for this ctx
+ * @ctx_id_string: string helps to identify context (primarily used for logging)
+ * @perf_stats: performance statistics info
+ * @evt_inject_params: Event injection data for hw_mgr_ctx
+ * @abort_timed_out: Indicates if abort timed out
+ */
+struct cam_icp_hw_ctx_data {
+	void *context_priv;
+	void *hw_mgr_priv;
+	struct cam_icp_hw_device_info *device_info;
+	struct mutex ctx_mutex;
+	uint32_t fw_handle;
+	uint32_t scratch_mem_size;
+	struct cam_icp_acquire_dev_info *icp_dev_acquire_info;
+	cam_hw_event_cb_func ctxt_event_cb;
+	uint32_t state;
+	uint32_t role;
+	struct cam_icp_hw_ctx_data *chain_ctx;
+	struct hfi_frame_process_info hfi_frame_process;
+	struct completion wait_complete;
+	uint32_t ctx_id;
+	uint32_t bw_config_version;
+	struct cam_ctx_clk_info clk_info;
+	struct cam_req_mgr_timer *watch_dog;
+	uint32_t watch_dog_reset_counter;
+	uint64_t last_flush_req;
+	char ctx_id_string[128];
+	struct cam_icp_ctx_perf_stats perf_stats;
+	struct cam_hw_inject_evt_param evt_inject_params;
+	bool abort_timed_out;
+};
+
+/**
  * struct cam_icp_hw_mgr
  * @hw_mgr_mutex: Mutex for ICP hardware manager
  * @hw_mgr_lock: Spinlock for ICP hardware manager
- * @devices: Devices of ICP hardware manager
+ * @dev_info: array of available device info (IPE/BPS/OFE)
+ *            for the hw mgr
+ * @num_dev_info: number of device info for available device for the hw mgr
+ * @dev_info_idx: map hw dev type to index for device info array indexing
  * @icp_dev_intf: ICP device interface
- * @hw_dev_cnt: count number of each hw type
  * @ctx_data: Context data
  * @mini_dump_cb: Mini dump cb
  * @hw_mgr_name: name of the hw mgr
  * @hw_mgr_id: ID of the hw mgr, equivalent to hw mgr index
- * @icp_booted: Processor is booted i.e. firmware loaded
- * @icp_resumed: Processor is powered on
  * @iommu_hdl: Non secure IOMMU handle
  * @iommu_sec_hdl: Secure IOMMU handle
  * @hfi_handle: hfi handle for this ICP hw mgr
@@ -430,45 +432,44 @@ struct cam_icp_clk_info {
  * @timer_work_data: Pointer to timer work queue task
  * @ctxt_cnt: Active context count
  * @dentry: Debugfs entry
- * @icp_pc_flag: Flag to enable/disable power collapse
- * @dev_pc_flag: Flag to enable/disable
- *                   power collapse for ipe & bps
- * @icp_use_pil: Flag to indicate usage of PIL framework
  * @icp_debug_clk: Set clock based on debug value
  * @icp_default_clk: Set this clok if user doesn't supply
- * @clk_info: Clock info of hardware
  * @secure_mode: Flag to enable/disable secure camera
- * @icp_jtag_debug: entry to enable ICP JTAG debugging
  * @icp_debug_type : entry to enable FW debug message/qdss
  * @icp_dbg_lvl : debug level set to FW.
  * @icp_fw_dump_lvl : level set for dumping the FW data
  * @icp_fw_ramdump_lvl : level set for FW ram dumps
- * @dev_info: book keeping info relevant to devices
- * @disable_ubwc_comp: Disable UBWC compression
  * @recovery: Flag to validate if in previous session FW
  *            reported a fatal error or wdt. If set FW is
  *            re-downloaded for new camera session.
  * @frame_in_process: Counter for frames in process
  * @frame_in_process_ctx_id: Contxt id processing frame
- * @synx_signaling_en: core to core fencing is enabled
- *                     using synx
  * @hw_cap_mask: device capability mask to indicate which devices type
  *               are available in this hw mgr
+ * @icp_booted: Processor is booted i.e. firmware loaded
+ * @icp_resumed: Processor is powered on
+ * @icp_pc_flag: Flag to enable/disable power collapse
+ * @dev_pc_flag: Flag to enable/disable
+ *                   power collapse for ipe & bps
+ * @icp_use_pil: Flag to indicate usage of PIL framework
+ * @icp_jtag_debug: entry to enable ICP JTAG debugging
+ * @disable_ubwc_comp: Disable UBWC compression
+ * @synx_signaling_en: core to core fencing is enabled
+ *                     using synx
  */
 struct cam_icp_hw_mgr {
 	struct mutex hw_mgr_mutex;
 	spinlock_t hw_mgr_lock;
 
-	struct cam_hw_intf **devices[CAM_ICP_HW_MAX];
+	struct cam_icp_hw_device_info *dev_info;
+	uint32_t num_dev_info;
+	int8_t dev_info_idx[CAM_ICP_HW_MAX];
 	struct cam_hw_intf *icp_dev_intf;
-	uint32_t hw_dev_cnt[CAM_ICP_HW_MAX];
 	struct cam_icp_hw_ctx_data ctx_data[CAM_ICP_CTX_MAX];
 	cam_icp_mini_dump_cb mini_dump_cb;
 	char hw_mgr_name[CAM_ICP_HW_MGR_NAME_SIZE];
 	uint32_t hw_mgr_id;
 
-	bool icp_booted;
-	bool icp_resumed;
 	int32_t iommu_hdl;
 	int32_t iommu_sec_hdl;
 	int32_t hfi_handle;
@@ -484,26 +485,26 @@ struct cam_icp_hw_mgr {
 	struct hfi_msg_work_data *timer_work_data;
 	uint32_t ctxt_cnt;
 	struct dentry *dentry;
-	bool icp_pc_flag;
-	bool dev_pc_flag;
-	bool icp_use_pil;
 	uint64_t icp_debug_clk;
 	uint64_t icp_default_clk;
-	struct cam_icp_clk_info clk_info[ICP_DEV_CLK_MAX];
 	uint32_t secure_mode;
-	bool icp_jtag_debug;
 	u64 icp_debug_type;
 	u64 icp_dbg_lvl;
 	u64 icp_fw_dump_lvl;
 	u32 icp_fw_ramdump_lvl;
-	struct cam_icp_hw_ctx_dev_info dev_info[CAM_ICP_DEV_NUM];
-	bool disable_ubwc_comp;
 	atomic_t recovery;
 	uint64_t icp_svs_clk;
 	atomic_t frame_in_process;
 	int frame_in_process_ctx_id;
-	bool synx_signaling_en;
 	uint32_t hw_cap_mask;
+	bool icp_booted;
+	bool icp_resumed;
+	bool icp_pc_flag;
+	bool dev_pc_flag;
+	bool icp_use_pil;
+	bool icp_jtag_debug;
+	bool disable_ubwc_comp;
+	bool synx_signaling_en;
 };
 
 /**
@@ -566,9 +567,11 @@ struct cam_icp_hw_ctx_mini_dump {
  * @ctx: Context for minidump
  * @hfi_info: hfi info
  * @hfi_mem_info: hfi mem info
- * @dev_info: book keeping info relevant to devices
+ * @dev_info: array of device info
  * @fw_img: FW image
  * @recovery: To indicate if recovery is on
+ * @num_context: number of active context
+ * @num_device_info: number of available device info
  * @icp_booted: Indicate if ICP is booted
  * @icp_resumed: Indicate if ICP is resumed
  * @disable_ubwc_comp: Indicate if ubws comp is disabled
@@ -581,10 +584,11 @@ struct cam_icp_hw_mini_dump_info {
 	struct cam_icp_hw_ctx_mini_dump   *ctx[CAM_ICP_CTX_MAX];
 	struct hfi_mini_dump_info          hfi_info;
 	struct icp_hfi_mem_info            hfi_mem_info;
-	struct cam_icp_hw_ctx_dev_info     dev_info[CAM_ICP_DEV_NUM];
+	struct cam_icp_hw_device_info      dev_info[CAM_ICP_DEV_NUM];
 	void                              *fw_img;
 	uint32_t                           recovery;
 	uint32_t                           num_context;
+	uint32_t                           num_device_info;
 	bool                               icp_booted;
 	bool                               icp_resumed;
 	bool                               disable_ubwc_comp;
