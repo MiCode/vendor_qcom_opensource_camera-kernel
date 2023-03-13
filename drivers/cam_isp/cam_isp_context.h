@@ -57,7 +57,7 @@
 #define CAM_ISP_CONTEXT_DUMP_TAG_MAX_LEN 64
 
 /* AEB error count threshold */
-#define CAM_ISP_CONTEXT_AEB_ERROR_CNT_MAX 3
+#define CAM_ISP_CONTEXT_AEB_ERROR_CNT_MAX 6
 
 /* Debug Buffer length*/
 #define CAM_ISP_CONTEXT_DBG_BUF_LEN 300
