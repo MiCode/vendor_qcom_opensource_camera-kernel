@@ -5026,6 +5026,7 @@ void cam_ife_cam_cdm_callback(uint32_t handle, void *userdata,
 			"Called by CDM hdl=0x%x, udata=%pK, status=%d, cdm_req=%llu ctx_idx: %u",
 			 handle, userdata, status, ctx->cdm_userdata.request_id, ctx->ctx_index);
 	}
+	ktime_get_clocktai_ts64(&ctx->cdm_done_ts);
 }
 
 static int cam_ife_mgr_acquire_get_unified_structure_v0(
@@ -13008,6 +13009,8 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 				CAM_ISP_PACKET_UPDATE_DEV;
 			break;
 		case CAM_ISP_HW_MGR_GET_LAST_CDM_DONE:
+			isp_hw_cmd_args->cdm_done_ts =
+				ctx->cdm_done_ts;
 			isp_hw_cmd_args->u.last_cdm_done =
 				ctx->last_cdm_done_req;
 			break;

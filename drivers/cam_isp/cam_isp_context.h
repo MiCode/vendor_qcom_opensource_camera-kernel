@@ -33,7 +33,7 @@
 /*
  * Maximum entries in state monitoring array for error logging
  */
-#define CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES   40
+#define CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES   84
 
 /*
  * Threshold response time in us beyond which a request is not expected
@@ -113,6 +113,7 @@ enum cam_isp_state_change_trigger {
 	CAM_ISP_STATE_CHANGE_TRIGGER_SEC_EVT_SOF,
 	CAM_ISP_STATE_CHANGE_TRIGGER_SEC_EVT_EPOCH,
 	CAM_ISP_STATE_CHANGE_TRIGGER_FRAME_DROP,
+	CAM_ISP_STATE_CHANGE_TRIGGER_CDM_DONE,
 	CAM_ISP_STATE_CHANGE_TRIGGER_MAX
 };
 

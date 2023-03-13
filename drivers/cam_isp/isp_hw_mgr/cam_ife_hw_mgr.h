@@ -321,7 +321,7 @@ struct cam_isp_comp_record_query {
  * @try_recovery_cnt:       Retry count for overflow recovery
  * @recovery_req_id:        The request id on which overflow recovery happens
  * @drv_path_idle_en:       Path idle enable value for DRV
- *
+ * @cdm_done_ts:            CDM callback done timestamp
  */
 struct cam_ife_hw_mgr_ctx {
 	struct list_head                          list;
@@ -385,6 +385,7 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                   drv_path_idle_en;
 	struct cam_isp_context_comp_record        *vfe_bus_comp_grp;
 	struct cam_isp_context_comp_record        *sfe_bus_comp_grp;
+	struct timespec64                          cdm_done_ts;
 };
 
 /**

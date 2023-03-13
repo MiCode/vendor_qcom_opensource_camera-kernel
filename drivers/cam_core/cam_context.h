@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CONTEXT_H_
@@ -221,7 +221,7 @@ struct cam_ctx_ops {
  * @out_map_entries:       Out map entry
  * @mini dump cb:          Mini dump cb
  * @img_iommu_hdl:         Image IOMMU handle
- *
+ * @cdm_done_ts:           CDM callback done timestamp
  */
 struct cam_context {
 	char                         dev_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -267,6 +267,7 @@ struct cam_context {
 	struct cam_hw_fence_map_entry **out_map_entries;
 	cam_ctx_mini_dump_cb_func      mini_dump_cb;
 	int                            img_iommu_hdl;
+	struct timespec64              cdm_done_ts;
 };
 
 /**

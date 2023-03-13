@@ -395,6 +395,7 @@ enum cam_isp_ctx_type {
  * @packet_op_code:        Packet opcode
  * @last_cdm_done:         Last cdm done request
  * @sof_ts:                SOF timestamps (current, boot and previous)
+ * @cdm_done_ts:           CDM callback done timestamp
  */
 struct cam_isp_hw_cmd_args {
 	uint32_t                          cmd_type;
@@ -410,6 +411,7 @@ struct cam_isp_hw_cmd_args {
 			uint64_t                      boot;
 		} sof_ts;
 	} u;
+	struct timespec64 cdm_done_ts;
 };
 
 /**
