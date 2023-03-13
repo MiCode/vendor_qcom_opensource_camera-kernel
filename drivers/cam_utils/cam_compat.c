@@ -10,6 +10,7 @@
 #include <linux/slab.h>
 
 #include <soc/qcom/rpmh.h>
+#include <soc/qcom/socinfo.h>
 
 #include "cam_compat.h"
 #include "cam_debug_util.h"
@@ -819,3 +820,33 @@ bool cam_secure_get_vfe_fd_port_config(void)
 #endif
 }
 
+#if KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE
+int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam)
+{
+	int rc = 0;
+	int num_cam;
+
+	num_cam = socinfo_get_part_count(PART_CAMERA);
+	if (num_cam != max_num_cam) {
+		CAM_ERR(CAM_CPAS, "Unsupported number of parts: %d", num_cam);
+		return -EINVAL;
+	}
+
+	/*
+	 * If bit value in part_info is "0" then HW is available.
+	 * If bit value in part_info is "1" then HW is unavailable.
+	 */
+	rc = socinfo_get_subpart_info(PART_CAMERA, part_info, num_cam);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed while getting subpart_info, rc = %d.", rc);
+		return rc;
+	}
+
+	return 0;
+}
+#else
+int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam)
+{
+	return 0;
+}
+#endif
