@@ -823,11 +823,13 @@ static struct cam_irq_register_set vfe680_bus_irq_reg[2] = {
 			.mask_reg_offset   = 0x00000C18,
 			.clear_reg_offset  = 0x00000C20,
 			.status_reg_offset = 0x00000C28,
+			.set_reg_offset    = 0x00000C50,
 		},
 		{
 			.mask_reg_offset   = 0x00000C1C,
 			.clear_reg_offset  = 0x00000C24,
 			.status_reg_offset = 0x00000C2C,
+			.set_reg_offset    = 0x00000C54,
 		},
 };
 
