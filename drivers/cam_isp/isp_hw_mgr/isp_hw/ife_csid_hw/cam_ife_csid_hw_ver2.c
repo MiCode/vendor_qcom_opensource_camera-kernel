@@ -3639,8 +3639,8 @@ static int cam_ife_csid_ver2_init_config_pxl_path(
 	/*enable early eof based on crop enable */
 	if (!(csid_hw->debug_info.debug_val &
 		    CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
-		cmn_reg->early_eof_supported &&
-		path_cfg->crop_enable)
+		cmn_reg->early_eof_supported && path_cfg->crop_enable &&
+		!(csid_hw->flags.rdi_lcr_en && res->res_id == CAM_IFE_PIX_PATH_RES_PPP))
 		cfg1 |= (1 << path_reg->early_eof_en_shift_val);
 
 	if (csid_hw->debug_info.debug_val &
@@ -4118,17 +4118,6 @@ static int cam_ife_csid_ver2_program_ppp_path(
 	uint32_t irq_mask = 0;
 	void __iomem *mem_base;
 
-	rc = cam_ife_csid_ver2_init_config_pxl_path(
-		csid_hw, res);
-
-	if (rc) {
-		CAM_ERR(CAM_ISP,
-			"CSID:%u %s path res type:%d res_id:%d %d",
-			csid_hw->hw_intf->hw_idx,
-			res->res_type, res->res_id, res->res_state);
-		return rc;
-	}
-
 	soc_info = &csid_hw->hw_info->soc_info;
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
 			csid_hw->core_info->csid_reg;
@@ -4143,6 +4132,22 @@ static int cam_ife_csid_ver2_program_ppp_path(
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+
+	if (csid_hw->flags.rdi_lcr_en && path_reg->crop_drop_enable) {
+		path_cfg->drop_enable = true;
+		path_cfg->crop_enable = true;
+	}
+
+	rc = cam_ife_csid_ver2_init_config_pxl_path(
+		csid_hw, res);
+
+	if (rc) {
+		CAM_ERR(CAM_ISP,
+			"CSID:%u %s path res type:%d res_id:%d %d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_type, res->res_id, res->res_state);
+		return rc;
+	}
 
 	path_cfg->irq_reg_idx = cam_ife_csid_get_rt_irq_idx(
 				CAM_IFE_CSID_IRQ_REG_PPP,
