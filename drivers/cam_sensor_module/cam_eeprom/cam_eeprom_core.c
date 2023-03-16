@@ -601,6 +601,7 @@ static int32_t cam_eeprom_handle_continuous_write(
 	if (i2c_list == NULL ||
 		i2c_list->seq_settings.reg_data == NULL) {
 		CAM_ERR(CAM_SENSOR, "Failed in allocating i2c_list");
+		kfree(i2c_list);
 		return -ENOMEM;
 	}
 
@@ -643,6 +644,7 @@ static int32_t cam_eeprom_handle_continuous_write(
 	*list = &(i2c_list->list);
 	return rc;
 deallocate_i2c_list:
+	kfree(i2c_list->seq_settings.reg_data);
 	kfree(i2c_list);
 	return rc;
 }

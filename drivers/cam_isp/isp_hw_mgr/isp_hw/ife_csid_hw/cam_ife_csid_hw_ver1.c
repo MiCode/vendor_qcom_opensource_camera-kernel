@@ -4201,8 +4201,6 @@ static int cam_ife_csid_ver1_bottom_half_handler(
 		if (!evt_payload->irq_status[i])
 			continue;
 
-		path_reg = NULL;
-
 		switch (i) {
 		case  CAM_IFE_CSID_IRQ_REG_IPP:
 			path_reg = csid_reg->ipp_reg;
@@ -4225,6 +4223,7 @@ static int cam_ife_csid_ver1_bottom_half_handler(
 			path_reg = csid_reg->udi_reg[id];
 			break;
 		default:
+			path_reg = NULL;
 			break;
 		}
 

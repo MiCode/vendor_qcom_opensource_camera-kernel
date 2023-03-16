@@ -641,7 +641,7 @@ static int cam_flash_i2c_component_bind(struct device *dev,
 			rc  = rc ? rc : -EINVAL;
 			CAM_ERR(CAM_FLASH, "get failed for regulator %s %d",
 				soc_info->rgltr_name[i], rc);
-			goto free_ctrl;
+			goto free_ctrl_cci_client;
 		}
 		CAM_DBG(CAM_FLASH, "get for regulator %s",
 			soc_info->rgltr_name[i]);
@@ -653,7 +653,7 @@ static int cam_flash_i2c_component_bind(struct device *dev,
 		if (!soc_info->gpio_data->cam_gpio_common_tbl_size) {
 			CAM_DBG(CAM_FLASH, "No GPIO found");
 			rc = -EINVAL;
-			goto free_ctrl;
+			goto free_ctrl_cci_client;
 		}
 
 		rc = cam_sensor_util_init_gpio_pin_tbl(soc_info,
@@ -661,13 +661,13 @@ static int cam_flash_i2c_component_bind(struct device *dev,
 		if ((rc < 0) || (!fctrl->power_info.gpio_num_info)) {
 			CAM_ERR(CAM_FLASH, "No/Error Flash GPIOs");
 			rc = -EINVAL;
-			goto free_ctrl;
+			goto free_ctrl_cci_client;
 		}
 	}
 
 	rc = cam_flash_init_subdev(fctrl);
 	if (rc)
-		goto free_ctrl;
+		goto free_ctrl_cci_client;
 
 	fctrl->i2c_data.per_frame =
 		kzalloc(sizeof(struct i2c_settings_array) *
@@ -704,6 +704,8 @@ static int cam_flash_i2c_component_bind(struct device *dev,
 
 unreg_subdev:
 	cam_unregister_subdev(&(fctrl->v4l2_dev_str));
+free_ctrl_cci_client:
+	kfree(fctrl->io_master_info.cci_client);
 free_ctrl:
 	kfree(fctrl);
 	fctrl = NULL;

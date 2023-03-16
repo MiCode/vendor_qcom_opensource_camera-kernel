@@ -1949,7 +1949,6 @@ static int cam_ife_mgr_process_base_info(
 	struct cam_isp_hw_mgr_res        *hw_mgr_res;
 	struct cam_isp_resource_node     *res = NULL;
 	uint32_t i;
-	struct cam_ife_hw_mgr            *hw_mgr;
 	bool   hw_idx_map[CAM_IFE_CSID_HW_NUM_MAX] = {0};
 
 	if (list_empty(&ctx->res_list_ife_src) &&
@@ -1957,8 +1956,6 @@ static int cam_ife_mgr_process_base_info(
 		CAM_ERR(CAM_ISP, "Mux List empty");
 		return -ENODEV;
 	}
-
-	hw_mgr = ctx->hw_mgr;
 
 	/* IFE mux in resources */
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_src, list) {

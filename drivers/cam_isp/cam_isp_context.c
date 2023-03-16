@@ -3824,7 +3824,6 @@ end:
 	do {
 		if (list_empty(&ctx->pending_req_list)) {
 			error_request_id = ctx_isp->last_applied_req_id;
-			req_isp = NULL;
 			break;
 		}
 		req = list_first_entry(&ctx->pending_req_list,

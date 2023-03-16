@@ -1734,14 +1734,14 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		goto release_res;
 	}
 
+	soc_private = (struct cam_cpas_private_soc *)soc_info->soc_private;
+
 	rc = cam_cpas_get_custom_dt_info(cpas_hw, soc_info->pdev,
 		soc_info->soc_private);
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "failed in get_custom_info, rc=%d", rc);
 		goto free_soc_private;
 	}
-
-	soc_private = (struct cam_cpas_private_soc *)soc_info->soc_private;
 
 	soc_info->is_clk_drv_en = soc_private->enable_cam_clk_drv;
 
@@ -1766,6 +1766,8 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 	return rc;
 
 free_soc_private:
+	kfree(soc_private->llcc_info);
+	kfree(soc_private->smart_qos_info);
 	kfree(soc_info->soc_private);
 release_res:
 	cam_soc_util_release_platform_resource(soc_info);

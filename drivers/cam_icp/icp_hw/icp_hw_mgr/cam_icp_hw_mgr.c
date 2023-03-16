@@ -2800,8 +2800,8 @@ static int cam_icp_mgr_process_ofe_indirect_ack_msg(uint32_t *msg_ptr)
 
 		ioconfig_ack = (struct hfi_msg_dev_async_ack *)msg_ptr;
 		ctx_data = U64_TO_PTR(ioconfig_ack->user_data1);
-		hw_mgr = ctx_data->hw_mgr_priv;
 		if (cam_presil_mode_enabled()) {
+			hw_mgr = ctx_data->hw_mgr_priv;
 			if (atomic_read(&hw_mgr->frame_in_process)) {
 				if (hw_mgr->frame_in_process_ctx_id == ctx_data->ctx_id) {
 					CAM_DBG(CAM_PRESIL, "presil: frame process abort ctx %d",
@@ -2862,9 +2862,9 @@ static int cam_icp_mgr_process_direct_ack_msg(uint32_t *msg_ptr)
 		ioconfig_ack = (struct hfi_msg_dev_async_ack *)msg_ptr;
 		ctx_data = (struct cam_icp_hw_ctx_data *)
 			U64_TO_PTR(ioconfig_ack->user_data1);
-		hw_mgr = ctx_data->hw_mgr_priv;
 
 		if (cam_presil_mode_enabled()) {
+			hw_mgr = ctx_data->hw_mgr_priv;
 			if (atomic_read(&hw_mgr->frame_in_process)) {
 				if (hw_mgr->frame_in_process_ctx_id == ctx_data->ctx_id) {
 					CAM_DBG(CAM_PRESIL, "%s: presil: frame process abort",
@@ -3073,9 +3073,6 @@ static void cam_icp_mgr_process_dbg_buf(struct cam_icp_hw_mgr *hw_mgr)
 			return;
 		msg_ptr += (pkt_ptr[ICP_PACKET_SIZE] >>
 		BYTE_WORD_SHIFT);
-		pkt_ptr = NULL;
-		dbg_msg = NULL;
-		dbg_buf = NULL;
 	}
 }
 
@@ -7294,7 +7291,8 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np,
 		CAM_ERR(CAM_ICP, "[%s] Invalid hw dev type: %u",
 			hw_mgr->hw_mgr_name, icp_hw_type);
 		rc = -EINVAL;
-		goto free_devs;
+		kfree(devices);
+		return rc;
 	}
 
 	hw_mgr->devices[icp_hw_type] = devices;

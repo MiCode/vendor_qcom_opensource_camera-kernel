@@ -592,8 +592,6 @@ int cam_vfe_top_ver3_stop(void *device_priv,
 	top_priv = (struct cam_vfe_top_ver3_priv   *)device_priv;
 	mux_res = (struct cam_isp_resource_node *)stop_args;
 	soc_info = top_priv->top_common.soc_info;
-
-	soc_info = top_priv->top_common.soc_info;
 	soc_private = soc_info->soc_private;
 
 	if (mux_res->res_id < CAM_ISP_HW_VFE_IN_MAX) {

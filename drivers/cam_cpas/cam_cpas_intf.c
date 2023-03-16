@@ -892,19 +892,12 @@ int cam_cpas_configure_staling_llcc(
 	uint32_t staling_distance)
 {
 	int rc;
-	struct cam_hw_info *cpas_hw = NULL;
-	struct cam_cpas_private_soc *soc_private = NULL;
-	uint32_t num_caches = 0;
 	struct cam_sys_cache_local_info sys_cache_info;
 
 	if (!CAM_CPAS_INTF_INITIALIZED()) {
 		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
 		return -ENODEV;
 	}
-	cpas_hw = (struct cam_hw_info *) g_cpas_intf->hw_intf->hw_priv;
-	soc_private =
-		(struct cam_cpas_private_soc *)cpas_hw->soc_info.soc_private;
-	num_caches = soc_private->num_caches;
 	if (!cam_cpas_is_notif_staling_supported())
 		return -EOPNOTSUPP;
 

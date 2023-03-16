@@ -182,7 +182,7 @@ static int cam_vfe_top_ver4_pdaf_lcr_config(struct cam_vfe_top_ver4_priv *top_pr
 	}
 
 	reg_val_pair[reg_val_idx++] = hw_info->common_reg->pdaf_input_cfg_0;
-	reg_val_pair[reg_val_idx++] = hw_info->pdaf_lcr_res_mask[i].val;
+	reg_val_pair[reg_val_idx] = hw_info->pdaf_lcr_res_mask[i].val;
 	cdm_util_ops->cdm_write_regrandom(cdm_args->cmd.cmd_buf_addr,
 		num_reg_vals, reg_val_pair);
 	cdm_args->cmd.used_bytes = size * 4;
