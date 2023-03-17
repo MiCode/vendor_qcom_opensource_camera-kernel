@@ -815,6 +815,8 @@ static bool cam_cpas_calculate_smart_qos(
 				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.high.camnoc +
 				niu_node->bw_info[CAM_CPAS_PORT_DRV_2].drv_vote.low.camnoc;
 
+		do_div(bw_per_kb, niu_node->niu_size);
+
 		if ((bw_per_kb * CAM_CPAS_MAX_STRESS_INDICATOR) >
 			(total_bw_per_kb *
 			soc_private->smart_qos_info->highstress_indicator_th)) {
