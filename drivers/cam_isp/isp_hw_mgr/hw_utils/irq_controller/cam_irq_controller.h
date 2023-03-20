@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IRQ_CONTROLLER_H_
@@ -201,6 +201,7 @@ int cam_irq_controller_subscribe_irq(void *irq_controller,
  * cam_irq_controller_unsubscribe_irq()
  *
  * @brief:               Unsubscribe to IRQ events previously subscribed to.
+ *                       Masks out the correspondings events from source
  *
  * @irq_controller:      Pointer to IRQ Controller that controls this event IRQ
  * @handle:              Handle returned on successful subscribe used to
@@ -210,6 +211,21 @@ int cam_irq_controller_subscribe_irq(void *irq_controller,
  *                       Negative: Failure
  */
 int cam_irq_controller_unsubscribe_irq(void *irq_controller,
+	uint32_t handle);
+
+/*
+ * cam_irq_controller_unsubscribe_irq_evt()
+ *
+ * @brief:               Unsubscribe to IRQ event payloads previously subscribed to
+ *
+ * @irq_controller:      Pointer to IRQ Controller that controls this event IRQ
+ * @handle:              Handle returned on successful subscribe used to
+ *                       identify the handler object
+ *
+ * @return:              0: Success
+ *                       Negative: Failure
+ */
+int cam_irq_controller_unsubscribe_irq_evt(void *irq_controller,
 	uint32_t handle);
 
 /*

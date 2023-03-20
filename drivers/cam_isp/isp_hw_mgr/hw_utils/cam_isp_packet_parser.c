@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <media/cam_defs.h>
@@ -467,13 +467,11 @@ int cam_sfe_add_command_buffers(
 {
 	int rc = 0;
 	uint32_t                             cmd_meta_data, num_ent, i;
-	uint32_t                             base_idx;
 	enum cam_isp_hw_split_id             split_id;
 	struct cam_cmd_buf_desc             *cmd_desc = NULL;
 	struct cam_hw_update_entry          *hw_entry = NULL;
 
 	split_id = base_info->split_id;
-	base_idx = base_info->idx;
 	hw_entry = prepare->hw_update_entries;
 
 	/*
@@ -1453,13 +1451,11 @@ int cam_isp_add_csid_command_buffers(
 {
 	int rc = 0;
 	uint32_t                           cmd_meta_data, num_ent, i;
-	uint32_t                           base_idx;
 	enum cam_isp_hw_split_id           split_id;
 	struct cam_cmd_buf_desc           *cmd_desc = NULL;
 	struct cam_hw_update_entry        *hw_entry = NULL;
 
 	split_id = base_info->split_id;
-	base_idx = base_info->idx;
 	hw_entry = prepare->hw_update_entries;
 
 	/*

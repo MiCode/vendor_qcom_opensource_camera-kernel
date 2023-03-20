@@ -32,6 +32,22 @@ static void __cam_req_mgr_reset_apply_data(struct cam_req_mgr_core_link *link)
 	}
 }
 
+static void __cam_req_mgr_reset_state_monitor_array(
+	struct cam_req_mgr_core_link *link)
+{
+	int i = 0;
+	struct cam_req_mgr_state_monitor *state_monitor;
+
+	for (i = 0; i < MAX_REQ_STATE_MONITOR_NUM; i++) {
+		state_monitor = &link->req.state_monitor[i];
+		state_monitor->req_state = CAM_CRM_STATE_INVALID;
+		state_monitor->req_id = -1;
+		state_monitor->frame_id = -1;
+		memset(&state_monitor->time_stamp, 0, sizeof(struct timespec64));
+		memset(&state_monitor->name, 0, sizeof(state_monitor->name));
+	}
+}
+
 void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 {
 	int i = 0;
@@ -78,6 +94,7 @@ void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 	mutex_unlock(&link->lock);
 	link->cont_empty_slots = 0;
 	__cam_req_mgr_reset_apply_data(link);
+	__cam_req_mgr_reset_state_monitor_array(link);
 
 	for (i = 0; i < MAXIMUM_LINKS_PER_SESSION - 1; i++)
 		link->sync_link[i] = NULL;
@@ -305,6 +322,107 @@ static void __cam_req_mgr_find_dev_name(
 	}
 }
 
+static const char *__cam_req_mgr_operation_type_to_str(
+	enum cam_req_mgr_req_state type)
+{
+	switch (type) {
+	case CAM_CRM_REQ_READY:
+		return "REQ_READY";
+	case CAM_CRM_NOTIFY_TRIGGER:
+		return "NOTIFY_TRIGGER";
+	case CAM_CRM_PROCESS_TRIGGER:
+		return "PROCESS_TRIGGER";
+	case CAM_CRM_SEND_REQ:
+		return "SEND_REQ";
+	case CAM_CRM_NOTIFY_ERR:
+		return "NOTIFY_ERR";
+	case CAM_CRM_PROCESS_ERR:
+		return "PROCESS_ERR";
+	default:
+		return "INVALID_TYPE";
+	}
+}
+
+static void __cam_req_mgr_update_state_monitor_array(
+	struct cam_req_mgr_core_link *link,
+	struct cam_req_mgr_state_monitor *state)
+{
+	int idx = link->req.next_state_idx;
+	struct cam_req_mgr_state_monitor *state_monitor =
+		&link->req.state_monitor[idx];
+
+	spin_lock_bh(&link->req.monitor_slock);
+	CAM_DBG(CAM_REQ,
+		"Update: link_hdl %x dev %x dev_name %s req_id %lld frame_id %lld set to State: %s",
+		link->link_hdl, state->dev_hdl,
+		__cam_req_mgr_dev_handle_to_name(state->dev_hdl, link),
+		state->req_id, state->frame_id,
+		__cam_req_mgr_operation_type_to_str(state->req_state));
+
+	state_monitor->req_state = state->req_state;
+	state_monitor->req_id = state->req_id;
+	state_monitor->dev_hdl = state->dev_hdl;
+	state_monitor->frame_id = state->frame_id;
+	memcpy(state_monitor->name,
+		__cam_req_mgr_dev_handle_to_name(state->dev_hdl, link),
+		sizeof(state_monitor->name));
+	ktime_get_clocktai_ts64(&state_monitor->time_stamp);
+
+	__cam_req_mgr_inc_idx(&link->req.next_state_idx, 1, MAX_REQ_STATE_MONITOR_NUM);
+
+	spin_unlock_bh(&link->req.monitor_slock);
+}
+
+/**
+ * __cam_req_mgr_dump_state_monitor_array()
+ *
+ * @brief    : dump the state monitor array, dump from index next_wr_idx
+ *             to print state information in time order.
+ * @link     : link pointer
+ *
+ */
+static void __cam_req_mgr_dump_state_monitor_array(
+	struct cam_req_mgr_core_link *link)
+{
+	int i;
+	int idx = link->req.next_state_idx;
+	struct tm ts;
+	struct timespec64 timespec;
+
+	/*
+	 * Get current time and print it immediately, wen need this log to cacluate the
+	 * difference between log time and the time we get using ktime_get_clocktai_ts64,
+	 * we need do like this because the time we get always has a 20-30ms difference from
+	 * log time and do not have a good solution at present.
+	 */
+	ktime_get_clocktai_ts64(&timespec);
+	time64_to_tm(timespec.tv_sec, 0, &ts);
+	CAM_INFO(CAM_CRM, "Link %x start dump state monitor array, time: %d-%d %d:%d:%d.%lld",
+		link->link_hdl, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour,
+		ts.tm_min, ts.tm_sec, timespec.tv_nsec / 1000000);
+
+	CAM_INFO(CAM_CRM, "%16s  %6s  %10s  %8s  %10s",
+		"state", "req id", "dev hdl", "frame id", "time stamp");
+	spin_lock_bh(&link->req.monitor_slock);
+	for (i = 0; i < MAX_REQ_STATE_MONITOR_NUM; i++) {
+		if (link->req.state_monitor[idx].req_state != CAM_CRM_STATE_INVALID) {
+			time64_to_tm(link->req.state_monitor[idx].time_stamp.tv_sec, 0, &ts);
+			CAM_INFO(CAM_CRM, "%16s  %6d  %10x  %8d  %d-%d %d:%d:%d.%lld",
+				__cam_req_mgr_operation_type_to_str(
+				link->req.state_monitor[idx].req_state),
+				link->req.state_monitor[idx].req_id,
+				link->req.state_monitor[idx].dev_hdl,
+				link->req.state_monitor[idx].frame_id,
+				ts.tm_mon + 1, ts.tm_mday, ts.tm_hour,
+				ts.tm_min, ts.tm_sec,
+				link->req.state_monitor[idx].time_stamp.tv_nsec / 1000000);
+		}
+
+		__cam_req_mgr_inc_idx(&idx, 1, MAX_REQ_STATE_MONITOR_NUM);
+	}
+	spin_unlock_bh(&link->req.monitor_slock);
+}
+
 /**
  * __cam_req_mgr_notify_frame_skip()
  *
@@ -322,6 +440,12 @@ static int __cam_req_mgr_notify_frame_skip(
 	struct cam_req_mgr_tbl_slot         *slot = NULL;
 
 	apply_data = link->req.prev_apply_data;
+
+	if (link->max_delay < 0 || link->max_delay >= CAM_PIPELINE_DELAY_MAX) {
+		CAM_ERR(CAM_CRM, "link->max_delay is out of bounds: %d",
+			link->max_delay);
+		return -EINVAL;
+	}
 
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
@@ -476,6 +600,8 @@ static int __cam_req_mgr_notify_error_on_link(
 	CAM_ERR_RATE_LIMIT(CAM_CRM,
 		"Notifying userspace to trigger recovery on link 0x%x for session %d",
 		link->link_hdl, session->session_hdl);
+
+	__cam_req_mgr_dump_state_monitor_array(link);
 
 	memset(&msg, 0, sizeof(msg));
 
@@ -1068,6 +1194,7 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 	struct cam_req_mgr_link_evt_data     evt_data;
 	struct cam_req_mgr_tbl_slot          *slot = NULL;
 	struct cam_req_mgr_apply             *apply_data = NULL;
+	struct cam_req_mgr_state_monitor     state;
 
 	apply_req.link_hdl = link->link_hdl;
 	apply_req.report_if_bubble = 0;
@@ -1081,6 +1208,12 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 		apply_req.recovery = true;
 	else
 		apply_req.recovery = false;
+
+	if (link->max_delay < 0 || link->max_delay >= CAM_PIPELINE_DELAY_MAX) {
+		CAM_ERR(CAM_CRM, "link->max_delay is out of bounds: %d",
+			link->max_delay);
+		return -EINVAL;
+	}
 
 	apply_data = link->req.apply_data;
 
@@ -1166,6 +1299,12 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 				link->link_hdl, pd, apply_req.request_id);
 			break;
 		}
+
+		state.req_state = CAM_CRM_SEND_REQ;
+		state.req_id = apply_req.request_id;
+		state.dev_hdl = apply_req.dev_hdl;
+		state.frame_id = -1;
+		__cam_req_mgr_update_state_monitor_array(link, &state);
 
 		CAM_DBG(CAM_REQ,
 			"SEND: link_hdl %x dev %s pd %d req_id %lld is applied %d",
@@ -1271,6 +1410,12 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 					break;
 				}
 			}
+
+			state.req_state = CAM_CRM_SEND_REQ;
+			state.req_id = apply_req.request_id;
+			state.dev_hdl = apply_req.dev_hdl;
+			state.frame_id = -1;
+			__cam_req_mgr_update_state_monitor_array(link, &state);
 
 			if (pd == link->min_delay)
 				req_applied_to_min_pd = apply_req.request_id;
@@ -1696,7 +1841,6 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 	if (sync_slot_idx == -1) {
 		CAM_DBG(CAM_CRM, "Req: %lld not found on link: %x [other link]",
 			req_id, sync_link->link_hdl);
-		sync_ready = false;
 		return -EAGAIN;
 	}
 
@@ -2957,14 +3101,17 @@ int cam_req_mgr_process_flush_req(void *priv, void *data)
 	switch (flush_info->flush_type) {
 	case CAM_REQ_MGR_FLUSH_TYPE_ALL:
 		link->last_flush_id = flush_info->req_id;
-		CAM_INFO(CAM_CRM, "Last request id to flush is %lld",
-			flush_info->req_id);
+		CAM_INFO(CAM_CRM, "Last request id to flush is %lld on link 0x%x",
+			flush_info->req_id, link->link_hdl);
 		__cam_req_mgr_flush_req_slot(link);
 		__cam_req_mgr_reset_apply_data(link);
 		__cam_req_mgr_flush_dev_with_max_pd(link, flush_info, link->max_delay);
 		link->open_req_cnt = 0;
 		break;
 	case CAM_REQ_MGR_FLUSH_TYPE_CANCEL_REQ:
+		link->last_flush_id = flush_info->req_id;
+		CAM_DBG(CAM_CRM, "Canceling req %lld on link 0x%x",
+			flush_info->req_id, link->link_hdl);
 		rc = __cam_req_mgr_try_cancel_req(link, flush_info);
 		if (rc)
 			CAM_WARN(CAM_CRM, "cannot cancel req_id %lld on link 0x%x",
@@ -3189,6 +3336,7 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 	struct cam_req_mgr_tbl_slot         *slot = NULL;
 	struct crm_task_payload             *task_data = NULL;
 	struct cam_req_mgr_slot             *link_slot = NULL;
+	struct cam_req_mgr_state_monitor     state;
 
 	if (!data || !priv) {
 		CAM_ERR(CAM_CRM, "input args NULL %pK %pK", data, priv);
@@ -3344,6 +3492,12 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 			"link 0x%x idx %d req_id %lld pd %d SLOT READY",
 			link->link_hdl, idx, add_req->req_id, tbl->pd);
 		slot->state = CRM_REQ_STATE_READY;
+
+		state.req_state = CAM_CRM_REQ_READY;
+		state.req_id = add_req->req_id;
+		state.dev_hdl = -1;
+		state.frame_id = -1;
+		__cam_req_mgr_update_state_monitor_array(link, &state);
 	}
 	mutex_unlock(&link->req.lock);
 
@@ -3398,6 +3552,7 @@ int cam_req_mgr_process_error(void *priv, void *data)
 	struct cam_req_mgr_req_queue        *in_q = NULL;
 	struct cam_req_mgr_slot             *slot = NULL;
 	struct crm_task_payload             *task_data = NULL;
+	struct cam_req_mgr_state_monitor     state;
 
 	if (!data || !priv) {
 		CAM_ERR(CAM_CRM, "input args NULL %pK %pK", data, priv);
@@ -3414,6 +3569,12 @@ int cam_req_mgr_process_error(void *priv, void *data)
 		err_info->error);
 
 	in_q = link->req.in_q;
+
+	state.req_state = CAM_CRM_PROCESS_ERR;
+	state.req_id = err_info->req_id;
+	state.dev_hdl = -1;
+	state.frame_id = -1;
+	__cam_req_mgr_update_state_monitor_array(link, &state);
 
 	mutex_lock(&link->req.lock);
 	switch (err_info->error) {
@@ -3591,6 +3752,7 @@ static int cam_req_mgr_process_trigger(void *priv, void *data)
 	struct crm_task_payload             *task_data = NULL;
 	int                                  reset_step = 0;
 	int                                  i = 0;
+	struct cam_req_mgr_state_monitor     state;
 
 	if (!data || !priv) {
 		CAM_ERR(CAM_CRM, "input args NULL %pK %pK", data, priv);
@@ -3608,6 +3770,12 @@ static int cam_req_mgr_process_trigger(void *priv, void *data)
 		trigger_data->trigger);
 
 	in_q = link->req.in_q;
+
+	state.req_state = CAM_CRM_PROCESS_TRIGGER;
+	state.req_id = in_q->slot[in_q->rd_idx].req_id;
+	state.dev_hdl = -1;
+	state.frame_id = trigger_data->frame_id;
+	__cam_req_mgr_update_state_monitor_array(link, &state);
 
 	mutex_lock(&link->req.lock);
 
@@ -3742,13 +3910,13 @@ static int cam_req_mgr_cb_add_req(struct cam_req_mgr_add_request *add_req)
 	if (idx < 0) {
 		if (((uint32_t)add_req->req_id) <= (link->last_flush_id)) {
 			CAM_INFO(CAM_CRM,
-				"req %lld not found in in_q; it has been flushed [last_flush_req %u]",
-				add_req->req_id, link->last_flush_id);
+				"req %lld not found in in_q; it has been flushed [last_flush_req %lld] link 0x%x",
+				add_req->req_id, link->last_flush_id, link->link_hdl);
 			rc = -EBADR;
 		} else {
 			CAM_ERR(CAM_CRM,
-				"req %lld not found in in_q",
-				add_req->req_id);
+				"req %lld not found in in_q on link 0x%x [last_flush_req %lld]",
+				add_req->req_id, link->link_hdl, link->last_flush_id);
 			rc = -ENOENT;
 		}
 		goto end;
@@ -3813,6 +3981,7 @@ static int cam_req_mgr_cb_notify_err(
 	struct cam_req_mgr_core_link    *link = NULL;
 	struct cam_req_mgr_error_notify *notify_err;
 	struct crm_task_payload         *task_data;
+	struct cam_req_mgr_state_monitor state;
 
 	if (!err_info) {
 		CAM_ERR(CAM_CRM, "err_info is NULL");
@@ -3827,6 +3996,12 @@ static int cam_req_mgr_cb_notify_err(
 		rc = -EINVAL;
 		goto end;
 	}
+
+	state.req_state = CAM_CRM_NOTIFY_ERR;
+	state.req_id = err_info->req_id;
+	state.dev_hdl = -1;
+	state.frame_id = err_info->frame_id;
+	__cam_req_mgr_update_state_monitor_array(link, &state);
 
 	spin_lock_bh(&link->link_state_spin_lock);
 	if (link->state != CAM_CRM_LINK_STATE_READY) {
@@ -4030,6 +4205,8 @@ static int cam_req_mgr_cb_notify_trigger(
 	struct cam_req_mgr_core_link    *link = NULL;
 	struct cam_req_mgr_trigger_notify   *notify_trigger;
 	struct crm_task_payload         *task_data;
+	struct cam_req_mgr_state_monitor state;
+	struct cam_req_mgr_req_queue    *in_q = NULL;
 
 	if (!trigger_data) {
 		CAM_ERR(CAM_CRM, "trigger_data is NULL");
@@ -4052,6 +4229,14 @@ static int cam_req_mgr_cb_notify_trigger(
 
 	trigger_id = trigger_data->trigger_id;
 	trigger = trigger_data->trigger;
+
+	in_q = link->req.in_q;
+
+	state.req_state = CAM_CRM_NOTIFY_TRIGGER;
+	state.req_id = in_q->slot[in_q->rd_idx].req_id;
+	state.dev_hdl = -1;
+	state.frame_id = trigger_data->frame_id;
+	__cam_req_mgr_update_state_monitor_array(link, &state);
 
 	/*
 	 * Reduce the workq overhead when there is
@@ -5138,6 +5323,10 @@ int cam_req_mgr_flush_requests(
 	task->process_cb = &cam_req_mgr_process_flush_req;
 	init_completion(&link->workq_comp);
 	rc = cam_req_mgr_workq_enqueue_task(task, link, CRM_TASK_PRIORITY_0);
+	if (rc) {
+		CAM_ERR(CAM_CRM, "Failed to queue flush task rc: %d", rc);
+		goto end;
+	}
 
 	/* Blocking call */
 	rc = cam_common_wait_for_completion_timeout(
@@ -5360,7 +5549,7 @@ int cam_req_mgr_dump_request(struct cam_dump_req_cmd *dump_req)
 		dump_req->issue_req_id, dump_req->offset);
 end:
 	mutex_unlock(&g_crm_core_dev->crm_lock);
-	return 0;
+	return rc;
 }
 
 static unsigned long cam_req_mgr_core_mini_dump_cb(void *dst, unsigned long len,
@@ -5483,6 +5672,7 @@ int cam_req_mgr_core_device_init(void)
 	for (i = 0; i < MAXIMUM_LINKS_PER_SESSION; i++) {
 		mutex_init(&g_links[i].lock);
 		spin_lock_init(&g_links[i].link_state_spin_lock);
+		spin_lock_init(&g_links[i].req.monitor_slock);
 		atomic_set(&g_links[i].is_used, 0);
 		cam_req_mgr_core_link_reset(&g_links[i]);
 	}

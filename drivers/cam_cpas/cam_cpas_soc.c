@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -335,7 +335,7 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 	struct cam_cpas_private_soc *soc_private, struct cam_cpas_tree_node *curr_node_ptr,
 	struct device_node *mnoc_node, int *mnoc_idx)
 {
-	int rc = 0, count = 0, i;
+	int rc = 0, count, i;
 	bool ib_voting_needed = false, is_rt_port = false;
 	struct of_phandle_args src_args = {0}, dst_args = {0};
 
@@ -347,12 +347,10 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 		count = of_property_count_strings(mnoc_node, "interconnect-names");
 		if (count <= 0) {
 			CAM_ERR(CAM_CPAS, "no interconnect-names found");
-			count = 0;
 			return -EINVAL;
 		} else if (count > CAM_CPAS_MAX_DRV_PORTS) {
 			CAM_ERR(CAM_CPAS, "Number of interconnects %d greater than max ports %d",
 				count, CAM_CPAS_MAX_DRV_PORTS);
-			count = 0;
 			return -EINVAL;
 		}
 
@@ -628,6 +626,8 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 
 			rc = of_property_read_u32(curr_node, "traffic-merge-type",
 				&curr_node_ptr->merge_type);
+			if (rc)
+				curr_node_ptr->merge_type = CAM_CPAS_TRAFFIC_MERGE_SUM;
 
 			for (j = 0; j < num_drv_ports; j++)
 				curr_node_ptr->axi_port_idx_arr[j] = -1;
@@ -718,6 +718,9 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 				if (soc_private->enable_cam_ddr_drv) {
 					rc = of_property_read_u32(curr_node, "drv-voting-index",
 						&curr_node_ptr->drv_voting_idx);
+					if (rc)
+						curr_node_ptr->merge_type = CAM_CPAS_PORT_HLOS_DRV;
+
 					if (curr_node_ptr->drv_voting_idx == CAM_CPAS_PORT_DRV_DYN)
 						curr_client->is_drv_dyn = true;
 
@@ -1000,6 +1003,9 @@ static int cam_cpas_parse_sys_cache_uids(
 		soc_private->llcc_info[i].scid = scid;
 		soc_private->llcc_info[i].size =
 			llcc_get_slice_size(soc_private->llcc_info[i].slic_desc);
+		soc_private->llcc_info[i].staling_distance = 0;
+		soc_private->llcc_info[i].mode = CAM_LLCC_STALING_MODE_CAPACITY;
+		soc_private->llcc_info[i].op_type = CAM_LLCC_NOTIFY_STALING_EVICT;
 		soc_private->num_caches++;
 
 		CAM_DBG(CAM_CPAS,
@@ -1342,12 +1348,10 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	count = of_property_count_strings(of_node, "client-names");
 	if (count <= 0) {
 		CAM_ERR(CAM_CPAS, "no client-names found");
-		count = 0;
 		return -EINVAL;
 	} else if (count > CAM_CPAS_MAX_CLIENTS) {
 		CAM_ERR(CAM_CPAS, "Number of clients %d greater than max %d",
 			count, CAM_CPAS_MAX_CLIENTS);
-		count = 0;
 		return -EINVAL;
 	}
 
@@ -1388,13 +1392,11 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 			goto cleanup_clients;
 		}
 
-		rc = of_property_read_u32(of_node,
+		if (of_property_read_u32(of_node,
 			"camnoc-axi-clk-bw-margin-perc",
-			&soc_private->camnoc_axi_clk_bw_margin);
+			&soc_private->camnoc_axi_clk_bw_margin)) {
 
-		if (rc) {
-			/* this is not fatal, overwrite rc */
-			rc = 0;
+			/* this is not fatal, overwrite to 0 */
 			soc_private->camnoc_axi_clk_bw_margin = 0;
 		}
 	}
@@ -1581,21 +1583,25 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	}
 
 	rc = of_property_read_u32(of_node, "enable-cam-drv", &cam_drv_en_mask_val);
-	if (cam_drv_en_mask_val & CAM_DDR_DRV)
-		soc_private->enable_cam_ddr_drv = true;
 
-	if (cam_drv_en_mask_val & CAM_CLK_DRV) {
-		if (!soc_private->enable_cam_ddr_drv) {
-			CAM_ERR(CAM_CPAS, "DDR DRV needs to be enabled for Clock DRV");
-			rc = -EPERM;
-			goto cleanup_clients;
-		}
+	if (!rc) {
+		if (cam_drv_en_mask_val & CAM_DDR_DRV)
+			soc_private->enable_cam_ddr_drv = true;
 
-		soc_private->enable_cam_clk_drv = true;
-		rc = cam_soc_util_cesta_populate_crm_device();
-		if (rc) {
-			CAM_ERR(CAM_CPAS, "Failed to populate camera cesta crm device rc: %d", rc);
-			goto cleanup_clients;
+		if (cam_drv_en_mask_val & CAM_CLK_DRV) {
+			if (!soc_private->enable_cam_ddr_drv) {
+				CAM_ERR(CAM_CPAS, "DDR DRV needs to be enabled for Clock DRV");
+				rc = -EPERM;
+				goto cleanup_clients;
+			}
+
+			soc_private->enable_cam_clk_drv = true;
+			rc = cam_soc_util_cesta_populate_crm_device();
+			if (rc) {
+				CAM_ERR(CAM_CPAS, "Failed to populate cam cesta crm device rc %d",
+					rc);
+				goto cleanup_clients;
+			}
 		}
 	}
 

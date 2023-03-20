@@ -1360,9 +1360,11 @@ static int cam_ife_csid_ver1_tpg_stop(struct cam_ife_csid_ver1_hw   *csid_hw)
 		csid_hw->hw_intf->hw_idx);
 
 	/* Disable the IFE force clock on for dual isp case */
-	if (csid_hw->tpg_cfg.usage_type)
+	if (csid_hw->tpg_cfg.usage_type) {
 		rc = cam_ife_csid_disable_ife_force_clock_on(soc_info,
 			csid_reg->tpg_reg->cpas_ife_reg_offset);
+		CAM_DBG(CAM_ISP, "Dual isp case: Disable IFE force clk. rc %d", rc);
+	}
 
 	/*stop the TPG */
 	cam_io_w_mb(0,  soc_info->reg_map[0].mem_base +
@@ -1637,10 +1639,6 @@ static int cam_ife_csid_ver1_in_port_validate(
 	struct cam_ife_csid_ver1_hw     *csid_hw)
 {
 	int rc = 0;
-	struct cam_ife_csid_ver1_reg_info *csid_reg;
-
-	csid_reg = (struct cam_ife_csid_ver1_reg_info *)
-			csid_hw->core_info->csid_reg;
 
 	/* check in port args */
 	rc  = cam_ife_csid_check_in_port_args(reserve,
@@ -1764,9 +1762,9 @@ int cam_ife_csid_ver1_reserve(void *hw_priv,
 	csid_hw->event_cb = reserve->event_cb;
 	csid_hw->token = reserve->cb_priv;
 
-	CAM_DBG(CAM_ISP, "CSID %d Resource[id:%d name:%s] state %d cid %d",
+	CAM_DBG(CAM_ISP, "CSID %d Resource[id:%d name:%s] state %d cid %d rc %d",
 		csid_hw->hw_intf->hw_idx, reserve->res_id,
-		res->res_name, res->res_state, cid);
+		res->res_name, res->res_state, cid, rc);
 
 	return 0;
 }
@@ -2643,9 +2641,9 @@ static int cam_ife_csid_ver1_enable_hw(struct cam_ife_csid_ver1_hw *csid_hw)
 		soc_info->src_clk_idx, &clk_lvl);
 
 	CAM_DBG(CAM_ISP,
-		"CSID[%d] clk lvl %u received clk_rate %u applied clk_rate %lu",
+		"CSID[%d] clk lvl %u received clk_rate %u applied clk_rate %lu rc %d",
 		csid_hw->hw_intf->hw_idx, clk_lvl, csid_hw->clk_rate,
-		soc_info->applied_src_clk_rates.sw_client);
+		soc_info->applied_src_clk_rates.sw_client, rc);
 
 	rc = cam_ife_csid_enable_soc_resources(soc_info, clk_lvl);
 
@@ -4525,8 +4523,8 @@ static irqreturn_t cam_ife_csid_irq(int irq_num, void *data)
 		&csid_hw->free_payload_list);
 
 	if (!evt_payload) {
-		CAM_ERR_RATE_LIMIT(CAM_ISP, "CSID[%u], no free tasklet",
-			csid_hw->hw_intf->hw_idx);
+		CAM_ERR_RATE_LIMIT(CAM_ISP, "CSID[%u], no free tasklet rc %d",
+			csid_hw->hw_intf->hw_idx, rc);
 		return IRQ_HANDLED;
 	}
 

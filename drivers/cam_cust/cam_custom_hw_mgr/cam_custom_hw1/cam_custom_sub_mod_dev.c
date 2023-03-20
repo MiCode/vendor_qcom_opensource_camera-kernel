@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -30,12 +31,11 @@ int cam_custom_hw_sub_mod_init(struct cam_hw_intf **custom_hw, uint32_t hw_idx)
 
 	if (cam_custom_hw_sub_mod_list[hw_idx]) {
 		*custom_hw = cam_custom_hw_sub_mod_list[hw_idx];
-		rc = 0;
 	} else {
 		*custom_hw = NULL;
 		rc = -ENODEV;
 	}
-	return 0;
+	return rc;
 }
 
 static int cam_custom_hw_sub_mod_component_bind(struct device *dev,

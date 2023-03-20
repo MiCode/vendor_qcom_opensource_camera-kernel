@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_COMMON_UTIL_H_
@@ -329,13 +329,15 @@ int cam_common_modify_timer(struct timer_list *timer, int32_t timeout_val);
  *
  * @brief                  Detect if there is any scheduling delay
  *
- * @token:                 String identifier to print workq name or tasklet
+ * @wq_name:               workq name
+ * @state:                 either schedule or execution
+ * @cb:                    callback scheduled or executed
  * @scheduled_time:        Time when workq or tasklet was scheduled
  * @threshold:             Threshold time
  *
  */
-void cam_common_util_thread_switch_delay_detect(const char *token,
-	ktime_t scheduled_time, uint32_t threshold);
+void cam_common_util_thread_switch_delay_detect(char *wq_name, const char *state,
+	void *cb, ktime_t scheduled_time, uint32_t threshold);
 
 /**
  * cam_common_register_mini_dump_cb()

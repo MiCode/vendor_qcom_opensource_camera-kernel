@@ -458,7 +458,7 @@ static enum cam_vfe_bus_ver3_vfe_out_type
 			bus_priv->common_data.core_index, res_type);
 		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
 		*index = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
-		return CAM_VFE_BUS_VER3_VFE_OUT_MAX;
+		return vfe_out_type;
 	}
 	*index = bus_priv->vfe_out_map_outtype[vfe_out_type];
 
@@ -1797,7 +1797,6 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	int                                     rc = -ENODEV;
 	int                                     i;
 	enum cam_vfe_bus_ver3_vfe_out_type      vfe_out_res_id;
-	uint32_t                                format;
 	struct cam_vfe_bus_ver3_priv           *ver3_bus_priv = bus_priv;
 	struct cam_vfe_acquire_args            *acq_args = acquire_args;
 	struct cam_vfe_hw_vfe_out_acquire_args *out_acquire_args;
@@ -1813,7 +1812,6 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	}
 
 	out_acquire_args = &acq_args->vfe_out;
-	format = out_acquire_args->out_port_info->format;
 
 	CAM_DBG(CAM_ISP, "VFE:%u Acquire out_type:0x%X",
 		ver3_bus_priv->common_data.core_index,
@@ -1882,7 +1880,7 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 					mode);
 				mutex_unlock(
 					&rsrc_data->common_data->bus_mutex);
-				return -EINVAL;
+				return rc;
 			}
 		}
 		rsrc_data->common_data->num_sec_out++;
@@ -3143,16 +3141,16 @@ static int cam_vfe_bus_ver3_config_ubwc_regs(
 static int cam_vfe_bus_ver3_config_wm(void *priv, void *cmd_args,
 	uint32_t arg_size)
 {
-	struct cam_vfe_bus_ver3_priv *bus_priv;
 	struct cam_isp_hw_get_cmd_update *update_buf;
+	struct cam_vfe_bus_ver3_priv *bus_priv;
 	struct cam_vfe_bus_ver3_vfe_out_data *vfe_out_data = NULL;
 	struct cam_vfe_bus_ver3_wm_resource_data *wm_data = NULL;
 	struct cam_vfe_bus_ver3_reg_offset_ubwc_client *ubwc_regs;
 	uint32_t i, val, iova_addr, iova_offset, stride;
 	dma_addr_t iova;
 
-	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
+	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_buf->res->res_priv;
@@ -3241,12 +3239,11 @@ static int cam_vfe_bus_ver3_config_wm(void *priv, void *cmd_args,
 static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 	uint32_t arg_size)
 {
-	struct cam_vfe_bus_ver3_priv             *bus_priv;
 	struct cam_isp_hw_get_cmd_update         *update_buf;
+	struct cam_vfe_bus_ver3_priv             *bus_priv;
 	struct cam_buf_io_cfg                    *io_cfg;
 	struct cam_vfe_bus_ver3_vfe_out_data     *vfe_out_data = NULL;
 	struct cam_vfe_bus_ver3_wm_resource_data *wm_data = NULL;
-	struct cam_vfe_bus_ver3_reg_offset_ubwc_client *ubwc_client = NULL;
 	struct cam_cdm_utils_ops                       *cdm_util_ops;
 	uint32_t *reg_val_pair;
 	uint32_t num_regval_pairs = 0;
@@ -3255,8 +3252,8 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 	uint32_t iova_addr, iova_offset, image_buf_offset = 0, stride, slice_h;
 	dma_addr_t iova;
 
-	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
+	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_buf->res->res_priv;
@@ -3297,7 +3294,6 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 		}
 
 		wm_data = vfe_out_data->wm_res[i].res_priv;
-		ubwc_client = wm_data->hw_regs->ubwc_regs;
 
 		/* Disable frame header in case it was previously enabled */
 		if ((wm_data->en_cfg) & (1 << 2))
@@ -3372,6 +3368,12 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 				bus_priv->common_data.core_index, wm_data->index,
 				reg_val_pair[j-1]);
 		}
+
+		val = wm_data->pack_fmt;
+		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			wm_data->hw_regs->packer_cfg, val);
+		CAM_DBG(CAM_ISP, "VFE:%u WM:%d image pack_fmt %d",
+			bus_priv->common_data.core_index, wm_data->index, reg_val_pair[j-1]);
 
 		if (wm_data->en_ubwc) {
 			if (!wm_data->hw_regs->ubwc_regs) {
@@ -3507,8 +3509,8 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 	uint32_t arg_size)
 {
-	struct cam_vfe_bus_ver3_priv             *bus_priv;
 	struct cam_isp_hw_get_cmd_update         *update_hfr;
+	struct cam_vfe_bus_ver3_priv             *bus_priv;
 	struct cam_vfe_bus_ver3_vfe_out_data     *vfe_out_data = NULL;
 	struct cam_vfe_bus_ver3_wm_resource_data *wm_data = NULL;
 	struct cam_isp_port_hfr_config           *hfr_cfg = NULL;
@@ -3517,8 +3519,8 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 	uint32_t num_regval_pairs = 0;
 	uint32_t  i, j, size = 0;
 
-	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 	update_hfr =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
+	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_hfr->res->res_priv;
@@ -3541,27 +3543,31 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 		}
 
 		wm_data = vfe_out_data->wm_res[i].res_priv;
-		if ((wm_data->framedrop_pattern !=
-			hfr_cfg->framedrop_pattern) ||
-			!wm_data->hfr_cfg_done) {
-			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-				wm_data->hw_regs->framedrop_pattern,
-				hfr_cfg->framedrop_pattern);
-			wm_data->framedrop_pattern = hfr_cfg->framedrop_pattern;
-			CAM_DBG(CAM_ISP, "VFE:%u WM:%d framedrop pattern 0x%X",
-				bus_priv->common_data.core_index, wm_data->index,
-				wm_data->framedrop_pattern);
-		}
 
-		if (wm_data->framedrop_period != hfr_cfg->framedrop_period ||
-			!wm_data->hfr_cfg_done) {
-			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-				wm_data->hw_regs->framedrop_period,
-				hfr_cfg->framedrop_period);
-			wm_data->framedrop_period = hfr_cfg->framedrop_period;
-			CAM_DBG(CAM_ISP, "VFE:%u WM:%d framedrop period 0x%X",
-				bus_priv->common_data.core_index, wm_data->index,
-				wm_data->framedrop_period);
+		/* Frame drop config is only applicable to full IFE */
+		if (!bus_priv->common_data.is_lite) {
+			if ((wm_data->framedrop_pattern !=
+				hfr_cfg->framedrop_pattern) ||
+				!wm_data->hfr_cfg_done) {
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					wm_data->hw_regs->framedrop_pattern,
+					hfr_cfg->framedrop_pattern);
+				wm_data->framedrop_pattern = hfr_cfg->framedrop_pattern;
+				CAM_DBG(CAM_ISP, "VFE:%u WM:%d framedrop pattern 0x%X",
+					bus_priv->common_data.core_index, wm_data->index,
+					wm_data->framedrop_pattern);
+			}
+
+			if (wm_data->framedrop_period != hfr_cfg->framedrop_period ||
+				!wm_data->hfr_cfg_done) {
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					wm_data->hw_regs->framedrop_period,
+					hfr_cfg->framedrop_period);
+				wm_data->framedrop_period = hfr_cfg->framedrop_period;
+				CAM_DBG(CAM_ISP, "VFE:%u WM:%d framedrop period 0x%X",
+					bus_priv->common_data.core_index, wm_data->index,
+					wm_data->framedrop_period);
+			}
 		}
 
 		if (wm_data->irq_subsample_period != hfr_cfg->subsample_period
@@ -3848,10 +3854,23 @@ static int cam_vfe_bus_ver3_update_wm_config(
 		else
 			wm_data->height = wm_config->height;
 
+		/*
+		 * For RAW10/RAW12/RAW14 sensor mode seamless switch case,
+		 * the format may be changed on RDIs, so we update RDIs WM data.
+		 */
+		if (wm_config->packer_format &&
+			(wm_data->format != wm_config->packer_format)) {
+			wm_data->format = wm_config->packer_format;
+
+			if ((vfe_out_data->out_type >= CAM_VFE_BUS_VER3_VFE_OUT_RDI0) &&
+				(vfe_out_data->out_type <= CAM_VFE_BUS_VER3_VFE_OUT_RDI3))
+				cam_vfe_bus_ver3_config_rdi_wm(wm_data);
+		}
+
 		CAM_DBG(CAM_ISP,
-			"VFE:%u WM:%d en_cfg:0x%X height:%d width:%d",
+			"VFE:%u WM:%d en_cfg:0x%X height:%d width:%d stride:%d pack_fmt:%d",
 			vfe_out_data->common_data->core_index, wm_data->index, wm_data->en_cfg,
-			wm_data->height, wm_data->width);
+			wm_data->height, wm_data->width, wm_data->stride, wm_data->pack_fmt);
 	}
 
 	return 0;
@@ -3860,7 +3879,6 @@ static int cam_vfe_bus_ver3_update_wm_config(
 static int cam_vfe_bus_update_bw_limiter(
 	void *priv, void *cmd_args, uint32_t arg_size)
 {
-	struct cam_vfe_bus_ver3_priv             *bus_priv;
 	struct cam_isp_hw_get_cmd_update         *wm_config_update;
 	struct cam_vfe_bus_ver3_vfe_out_data     *vfe_out_data = NULL;
 	struct cam_cdm_utils_ops                 *cdm_util_ops;
@@ -3871,7 +3889,6 @@ static int cam_vfe_bus_update_bw_limiter(
 	uint32_t                                  i, j, size = 0;
 	bool                                      limiter_enabled = false;
 
-	bus_priv         = (struct cam_vfe_bus_ver3_priv  *) priv;
 	wm_config_update = (struct cam_isp_hw_get_cmd_update *) cmd_args;
 	wm_bw_limit_cfg  = (struct cam_isp_wm_bw_limiter_config  *)
 			wm_config_update->data;

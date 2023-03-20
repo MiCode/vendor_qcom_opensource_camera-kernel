@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -36,7 +37,7 @@ static void cam_virtual_cdm_work(struct work_struct *work)
 		core = (struct cam_cdm *)cdm_hw->core_info;
 
 		cam_common_util_thread_switch_delay_detect(
-			"Virtual CDM workq schedule",
+			"virtual_cdm_workq", "schedule", cam_virtual_cdm_work,
 			payload->workq_scheduled_ts,
 			CAM_WORKQ_SCHEDULE_TIME_THRESHOLD);
 

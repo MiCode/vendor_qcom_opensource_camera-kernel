@@ -808,8 +808,6 @@ static int cam_ife_hw_mgr_check_and_notify_overflow(
 
 	for (i = 0; i < hw_mgr_ctx->num_base; i++) {
 
-		res_id = -1;
-
 		if (hw_mgr_ctx->base[i].hw_type == CAM_ISP_HW_TYPE_VFE) {
 			if (hw_mgr_ctx->base[i].idx != evt->hw_idx)
 				continue;
@@ -1131,7 +1129,7 @@ static void cam_ife_hw_mgr_deinit_hw(
 {
 	struct cam_isp_hw_mgr_res *hw_mgr_res;
 	struct cam_ife_hw_mgr          *hw_mgr;
-	int i = 0, j;
+	int i = 0, j, rc;
 
 	if (!ctx->flags.init_done) {
 		CAM_WARN(CAM_ISP, "ctx is not in init state, ctx_idx: %u", ctx->ctx_index);
@@ -1186,8 +1184,16 @@ static void cam_ife_hw_mgr_deinit_hw(
 	 * for a particular exposure. Check if any cache needs to be de-activated
 	 */
 	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
-		if (ctx->flags.sys_cache_usage[i])
+		if (ctx->flags.sys_cache_usage[i]) {
+			if (cam_cpas_is_notif_staling_supported() &&
+				hw_mgr->sys_cache_info[i].llcc_staling_support) {
+				rc = cam_cpas_notif_increment_staling_counter(i);
+				if (rc)
+					CAM_ERR(CAM_ISP,
+						"llcc cache notif increment staling failed %d", i);
+			}
 			cam_cpas_deactivate_llcc(i);
+		}
 		ctx->flags.sys_cache_usage[i] = false;
 	}
 
@@ -1550,7 +1556,7 @@ static void cam_ife_hw_mgr_print_acquire_info(
 		len += scnprintf(log_info + len, (128 - len), " DSP: Y");
 
 	if (hw_mgr_ctx->flags.is_offline)
-		len += scnprintf(log_info + len, (128 - len), " OFFLINE: Y");
+		scnprintf(log_info + len, (128 - len), " OFFLINE: Y");
 
 	CAM_GET_TIMESTAMP(hw_mgr_ctx->ts);
 	CAM_CONVERT_TIMESTAMP_FORMAT(hw_mgr_ctx->ts, hrs, min, sec, ms);
@@ -1933,7 +1939,6 @@ static int cam_ife_mgr_process_base_info(
 	struct cam_isp_hw_mgr_res        *hw_mgr_res;
 	struct cam_isp_resource_node     *res = NULL;
 	uint32_t i;
-	struct cam_ife_csid_hw_caps      *csid_caps = NULL;
 	struct cam_ife_hw_mgr            *hw_mgr;
 	bool   hw_idx_map[CAM_IFE_CSID_HW_NUM_MAX] = {0};
 
@@ -1977,8 +1982,6 @@ static int cam_ife_mgr_process_base_info(
 
 			if (hw_idx_map[res->hw_intf->hw_idx])
 				continue;
-
-			csid_caps = &hw_mgr->csid_hw_caps[res->hw_intf->hw_idx];
 
 			cam_ife_mgr_add_base_info(ctx, i,
 				res->hw_intf->hw_idx,
@@ -3674,14 +3677,11 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 {
 	int rc = 0, i;
 	struct cam_isp_out_port_generic_info     *out_port = NULL;
-	struct cam_ife_hw_mgr                    *ife_hw_mgr;
 	struct cam_isp_hw_mgr_res                *csid_res;
 	struct cam_hw_intf                       *hw_intf;
 	struct cam_csid_hw_reserve_resource_args  csid_acquire = {0};
 	enum cam_ife_pix_path_res_id              path_res_id;
 	struct cam_ife_csid_dual_sync_args        dual_sync_args = {0};
-
-	ife_hw_mgr = ife_ctx->hw_mgr;
 
 	if (is_ipp)
 		path_res_id = CAM_IFE_PIX_PATH_RES_IPP;
@@ -3733,9 +3733,7 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 			csid_acquire.sync_mode = i == CAM_ISP_HW_SPLIT_LEFT ?
 				CAM_ISP_HW_SYNC_MASTER : CAM_ISP_HW_SYNC_SLAVE;
 
-		csid_acquire.event_cb = cam_ife_hw_mgr_event_handler;
 		csid_acquire.tasklet = ife_ctx->common.tasklet_info;
-		csid_acquire.cb_priv = ife_ctx;
 		csid_acquire.cdm_ops = ife_ctx->cdm_ops;
 
 		rc = cam_ife_hw_mgr_acquire_csid_hw(ife_ctx,
@@ -3850,12 +3848,10 @@ static int cam_ife_hw_mgr_acquire_csid_rdi_util(
 	uint32_t                              path_res_id,
 	struct cam_isp_out_port_generic_info *out_port)
 {
-	struct cam_ife_hw_mgr                 *ife_hw_mgr;
 	struct cam_isp_hw_mgr_res             *csid_res;
 	struct cam_csid_hw_reserve_resource_args  csid_acquire;
 	int                                       rc  = 0;
 
-	ife_hw_mgr = ife_ctx->hw_mgr;
 	rc = cam_ife_hw_mgr_get_res(&ife_ctx->free_res_list,
 		&csid_res);
 	if (rc) {
@@ -4246,8 +4242,8 @@ static int cam_ife_mgr_check_and_update_fe(
 			ife_ctx, acquire_hw_info, acquire_info_size);
 		break;
 	default:
-		CAM_ERR(CAM_ISP, "Invalid ver of common info from user, ctx_idx: %u",
-			ife_ctx->ctx_index);
+		CAM_ERR(CAM_ISP, "Invalid ver of user common info: ctx_idx %u minor %u major %u",
+			ife_ctx->ctx_index, minor_ver, major_ver);
 		return -EINVAL;
 	}
 
@@ -4549,9 +4545,6 @@ static int cam_ife_hw_mgr_acquire_offline_res_csid(
 	struct cam_csid_hw_reserve_resource_args    csid_acquire;
 	struct cam_isp_hw_mgr_res                  *sfe_bus_rd_res;
 	struct cam_isp_hw_mgr_res                  *csid_res;
-	struct cam_ife_hw_mgr                      *ife_hw_mgr;
-
-	ife_hw_mgr = ife_ctx->hw_mgr;
 
 	sfe_bus_rd_res = list_first_entry(&ife_ctx->res_list_ife_in_rd,
 		struct cam_isp_hw_mgr_res, list);
@@ -4792,10 +4785,8 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 	uint32_t *acquired_rdi_res)
 {
 	int rc                                    = -1;
-	int is_dual_isp                           = 0;
 	bool crop_enable                          = true;
 
-	is_dual_isp = in_port->usage_type;
 	ife_ctx->flags.dsp_enabled = (bool)in_port->dsp_mode;
 	ife_ctx->flags.is_dual = (bool)in_port->usage_type;
 
@@ -4993,7 +4984,6 @@ void cam_ife_cam_cdm_callback(uint32_t handle, void *userdata,
 {
 	struct cam_isp_prepare_hw_update_data   *hw_update_data = NULL;
 	struct cam_ife_hw_mgr_ctx               *ctx = NULL;
-	struct cam_hw_dump_pf_args              *pf_args = NULL;
 	uint64_t                                 req_id;
 
 	if (!userdata) {
@@ -5027,7 +5017,6 @@ void cam_ife_cam_cdm_callback(uint32_t handle, void *userdata,
 			 handle, userdata, status, req_id, ctx->ctx_index,
 			 ctx->cdm_userdata.request_id);
 	} else if (status == CAM_CDM_CB_STATUS_PAGEFAULT) {
-		pf_args = (struct cam_hw_dump_pf_args *)cookie;
 		if (ctx->common.sec_pf_evt_cb)
 			ctx->common.sec_pf_evt_cb(ctx->common.cb_priv, cookie);
 	} else {
@@ -5280,7 +5269,8 @@ static int cam_ife_mgr_acquire_get_unified_structure(
 			acquire_hw_info, offset, input_size, in_port);
 		break;
 	default:
-		CAM_ERR(CAM_ISP, "Invalid ver of i/p port info from user");
+		CAM_ERR(CAM_ISP, "Invalid ver of i/p port info from user. minor %u, major %u",
+			minor_ver, major_ver);
 		return -EINVAL;
 	}
 
@@ -7518,7 +7508,6 @@ start_only:
 		CAM_DBG(CAM_ISP, "START SFE OUT ... in ctx id:%u",
 			ctx->ctx_index);
 		for (i = 0; i < max_sfe_out_res; i++) {
-			hw_mgr_res = &ctx->res_list_sfe_out[i];
 			rc = cam_ife_hw_mgr_start_hw_res(
 				&ctx->res_list_sfe_out[i], ctx);
 			if (rc) {
@@ -8083,9 +8072,8 @@ static int cam_isp_blob_ubwc_update_v2(
 			kmd_buf_info->used_bytes/4 +
 			total_used_bytes/4;
 
-		rc = cam_isp_get_generic_ubwc_data_v2(ubwc_plane_cfg,
+		(void) cam_isp_get_generic_ubwc_data_v2(ubwc_plane_cfg,
 			ubwc_config->api_version, &generic_ubwc_cfg);
-
 
 		rc = cam_isp_add_cmd_buf_update(
 			hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
@@ -8172,11 +8160,9 @@ static int cam_isp_blob_ife_scratch_buf_update(
 	struct cam_isp_sfe_scratch_buf_info   *buffer_info;
 	struct cam_ife_sfe_scratch_buf_info   *port_info;
 	struct cam_isp_hw_mgr_res             *ife_out_res;
-	struct cam_ife_hw_mgr                 *ife_hw_mgr;
 	struct cam_ife_scratch_buf_cfg        *ife_scratch_config;
 
 	ctx = prepare->ctxt_to_hw_map;
-	ife_hw_mgr = ctx->hw_mgr;
 	ife_scratch_config = ctx->scratch_buf_info.ife_scratch_config;
 
 	for (i = 0; i < scratch_config->num_ports; i++) {
@@ -8225,10 +8211,8 @@ static int cam_isp_blob_sfe_scratch_buf_update(
 	struct cam_isp_sfe_scratch_buf_info   *buffer_info;
 	struct cam_ife_sfe_scratch_buf_info   *port_info;
 	struct cam_isp_hw_mgr_res             *sfe_out_res;
-	struct cam_ife_hw_mgr                 *ife_hw_mgr;
 
 	ctx = prepare->ctxt_to_hw_map;
-	ife_hw_mgr = ctx->hw_mgr;
 
 	for (i = 0; i < scratch_config->num_ports; i++) {
 		buffer_info = &scratch_config->port_scratch_cfg[i];
@@ -8302,6 +8286,7 @@ static uint32_t cam_ife_hw_mgr_get_sfe_sys_cache_id(uint32_t exp_type,
 	unsigned long          supported_sc_idx;
 	struct                 cam_ife_hw_mgr *hw_mgr;
 	bool                   use_large;
+	int                    rc;
 
 	hw_mgr = ctx->hw_mgr;
 	supported_sc_idx = hw_mgr->sfe_cache_info[hw_idx].supported_scid_idx;
@@ -8360,6 +8345,13 @@ static uint32_t cam_ife_hw_mgr_get_sfe_sys_cache_id(uint32_t exp_type,
 			cam_cpas_activate_llcc(scid_idx);
 
 		hw_mgr->sfe_cache_info[hw_idx].activated[exp_type] = true;
+		if (cam_cpas_is_notif_staling_supported()
+			&& hw_mgr->sys_cache_info[scid_idx].llcc_staling_support) {
+			rc = cam_cpas_notif_increment_staling_counter(scid_idx);
+			if (rc)
+				CAM_ERR(CAM_ISP,
+					"llcc cache notif increment staling failed %d", scid_idx);
+		}
 
 		CAM_DBG(CAM_ISP, "SFE %u Exp type %u SCID index %d use_large %d ctx_idx: %u",
 			hw_idx, exp_type, scid_idx, use_large, ctx->ctx_index);
@@ -8433,7 +8425,6 @@ static int cam_isp_blob_sfe_exp_order_update(
 		wm_rm_cache_cfg.use_cache = false;
 		send_config = false;
 		exp_type = CAM_ISP_EXPOSURE_MAX;
-		sc_idx = CAM_LLCC_MAX;
 
 		if (i == exp_order_max)
 			exp_type = CAM_ISP_LAST_EXPOSURE;
@@ -8591,10 +8582,6 @@ static int cam_isp_blob_sfe_update_fetch_core_cfg(
 
 		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
 			return 0;
-
-		cpu_addr = kmd_buf_info->cpu_addr +
-			(kmd_buf_info->used_bytes / 4) +
-			(total_used_bytes / 4);
 
 		res_id = hw_mgr_res->res_id;
 
@@ -8755,7 +8742,6 @@ static int cam_isp_blob_csid_discard_init_frame_update(
 	struct cam_hw_prepare_update_args      *prepare)
 {
 	struct cam_ife_hw_mgr_ctx                   *ctx = NULL;
-	struct cam_ife_hw_mgr                       *ife_hw_mgr;
 	struct cam_hw_intf                          *hw_intf;
 	struct cam_isp_hw_mgr_res                   *hw_mgr_res;
 	struct cam_isp_resource_node                *res;
@@ -8763,7 +8749,6 @@ static int cam_isp_blob_csid_discard_init_frame_update(
 	int rc = -EINVAL, i;
 
 	ctx = prepare->ctxt_to_hw_map;
-	ife_hw_mgr = ctx->hw_mgr;
 	discard_args.num_frames = discard_config->num_frames;
 
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
@@ -8875,7 +8860,6 @@ static int cam_isp_blob_csid_clock_update(
 
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
 		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			clk_rate = 0;
 			if (!hw_mgr_res->hw_res[i])
 				continue;
 			clk_rate = clock_config->csid_clock;
@@ -8963,7 +8947,6 @@ static int cam_isp_blob_core_cfg_update(
 	struct cam_ife_hw_mgr_ctx             *ctx = NULL;
 	struct cam_isp_hw_mgr_res             *hw_mgr_res;
 	struct cam_hw_intf                    *hw_intf;
-	uint64_t                               clk_rate = 0;
 	int                                    rc = 0, i;
 	struct cam_vfe_core_config_args        vfe_core_config;
 
@@ -8971,7 +8954,6 @@ static int cam_isp_blob_core_cfg_update(
 
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_src, list) {
 		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			clk_rate = 0;
 			if (!hw_mgr_res->hw_res[i])
 				continue;
 
@@ -14987,7 +14969,7 @@ static ssize_t cam_ife_hw_mgr_perfcnt_read(
 			"To choose counter write to same file - \"<hw>_<counter_index>_<reg_val>\"\nEx. \"ife_1_6619140\"\n\n");
 	}
 
-	len += scnprintf(display_string + len, (256 - len),
+	scnprintf(display_string + len, (256 - len),
 		"*****************************\n");
 
 	return simple_read_from_buffer(ubuf, size, loff_t, display_string,
@@ -15067,7 +15049,7 @@ static int cam_ife_hw_mgr_debug_register(void)
 		&g_ife_hw_mgr.debug_cfg.disable_ife_mmu_prefetch);
 	debugfs_create_file("sfe_cache_debug", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_sfe_cache_debug);
-	dbgfileptr = debugfs_create_file("test_irq_line", 0644,
+	debugfs_create_file("test_irq_line", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_isp_test_irq_line);
 	debugfs_create_file("isp_perf_counters", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_hw_mgr_perfcnter_debug);
@@ -15236,7 +15218,7 @@ static void cam_ife_hw_mgr_attach_sfe_sys_cache_id(
 	}
 }
 
-static void cam_ife_mgr_populate_sys_cache_id(void)
+static int cam_ife_mgr_populate_sys_cache_id(void)
 {
 	int                             i, scid, j;
 	uint32_t                        hw_id = 0;
@@ -15244,6 +15226,7 @@ static void cam_ife_mgr_populate_sys_cache_id(void)
 	uint32_t                        num_large_scid = 0;
 	uint32_t                        num_sfe = 0;
 	bool                            shared;
+	int rc = 0;
 
 	/* Populate sys cache info */
 	g_ife_hw_mgr.num_caches_found = 0;
@@ -15257,7 +15240,7 @@ static void cam_ife_mgr_populate_sys_cache_id(void)
 	}
 
 	if (!num_sfe)
-		return;
+		return rc;
 
 	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
 		scid = cam_cpas_get_scid(i);
@@ -15300,12 +15283,39 @@ static void cam_ife_mgr_populate_sys_cache_id(void)
 			continue;
 		cam_ife_hw_mgr_attach_sfe_sys_cache_id(shared,
 			g_ife_hw_mgr.sys_cache_info[i].type, &hw_id, num_sfe);
+		g_ife_hw_mgr.sys_cache_info[i].llcc_staling_support = false;
+		rc = cam_cpas_configure_staling_llcc(i,
+				CAM_LLCC_STALING_MODE_NOTIFY,
+				CAM_LLCC_NOTIFY_STALING_EVICT,
+				1);
+		if ((num_large_scid == 1) && (num_large_scid < num_sfe) &&
+			(rc == -EOPNOTSUPP)) {
+			CAM_ERR(CAM_ISP,
+			"Fatal error llcc staling feature is not supported cache: %d", i);
+			rc = -EFAULT;
+		} else if (!rc && num_large_scid > 1) {
+			CAM_ERR(CAM_ISP,
+			"Fatal error llcc staling feature is supported more large cache %d", i);
+			rc = -EFAULT;
+		} else if (rc == -EOPNOTSUPP) {
+			CAM_ERR(CAM_ISP,
+			"llcc staling feature is not supported cache: %d", i);
+		} else if (rc) {
+			CAM_ERR(CAM_ISP,
+			"llcc staling feature enabling failing cache: %d", i);
+		} else {
+			CAM_INFO(CAM_ISP,
+			"llcc staling feature supported: %d rc = %d", i, rc);
+			g_ife_hw_mgr.sys_cache_info[i].llcc_staling_support = true;
+		}
 	}
 
 	CAM_DBG(CAM_ISP, "Num SCIDs Small:%u Large: %u", num_small_scid, num_large_scid);
 	for (i = 0; i < num_sfe; i++)
 		CAM_DBG(CAM_ISP, "SFE[%u] available SCIDs 0x%x", i,
 			g_ife_hw_mgr.sfe_cache_info[i].supported_scid_idx);
+	return rc;
+
 }
 
 int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
@@ -15558,9 +15568,12 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 		CAM_ERR(CAM_ISP, "Unable to create worker, ctx_idx: %u", ctx_pool->ctx_index);
 		goto end;
 	}
-
 	/* Populate sys cache info */
-	cam_ife_mgr_populate_sys_cache_id();
+	rc = cam_ife_mgr_populate_sys_cache_id();
+	if (rc == -EFAULT) {
+		CAM_ERR(CAM_ISP, "LLCC stall notif enable fault");
+		goto end;
+	}
 
 	/* fill return structure */
 	hw_mgr_intf->hw_mgr_priv = &g_ife_hw_mgr;

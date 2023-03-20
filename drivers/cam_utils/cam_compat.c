@@ -18,7 +18,7 @@
 #include "cam_eeprom_dev.h"
 #include "cam_eeprom_core.h"
 
-#if IS_ENABLED(CONFIG_USE_RPMH_DRV_API)
+#if IS_ENABLED(CONFIG_SPECTRA_USE_RPMH_DRV_API)
 #define CAM_RSC_DRV_IDENTIFIER "cam_rsc"
 
 const struct device *cam_cpas_get_rsc_dev_for_drv(uint32_t index)
@@ -648,7 +648,6 @@ void cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 	struct v4l2_subdev             *sd = spi_get_drvdata(sdev);
 	struct cam_eeprom_ctrl_t       *e_ctrl;
 	struct cam_eeprom_soc_private  *soc_private;
-	struct cam_hw_soc_info         *soc_info;
 
 	if (!sd) {
 		CAM_ERR(CAM_EEPROM, "Subdevice is NULL");
@@ -661,7 +660,6 @@ void cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 		return;
 	}
 
-	soc_info = &e_ctrl->soc_info;
 	mutex_lock(&(e_ctrl->eeprom_mutex));
 	cam_eeprom_shutdown(e_ctrl);
 	mutex_unlock(&(e_ctrl->eeprom_mutex));

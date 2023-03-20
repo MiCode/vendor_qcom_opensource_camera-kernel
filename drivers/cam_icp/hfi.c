@@ -123,8 +123,6 @@ void cam_hfi_mini_dump(int client_handle, struct hfi_mini_dump_info *dst)
 {
 	struct hfi_info *hfi;
 	struct hfi_mem_info *hfi_mem;
-	struct hfi_qtbl *qtbl;
-	struct hfi_q_hdr *q_hdr;
 	uint32_t *dwords;
 	int rc;
 
@@ -142,12 +140,9 @@ void cam_hfi_mini_dump(int client_handle, struct hfi_mini_dump_info *dst)
 		return;
 	}
 
-	qtbl = (struct hfi_qtbl *)hfi_mem->qtbl.kva;
-	q_hdr = &qtbl->q_hdr[Q_CMD];
 	dwords = (uint32_t *)hfi_mem->cmd_q.kva;
 	memcpy(dst->cmd_q, dwords, ICP_CMD_Q_SIZE_IN_BYTES);
 
-	q_hdr = &qtbl->q_hdr[Q_MSG];
 	dwords = (uint32_t *)hfi_mem->msg_q.kva;
 	memcpy(dst->msg_q, dwords, ICP_CMD_Q_SIZE_IN_BYTES);
 	dst->msg_q_state = hfi->msg_q_state;

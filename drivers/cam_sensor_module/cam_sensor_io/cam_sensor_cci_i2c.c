@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2018, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_cmn_header.h"
@@ -181,7 +181,12 @@ static int32_t cam_cci_i2c_compare(struct cam_sensor_cci_client *client,
 	reg_data = reg_data & 0xFFFF;
 	if (data == (reg_data & ~data_mask))
 		return I2C_COMPARE_MATCH;
-	return I2C_COMPARE_MISMATCH;
+	else {
+		CAM_WARN(CAM_SENSOR,
+			"mismatch: reg_data 0x%x: data: 0x%x, data_mask: 0x%x",
+			reg_data, data, data_mask);
+		return I2C_COMPARE_MISMATCH;
+	}
 }
 
 int32_t cam_cci_i2c_poll(struct cam_sensor_cci_client *client,

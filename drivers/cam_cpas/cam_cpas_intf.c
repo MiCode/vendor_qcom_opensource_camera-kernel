@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -21,6 +21,7 @@
 #include "cam_cpas_hw_intf.h"
 #include "cam_cpas_soc.h"
 #include "camera_main.h"
+#include <linux/soc/qcom/llcc-qcom.h>
 
 #define CAM_CPAS_DEV_NAME    "cam-cpas"
 #define CAM_CPAS_INTF_INITIALIZED() (g_cpas_intf && g_cpas_intf->probe_done)
@@ -121,11 +122,37 @@ const char *cam_cpas_axi_util_path_type_to_string(
 	case CAM_AXI_PATH_DATA_CRE_WR_OUT:
 		return "CRE_WR_OUT";
 
+	/* OFE Paths */
+	case CAM_AXI_PATH_DATA_OFE_RD_EXT:
+		return "OFE_RD_EXT";
+	case CAM_AXI_PATH_DATA_OFE_RD_INT_PDI:
+		return "OFE_RD_INT_PDI";
+	case CAM_AXI_PATH_DATA_OFE_RD_INT_HDR:
+		return "OFE_RD_INT_HDR";
+	case CAM_AXI_PATH_DATA_OFE_WR_VID:
+		return "OFE_WR_VID";
+	case CAM_AXI_PATH_DATA_OFE_WR_DISP:
+		return "OFE_WR_DISP";
+	case CAM_AXI_PATH_DATA_OFE_WR_IR:
+		return "OFE_WR_IR";
+	case CAM_AXI_PATH_DATA_OFE_WR_HDR_LTM:
+		return "OFE_WR_HDR_LTM";
+	case CAM_AXI_PATH_DATA_OFE_WR_DC4:
+		return "OFE_WR_DC4";
+	case CAM_AXI_PATH_DATA_OFE_WR_AI:
+		return "OFE_WR_AI";
+	case CAM_AXI_PATH_DATA_OFE_WR_PDI:
+		return "OFE_WR_PDI";
+	case CAM_AXI_PATH_DATA_OFE_WR_IDEALRAW:
+		return "OFE_WR_IDEALRAW";
+	case CAM_AXI_PATH_DATA_OFE_WR_STATS:
+		return "OFE_WR_STATS";
+
 	/* Common Paths */
 	case CAM_AXI_PATH_DATA_ALL:
 		return "DATA_ALL";
 	default:
-		return "IFE_PATH_INVALID";
+		return "CPAS_PATH_INVALID";
 	}
 }
 EXPORT_SYMBOL(cam_cpas_axi_util_path_type_to_string);
@@ -832,6 +859,89 @@ int cam_cpas_deactivate_llcc(
 	return rc;
 }
 EXPORT_SYMBOL(cam_cpas_deactivate_llcc);
+
+int cam_cpas_configure_staling_llcc(
+	enum cam_sys_cache_config_types type,
+	enum cam_sys_cache_llcc_staling_mode mode_param,
+	enum cam_sys_cache_llcc_staling_op_type operation_type,
+	uint32_t staling_distance)
+{
+	int rc;
+	struct cam_hw_info *cpas_hw = NULL;
+	struct cam_cpas_private_soc *soc_private = NULL;
+	uint32_t num_caches = 0;
+	struct cam_sys_cache_local_info sys_cache_info;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+	cpas_hw = (struct cam_hw_info *) g_cpas_intf->hw_intf->hw_priv;
+	soc_private =
+		(struct cam_cpas_private_soc *)cpas_hw->soc_info.soc_private;
+	num_caches = soc_private->num_caches;
+	if (!cam_cpas_is_notif_staling_supported())
+		return -EOPNOTSUPP;
+
+	sys_cache_info.mode = mode_param;
+	sys_cache_info.op_type = operation_type;
+	sys_cache_info.staling_distance
+		= staling_distance;
+	sys_cache_info.type = type;
+
+	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
+		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
+			g_cpas_intf->hw_intf->hw_priv,
+			CAM_CPAS_HW_CMD_CONFIGURE_STALING_LLC, &sys_cache_info,
+			sizeof(struct cam_sys_cache_local_info));
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Failed in process_cmd, rc=%d", rc);
+	} else {
+		CAM_ERR(CAM_CPAS, "Invalid process_cmd ops");
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(cam_cpas_configure_staling_llcc);
+
+int cam_cpas_notif_increment_staling_counter(
+	enum cam_sys_cache_config_types type)
+{
+	int rc;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+	if (!cam_cpas_is_notif_staling_supported())
+		return -EOPNOTSUPP;
+
+	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
+		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
+			g_cpas_intf->hw_intf->hw_priv,
+			CAM_CPAS_HW_CMD_NOTIF_STALL_INC_LLC, &type,
+			sizeof(type));
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Failed in process_cmd, rc=%d", rc);
+	} else {
+		CAM_ERR(CAM_CPAS, "Invalid process_cmd ops");
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(cam_cpas_notif_increment_staling_counter);
+
+bool cam_cpas_is_notif_staling_supported(void)
+{
+	#if IS_ENABLED(CONFIG_SPECTRA_LLCC_STALING)
+		return true;
+	#else
+		return false;
+	#endif
+}
+EXPORT_SYMBOL(cam_cpas_is_notif_staling_supported);
 
 bool cam_cpas_query_domain_id_security_support(void)
 {

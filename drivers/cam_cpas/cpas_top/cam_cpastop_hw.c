@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -677,7 +677,7 @@ static void cam_cpastop_work(struct work_struct *work)
 	}
 
 	cam_common_util_thread_switch_delay_detect(
-		"CPAS workq schedule",
+		"cam_cpas_workq", "schedule", cam_cpastop_work,
 		payload->workq_scheduled_ts,
 		CAM_WORKQ_SCHEDULE_TIME_THRESHOLD);
 
@@ -1148,7 +1148,7 @@ static int cam_cpastop_init_hw_version(struct cam_hw_info *cpas_hw,
 		}
 	}
 
-	return 0;
+	return rc;
 }
 
 static int cam_cpastop_setup_qos_settings(struct cam_hw_info *cpas_hw,

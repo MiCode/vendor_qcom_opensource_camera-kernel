@@ -57,7 +57,7 @@
 
 DECLARE_RWSEM(frame_in_process_sem);
 
-static struct cam_icp_hw_mgr icp_hw_mgr[CAM_ICP_SUBDEV_MAX];
+static struct cam_icp_hw_mgr *g_icp_hw_mgr[CAM_ICP_SUBDEV_MAX];
 
 static void cam_icp_mgr_process_dbg_buf(struct cam_icp_hw_mgr *hw_mgr);
 
@@ -1803,7 +1803,8 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 	if (!dbg_prop) {
 		CAM_ERR(CAM_ICP, "%s Allocate command prop failed",
 			ctx_data->ctx_id_string);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto end;
 	}
 
 	dbg_prop->size = size;
@@ -1822,7 +1823,8 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 	default:
 		CAM_ERR(CAM_ICP, "%s Invalid hw dev type: %u",
 			ctx_data->ctx_id_string, hw_dev_type);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto free_dbg_prop;
 	}
 
 	dbg_prop->prop_data[1] = hw_mgr->dev_pc_flag;
@@ -1830,6 +1832,7 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 
 	hfi_write_cmd(hw_mgr->hfi_handle, dbg_prop);
 
+free_dbg_prop:
 	kfree(dbg_prop);
 
 end:
@@ -2656,23 +2659,6 @@ static int cam_icp_mgr_process_msg_config_io(uint32_t *msg_ptr)
 		}
 		CAM_DBG(CAM_ICP, "%s: received BPS config io response",
 			ctx_data->ctx_id_string);
-	} else if (ioconfig_ack->opcode == HFI_OFE_CMD_OPCODE_CONFIG_IO) {
-		struct hfi_msg_ofe_config *ofe_config_ack = NULL;
-		ofe_config_ack =
-			(struct hfi_msg_ofe_config *)(ioconfig_ack->msg_data);
-		if (ofe_config_ack->rc) {
-			CAM_ERR(CAM_ICP, "rc : %u, opcode :%u",
-				ofe_config_ack->rc, ioconfig_ack->opcode);
-			return -EIO;
-		}
-		ctx_data = (struct cam_icp_hw_ctx_data *)
-			U64_TO_PTR(ioconfig_ack->user_data1);
-		if (!ctx_data) {
-			CAM_ERR(CAM_ICP, "wrong ctx data from OFE config io response");
-			return -EINVAL;
-		}
-		CAM_DBG(CAM_ICP, "%s: received OFE config io response",
-			ctx_data->ctx_id_string);
 	} else {
 		CAM_ERR(CAM_ICP, "Invalid OPCODE: %u", ioconfig_ack->opcode);
 		return -EINVAL;
@@ -2775,12 +2761,30 @@ static int cam_icp_mgr_process_ofe_indirect_ack_msg(uint32_t *msg_ptr)
 	int rc = 0;
 
 	switch (msg_ptr[ICP_PACKET_OPCODE]) {
-	case HFI_OFE_CMD_OPCODE_CONFIG_IO:
-		CAM_DBG(CAM_ICP, "received OFE_CONFIG_IO:");
-		rc = cam_icp_mgr_process_msg_config_io(msg_ptr);
-		if (rc)
-			return rc;
+	case HFI_OFE_CMD_OPCODE_CONFIG_IO: {
+		struct hfi_msg_dev_async_ack *ioconfig_ack =
+			(struct hfi_msg_dev_async_ack *)msg_ptr;
+		struct hfi_msg_ofe_config *ofe_config_ack =
+			(struct hfi_msg_ofe_config *)(ioconfig_ack->msg_data);
+		struct cam_icp_hw_ctx_data *ctx_data = NULL;
+
+		if (ofe_config_ack->rc) {
+			CAM_ERR(CAM_ICP, "rc : %u, error type: %u error: [%s] opcode :%u",
+				ofe_config_ack->rc, ioconfig_ack->err_type,
+				cam_icp_error_handle_id_to_type(ioconfig_ack->err_type),
+				ioconfig_ack->opcode);
+			return -EIO;
+		}
+		ctx_data = (struct cam_icp_hw_ctx_data *)
+			U64_TO_PTR(ioconfig_ack->user_data1);
+		if (!ctx_data) {
+			CAM_ERR(CAM_ICP, "wrong ctx data from OFE config io response");
+			return -EINVAL;
+		}
+		CAM_DBG(CAM_ICP, "%s: received OFE config io response",
+			ctx_data->ctx_id_string);
 		break;
+	}
 	case HFI_OFE_CMD_OPCODE_FRAME_PROCESS:
 		CAM_DBG(CAM_ICP, "received OFE_FRAME_PROCESS:");
 		rc = cam_icp_mgr_process_msg_frame_process(msg_ptr);
@@ -4409,7 +4413,7 @@ static unsigned long cam_icp_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
 	struct cam_icp_hw_mini_dump_info   *md;
 	struct cam_icp_hw_ctx_mini_dump    *ctx_md;
 	struct cam_icp_hw_ctx_data         *ctx;
-	struct cam_icp_hw_mgr              *hw_mgr;
+	struct cam_icp_hw_mgr              *hw_mgr = NULL;
 	struct cam_hw_mini_dump_args        hw_dump_args;
 	struct cam_icp_hw_dump_args         icp_dump_args;
 	struct cam_hw_intf                 *icp_dev_intf = NULL;
@@ -4430,9 +4434,14 @@ static unsigned long cam_icp_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
 		return -EINVAL;
 	}
 
+	hw_mgr = g_icp_hw_mgr[hw_mgr_idx];
+	if (!hw_mgr) {
+		CAM_ERR(CAM_ICP, "Uninitialized hw mgr for subdev: %u", hw_mgr_idx);
+		return -EINVAL;
+	}
+
 	md = (struct cam_icp_hw_mini_dump_info *)dst;
 	md->num_context = 0;
-	hw_mgr = &icp_hw_mgr[hw_mgr_idx];
 	cam_hfi_mini_dump(hw_mgr->hfi_handle, &md->hfi_info);
 	memcpy(md->hw_mgr_name, hw_mgr->hw_mgr_name, strlen(md->hw_mgr_name));
 	memcpy(&md->hfi_mem_info, &hw_mgr->hfi_mem,
@@ -4528,7 +4537,6 @@ static unsigned long cam_icp_hw_mgr_mini_dump_cb(void *dst, unsigned long len,
 
 		dumped_len += icp_dump_args.offset;
 		md->fw_img = (void *)icp_dump_args.cpu_addr;
-		remain_len = len - dumped_len;
 	}
 end:
 	return dumped_len;
@@ -4948,7 +4956,6 @@ static int cam_icp_mgr_enqueue_config(struct cam_icp_hw_mgr *hw_mgr,
 	uint64_t request_id = 0;
 	struct crm_workq_task *task;
 	struct hfi_cmd_work_data *task_data;
-	struct hfi_cmd_dev_async *hfi_cmd;
 	struct cam_hw_update_entry *hw_update_entries;
 	struct icp_frame_info *frame_info = NULL;
 
@@ -4966,7 +4973,6 @@ static int cam_icp_mgr_enqueue_config(struct cam_icp_hw_mgr *hw_mgr,
 
 	task_data = (struct hfi_cmd_work_data *)task->payload;
 	task_data->data = (void *)hw_update_entries->addr;
-	hfi_cmd = (struct hfi_cmd_dev_async *)hw_update_entries->addr;
 	task_data->request_id = request_id;
 	task_data->type = ICP_WORKQ_TASK_CMD_TYPE;
 	task->process_cb = cam_icp_mgr_process_cmd;
@@ -5339,7 +5345,6 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 {
 	int rc = 0;
 	int i;
-	int num_cmd_buf = 0;
 	dma_addr_t addr;
 	size_t len;
 	struct cam_cmd_buf_desc *cmd_desc = NULL;
@@ -5352,16 +5357,13 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 		return rc;
 
 	*fw_cmd_buf_iova_addr = 0;
-	for (i = 0; i < packet->num_cmd_buf; i++, num_cmd_buf++) {
+	for (i = 0; i < packet->num_cmd_buf; i++) {
 		if (cmd_desc[i].type == CAM_CMD_BUF_FW) {
 			rc = cam_mem_get_io_buf(cmd_desc[i].mem_handle,
 				hw_mgr->iommu_hdl, &addr, &len, NULL);
 			if (rc) {
 				CAM_ERR(CAM_ICP, "%s: get cmd buf failed %x",
 					ctx_data->ctx_id_string, hw_mgr->iommu_hdl);
-
-				if (num_cmd_buf > 0)
-					num_cmd_buf--;
 				return rc;
 			}
 			/* FW buffers are expected to be within 32-bit address range */
@@ -5385,9 +5387,6 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 				CAM_ERR(CAM_ICP, "%s: get cmd buf failed %x",
 					ctx_data->ctx_id_string, hw_mgr->iommu_hdl);
 				*fw_cmd_buf_iova_addr = 0;
-
-				if (num_cmd_buf > 0)
-					num_cmd_buf--;
 				return rc;
 			}
 			if ((len <= cmd_desc[i].offset) ||
@@ -6630,10 +6629,6 @@ static int cam_icp_mgr_create_handle(struct cam_icp_hw_mgr *hw_mgr,
 	int rc = 0;
 	uint32_t handle_type;
 
-	task = cam_req_mgr_workq_get_task(hw_mgr->cmd_work);
-	if (!task)
-		return -ENOMEM;
-
 	if (ctx_data->hw_dev_type == CAM_ICP_DEV_OFE) {
 		create_handle.pkt_type = HFI_CMD_OFE_CREATE_HANDLE;
 		switch (dev_type) {
@@ -6646,6 +6641,9 @@ static int cam_icp_mgr_create_handle(struct cam_icp_hw_mgr *hw_mgr,
 		case CAM_ICP_RES_TYPE_OFE_SEMI_RT:
 			handle_type = HFI_OFE_HANDLE_TYPE_OFE_SEMI_RT;
 			break;
+		default:
+			CAM_ERR(CAM_ICP, "Invalid OFE stream type: %u", dev_type);
+			return -EINVAL;
 		}
 	} else {
 		create_handle.pkt_type = HFI_CMD_IPEBPS_CREATE_HANDLE;
@@ -6668,10 +6666,17 @@ static int cam_icp_mgr_create_handle(struct cam_icp_hw_mgr *hw_mgr,
 		case CAM_ICP_RES_TYPE_BPS_SEMI_RT:
 			handle_type = HFI_IPEBPS_HANDLE_TYPE_BPS_SEMI_RT;
 			break;
+		default:
+			CAM_ERR(CAM_ICP, "Invalid IPE/BPS stream type: %u", dev_type);
+			return -EINVAL;
 		}
 	}
+	task = cam_req_mgr_workq_get_task(hw_mgr->cmd_work);
+	if (!task)
+		return -ENOMEM;
+
 	create_handle.size = sizeof(struct hfi_cmd_create_handle);
-	create_handle.handle_type = dev_type;
+	create_handle.handle_type = handle_type;
 	create_handle.user_data1 = PTR_TO_U64(ctx_data);
 	reinit_completion(&ctx_data->wait_complete);
 	task_data = (struct hfi_cmd_work_data *)task->payload;
@@ -7780,7 +7785,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	int *iommu_hdl, cam_icp_mini_dump_cb mini_dump_cb, int device_idx)
 {
 	int i, rc = 0;
-	struct cam_icp_hw_mgr  *hw_mgr;
+	struct cam_icp_hw_mgr  *hw_mgr = NULL;
 	struct cam_hw_mgr_intf *hw_mgr_intf;
 	uint32_t size = 0, cpas_cap_dev_cnt[CAM_ICP_HW_MAX];
 
@@ -7790,16 +7795,25 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 			of_node, hw_mgr_intf);
 		return -EINVAL;
 	}
+
+	if (g_icp_hw_mgr[device_idx]) {
+		CAM_ERR(CAM_ICP, "HW mgr for device idx: %u already initialized", device_idx);
+		return -EPERM;
+	}
+
 	memset(hw_mgr_intf, 0, sizeof(struct cam_hw_mgr_intf));
 
-	hw_mgr = &icp_hw_mgr[device_idx];
+	hw_mgr = kzalloc(sizeof(struct cam_icp_hw_mgr), GFP_KERNEL);
+	if (!hw_mgr)
+		return -ENOMEM;
+
 	hw_mgr->hw_mgr_id = device_idx;
 
 	rc = cam_icp_mgr_get_hw_mgr_name(device_idx, hw_mgr->hw_mgr_name);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "Fail to get hw mgr name rc: %d for icp dev[%u]",
 			rc, device_idx);
-		return rc;
+		goto free_hw_mgr;
 	}
 
 	CAM_DBG(CAM_ICP, "Initailize hw mgr[%u] with name: %s",
@@ -7900,6 +7914,8 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	if (rc)
 		goto icp_get_svs_clk_failed;
 
+	g_icp_hw_mgr[device_idx] = hw_mgr;
+
 	CAM_DBG(CAM_ICP, "Done hw mgr[%u] init: icp name:%s",
 		device_idx, hw_mgr->hw_mgr_name);
 
@@ -7927,16 +7943,23 @@ destroy_mutex:
 		if (cam_presil_mode_enabled())
 			kfree(hw_mgr->ctx_data[i].hfi_frame_process.hangdump_mem_regions);
 	}
+free_hw_mgr:
+	kfree(hw_mgr);
 
 	return rc;
 }
 
 void cam_icp_hw_mgr_deinit(int device_idx)
 {
-	struct cam_icp_hw_mgr *hw_mgr;
+	struct cam_icp_hw_mgr *hw_mgr = NULL;
 	int i = 0;
 
-	hw_mgr = &icp_hw_mgr[device_idx];
+	hw_mgr = g_icp_hw_mgr[device_idx];
+	if (!hw_mgr) {
+		CAM_ERR(CAM_ICP, "Uninitialized hw mgr for subdev: %u", device_idx);
+		return;
+	}
+
 	CAM_DBG(CAM_ICP, "hw mgr deinit: %u icp name: %s", device_idx, hw_mgr->hw_mgr_name);
 
 	hw_mgr->dentry = NULL;
@@ -7950,4 +7973,7 @@ void cam_icp_hw_mgr_deinit(int device_idx)
 		if (cam_presil_mode_enabled())
 			kfree(hw_mgr->ctx_data[i].hfi_frame_process.hangdump_mem_regions);
 	}
+
+	kfree(hw_mgr);
+	g_icp_hw_mgr[device_idx] = NULL;
 }

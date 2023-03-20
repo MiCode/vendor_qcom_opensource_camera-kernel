@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1519,6 +1519,13 @@ static int32_t cam_cci_i2c_write(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 	master = c_ctrl->cci_info->cci_i2c_master;
+	if (master >= MASTER_MAX || master < 0) {
+		CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d Invalid I2C master addr",
+			cci_dev->soc_info.index,
+			master);
+		return -EINVAL;
+	}
+
 	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d_Q%d set param sid 0x%x retries %d id_map %d",
 		cci_dev->soc_info.index, master, queue, c_ctrl->cci_info->sid, c_ctrl->cci_info->retries,
 		c_ctrl->cci_info->id_map);
@@ -1577,7 +1584,7 @@ static void cam_cci_write_async_helper(struct work_struct *work)
 	struct cam_cci_master_info *cci_master_info;
 
 	cam_common_util_thread_switch_delay_detect(
-		"CCI workq schedule",
+		"cam_cci_workq", "schedule", cam_cci_write_async_helper,
 		write_async->workq_scheduled_ts,
 		CAM_WORKQ_SCHEDULE_TIME_THRESHOLD);
 	cci_dev = write_async->cci_dev;

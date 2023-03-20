@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -1116,7 +1116,6 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 				break;
 			}
 
-			rc = 0;
 			hw_vaddr_ptr = (dma_addr_t)cdm_cmd->cmd[i].bl_addr.hw_iova;
 			len = cdm_cmd->cmd[i].len + cdm_cmd->cmd[i].offset;
 		} else {
@@ -1320,7 +1319,7 @@ static void cam_hw_cdm_work(struct work_struct *work)
 	}
 
 	cam_common_util_thread_switch_delay_detect(
-		"CDM workq schedule",
+		"cam_cdm_workq", "schedule", cam_hw_cdm_work,
 		payload->workq_scheduled_ts,
 		CAM_WORKQ_SCHEDULE_TIME_THRESHOLD);
 
@@ -1858,20 +1857,6 @@ int cam_hw_cdm_flush_hw(struct cam_hw_info *cdm_hw, uint32_t handle)
 	set_bit(CAM_CDM_FLUSH_HW_STATUS, &cdm_core->cdm_status);
 	rc = cam_hw_cdm_reset_hw(cdm_hw, handle);
 	clear_bit(CAM_CDM_FLUSH_HW_STATUS, &cdm_core->cdm_status);
-
-	return rc;
-}
-
-int cam_hw_cdm_handle_error(
-	struct cam_hw_info *cdm_hw,
-	uint32_t            handle)
-{
-	struct cam_cdm *cdm_core = NULL;
-	int rc = 0;
-
-	cdm_core = (struct cam_cdm *)cdm_hw->core_info;
-
-	rc = cam_hw_cdm_handle_error_info(cdm_hw, handle);
 
 	return rc;
 }

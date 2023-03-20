@@ -1058,6 +1058,7 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 	uint8_t  skew_cal_enable;
 	int32_t  delay;
 	struct csiphy_reg_t *config_params;
+	uint8_t csiphy_index = 0;
 
 	if ((csiphy_device == NULL) || (csiphy_device->ctrl_reg == NULL)) {
 		CAM_ERR(CAM_CSIPHY, "Device is NULL");
@@ -1070,6 +1071,12 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 		return 0;
 	}
 
+	if (csiphy_device->soc_info.index >= MAX_CSIPHY) {
+		CAM_ERR(CAM_CSIPHY, "soc_info.index:%d >= MAX_CSIPHY:%d ",
+			csiphy_device->soc_info.index, MAX_CSIPHY);
+		return -EINVAL;
+	}
+
 	required_phy_data_rate = csiphy_device->csiphy_info[idx].data_rate;
 	csiphybase = csiphy_device->soc_info.reg_map[0].mem_base;
 	settings_table = csiphy_device->ctrl_reg->data_rates_settings_table;
@@ -1079,12 +1086,15 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 	do_div(intermediate_var, 200000000);
 	settle_cnt = intermediate_var;
 	skew_cal_enable = csiphy_device->csiphy_info[idx].mipi_flags;
+	csiphy_index = csiphy_device->soc_info.index;
 
 	CAM_DBG(CAM_CSIPHY, "required data rate : %llu", required_phy_data_rate);
 	for (data_rate_idx = 0; data_rate_idx < num_data_rates; data_rate_idx++) {
 		struct data_rate_reg_info_t *drate_settings = settings_table->data_rate_settings;
 		uint64_t supported_phy_bw = drate_settings[data_rate_idx].bandwidth;
 		ssize_t  num_reg_entries = drate_settings[data_rate_idx].data_rate_reg_array_size;
+		struct csiphy_reg_t **drate_reg_array =
+			drate_settings[data_rate_idx].data_rate_reg_array[csiphy_index];
 
 		if ((required_phy_data_rate > supported_phy_bw) &&
 			(data_rate_idx < (num_data_rates - 1))) {
@@ -1103,8 +1113,7 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 			return -EINVAL;
 		}
 
-		config_params =
-			drate_settings[data_rate_idx].data_rate_reg_array[datarate_variant_idx];
+		config_params = drate_reg_array[datarate_variant_idx];
 		if (!config_params) {
 			CAM_ERR(CAM_CSIPHY, "Datarate settings are null. datarate variant idx: %u",
 				datarate_variant_idx);

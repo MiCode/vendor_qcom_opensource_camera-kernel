@@ -211,7 +211,7 @@ int cam_vfe_deinit_hw(void *hw_priv, void *deinit_hw_args, uint32_t arg_size)
 	rc = cam_vfe_reset(hw_priv, &reset_core_args, sizeof(uint32_t));
 
 	/* Turn OFF Regulators, Clocks and other SOC resources */
-	CAM_DBG(CAM_ISP, "Disable SOC resource");
+	CAM_DBG(CAM_ISP, "Disable SOC resource, rc: %d", rc);
 	rc = cam_vfe_disable_soc_resources(soc_info);
 	if (rc)
 		CAM_ERR(CAM_ISP, "Disable SOC failed");
@@ -382,7 +382,6 @@ int cam_vfe_start(void *hw_priv, void *start_args, uint32_t arg_size)
 	struct cam_vfe_hw_core_info       *core_info = NULL;
 	struct cam_hw_info                *vfe_hw  = hw_priv;
 	struct cam_isp_resource_node      *isp_res;
-	struct cam_hw_soc_info            *soc_info = NULL;
 	int                                rc = 0;
 
 	if (!hw_priv || !start_args ||
@@ -391,7 +390,6 @@ int cam_vfe_start(void *hw_priv, void *start_args, uint32_t arg_size)
 		return -EINVAL;
 	}
 
-	soc_info = &vfe_hw->soc_info;
 	core_info = (struct cam_vfe_hw_core_info *)vfe_hw->core_info;
 	isp_res = (struct cam_isp_resource_node  *)start_args;
 	core_info->tasklet_info = isp_res->tasklet_info;
@@ -488,7 +486,6 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	struct cam_hw_info                *vfe_hw = hw_priv;
 	struct cam_hw_soc_info            *soc_info = NULL;
 	struct cam_vfe_hw_core_info       *core_info = NULL;
-	struct cam_vfe_hw_info            *hw_info = NULL;
 	int rc = 0;
 
 	if (!hw_priv) {
@@ -498,7 +495,6 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 
 	soc_info = &vfe_hw->soc_info;
 	core_info = (struct cam_vfe_hw_core_info *)vfe_hw->core_info;
-	hw_info = core_info->vfe_hw_info;
 
 	switch (cmd_type) {
 	case CAM_ISP_HW_CMD_GET_CHANGE_BASE:

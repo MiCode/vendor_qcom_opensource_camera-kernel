@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_HW_INTF_H_
@@ -47,6 +47,8 @@ enum cam_cpas_hw_cmd_process {
 	CAM_CPAS_HW_CMD_GET_SCID,
 	CAM_CPAS_HW_CMD_ACTIVATE_LLC,
 	CAM_CPAS_HW_CMD_DEACTIVATE_LLC,
+	CAM_CPAS_HW_CMD_CONFIGURE_STALING_LLC,
+	CAM_CPAS_HW_CMD_NOTIF_STALL_INC_LLC,
 	CAM_CPAS_HW_CMD_DUMP_BUFF_FILL_INFO,
 	CAM_CPAS_HW_CMD_CSID_INPUT_CORE_INFO_UPDATE,
 	CAM_CPAS_HW_CMD_CSID_PROCESS_RESUME,

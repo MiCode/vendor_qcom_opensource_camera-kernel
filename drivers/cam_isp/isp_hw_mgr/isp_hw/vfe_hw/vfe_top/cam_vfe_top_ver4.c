@@ -847,16 +847,16 @@ int cam_vfe_top_ver4_reserve(void *device_priv,
 int cam_vfe_top_ver4_release(void *device_priv,
 	void *release_args, uint32_t arg_size)
 {
-	struct cam_vfe_top_ver4_priv            *top_priv;
 	struct cam_isp_resource_node            *mux_res;
+	struct cam_vfe_top_ver4_priv            *top_priv;
 
 	if (!device_priv || !release_args) {
 		CAM_ERR(CAM_ISP, "Error, Invalid input arguments");
 		return -EINVAL;
 	}
 
-	top_priv = (struct cam_vfe_top_ver4_priv   *)device_priv;
 	mux_res = (struct cam_isp_resource_node *)release_args;
+	top_priv = (struct cam_vfe_top_ver4_priv   *)device_priv;
 
 	CAM_DBG(CAM_ISP, "VFE:%u Resource in state %d",
 		top_priv->common_data.hw_intf->hw_idx, mux_res->res_state);
@@ -951,7 +951,6 @@ int cam_vfe_top_ver4_stop(void *device_priv,
 	struct cam_vfe_top_ver4_priv            *top_priv;
 	struct cam_isp_resource_node            *mux_res;
 	struct cam_hw_soc_info                  *soc_info = NULL;
-	struct cam_hw_info                      *hw_info = NULL;
 	int i, rc = 0;
 
 	if (!device_priv || !stop_args) {
@@ -962,7 +961,6 @@ int cam_vfe_top_ver4_stop(void *device_priv,
 	top_priv = (struct cam_vfe_top_ver4_priv   *)device_priv;
 	soc_info = top_priv->top_common.soc_info;
 	mux_res = (struct cam_isp_resource_node *)stop_args;
-	hw_info = (struct cam_hw_info  *)mux_res->hw_intf->hw_priv;
 
 	if (mux_res->res_id < CAM_ISP_HW_VFE_IN_MAX) {
 		rc = mux_res->stop(mux_res);

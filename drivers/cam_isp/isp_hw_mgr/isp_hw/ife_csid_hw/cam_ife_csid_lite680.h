@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_LITE_680_H_
@@ -391,12 +391,15 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.frame_id_decode_en_shift_val                 = 1,
 	.multi_vcdt_vc1_shift_val                     = 2,
 	.multi_vcdt_dt1_shift_val                     = 7,
+	.multi_vcdt_ts_combo_en_shift_val             = 13,
 	.multi_vcdt_en_shift_val                      = 0,
 	.timestamp_stb_sel_shift_val                  = 0,
 	.vfr_en_shift_val                             = 0,
 	.early_eof_supported                          = 1,
 	.vfr_supported                                = 1,
 	.multi_vcdt_supported                         = 1,
+	.ts_comb_vcdt_en                              = true,
+	.ts_comb_vcdt_mask                            = 3,
 	.frame_id_dec_supported                       = 1,
 	.measure_en_hbi_vbi_cnt_mask                  = 0xc,
 	.measure_pixel_line_en_mask                   = 0x3,

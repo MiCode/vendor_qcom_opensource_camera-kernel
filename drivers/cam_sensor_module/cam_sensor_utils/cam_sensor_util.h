@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SENSOR_UTIL_H_
@@ -70,6 +70,12 @@ int32_t cam_sensor_handle_delay(
 	struct i2c_settings_array *i2c_reg_settings,
 	uint32_t offset, uint32_t *byte_cnt,
 	struct list_head *list_ptr);
+
+int32_t cam_sensor_handle_poll(
+	uint32_t **cmd_buf,
+	struct i2c_settings_array *i2c_reg_settings,
+	uint32_t *byte_cnt, int32_t *offset,
+	struct list_head **list_ptr);
 
 int32_t cam_sensor_handle_random_read(
 	struct cam_cmd_i2c_random_rd *cmd_i2c_random_rd,
