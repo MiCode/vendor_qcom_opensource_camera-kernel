@@ -24,6 +24,7 @@
 /* CSIPHY driver cmd buffer meta types */
 #define CAM_CSIPHY_PACKET_META_LANE_INFO           0
 #define CAM_CSIPHY_PACKET_META_GENERIC_BLOB        1
+#define CAM_CSIPHY_PACKET_META_LANE_INFO_V2        2
 
 /* CSIPHY blob types */
 #define CAM_CSIPHY_GENERIC_BLOB_TYPE_CDR_CONFIG    0
@@ -757,6 +758,34 @@ struct cam_csiphy_info {
 	__u8     secure_mode;
 	__u64    settle_time;
 	__u64    data_rate;
+} __attribute__((packed));
+
+/**
+ * cam_csiphy_info_v2    : Provides cmdbuffer structre
+ * @version              : Version number
+ * @lane_assign          : Lane sensor will be using
+ * @mipi_flags           : Phy flags for different calibration operations
+ * @lane_cnt             : Total number of lanes
+ * @secure_mode          : Secure mode flag to enable / disable
+ * @settle_time          : Settling time in ms
+ * @data_rate            : Data rate
+ * @channel_type         : Channel type indicates apply which channel settings
+ * @num_valid_params     : Number of valid params
+ * @param_mask           : Mask to indicate what the parameters are
+ * @params               : Additional params
+ */
+struct cam_csiphy_info_v2 {
+	__u16    version;
+	__u16    lane_assign;
+	__u16    mipi_flags;
+	__u8     lane_cnt;
+	__u8     secure_mode;
+	__u64    settle_time;
+	__u64    data_rate;
+	__u32    channel_type;
+	__u32    num_vaild_params;
+	__u32    param_mask;
+	__u32    params[5];
 } __attribute__((packed));
 
 /**
