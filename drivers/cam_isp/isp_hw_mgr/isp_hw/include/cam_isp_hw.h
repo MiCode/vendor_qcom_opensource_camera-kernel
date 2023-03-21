@@ -308,10 +308,12 @@ struct cam_isp_blanking_config {
  * @brief:              Structure to pass error event details to hw mgr
  *
  * @err_type:           Type of error being reported
+ * @err_mask:           Exact error of the err_type
  *
  */
 struct cam_isp_hw_error_event_info {
 	uint32_t    err_type;
+	uint32_t    err_mask;
 };
 
 /**

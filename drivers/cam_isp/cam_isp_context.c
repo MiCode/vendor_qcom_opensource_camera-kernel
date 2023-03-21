@@ -3579,6 +3579,11 @@ static void __cam_isp_get_notification_evt_params(
 		err_type = CAM_SYNC_ISP_EVENT_VIOLATION;
 		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 	}
+	if (hw_error & CAM_ISP_HW_ERROR_HWPD_VIOLATION) {
+		err_code |= CAM_REQ_MGR_ISP_ERR_HWPD_VIOLATION;
+		err_type = CAM_SYNC_ISP_EVENT_VIOLATION;
+		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
+	}
 	if (hw_error & CAM_ISP_HW_ERROR_BUSIF_OVERFLOW) {
 		err_code |= CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
 		err_type = CAM_SYNC_ISP_EVENT_BUSIF_OVERFLOW;

@@ -59,6 +59,10 @@ enum cam_vfe_hw_irq_status {
 	CAM_VFE_IRQ_STATUS_MAX,
 };
 
+enum cam_vfe_irq_err_mask {
+	CAM_VFE_IRQ_ERR_MASK_HWPD_VIOLATION     = 0x00000001,
+};
+
 enum cam_vfe_hw_irq_regs {
 	CAM_IFE_IRQ_CAMIF_REG_STATUS0           = 0,
 	CAM_IFE_IRQ_CAMIF_REG_STATUS1           = 1,

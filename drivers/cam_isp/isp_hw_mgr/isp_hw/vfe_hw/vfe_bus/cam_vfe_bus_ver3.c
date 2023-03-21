@@ -71,6 +71,10 @@ enum cam_vfe_bus_ver3_packer_format {
 	PACKER_FMT_VER3_MAX,
 };
 
+struct cam_vfe_bus_irq_violation_type {
+	bool hwpd_violation;
+};
+
 struct cam_vfe_bus_ver3_comp_grp_acquire_args {
 	enum cam_vfe_bus_ver3_comp_grp_type  comp_grp_id;
 	uint64_t                             composite_mask;
@@ -2764,11 +2768,12 @@ static int cam_vfe_bus_ver3_err_irq_top_half(uint32_t evt_id,
 	return rc;
 }
 
-static void cam_vfe_print_violations(
+static void cam_vfe_check_violations(
 	char *error_type,
 	uint32_t status,
 	struct cam_vfe_bus_ver3_priv *bus_priv,
-	uint64_t *out_port)
+	uint64_t *out_port,
+	struct cam_vfe_bus_irq_violation_type *violation_type)
 {
 	int i, j;
 	struct cam_isp_resource_node       *rsrc_node = NULL;
@@ -2802,6 +2807,17 @@ static void cam_vfe_print_violations(
 				cam_vfe_bus_ver3_print_wm_info(wm_data,
 					common_data, wm_name);
 				*out_port |= BIT_ULL(rsrc_node->res_id & 0xFF);
+
+				/* check what type of violation it is*/
+				switch (wm_data->index) {
+				case 21:
+				case 22:
+					if (!strcmp(error_type, "Image Size"))
+						violation_type->hwpd_violation = true;
+					break;
+				default:
+					break;
+				}
 			}
 		}
 	}
@@ -2817,6 +2833,7 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 	struct cam_isp_hw_error_event_info err_evt_info;
 	uint32_t status = 0, image_size_violation = 0, ccif_violation = 0, constraint_violation = 0;
 	uint64_t out_port_id = 0;
+	struct cam_vfe_bus_irq_violation_type violation_type;
 
 	if (!handler_priv || !evt_payload_priv)
 		return -EINVAL;
@@ -2839,20 +2856,27 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 
 	memset(&evt_info, 0, sizeof(evt_info));
 	memset(&err_evt_info, 0, sizeof(err_evt_info));
+	memset(&violation_type, 0, sizeof(violation_type));
 
 	if (image_size_violation || constraint_violation) {
 		status = evt_payload->image_size_violation_status;
 		if (!status)
 			cam_vfe_bus_ver3_get_constraint_errors(bus_priv);
 		else {
-			cam_vfe_print_violations("Image Size", status,
-				bus_priv, &out_port_id);
+			cam_vfe_check_violations("Image Size", status, bus_priv,
+				&out_port_id, &violation_type);
 		}
 	}
 
 	if (ccif_violation) {
 		status = evt_payload->ccif_violation_status;
-		cam_vfe_print_violations("CCIF", status, bus_priv, &out_port_id);
+		cam_vfe_check_violations("CCIF", status, bus_priv,
+			&out_port_id, &violation_type);
+	}
+
+	if (image_size_violation && violation_type.hwpd_violation) {
+		err_evt_info.err_mask |= CAM_VFE_IRQ_ERR_MASK_HWPD_VIOLATION;
+		CAM_DBG(CAM_ISP, "HWPD image size violation");
 	}
 
 	cam_vfe_bus_ver3_put_evt_payload(common_data, &evt_payload);

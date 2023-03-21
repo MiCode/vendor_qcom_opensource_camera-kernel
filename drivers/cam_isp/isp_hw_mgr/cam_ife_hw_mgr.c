@@ -14135,9 +14135,12 @@ static int cam_ife_hw_mgr_handle_hw_err(
 		CAM_ISP_HW_VFE_IN_CAMIF)
 		cam_ife_hw_mgr_handle_hw_dump_info(ife_hw_mgr_ctx, event_info);
 
-	if (err_type == CAM_VFE_IRQ_STATUS_VIOLATION)
+	if (err_type == CAM_VFE_IRQ_STATUS_VIOLATION) {
 		error_event_data.error_type = CAM_ISP_HW_ERROR_VIOLATION;
-	else if (event_info->res_type == CAM_ISP_RESOURCE_VFE_IN)
+
+		if (err_evt_info->err_mask & CAM_VFE_IRQ_ERR_MASK_HWPD_VIOLATION)
+			error_event_data.error_type |= CAM_ISP_HW_ERROR_HWPD_VIOLATION;
+	} else if (event_info->res_type == CAM_ISP_RESOURCE_VFE_IN)
 		error_event_data.error_type = CAM_ISP_HW_ERROR_OVERFLOW;
 	else if (event_info->res_type == CAM_ISP_RESOURCE_VFE_OUT)
 		error_event_data.error_type = CAM_ISP_HW_ERROR_BUSIF_OVERFLOW;

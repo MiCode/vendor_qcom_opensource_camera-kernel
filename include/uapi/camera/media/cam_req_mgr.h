@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_LINUX_CAM_REQ_MGR_H
@@ -660,6 +660,8 @@ struct cam_mem_cpu_access_op {
  * @CAM_REQ_MGR_CSID_MISSING_EOT               : CSID is missing EOT on one or more lanes
  * @CAM_REQ_MGR_CSID_RX_PKT_PAYLOAD_CORRUPTION : CSID long packet payload CRC mismatch
  * @CAM_REQ_MGR_SENSOR_STREAM_OFF_FAILED       : Failed to stream off sensor
+ * @CAM_REQ_MGR_VALID_SHUTTER_DROPPED          : Valid shutter dropped
+ * @CAM_REQ_MGR_ISP_ERR_HWPD_VIOLATION         : HWPD image size violation
  */
 #define CAM_REQ_MGR_ISP_UNREPORTED_ERROR                 0
 #define CAM_REQ_MGR_LINK_STALLED_ERROR                   BIT(0)
@@ -677,6 +679,8 @@ struct cam_mem_cpu_access_op {
 #define CAM_REQ_MGR_CSID_MISSING_EOT                     BIT(12)
 #define CAM_REQ_MGR_CSID_RX_PKT_PAYLOAD_CORRUPTION       BIT(13)
 #define CAM_REQ_MGR_SENSOR_STREAM_OFF_FAILED             BIT(14)
+#define CAM_REQ_MGR_VALID_SHUTTER_DROPPED                BIT(15)
+#define CAM_REQ_MGR_ISP_ERR_HWPD_VIOLATION               BIT(16)
 
 /**
  * struct cam_req_mgr_error_msg
