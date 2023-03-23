@@ -2976,6 +2976,7 @@ static int cam_icp_mgr_trigger_recovery(struct cam_icp_hw_mgr *hw_mgr)
 	CAM_WARN(CAM_ICP, "[%s] hw_mgr[%u] SFR:%s", hw_mgr->hw_mgr_name,
 		hw_mgr->hw_mgr_id, sfr_buffer->msg);
 	cam_icp_dump_debug_info(hw_mgr, false);
+	cam_icp_mgr_dump_active_req_info(hw_mgr);
 
 	cam_icp_mgr_dev_get_gdsc_control(hw_mgr);
 	cam_icp_dev_reset(hw_mgr);
@@ -6521,8 +6522,10 @@ static int cam_icp_mgr_hw_flush(void *hw_priv, void *hw_flush_args)
 	case CAM_FLUSH_TYPE_REQ:
 		mutex_lock(&ctx_data->ctx_mutex);
 		if (flush_args->num_req_active) {
-			CAM_ERR(CAM_ICP, "%s: Flush a specific active request is not supported",
-				ctx_data->ctx_id_string);
+			CAM_ERR(CAM_ICP,
+				"%s: Flush a specific active request id: %lld is not supported",
+				ctx_data->ctx_id_string,
+				*(int64_t *)flush_args->flush_req_active[0]);
 			mutex_unlock(&ctx_data->ctx_mutex);
 			return -EINVAL;
 		}

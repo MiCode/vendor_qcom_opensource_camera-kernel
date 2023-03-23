@@ -332,6 +332,7 @@ static void cam_context_sync_callback(int32_t sync_obj, int status, void *data)
 {
 	struct cam_ctx_request *req = data;
 	struct cam_context *ctx = NULL;
+	struct cam_context_utils_flush_args flush_args;
 	struct cam_flush_dev_cmd flush_cmd;
 	struct cam_req_mgr_apply_request apply;
 	int rc;
@@ -365,7 +366,9 @@ static void cam_context_sync_callback(int32_t sync_obj, int status, void *data)
 			CAM_DBG(CAM_CTXT, "fence error: %d on obj %d",
 				status, sync_obj);
 			flush_cmd.req_id = req->request_id;
-			cam_context_flush_req_to_hw(ctx, &flush_cmd);
+			flush_args.cmd = &flush_cmd;
+			flush_args.flush_active_req = false;
+			cam_context_flush_req_to_hw(ctx, &flush_args);
 		}
 
 		mutex_lock(&ctx->sync_mutex);
@@ -970,10 +973,11 @@ end:
 }
 
 int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
-	struct cam_flush_dev_cmd *cmd)
+	struct cam_context_utils_flush_args *args)
 {
 	struct cam_ctx_request *req = NULL;
 	struct cam_hw_flush_args flush_args = {0};
+	struct cam_flush_dev_cmd *cmd = args->cmd;
 	uint32_t i = 0;
 	int32_t sync_id = 0;
 	int rc = 0;
@@ -1018,13 +1022,22 @@ int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 				rc = -ENOMEM;
 				goto end;
 			}
+
 			spin_lock(&ctx->lock);
 			list_for_each_entry(req, &ctx->active_req_list, list) {
 				if (req->request_id != cmd->req_id)
 					continue;
 
-				list_del_init(&req->list);
+				if (!args->flush_active_req) {
+					CAM_ERR(CAM_CTXT,
+						"[%s][%d] : Flushing active request id: %llu is not supported",
+						ctx->dev_name, ctx->ctx_id, req->request_id);
+					rc = -EPERM;
+					spin_unlock(&ctx->lock);
+					goto end;
+				}
 
+				list_del_init(&req->list);
 				flush_args.flush_req_active[
 					flush_args.num_req_active++] =
 					req->req_priv;
@@ -1090,9 +1103,15 @@ int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 							"pending_list");
 			}
 		}
+
+		rc = 0;
+	} else {
+		CAM_ERR(CAM_CTXT,
+			"[%s][%d] : No pending or active request to flush for req id: %llu",
+			ctx->dev_name, ctx->ctx_id, cmd->req_id);
+		rc = -EINVAL;
 	}
 
-	rc = 0;
 	CAM_DBG(CAM_CTXT, "[%s] X: NRT flush req", ctx->dev_name);
 
 end:
@@ -1102,13 +1121,12 @@ end:
 }
 
 int32_t cam_context_flush_dev_to_hw(struct cam_context *ctx,
-	struct cam_flush_dev_cmd *cmd)
+	struct cam_context_utils_flush_args *flush_args)
 {
-
 	int rc = 0;
 
-	if (!ctx || !cmd) {
-		CAM_ERR(CAM_CTXT, "Invalid input params %pK %pK", ctx, cmd);
+	if (!ctx || !flush_args) {
+		CAM_ERR(CAM_CTXT, "Invalid input params %pK %pK", ctx, flush_args);
 		rc = -EINVAL;
 		goto end;
 	}
@@ -1120,15 +1138,15 @@ int32_t cam_context_flush_dev_to_hw(struct cam_context *ctx,
 		goto end;
 	}
 
-	if (cmd->flush_type == CAM_FLUSH_TYPE_ALL) {
-		ctx->last_flush_req = cmd->req_id;
+	if (flush_args->cmd->flush_type == CAM_FLUSH_TYPE_ALL) {
+		ctx->last_flush_req = flush_args->cmd->req_id;
 		rc = cam_context_flush_ctx_to_hw(ctx);
-	} else if (cmd->flush_type == CAM_FLUSH_TYPE_REQ)
-		rc = cam_context_flush_req_to_hw(ctx, cmd);
+	} else if (flush_args->cmd->flush_type == CAM_FLUSH_TYPE_REQ)
+		rc = cam_context_flush_req_to_hw(ctx, flush_args);
 	else {
 		rc = -EINVAL;
 		CAM_ERR(CAM_CORE, "[%s][%d] Invalid flush type %d",
-			ctx->dev_name, ctx->ctx_id, cmd->flush_type);
+			ctx->dev_name, ctx->ctx_id, flush_args->cmd->flush_type);
 	}
 
 end:

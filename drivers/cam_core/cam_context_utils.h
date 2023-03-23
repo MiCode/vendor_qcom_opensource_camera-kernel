@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CONTEXT_UTILS_H_
@@ -9,6 +9,18 @@
 
 #include <linux/types.h>
 #include "cam_smmu_api.h"
+
+/**
+ * struct cam_context_utils_flush_args - arguments for flush context util
+ *
+ * @cmd: flush dev command from userland
+ * @flush_active_req: flag to indicate if the device supports flushing a particular
+ *                    active request or not
+ */
+struct cam_context_utils_flush_args {
+	struct cam_flush_dev_cmd *cmd;
+	bool flush_active_req;
+};
 
 int cam_context_buf_done_from_hw(struct cam_context *ctx,
 	void *done_event_data, uint32_t evt_id);
@@ -24,10 +36,10 @@ int32_t cam_context_start_dev_to_hw(struct cam_context *ctx,
 	struct cam_start_stop_dev_cmd *cmd);
 int32_t cam_context_stop_dev_to_hw(struct cam_context *ctx);
 int32_t cam_context_flush_dev_to_hw(struct cam_context *ctx,
-	struct cam_flush_dev_cmd *cmd);
+	struct cam_context_utils_flush_args *args);
 int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx);
 int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
-	struct cam_flush_dev_cmd *cmd);
+	struct cam_context_utils_flush_args *args);
 int32_t cam_context_send_pf_evt(struct cam_context *ctx,
 	struct cam_hw_dump_pf_args *pf_args);
 int32_t cam_context_dump_pf_info_to_hw(struct cam_context *ctx,
