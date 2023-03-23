@@ -13,6 +13,71 @@
 #include "cam_debug_util.h"
 #include "cam_isp_hw_mgr_intf.h"
 
+static void cam_isp_add_update_entry(
+	enum cam_isp_cdm_bl_type            cdm_bl_type,
+	struct cam_hw_prepare_update_args  *prepare,
+	struct cam_kmd_buf_info            *kmd_buf_info,
+	uint32_t                            update_size)
+{
+	/* Validation is done from the caller */
+	uint32_t num_ent;
+	struct cam_hw_update_entry *curr_update_entry;
+
+	num_ent = prepare->num_hw_update_entries;
+	curr_update_entry = &(prepare->hw_update_entries[num_ent]);
+	curr_update_entry->handle = kmd_buf_info->handle;
+	curr_update_entry->len = update_size;
+	curr_update_entry->offset = kmd_buf_info->offset;
+	curr_update_entry->flags = cdm_bl_type;
+
+	num_ent++;
+	kmd_buf_info->used_bytes += update_size;
+	kmd_buf_info->offset     += update_size;
+	prepare->num_hw_update_entries = num_ent;
+
+	CAM_DBG(CAM_ISP,
+		"Add new entry: num_ent=%d handle=0x%x, len=%u, offset=%u",
+		num_ent - 1, curr_update_entry->handle,
+		curr_update_entry->len, curr_update_entry->offset);
+}
+
+static void cam_isp_combine_update_entry(
+	struct cam_hw_prepare_update_args  *prepare,
+	struct cam_kmd_buf_info            *kmd_buf_info,
+	uint32_t                            update_size)
+{
+	/* Validation is done from the caller */
+	uint32_t num_ent;
+	struct cam_hw_update_entry *prev_update_entry;
+
+	num_ent = prepare->num_hw_update_entries;
+	prev_update_entry = &(prepare->hw_update_entries[num_ent - 1]);
+	prev_update_entry->len += update_size;
+
+	CAM_DBG(CAM_ISP,
+		"Combined with prev entry: num_ent=%d handle=0x%x, len=%u, offset=%u",
+		num_ent - 1, prev_update_entry->handle,
+		prev_update_entry->len, prev_update_entry->offset);
+
+	kmd_buf_info->used_bytes += update_size;
+	kmd_buf_info->offset += update_size;
+}
+
+void cam_isp_update_hw_entry(
+	enum cam_isp_cdm_bl_type            cdm_bl_type,
+	struct cam_hw_prepare_update_args  *prepare,
+	struct cam_kmd_buf_info            *kmd_buf_info,
+	uint32_t                            update_size,
+	bool                                combine)
+{
+	if (combine)
+		cam_isp_combine_update_entry(prepare,
+			kmd_buf_info, update_size);
+	else
+		cam_isp_add_update_entry(cdm_bl_type, prepare,
+			kmd_buf_info, update_size);
+}
+
 int cam_isp_add_change_base(
 	struct cam_hw_prepare_update_args      *prepare,
 	struct list_head                       *res_list_isp_src,
@@ -63,23 +128,8 @@ int cam_isp_add_change_base(
 			if (rc)
 				return rc;
 
-			hw_entry[num_ent].handle = kmd_buf_info->handle;
-			hw_entry[num_ent].len    = get_base.cmd.used_bytes;
-			hw_entry[num_ent].offset = kmd_buf_info->offset;
-
-			/* Marking change base as COMMON_CFG */
-			hw_entry[num_ent].flags  = CAM_ISP_COMMON_CFG_BL;
-			CAM_DBG(CAM_ISP,
-				"num_ent=%d handle=0x%x, len=%u, offset=%u",
-				num_ent,
-				hw_entry[num_ent].handle,
-				hw_entry[num_ent].len,
-				hw_entry[num_ent].offset);
-
-			kmd_buf_info->used_bytes += get_base.cmd.used_bytes;
-			kmd_buf_info->offset     += get_base.cmd.used_bytes;
-			num_ent++;
-			prepare->num_hw_update_entries = num_ent;
+			cam_isp_add_update_entry(CAM_ISP_COMMON_CFG_BL, prepare,
+				kmd_buf_info, get_base.cmd.used_bytes);
 
 			/* return success */
 			return 0;
@@ -291,8 +341,7 @@ int cam_isp_add_command_buffers(
 		case CAM_ISP_PACKET_META_DMI_LEFT:
 			if (split_id == CAM_ISP_HW_SPLIT_LEFT) {
 				hw_entry[num_ent].len = cmd_desc[i].length;
-				hw_entry[num_ent].handle =
-					cmd_desc[i].mem_handle;
+				hw_entry[num_ent].handle = cmd_desc[i].mem_handle;
 				hw_entry[num_ent].offset = cmd_desc[i].offset;
 				CAM_DBG(CAM_ISP,
 					"Meta_Left num_ent=%d handle=0x%x, len=%u, offset=%u",
@@ -300,9 +349,7 @@ int cam_isp_add_command_buffers(
 					hw_entry[num_ent].handle,
 					hw_entry[num_ent].len,
 					hw_entry[num_ent].offset);
-					hw_entry[num_ent].flags =
-						CAM_ISP_IQ_BL;
-
+				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent++;
 			}
 			break;
@@ -310,8 +357,7 @@ int cam_isp_add_command_buffers(
 		case CAM_ISP_PACKET_META_DMI_RIGHT:
 			if (split_id == CAM_ISP_HW_SPLIT_RIGHT) {
 				hw_entry[num_ent].len = cmd_desc[i].length;
-				hw_entry[num_ent].handle =
-					cmd_desc[i].mem_handle;
+				hw_entry[num_ent].handle = cmd_desc[i].mem_handle;
 				hw_entry[num_ent].offset = cmd_desc[i].offset;
 				CAM_DBG(CAM_ISP,
 					"Meta_Right num_ent=%d handle=0x%x, len=%u, offset=%u",
@@ -319,16 +365,14 @@ int cam_isp_add_command_buffers(
 					hw_entry[num_ent].handle,
 					hw_entry[num_ent].len,
 					hw_entry[num_ent].offset);
-					hw_entry[num_ent].flags =
-						CAM_ISP_IQ_BL;
+				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent++;
 			}
 			break;
 		case CAM_ISP_PACKET_META_COMMON:
 		case CAM_ISP_PACKET_META_DMI_COMMON:
 			hw_entry[num_ent].len = cmd_desc[i].length;
-			hw_entry[num_ent].handle =
-				cmd_desc[i].mem_handle;
+			hw_entry[num_ent].handle = cmd_desc[i].mem_handle;
 			hw_entry[num_ent].offset = cmd_desc[i].offset;
 			CAM_DBG(CAM_ISP,
 				"Meta_Common num_ent=%d handle=0x%x, len=%u, offset=%u",
@@ -336,8 +380,7 @@ int cam_isp_add_command_buffers(
 				hw_entry[num_ent].handle,
 				hw_entry[num_ent].len,
 				hw_entry[num_ent].offset);
-				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
-
+			hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 			num_ent++;
 			break;
 		case CAM_ISP_PACKET_META_DUAL_CONFIG:
@@ -351,10 +394,10 @@ int cam_isp_add_command_buffers(
 			if (split_id == CAM_ISP_HW_SPLIT_LEFT) {
 				struct cam_isp_generic_blob_info   blob_info;
 
-				prepare->num_hw_update_entries = num_ent;
 				blob_info.prepare = prepare;
 				blob_info.base_info = base_info;
 				blob_info.kmd_buf_info = kmd_buf_info;
+				blob_info.entry_added = false;
 
 				rc = cam_packet_util_process_generic_cmd_buffer(
 					&cmd_desc[i],
@@ -366,7 +409,6 @@ int cam_isp_add_command_buffers(
 						rc);
 					return rc;
 				}
-				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent = prepare->num_hw_update_entries;
 			}
 			break;
@@ -374,10 +416,10 @@ int cam_isp_add_command_buffers(
 			if (split_id == CAM_ISP_HW_SPLIT_RIGHT) {
 				struct cam_isp_generic_blob_info   blob_info;
 
-				prepare->num_hw_update_entries = num_ent;
 				blob_info.prepare = prepare;
 				blob_info.base_info = base_info;
 				blob_info.kmd_buf_info = kmd_buf_info;
+				blob_info.entry_added = false;
 
 				rc = cam_packet_util_process_generic_cmd_buffer(
 					&cmd_desc[i],
@@ -389,17 +431,16 @@ int cam_isp_add_command_buffers(
 						rc);
 					return rc;
 				}
-				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent = prepare->num_hw_update_entries;
 			}
 			break;
 		case CAM_ISP_PACKET_META_GENERIC_BLOB_COMMON: {
 			struct cam_isp_generic_blob_info   blob_info;
 
-			prepare->num_hw_update_entries = num_ent;
 			blob_info.prepare = prepare;
 			blob_info.base_info = base_info;
 			blob_info.kmd_buf_info = kmd_buf_info;
+			blob_info.entry_added = false;
 
 			rc = cam_packet_util_process_generic_cmd_buffer(
 				&cmd_desc[i],
@@ -410,7 +451,6 @@ int cam_isp_add_command_buffers(
 					"Failed in processing blobs %d", rc);
 				return rc;
 			}
-			hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 			num_ent = prepare->num_hw_update_entries;
 		}
 			break;
@@ -511,8 +551,7 @@ int cam_sfe_add_command_buffers(
 		case CAM_ISP_SFE_PACKET_META_LEFT:
 			if (split_id == CAM_ISP_HW_SPLIT_LEFT) {
 				hw_entry[num_ent].len = cmd_desc[i].length;
-				hw_entry[num_ent].handle =
-					cmd_desc[i].mem_handle;
+				hw_entry[num_ent].handle = cmd_desc[i].mem_handle;
 				hw_entry[num_ent].offset = cmd_desc[i].offset;
 				CAM_DBG(CAM_ISP,
 					"Meta_Left num_ent=%d handle=0x%x, len=%u, offset=%u",
@@ -520,17 +559,14 @@ int cam_sfe_add_command_buffers(
 					hw_entry[num_ent].handle,
 					hw_entry[num_ent].len,
 					hw_entry[num_ent].offset);
-					hw_entry[num_ent].flags =
-						CAM_ISP_IQ_BL;
-
+				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent++;
 			}
 			break;
 		case CAM_ISP_SFE_PACKET_META_RIGHT:
 			if (split_id == CAM_ISP_HW_SPLIT_RIGHT) {
 				hw_entry[num_ent].len = cmd_desc[i].length;
-				hw_entry[num_ent].handle =
-					cmd_desc[i].mem_handle;
+				hw_entry[num_ent].handle = cmd_desc[i].mem_handle;
 				hw_entry[num_ent].offset = cmd_desc[i].offset;
 				CAM_DBG(CAM_ISP,
 					"Meta_Right num_ent=%d handle=0x%x, len=%u, offset=%u",
@@ -538,15 +574,13 @@ int cam_sfe_add_command_buffers(
 					hw_entry[num_ent].handle,
 					hw_entry[num_ent].len,
 					hw_entry[num_ent].offset);
-					hw_entry[num_ent].flags =
-						CAM_ISP_IQ_BL;
+				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent++;
 			}
 			break;
 		case CAM_ISP_SFE_PACKET_META_COMMON:
 			hw_entry[num_ent].len = cmd_desc[i].length;
-			hw_entry[num_ent].handle =
-				cmd_desc[i].mem_handle;
+			hw_entry[num_ent].handle = cmd_desc[i].mem_handle;
 			hw_entry[num_ent].offset = cmd_desc[i].offset;
 			CAM_DBG(CAM_ISP,
 				"Meta_Common num_ent=%d handle=0x%x, len=%u, offset=%u",
@@ -554,8 +588,7 @@ int cam_sfe_add_command_buffers(
 				hw_entry[num_ent].handle,
 				hw_entry[num_ent].len,
 				hw_entry[num_ent].offset);
-				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
-
+			hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 			num_ent++;
 			break;
 		case CAM_ISP_SFE_PACKET_META_DUAL_CONFIG:
@@ -569,10 +602,10 @@ int cam_sfe_add_command_buffers(
 			if (split_id == CAM_ISP_HW_SPLIT_LEFT) {
 				struct cam_isp_generic_blob_info   blob_info;
 
-				prepare->num_hw_update_entries = num_ent;
 				blob_info.prepare = prepare;
 				blob_info.base_info = base_info;
 				blob_info.kmd_buf_info = kmd_buf_info;
+				blob_info.entry_added = false;
 
 				rc = cam_packet_util_process_generic_cmd_buffer(
 					&cmd_desc[i],
@@ -584,7 +617,6 @@ int cam_sfe_add_command_buffers(
 						rc);
 					return rc;
 				}
-				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent = prepare->num_hw_update_entries;
 			}
 			break;
@@ -592,10 +624,10 @@ int cam_sfe_add_command_buffers(
 			if (split_id == CAM_ISP_HW_SPLIT_RIGHT) {
 				struct cam_isp_generic_blob_info   blob_info;
 
-				prepare->num_hw_update_entries = num_ent;
 				blob_info.prepare = prepare;
 				blob_info.base_info = base_info;
 				blob_info.kmd_buf_info = kmd_buf_info;
+				blob_info.entry_added = false;
 
 				rc = cam_packet_util_process_generic_cmd_buffer(
 					&cmd_desc[i],
@@ -607,17 +639,16 @@ int cam_sfe_add_command_buffers(
 						rc);
 					return rc;
 				}
-				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent = prepare->num_hw_update_entries;
 			}
 			break;
 		case CAM_ISP_PACKET_META_GENERIC_BLOB_COMMON: {
 			struct cam_isp_generic_blob_info   blob_info;
 
-			prepare->num_hw_update_entries = num_ent;
 			blob_info.prepare = prepare;
 			blob_info.base_info = base_info;
 			blob_info.kmd_buf_info = kmd_buf_info;
+			blob_info.entry_added = false;
 
 			rc = cam_packet_util_process_generic_cmd_buffer(
 				&cmd_desc[i],
@@ -628,7 +659,6 @@ int cam_sfe_add_command_buffers(
 					"Failed in processing blobs %d", rc);
 				return rc;
 			}
-			hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 			num_ent = prepare->num_hw_update_entries;
 		}
 			break;
@@ -689,32 +719,6 @@ static void cam_isp_validate_for_ife_scratch(
 			ife_res_info->ife_scratch_cfg_mask |= (1 << i);
 		}
 	}
-}
-
-static inline void cam_isp_update_hw_entries_util(
-	enum cam_isp_cdm_bl_type               cdm_bl_type,
-	struct cam_kmd_buf_info               *kmd_buf_info,
-	uint32_t                               used_bytes,
-	uint32_t                               offset,
-	struct cam_hw_prepare_update_args     *prepare)
-{
-	uint32_t num_ent;
-
-	num_ent = prepare->num_hw_update_entries;
-	prepare->hw_update_entries[num_ent].handle = kmd_buf_info->handle;
-	prepare->hw_update_entries[num_ent].len = used_bytes;
-	prepare->hw_update_entries[num_ent].offset = offset;
-	prepare->hw_update_entries[num_ent].flags = cdm_bl_type;
-
-	num_ent++;
-	prepare->num_hw_update_entries = num_ent;
-
-	CAM_DBG(CAM_ISP, "Handle: 0x%x len: %u offset: %u flags: %u num_ent: %u",
-		prepare->hw_update_entries[num_ent - 1].handle,
-		prepare->hw_update_entries[num_ent - 1].len,
-		prepare->hw_update_entries[num_ent - 1].offset,
-		prepare->hw_update_entries[num_ent - 1].flags,
-		num_ent - 1);
 }
 
 static int cam_isp_io_buf_get_entries_util(
@@ -818,7 +822,6 @@ static int cam_isp_io_buf_get_entries_util(
 		}
 		map_entries->resource_handle = io_cfg->resource_type;
 		map_entries->sync_id = io_cfg->fence;
-
 	}
 
 	return 0;
@@ -1070,9 +1073,18 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 	CAM_DBG(CAM_ISP, "io_cfg_used_bytes %d, fill_fence %d",
 		bytes_updated, io_info->fill_fence);
 
-	if (bytes_updated)
-		cam_isp_update_hw_entries_util(CAM_ISP_IOCFG_BL, io_info->kmd_buf_info,
-			bytes_updated, curr_offset, io_info->prepare);
+	if (bytes_updated) {
+		/**
+		 * Offset and used_bytes are already updated in the previous
+		 * add_io_buffers_util function and now points to next empty
+		 * block in kmd buffer, reset it here to align with generic
+		 * update hw entry function
+		 */
+		io_info->kmd_buf_info->offset -= bytes_updated;
+		io_info->kmd_buf_info->used_bytes -= bytes_updated;
+		cam_isp_update_hw_entry(CAM_ISP_IOCFG_BL, io_info->prepare,
+			io_info->kmd_buf_info, bytes_updated, false);
+	}
 
 	return rc;
 }
@@ -1081,13 +1093,14 @@ int cam_isp_add_reg_update(
 	struct cam_hw_prepare_update_args    *prepare,
 	struct list_head                     *res_list_isp_src,
 	uint32_t                              base_idx,
-	struct cam_kmd_buf_info              *kmd_buf_info)
+	struct cam_kmd_buf_info              *kmd_buf_info,
+	bool                                  combine)
 {
 	int rc = -EINVAL;
 	struct cam_isp_resource_node         *res;
 	struct cam_isp_hw_mgr_res            *hw_mgr_res;
 	struct cam_isp_hw_get_cmd_update      get_regup;
-	uint32_t kmd_buf_remain_size, num_ent, i, reg_update_size;
+	uint32_t kmd_buf_remain_size, i, reg_update_size;
 
 	/* Max one hw entries required for each base */
 	if (prepare->num_hw_update_entries + 1 >=
@@ -1147,28 +1160,8 @@ int cam_isp_add_reg_update(
 	}
 
 	if (reg_update_size) {
-		/* Update the HW entries */
-		num_ent = prepare->num_hw_update_entries;
-		prepare->hw_update_entries[num_ent].handle =
-			kmd_buf_info->handle;
-		prepare->hw_update_entries[num_ent].len = reg_update_size;
-		prepare->hw_update_entries[num_ent].offset =
-			kmd_buf_info->offset;
-
-		/* Marking reg update as COMMON */
-		prepare->hw_update_entries[num_ent].flags = CAM_ISP_COMMON_CFG_BL;
-		CAM_DBG(CAM_ISP,
-			"num_ent=%d handle=0x%x, len=%u, offset=%u",
-			num_ent,
-			prepare->hw_update_entries[num_ent].handle,
-			prepare->hw_update_entries[num_ent].len,
-			prepare->hw_update_entries[num_ent].offset);
-		num_ent++;
-
-		kmd_buf_info->used_bytes += reg_update_size;
-		kmd_buf_info->offset     += reg_update_size;
-		prepare->num_hw_update_entries = num_ent;
-		/* reg update is success return status 0 */
+		cam_isp_update_hw_entry(CAM_ISP_COMMON_CFG_BL, prepare,
+			kmd_buf_info, reg_update_size, combine);
 		rc = 0;
 	}
 
@@ -1178,11 +1171,12 @@ int cam_isp_add_reg_update(
 int cam_isp_add_go_cmd(
 	struct cam_hw_prepare_update_args    *prepare,
 	struct cam_isp_resource_node         *res,
-	struct cam_kmd_buf_info              *kmd_buf_info)
+	struct cam_kmd_buf_info              *kmd_buf_info,
+	bool                                  combine)
 {
-	int rc = -EINVAL;
+	int rc;
 	struct cam_isp_hw_get_cmd_update      get_regup;
-	uint32_t kmd_buf_remain_size, num_ent, reg_update_size;
+	uint32_t kmd_buf_remain_size, reg_update_size;
 
 	/* Max one hw entries required for each base */
 	if (prepare->num_hw_update_entries + 1 >=
@@ -1204,8 +1198,7 @@ int cam_isp_add_go_cmd(
 			kmd_buf_info->size,
 			kmd_buf_info->used_bytes +
 			reg_update_size);
-		rc = -EINVAL;
-		return rc;
+		return -EINVAL;
 	}
 
 	get_regup.cmd.cmd_buf_addr = kmd_buf_info->cpu_addr +
@@ -1225,25 +1218,11 @@ int cam_isp_add_go_cmd(
 		res->res_type, res->hw_intf->hw_idx);
 	reg_update_size += get_regup.cmd.used_bytes;
 
-	/* Update the HW entries */
-	num_ent = prepare->num_hw_update_entries;
-	prepare->hw_update_entries[num_ent].handle =
-		kmd_buf_info->handle;
-	prepare->hw_update_entries[num_ent].len = reg_update_size;
-	prepare->hw_update_entries[num_ent].offset =
-		kmd_buf_info->offset;
-	prepare->hw_update_entries[num_ent].flags = CAM_ISP_COMMON_CFG_BL;
-	CAM_DBG(CAM_ISP,
-		"num_ent=%d handle=0x%x, len=%u, offset=%u",
-		num_ent,
-		prepare->hw_update_entries[num_ent].handle,
-		prepare->hw_update_entries[num_ent].len,
-		prepare->hw_update_entries[num_ent].offset);
-	num_ent++;
-	kmd_buf_info->used_bytes += reg_update_size;
-	kmd_buf_info->offset     += reg_update_size;
-	prepare->num_hw_update_entries = num_ent;
-
+	/* Update HW entries */
+	if (reg_update_size)
+		cam_isp_update_hw_entry(CAM_ISP_COMMON_CFG_BL,
+			prepare, kmd_buf_info, reg_update_size,
+			combine);
 	return 0;
 }
 
@@ -1447,7 +1426,6 @@ int cam_isp_add_wait_trigger(
 
 int cam_isp_add_csid_command_buffers(
 	struct cam_hw_prepare_update_args   *prepare,
-	struct cam_kmd_buf_info             *kmd_buf_info,
 	struct cam_isp_ctx_base_info        *base_info)
 {
 	int rc = 0;
@@ -1492,7 +1470,6 @@ int cam_isp_add_csid_command_buffers(
 			cmd_meta_data, split_id);
 
 		switch (cmd_meta_data) {
-
 		case CAM_ISP_PACKET_META_BASE:
 		case CAM_ISP_PACKET_META_LEFT:
 		case CAM_ISP_PACKET_META_DMI_LEFT:
@@ -1515,8 +1492,7 @@ int cam_isp_add_csid_command_buffers(
 		case CAM_ISP_PACKET_META_CSID_LEFT:
 			if (split_id == CAM_ISP_HW_SPLIT_LEFT) {
 				hw_entry[num_ent].len = cmd_desc[i].length;
-				hw_entry[num_ent].handle =
-					cmd_desc[i].mem_handle;
+				hw_entry[num_ent].handle = cmd_desc[i].mem_handle;
 				hw_entry[num_ent].offset = cmd_desc[i].offset;
 				CAM_DBG(CAM_ISP,
 					"Meta_Left num_ent=%d handle=0x%x, len=%u, offset=%u",
@@ -1524,17 +1500,14 @@ int cam_isp_add_csid_command_buffers(
 					hw_entry[num_ent].handle,
 					hw_entry[num_ent].len,
 					hw_entry[num_ent].offset);
-					hw_entry[num_ent].flags =
-						CAM_ISP_IQ_BL;
-
+				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent++;
 			}
 			break;
 		case CAM_ISP_PACKET_META_CSID_RIGHT:
 			if (split_id == CAM_ISP_HW_SPLIT_RIGHT) {
 				hw_entry[num_ent].len = cmd_desc[i].length;
-				hw_entry[num_ent].handle =
-					cmd_desc[i].mem_handle;
+				hw_entry[num_ent].handle = cmd_desc[i].mem_handle;
 				hw_entry[num_ent].offset = cmd_desc[i].offset;
 				CAM_DBG(CAM_ISP,
 					"Meta_Right num_ent=%d handle=0x%x, len=%u, offset=%u",
@@ -1542,15 +1515,13 @@ int cam_isp_add_csid_command_buffers(
 					hw_entry[num_ent].handle,
 					hw_entry[num_ent].len,
 					hw_entry[num_ent].offset);
-					hw_entry[num_ent].flags =
-						CAM_ISP_IQ_BL;
+				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 				num_ent++;
 			}
 			break;
 		case CAM_ISP_PACKET_META_CSID_COMMON:
 			hw_entry[num_ent].len = cmd_desc[i].length;
-			hw_entry[num_ent].handle =
-				cmd_desc[i].mem_handle;
+			hw_entry[num_ent].handle = cmd_desc[i].mem_handle;
 			hw_entry[num_ent].offset = cmd_desc[i].offset;
 			CAM_DBG(CAM_ISP,
 				"Meta_Common num_ent=%d handle=0x%x, len=%u, offset=%u",
@@ -1558,8 +1529,7 @@ int cam_isp_add_csid_command_buffers(
 				hw_entry[num_ent].handle,
 				hw_entry[num_ent].len,
 				hw_entry[num_ent].offset);
-				hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
-
+			hw_entry[num_ent].flags = CAM_ISP_IQ_BL;
 			num_ent++;
 			break;
 		default:
@@ -1576,12 +1546,12 @@ int cam_isp_add_csid_command_buffers(
 int cam_isp_add_csid_reg_update(
 	struct cam_hw_prepare_update_args    *prepare,
 	struct cam_kmd_buf_info              *kmd_buf_info,
-	void                                 *args)
+	void                                 *args,
+	bool                                  combine)
 {
-	int rc = 0;
+	int rc;
 	struct cam_isp_resource_node         *res;
-	uint32_t kmd_buf_remain_size, num_ent;
-	uint32_t reg_update_size = 0;
+	uint32_t kmd_buf_remain_size, reg_update_size = 0;
 	struct cam_isp_csid_reg_update_args *rup_args = NULL;
 
 	if (prepare->num_hw_update_entries + 1 >=
@@ -1608,7 +1578,7 @@ int cam_isp_add_csid_reg_update(
 		return -EINVAL;
 	}
 
-	kmd_buf_remain_size =  kmd_buf_info->size -
+	kmd_buf_remain_size = kmd_buf_info->size -
 		(kmd_buf_info->used_bytes +
 		reg_update_size);
 
@@ -1632,41 +1602,22 @@ int cam_isp_add_csid_reg_update(
 		res->res_id, res->hw_intf->hw_idx);
 	reg_update_size += rup_args->cmd.used_bytes;
 
-	if (reg_update_size) {
-		/* Update the HW entries */
-		num_ent = prepare->num_hw_update_entries;
-		prepare->hw_update_entries[num_ent].handle =
-			kmd_buf_info->handle;
-		prepare->hw_update_entries[num_ent].len = reg_update_size;
-		prepare->hw_update_entries[num_ent].offset =
-			kmd_buf_info->offset;
-
-		/* Marking reg update as COMMON */
-		prepare->hw_update_entries[num_ent].flags = CAM_ISP_COMMON_CFG_BL;
-		CAM_DBG(CAM_ISP,
-			"num_ent=%d handle=0x%x, len=%u, offset=%u",
-			num_ent,
-			prepare->hw_update_entries[num_ent].handle,
-			prepare->hw_update_entries[num_ent].len,
-			prepare->hw_update_entries[num_ent].offset);
-		num_ent++;
-
-		kmd_buf_info->used_bytes += reg_update_size;
-		kmd_buf_info->offset     += reg_update_size;
-		prepare->num_hw_update_entries = num_ent;
-		/* reg update is success return status 0 */
-	}
-
-	return rc;
+	/* Update hw entries */
+	if (reg_update_size)
+		cam_isp_update_hw_entry(CAM_ISP_COMMON_CFG_BL,
+			prepare, kmd_buf_info, reg_update_size,
+			combine);
+	return 0;
 }
 
 int cam_isp_add_csid_offline_cmd(
 	struct cam_hw_prepare_update_args    *prepare,
 	struct cam_isp_resource_node         *res,
-	struct cam_kmd_buf_info              *kmd_buf_info)
+	struct cam_kmd_buf_info              *kmd_buf_info,
+	bool                                  combine)
 {
-	int rc = -EINVAL;
-	uint32_t kmd_buf_remain_size, num_ent, go_cmd_size;
+	int rc;
+	uint32_t kmd_buf_remain_size, go_cmd_size;
 	struct cam_ife_csid_offline_cmd_update_args go_args;
 
 	if (prepare->num_hw_update_entries + 1 >=
@@ -1688,8 +1639,7 @@ int cam_isp_add_csid_offline_cmd(
 			kmd_buf_info->size,
 			kmd_buf_info->used_bytes +
 			go_cmd_size);
-		rc = -EINVAL;
-		goto end;
+		return -EINVAL;
 	}
 
 	go_args.cmd.cmd_buf_addr = kmd_buf_info->cpu_addr +
@@ -1703,39 +1653,19 @@ int cam_isp_add_csid_offline_cmd(
 			CAM_IFE_CSID_PROGRAM_OFFLINE_CMD, &go_args,
 			sizeof(go_args));
 	if (rc)
-		goto end;
+		return rc;
 
 	CAM_DBG(CAM_ISP,
 		"offline cmd update added for CSID: %u res: %d",
 		res->hw_intf->hw_idx, res->res_id);
-
 	go_cmd_size += go_args.cmd.used_bytes;
-	/* Update the HW entries */
-	num_ent = prepare->num_hw_update_entries;
-	prepare->hw_update_entries[num_ent].handle =
-		kmd_buf_info->handle;
-	prepare->hw_update_entries[num_ent].len = go_cmd_size;
-	prepare->hw_update_entries[num_ent].offset =
-		kmd_buf_info->offset;
 
-	/* Marking go update as COMMON */
-	prepare->hw_update_entries[num_ent].flags = CAM_ISP_COMMON_CFG_BL;
-	CAM_DBG(CAM_ISP,
-		"num_ent=%d handle=0x%x, len=%u, offset=%u",
-		num_ent,
-		prepare->hw_update_entries[num_ent].handle,
-		prepare->hw_update_entries[num_ent].len,
-		prepare->hw_update_entries[num_ent].offset);
-	num_ent++;
-
-	kmd_buf_info->used_bytes += go_cmd_size;
-	kmd_buf_info->offset     += go_cmd_size;
-	prepare->num_hw_update_entries = num_ent;
-	/* offline cmd update is success return status 0 */
-	rc = 0;
-
-end:
-	return rc;
+	/* Update HW entries */
+	if (go_cmd_size)
+		cam_isp_update_hw_entry(CAM_ISP_COMMON_CFG_BL,
+			prepare, kmd_buf_info, go_cmd_size,
+			combine);
+	return 0;
 }
 
 int cam_isp_get_cmd_buf_count(

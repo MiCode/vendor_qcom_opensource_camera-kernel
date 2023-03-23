@@ -4549,7 +4549,7 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 		/*Add reg update */
 		rc = cam_isp_add_reg_update(prepare, &ctx->res_list_tfe_in,
-			ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info);
+			ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info, false);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Add Reg_update cmd Failed i=%d, idx=%d, rc=%d",

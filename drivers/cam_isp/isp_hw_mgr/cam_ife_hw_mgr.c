@@ -490,30 +490,28 @@ static inline void cam_ife_mgr_update_hw_entries_util(
 	enum cam_isp_cdm_bl_type               cdm_bl_type,
 	uint32_t                               total_used_bytes,
 	struct cam_kmd_buf_info               *kmd_buf_info,
-	struct cam_hw_prepare_update_args     *prepare)
+	struct cam_hw_prepare_update_args     *prepare,
+	bool                                   precheck_combine)
 {
+	bool combine;
 	uint32_t num_ent;
+	struct cam_hw_update_entry *prev_hw_update_entry;
 
-	num_ent = prepare->num_hw_update_entries;
-	prepare->hw_update_entries[num_ent].handle =
-		kmd_buf_info->handle;
-	prepare->hw_update_entries[num_ent].len =
-		total_used_bytes;
-	prepare->hw_update_entries[num_ent].offset =
-		kmd_buf_info->offset;
-	prepare->hw_update_entries[num_ent].flags = cdm_bl_type;
-
-	num_ent++;
-	kmd_buf_info->used_bytes += total_used_bytes;
-	kmd_buf_info->offset     += total_used_bytes;
-	prepare->num_hw_update_entries = num_ent;
-
-	CAM_DBG(CAM_ISP, "Handle: 0x%x len: %u offset: %u flags: %u num_ent: %u",
-		prepare->hw_update_entries[num_ent - 1].handle,
-		prepare->hw_update_entries[num_ent - 1].len,
-		prepare->hw_update_entries[num_ent - 1].offset,
-		prepare->hw_update_entries[num_ent - 1].flags,
-		num_ent);
+	/*
+	 * Combine with prev entry only when a new entry was created
+	 * by previus handler and this entry has the same bl type
+	 * as the previous entry, if not, a new entry will be generated
+	 * later
+	 */
+	combine = precheck_combine;
+	if (combine) {
+		num_ent = prepare->num_hw_update_entries;
+		prev_hw_update_entry = &(prepare->hw_update_entries[num_ent - 1]);
+		if (prev_hw_update_entry->flags != cdm_bl_type)
+			combine = false;
+	}
+	cam_isp_update_hw_entry(cdm_bl_type, prepare,
+		kmd_buf_info, total_used_bytes, combine);
 }
 
 static inline int cam_ife_mgr_allocate_cdm_cmd(
@@ -7928,9 +7926,12 @@ static int cam_isp_blob_ubwc_update(
 			total_used_bytes += bytes_used;
 		}
 
-		if (total_used_bytes)
-			cam_ife_mgr_update_hw_entries_util(
-				CAM_ISP_UNUSED_BL, total_used_bytes, kmd_buf_info, prepare);
+		if (total_used_bytes) {
+			cam_ife_mgr_update_hw_entries_util(CAM_ISP_IQ_BL,
+				total_used_bytes, kmd_buf_info,
+				prepare, blob_info->entry_added);
+			blob_info->entry_added = true;
+		}
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "Invalid UBWC API Version %d ctx_idx: %u",
@@ -8103,9 +8104,12 @@ static int cam_isp_blob_ubwc_update_v2(
 		total_used_bytes += bytes_used;
 	}
 
-	if (total_used_bytes)
+	if (total_used_bytes) {
 		cam_ife_mgr_update_hw_entries_util(
-			CAM_ISP_UNUSED_BL, total_used_bytes, kmd_buf_info, prepare);
+			CAM_ISP_IQ_BL, total_used_bytes,
+			kmd_buf_info, prepare, blob_info->entry_added);
+		blob_info->entry_added = true;
+	}
 
 end:
 	return rc;
@@ -8631,9 +8635,12 @@ static int cam_isp_blob_sfe_update_fetch_core_cfg(
 		total_used_bytes += used_bytes;
 	}
 
-	if (total_used_bytes)
+	if (total_used_bytes) {
 		cam_ife_mgr_update_hw_entries_util(
-			false, total_used_bytes, kmd_buf_info, prepare);
+			CAM_ISP_IQ_BL, total_used_bytes,
+			kmd_buf_info, prepare, blob_info->entry_added);
+		blob_info->entry_added = true;
+	}
 
 	return 0;
 }
@@ -8737,9 +8744,12 @@ static int cam_isp_blob_hfr_update(
 		total_used_bytes += bytes_used;
 	}
 
-	if (total_used_bytes)
+	if (total_used_bytes) {
 		cam_ife_mgr_update_hw_entries_util(
-			CAM_ISP_IQ_BL, total_used_bytes, kmd_buf_info, prepare);
+			CAM_ISP_IQ_BL, total_used_bytes,
+			kmd_buf_info, prepare, blob_info->entry_added);
+		blob_info->entry_added = true;
+	}
 
 	return rc;
 }
@@ -9445,10 +9455,12 @@ static int cam_isp_blob_vfe_out_update(
 		total_used_bytes += bytes_used;
 	}
 
-	if (total_used_bytes)
+	if (total_used_bytes) {
 		cam_ife_mgr_update_hw_entries_util(
-			CAM_ISP_UNUSED_BL, total_used_bytes, kmd_buf_info, prepare);
-
+			CAM_ISP_IQ_BL, total_used_bytes,
+			kmd_buf_info, prepare, blob_info->entry_added);
+		blob_info->entry_added = true;
+	}
 	return rc;
 }
 
@@ -9457,7 +9469,6 @@ static int cam_isp_blob_sensor_blanking_config(
 	struct cam_isp_generic_blob_info      *blob_info,
 	struct cam_isp_sensor_blanking_config *sensor_blanking_config,
 	struct cam_hw_prepare_update_args     *prepare)
-
 {
 	struct cam_ife_hw_mgr_ctx       *ctx = NULL;
 	struct cam_isp_hw_mgr_res       *hw_mgr_res;
@@ -9612,9 +9623,12 @@ static int cam_isp_blob_bw_limit_update(
 		total_used_bytes += bytes_used;
 	}
 
-	if (total_used_bytes)
+	if (total_used_bytes) {
 		cam_ife_mgr_update_hw_entries_util(
-			CAM_ISP_IQ_BL, total_used_bytes, kmd_buf_info, prepare);
+			CAM_ISP_IQ_BL, total_used_bytes,
+			kmd_buf_info, prepare, blob_info->entry_added);
+		blob_info->entry_added = true;
+	}
 
 	return rc;
 }
@@ -9666,9 +9680,12 @@ static int cam_isp_hw_mgr_add_cmd_buf_util(
 		return -EINVAL;
 	}
 
-	if (total_used_bytes)
+	if (total_used_bytes) {
 		cam_ife_mgr_update_hw_entries_util(
-			CAM_ISP_IQ_BL, total_used_bytes, kmd_buf_info, prepare);
+			CAM_ISP_IQ_BL, total_used_bytes,
+			kmd_buf_info, prepare, blob_info->entry_added);
+		blob_info->entry_added = true;
+	}
 	return rc;
 }
 
@@ -10514,7 +10531,6 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 		if (rc)
 			CAM_ERR(CAM_ISP, "QCFA Update Failed rc: %d, ctx_idx: %u",
 				rc, ife_mgr_ctx->ctx_index);
-
 	}
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_FE_CONFIG: {
@@ -11496,7 +11512,8 @@ static int cam_isp_sfe_add_scratch_buffer_cfg(
 
 	if (io_cfg_used_bytes)
 		cam_ife_mgr_update_hw_entries_util(
-			CAM_ISP_IOCFG_BL, io_cfg_used_bytes, kmd_buf_info, prepare);
+			CAM_ISP_IOCFG_BL, io_cfg_used_bytes,
+			kmd_buf_info, prepare, false);
 
 	return rc;
 }
@@ -11576,7 +11593,8 @@ static int cam_isp_ife_add_scratch_buffer_cfg(
 
 	if (io_cfg_used_bytes)
 		cam_ife_mgr_update_hw_entries_util(
-			CAM_ISP_IOCFG_BL, io_cfg_used_bytes, kmd_buf_info, prepare);
+			CAM_ISP_IOCFG_BL, io_cfg_used_bytes,
+			kmd_buf_info, prepare, false);
 
 	return rc;
 }
@@ -11650,7 +11668,7 @@ static int cam_ife_mgr_csid_add_reg_update(struct cam_ife_hw_mgr_ctx *ctx,
 		}
 
 		rc = cam_isp_add_csid_reg_update(prepare, kmd_buf,
-			&rup_args[i]);
+			&rup_args[i], true);
 
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Ctx:%u Reg Update failed idx:%u",
@@ -11698,7 +11716,8 @@ static int cam_ife_mgr_isp_add_reg_update(struct cam_ife_hw_mgr_ctx *ctx,
 
 		rc = cam_isp_add_reg_update(prepare,
 			&ctx->res_list_ife_src,
-			ctx->base[i].idx, kmd_buf);
+			ctx->base[i].idx, kmd_buf,
+			!ctx->flags.internal_cdm);
 
 		if (rc) {
 			CAM_ERR(CAM_ISP,
@@ -11757,7 +11776,7 @@ add_cmds:
 			return rc;
 
 		rc = cam_isp_add_csid_offline_cmd(prepare,
-			hw_mgr_res->hw_res[i], kmd_buf_info);
+			hw_mgr_res->hw_res[i], kmd_buf_info, true);
 		if (rc)
 			return rc;
 
@@ -11808,7 +11827,7 @@ add_cmds:
 		if (rc)
 			return rc;
 
-		rc = cam_isp_add_go_cmd(prepare, hw_mgr_res->hw_res[i], kmd_buf_info);
+		rc = cam_isp_add_go_cmd(prepare, hw_mgr_res->hw_res[i], kmd_buf_info, true);
 		if (rc)
 			return rc;
 
@@ -11833,11 +11852,11 @@ static int cam_ife_hw_mgr_update_cmd_buffer(
 		res_list = &ctx->res_list_sfe_src;
 	} else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_VFE) {
 		res_list = &ctx->res_list_ife_src;
-	}else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_CSID) {
+	} else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_CSID) {
 		if (!cmd_buf_count->csid_cnt)
 			return rc;
 		res_list = &ctx->res_list_ife_csid;
-	}else {
+	} else {
 		CAM_ERR(CAM_ISP,
 			"Invalid hw_type=%d, ctx_idx: %u",
 			ctx->base[base_idx].hw_type, ctx->ctx_index);
@@ -11884,7 +11903,7 @@ static int cam_ife_hw_mgr_update_cmd_buffer(
 			max_ife_out_res));
 	else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_CSID)
 		rc = cam_isp_add_csid_command_buffers(prepare,
-			kmd_buf, &ctx->base[base_idx]);
+			&ctx->base[base_idx]);
 
 	CAM_DBG(CAM_ISP,
 		"Add cmdbuf, i=%d, split_id=%d, hw_type=%d ctx_idx: %u",
