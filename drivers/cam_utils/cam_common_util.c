@@ -397,7 +397,9 @@ void cam_common_release_evt_params(int32_t dev_hdl)
 static inline int cam_common_evt_inject_get_hw_id(uint8_t *hw_id, char *token)
 {
 	if (strcmp(token, CAM_COMMON_IFE_NODE) == 0)
-		*hw_id = CAM_COMMON_EVT_INJECT_HW_ISP;
+		*hw_id = CAM_COMMON_EVT_INJECT_HW_IFE;
+	else if (strcmp(token, CAM_COMMON_TFE_NODE) == 0)
+		*hw_id = CAM_COMMON_EVT_INJECT_HW_TFE;
 	else if (strcmp(token, CAM_COMMON_ICP_NODE) == 0)
 		*hw_id = CAM_COMMON_EVT_INJECT_HW_ICP;
 	else if (strcmp(token, CAM_COMMON_JPEG_NODE) == 0)
@@ -734,8 +736,11 @@ static int cam_common_evt_inject_get(char *buffer,
 		evt_params = &inject_params->evt_params;
 
 		switch (inject_params->hw_id) {
-		case CAM_COMMON_EVT_INJECT_HW_ISP:
+		case CAM_COMMON_EVT_INJECT_HW_IFE:
 			strscpy(hw_name, CAM_COMMON_IFE_NODE, sizeof(hw_name));
+			break;
+		case CAM_COMMON_EVT_INJECT_HW_TFE:
+			strscpy(hw_name, CAM_COMMON_TFE_NODE, sizeof(hw_name));
 			break;
 		case CAM_COMMON_EVT_INJECT_HW_ICP:
 			strscpy(hw_name, CAM_COMMON_ICP_NODE, sizeof(hw_name));
