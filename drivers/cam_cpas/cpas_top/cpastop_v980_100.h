@@ -1601,4 +1601,15 @@ static struct cam_cpas_camnoc_qchannel cam980_cpas100_qchannel_info_nrt = {
 	.qchannel_ctrl   = 0xF4,
 	.qchannel_status = 0xF8,
 };
+
+static struct cam_cpas_info cam980_cpas100_cpas_info = {
+	.hw_caps_info = {
+		.num_caps_registers = 2,
+		.hw_caps_offsets = {0x8, 0xDC},
+	},
+	.qchannel_info = {&cam980_cpas100_qchannel_info_rt,
+		&cam980_cpas100_qchannel_info_nrt},
+	.num_qchannel = 2,
+};
+
 #endif /* _CPASTOP_V980_100_H_ */

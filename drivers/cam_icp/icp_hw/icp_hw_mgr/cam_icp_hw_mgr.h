@@ -56,6 +56,8 @@
 #define CPAS_IPE1_BIT           0x2000
 #define CPAS_BPS_BIT            0x400
 #define CPAS_ICP_BIT            0x1
+#define CPAS_ICP1_BIT           0x4
+#define CPAS_OFE_BIT            0x10
 
 /* Used for targets >= 480 and its variants */
 #define CPAS_TITAN_IPE0_CAP_BIT 0x800

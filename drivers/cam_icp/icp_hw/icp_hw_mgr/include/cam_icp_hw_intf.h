@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_ICP_HW_INTF_H
@@ -25,6 +25,14 @@
 
 #define CAM_ICP_MAX_ICP_HW_TYPE 2
 #define CAM_ICP_DEV_START_IDX CAM_ICP_MAX_ICP_HW_TYPE
+
+#define ICP_CAPS_MASK_IDX 0
+#define IPE_CAPS_MASK_IDX 0
+#define BPS_CAPS_MASK_IDX 0
+#define OFE_CAPS_MASK_IDX 1
+
+/* max caps mask is max value of all device caps mask index added by 1 */
+#define MAX_HW_CAPS_MASK 2
 
 enum cam_icp_hw_type {
 	CAM_ICP_HW_ICP_V1,

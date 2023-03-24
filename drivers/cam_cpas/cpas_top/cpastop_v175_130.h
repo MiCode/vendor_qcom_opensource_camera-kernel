@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CPASTOP_V175_130_H_
@@ -827,6 +828,13 @@ static struct cam_camnoc_info cam175_cpas130_camnoc_info = {
 	.irq_err_size = ARRAY_SIZE(cam_cpas_v175_130_irq_err),
 	.err_logger = &cam175_cpas130_err_logger_offsets,
 	.errata_wa_list = &cam175_cpas130_errata_wa_list,
+};
+
+static struct cam_cpas_info cam175_cpas130_cpas_info = {
+	.hw_caps_info = {
+		.num_caps_registers = 1,
+		.hw_caps_offsets = {0x8},
+	},
 };
 
 #endif /* _CPASTOP_V175_130_H_ */

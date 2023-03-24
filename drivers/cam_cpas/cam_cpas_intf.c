@@ -385,7 +385,7 @@ int cam_cpas_get_cpas_hw_version(uint32_t *hw_version)
 int cam_cpas_get_hw_info(uint32_t *camera_family,
 	struct cam_hw_version *camera_version,
 	struct cam_hw_version *cpas_version,
-	uint32_t *cam_caps,
+	uint32_t **cam_caps, uint32_t *num_cap_mask,
 	struct cam_cpas_fuse_info *cam_fuse_info,
 	struct cam_cpas_domain_id_caps *domain_id_info)
 {
@@ -399,9 +399,9 @@ int cam_cpas_get_hw_info(uint32_t *camera_family,
 		return -ENODEV;
 	}
 
-	if (!camera_family || !camera_version || !cpas_version || !cam_caps) {
-		CAM_ERR(CAM_CPAS, "invalid input %pK %pK %pK %pK",
-			camera_family, camera_version, cpas_version, cam_caps);
+	if (!camera_family || !camera_version || !cpas_version || !cam_caps || !num_cap_mask) {
+		CAM_ERR(CAM_CPAS, "invalid input %pK %pK %pK %pK %pK",
+			camera_family, camera_version, cpas_version, cam_caps, num_cap_mask);
 		return -EINVAL;
 	}
 
@@ -413,6 +413,8 @@ int cam_cpas_get_hw_info(uint32_t *camera_family,
 	*camera_version = g_cpas_intf->hw_caps.camera_version;
 	*cpas_version   = g_cpas_intf->hw_caps.cpas_version;
 	*cam_caps       = g_cpas_intf->hw_caps.camera_capability;
+	*num_cap_mask   = g_cpas_intf->hw_caps.num_capability_reg;
+
 	if (cam_fuse_info)
 		*cam_fuse_info  = g_cpas_intf->hw_caps.fuse_info;
 	if (domain_id_info) {
@@ -1003,6 +1005,7 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 	struct cam_control *cmd)
 {
 	int rc = 0;
+	uint32_t *camera_capability, num_cap_mask;
 
 	if (!cmd) {
 		CAM_ERR(CAM_CPAS, "Invalid input cmd");
@@ -1023,9 +1026,11 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 
 		rc = cam_cpas_get_hw_info(&query.camera_family,
 			&query.camera_version, &query.cpas_version,
-			&query.reserved, NULL, NULL);
+			&camera_capability, &num_cap_mask, NULL, NULL);
 		if (rc)
 			break;
+
+		query.reserved = camera_capability[0];
 
 		rc = copy_to_user(u64_to_user_ptr(cmd->handle), &query,
 			sizeof(query));
@@ -1047,10 +1052,12 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 
 		rc = cam_cpas_get_hw_info(&query.camera_family,
 			&query.camera_version, &query.cpas_version,
-			&query.reserved,
+			&camera_capability, &num_cap_mask,
 			&query.fuse_info, NULL);
 		if (rc)
 			break;
+
+		query.reserved = camera_capability[0];
 
 		rc = copy_to_user(u64_to_user_ptr(cmd->handle), &query,
 			sizeof(query));
@@ -1072,10 +1079,12 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 
 		rc = cam_cpas_get_hw_info(&query.camera_family,
 			&query.camera_version, &query.cpas_version,
-			&query.camera_caps, &query.fuse_info,
+			&camera_capability, &num_cap_mask, &query.fuse_info,
 			&query.domain_id_info);
 		if (rc)
 			break;
+
+		query.camera_caps = camera_capability[0];
 
 		rc = copy_to_user(u64_to_user_ptr(cmd->handle), &query,
 			sizeof(query));

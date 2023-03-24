@@ -722,7 +722,8 @@ int cam_cpas_reg_read(
  *                   CAM_FAMILY_CPAS_SS
  * @camera_version : Camera platform version
  * @cpas_version   : Camera cpas version
- * @cam_caps       : Camera capability
+ * @cam_caps       : Camera capability array
+ * @num_cap_mask   : number of capability masks
  * @cam_fuse_info  : Camera fuse info
  * @domain_id_info : Domain id info
  *
@@ -733,7 +734,8 @@ int cam_cpas_get_hw_info(
 	uint32_t                       *camera_family,
 	struct cam_hw_version          *camera_version,
 	struct cam_hw_version          *cpas_version,
-	uint32_t                       *cam_caps,
+	uint32_t                      **cam_caps,
+	uint32_t                       *num_cap_mask,
 	struct cam_cpas_fuse_info      *cam_fuse_info,
 	struct cam_cpas_domain_id_caps *domain_id_info);
 
@@ -747,8 +749,7 @@ int cam_cpas_get_hw_info(
  * @return 0 on success.
  *
  */
-int cam_cpas_get_cpas_hw_version(
-	uint32_t				 *hw_version);
+int cam_cpas_get_cpas_hw_version(uint32_t *hw_version);
 
 /**
  * cam_cpas_is_feature_supported()

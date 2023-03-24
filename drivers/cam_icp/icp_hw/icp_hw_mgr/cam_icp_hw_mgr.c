@@ -66,6 +66,8 @@ DECLARE_RWSEM(frame_in_process_sem);
 
 static struct cam_icp_hw_mgr *g_icp_hw_mgr[CAM_ICP_SUBDEV_MAX];
 
+uint32_t icp_cpas_mask[CAM_ICP_SUBDEV_MAX] = {CPAS_ICP_BIT, CPAS_ICP1_BIT};
+
 static void cam_icp_mgr_process_dbg_buf(struct cam_icp_hw_mgr *hw_mgr);
 
 static int cam_icp_dump_io_cfg(struct cam_icp_hw_ctx_data *ctx_data,
@@ -7486,18 +7488,48 @@ static void cam_icp_mgr_free_devs(struct cam_icp_hw_mgr *hw_mgr)
 		kfree(hw_mgr->devices[i]);
 }
 
-static int cam_icp_mgr_alloc_devs(struct device_node *np,
-	struct cam_icp_hw_mgr *hw_mgr, uint32_t cpas_cap_dev_cnt[CAM_ICP_HW_MAX])
+static int cam_icp_mgr_verify_hw_caps(struct cam_icp_hw_mgr *hw_mgr, uint32_t *icp_dev_mask,
+	uint32_t num_icp_dev_mask)
+{
+	struct cam_cpas_query_cap query;
+	int rc, i;
+	uint32_t *cam_caps, num_cpas_cap_mask;
+
+	rc = cam_cpas_get_hw_info(&query.camera_family, &query.camera_version,
+			&query.cpas_version, &cam_caps, &num_cpas_cap_mask,
+			NULL, NULL);
+	if (rc)
+		return rc;
+
+	if (num_icp_dev_mask > num_cpas_cap_mask) {
+		CAM_ERR(CAM_ICP,
+			"[%s] Number of found icp device caps mask %u exceeds cpas cap mask %u",
+			hw_mgr->hw_mgr_name, num_icp_dev_mask, num_cpas_cap_mask);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < num_icp_dev_mask; i++) {
+		if ((icp_dev_mask[i] & cam_caps[i]) != icp_dev_mask[i]) {
+			CAM_ERR(CAM_ICP,
+				"[%s] Found unsupported HW, cpas caps mask: %u icp device mask: %u",
+				hw_mgr->hw_mgr_name, cam_caps[i], icp_dev_mask[i]);
+			return -ENODEV;
+		}
+	}
+
+	return 0;
+}
+
+static int cam_icp_mgr_alloc_devs(struct device_node *np, struct cam_icp_hw_mgr *hw_mgr)
 {
 	struct cam_hw_intf **devices = NULL;
 	int rc;
 	enum cam_icp_hw_type icp_hw_type;
-	uint32_t num = 0;
+	uint32_t num = 0, num_cpas_mask = 0, cpas_hw_mask[MAX_HW_CAPS_MASK] = {0};
 
 	memset(hw_mgr->devices, 0, sizeof(hw_mgr->devices));
 
-	rc = cam_icp_alloc_processor_devs(np, &icp_hw_type,
-		&devices, hw_mgr->hw_dev_cnt, cpas_cap_dev_cnt);
+	rc = cam_icp_alloc_processor_devs(np, &icp_hw_type, &devices, hw_mgr->hw_dev_cnt);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "[%s] proc devices allocation failed rc=%d",
 			hw_mgr->hw_mgr_name, rc);
@@ -7514,16 +7546,11 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np,
 
 	hw_mgr->devices[icp_hw_type] = devices;
 	hw_mgr->hw_cap_mask |= BIT(icp_hw_type);
+	num_cpas_mask = max(num_cpas_mask, (uint32_t)(ICP_CAPS_MASK_IDX + 1));
+	cpas_hw_mask[ICP_CAPS_MASK_IDX] |= icp_cpas_mask[hw_mgr->hw_mgr_id];
 
 	rc = of_property_read_u32(np, "num-ipe", &num);
 	if (!rc) {
-		if (num > cpas_cap_dev_cnt[CAM_ICP_DEV_IPE]) {
-			CAM_ERR(CAM_ICP,
-				"[%s] Number of listed IPE: %u exceed supported IPE number: %u",
-				hw_mgr->hw_mgr_name, num, cpas_cap_dev_cnt[CAM_ICP_DEV_IPE]);
-			rc = -EINVAL;
-			goto free_devs;
-		}
 		hw_mgr->hw_dev_cnt[CAM_ICP_DEV_IPE] = num;
 
 		devices = kcalloc(num, sizeof(*devices), GFP_KERNEL);
@@ -7534,17 +7561,12 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np,
 		}
 		hw_mgr->devices[CAM_ICP_DEV_IPE] = devices;
 		hw_mgr->hw_cap_mask |= BIT(CAM_ICP_DEV_IPE);
+		num_cpas_mask = max(num_cpas_mask, (uint32_t)(IPE_CAPS_MASK_IDX + 1));
+		cpas_hw_mask[IPE_CAPS_MASK_IDX] |= CPAS_TITAN_IPE0_CAP_BIT;
 	}
 
 	rc = of_property_read_u32(np, "num-bps", &num);
 	if (!rc) {
-		if (num > cpas_cap_dev_cnt[CAM_ICP_DEV_BPS]) {
-			CAM_ERR(CAM_ICP,
-				"[%s] Number of listed BPS: %u exceed supported BPS number: %u",
-				hw_mgr->hw_mgr_name, num, cpas_cap_dev_cnt[CAM_ICP_DEV_BPS]);
-			rc = -EINVAL;
-			goto free_devs;
-		}
 		hw_mgr->hw_dev_cnt[CAM_ICP_DEV_BPS] = num;
 
 		devices = kcalloc(num, sizeof(*devices), GFP_KERNEL);
@@ -7555,17 +7577,12 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np,
 		}
 		hw_mgr->devices[CAM_ICP_DEV_BPS] = devices;
 		hw_mgr->hw_cap_mask |= BIT(CAM_ICP_DEV_BPS);
+		num_cpas_mask = max(num_cpas_mask, (uint32_t)(BPS_CAPS_MASK_IDX + 1));
+		cpas_hw_mask[BPS_CAPS_MASK_IDX] |= CPAS_BPS_BIT;
 	}
 
 	rc = of_property_read_u32(np, "num-ofe", &num);
 	if (!rc) {
-		if (num > cpas_cap_dev_cnt[CAM_ICP_DEV_OFE]) {
-			CAM_ERR(CAM_ICP,
-				"[%s] Number of listed OFE: %u exceed supported OFE number: %u",
-				hw_mgr->hw_mgr_name, num, cpas_cap_dev_cnt[CAM_ICP_DEV_OFE]);
-			rc = -EINVAL;
-			goto free_devs;
-		}
 		hw_mgr->hw_dev_cnt[CAM_ICP_DEV_OFE] = num;
 
 		devices = kcalloc(num, sizeof(*devices), GFP_KERNEL);
@@ -7577,6 +7594,14 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np,
 
 		hw_mgr->devices[CAM_ICP_DEV_OFE] = devices;
 		hw_mgr->hw_cap_mask |= BIT(CAM_ICP_DEV_OFE);
+		num_cpas_mask = max(num_cpas_mask, (uint32_t)(OFE_CAPS_MASK_IDX + 1));
+		cpas_hw_mask[OFE_CAPS_MASK_IDX] |= CPAS_OFE_BIT;
+	}
+
+	rc = cam_icp_mgr_verify_hw_caps(hw_mgr, cpas_hw_mask, num_cpas_mask);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "CPAS ICP HW capability verification fails rc=%d", rc);
+		goto free_devs;
 	}
 
 	hw_mgr->dev_pc_flag = of_property_read_bool(np, "ipe_bps_pc_en");
@@ -7592,12 +7617,11 @@ free_devs:
 	return rc;
 }
 
-static int cam_icp_mgr_init_devs(struct device_node *np,
-	struct cam_icp_hw_mgr *hw_mgr, uint32_t cpas_cap_dev_cnt[CAM_ICP_HW_MAX])
+static int cam_icp_mgr_init_devs(struct device_node *np, struct cam_icp_hw_mgr *hw_mgr)
 {
 	int rc, i, j, count, num_hw;
 
-	rc = cam_icp_mgr_alloc_devs(np, hw_mgr, cpas_cap_dev_cnt);
+	rc = cam_icp_mgr_alloc_devs(np, hw_mgr);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "[%s] devices allocation failed rc=%d",
 			hw_mgr->hw_mgr_name, rc);
@@ -7857,57 +7881,6 @@ static void cam_icp_mgr_inject_evt(void *hw_mgr_priv, void *evt_args)
 	ctx_data->evt_inject_params.is_valid = true;
 }
 
-static int cam_icp_mgr_get_device_capability(struct cam_icp_hw_mgr *hw_mgr,
-	uint32_t *cpas_cap_dev_cnt)
-{
-	struct cam_cpas_query_cap query;
-	uint32_t cam_caps, cpas_hw_version;
-	int rc = 0;
-
-	rc = cam_cpas_get_hw_info(&query.camera_family,
-		&query.camera_version, &query.cpas_version,
-		&cam_caps, NULL, NULL);
-	if (rc) {
-		CAM_ERR(CAM_ICP, "[%s] failed to get hw info rc=%d",
-			hw_mgr->hw_mgr_name, rc);
-		return rc;
-	}
-
-	rc = cam_cpas_get_cpas_hw_version(&cpas_hw_version);
-	if (rc) {
-		CAM_ERR(CAM_ICP, "[%s] failed to get hw version rc=%d",
-			hw_mgr->hw_mgr_name, rc);
-		return rc;
-	}
-
-	memset(cpas_cap_dev_cnt, 0, sizeof(*cpas_cap_dev_cnt) * CAM_ICP_HW_MAX);
-
-	if ((cpas_hw_version == CAM_CPAS_TITAN_480_V100) ||
-		(cpas_hw_version == CAM_CPAS_TITAN_580_V100) ||
-		(cpas_hw_version == CAM_CPAS_TITAN_570_V100) ||
-		(cpas_hw_version == CAM_CPAS_TITAN_570_V200) ||
-		(cpas_hw_version == CAM_CPAS_TITAN_680_V100) ||
-		(cpas_hw_version == CAM_CPAS_TITAN_680_V110) ||
-		(cpas_hw_version == CAM_CPAS_TITAN_780_V100) ||
-		(cpas_hw_version == CAM_CPAS_TITAN_640_V200) ||
-		(cpas_hw_version == CAM_CPAS_TITAN_880_V100)) {
-		cpas_cap_dev_cnt[CAM_ICP_DEV_IPE] =
-			__builtin_popcount(cam_caps & CPAS_TITAN_IPE0_CAP_BIT);
-		cpas_cap_dev_cnt[CAM_ICP_DEV_BPS] =
-			__builtin_popcount(cam_caps & CPAS_BPS_BIT);
-		cpas_cap_dev_cnt[CAM_ICP_HW_ICP_V2] =
-			__builtin_popcount(cam_caps & CPAS_ICP_BIT);
-	} else {
-		cpas_cap_dev_cnt[CAM_ICP_HW_ICP_V1] = 1;
-		cpas_cap_dev_cnt[CAM_ICP_DEV_IPE] =
-			__builtin_popcount(cam_caps & (CPAS_IPE0_BIT | CPAS_IPE1_BIT));
-		cpas_cap_dev_cnt[CAM_ICP_DEV_BPS] =
-			__builtin_popcount(cam_caps & CPAS_BPS_BIT);
-	}
-
-	return rc;
-}
-
 static int cam_icp_mgr_register_hfi_client(struct cam_icp_hw_mgr *hw_mgr)
 {
 
@@ -7987,7 +7960,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	int i, rc = 0;
 	struct cam_icp_hw_mgr  *hw_mgr = NULL;
 	struct cam_hw_mgr_intf *hw_mgr_intf;
-	uint32_t size = 0, cpas_cap_dev_cnt[CAM_ICP_HW_MAX];
+	uint32_t size = 0;
 
 	hw_mgr_intf = (struct cam_hw_mgr_intf *)hw_mgr_hdl;
 	if (!of_node || !hw_mgr_intf) {
@@ -8052,14 +8025,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 		}
 	}
 
-	rc = cam_icp_mgr_get_device_capability(hw_mgr, cpas_cap_dev_cnt);
-	if (rc) {
-		CAM_ERR(CAM_ICP, "[%s] Fail to get device capability rc: %d",
-			hw_mgr->hw_mgr_name, rc);
-		goto destroy_mutex;
-	}
-
-	rc = cam_icp_mgr_init_devs(of_node, hw_mgr, cpas_cap_dev_cnt);
+	rc = cam_icp_mgr_init_devs(of_node, hw_mgr);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "[%s] cam_icp_mgr_init_devs fail: rc: %d",
 			hw_mgr->hw_mgr_name, rc);

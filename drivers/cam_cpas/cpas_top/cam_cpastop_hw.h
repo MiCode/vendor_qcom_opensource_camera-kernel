@@ -427,6 +427,18 @@ struct cam_cpas_cesta_info {
 };
 
 /**
+ * struct cam_cpas_hw_cap_info : CPAS Hardware capability information
+ *
+ * @num_caps_registers: number of hw capability registers
+ * @hw_caps_offsets: array of hw cap register offsets
+ *
+ */
+struct cam_cpas_hw_cap_info {
+	uint32_t num_caps_registers;
+	uint32_t hw_caps_offsets[CAM_CPAS_MAX_CAPS_REGS];
+};
+
+/**
  * struct cam_camnoc_info : Overall CAMNOC settings info
  *
  * @camnoc_type: type of camnoc (RT/NRT/COMBINED)
@@ -491,6 +503,19 @@ struct cam_cpas_work_payload {
 struct cam_cpas_camnoc_qchannel {
 	uint32_t qchannel_ctrl;
 	uint32_t qchannel_status;
+};
+
+/**
+ * struct cam_cpas_info: CPAS information
+ *
+ * @qchannel_info: CPAS qchannel info
+ * @hw_cap_info: CPAS Hardware capability information
+ * @num_qchannel: Number of qchannel
+ */
+struct cam_cpas_info {
+	struct cam_cpas_camnoc_qchannel *qchannel_info[CAM_CAMNOC_HW_TYPE_MAX];
+	struct cam_cpas_hw_cap_info hw_caps_info;
+	uint8_t num_qchannel;
 };
 
 #endif /* _CAM_CPASTOP_HW_H_ */
