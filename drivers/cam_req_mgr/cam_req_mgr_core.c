@@ -349,14 +349,17 @@ static void __cam_req_mgr_update_state_monitor_array(
 	struct cam_req_mgr_state_monitor *state)
 {
 	int idx = link->req.next_state_idx;
+	char *dev_name = NULL;
 	struct cam_req_mgr_state_monitor *state_monitor =
 		&link->req.state_monitor[idx];
+
+	dev_name = __cam_req_mgr_dev_handle_to_name(state->dev_hdl, link);
 
 	spin_lock_bh(&link->req.monitor_slock);
 	CAM_DBG(CAM_REQ,
 		"Update: link_hdl %x dev %x dev_name %s req_id %lld frame_id %lld set to State: %s",
 		link->link_hdl, state->dev_hdl,
-		__cam_req_mgr_dev_handle_to_name(state->dev_hdl, link),
+		dev_name,
 		state->req_id, state->frame_id,
 		__cam_req_mgr_operation_type_to_str(state->req_state));
 
@@ -364,9 +367,7 @@ static void __cam_req_mgr_update_state_monitor_array(
 	state_monitor->req_id = state->req_id;
 	state_monitor->dev_hdl = state->dev_hdl;
 	state_monitor->frame_id = state->frame_id;
-	memcpy(state_monitor->name,
-		__cam_req_mgr_dev_handle_to_name(state->dev_hdl, link),
-		sizeof(state_monitor->name));
+	scnprintf(state_monitor->name, sizeof(state_monitor->name), "%s", dev_name);
 	ktime_get_clocktai_ts64(&state_monitor->time_stamp);
 
 	__cam_req_mgr_inc_idx(&link->req.next_state_idx, 1, MAX_REQ_STATE_MONITOR_NUM);
