@@ -4318,9 +4318,6 @@ static int cam_icp_mgr_destroy_handle(
 	destroy_cmd->fw_handles[0] = ctx_data->fw_handle;
 	destroy_cmd->user_data1 = PTR_TO_U64(ctx_data);
 	destroy_cmd->user_data2 = (uint64_t)0x0;
-	if (opcode == HFI_CMD_IPEBPS_ASYNC_COMMAND_DIRECT)
-		memcpy(destroy_cmd->payload.direct, &ctx_data->temp_payload,
-			sizeof(uint64_t));
 
 	reinit_completion(&ctx_data->wait_complete);
 
@@ -4996,11 +4993,7 @@ static int cam_icp_mgr_send_config_io(struct cam_icp_hw_ctx_data *ctx_data,
 
 	task = cam_req_mgr_workq_get_task(hw_mgr->cmd_work);
 	if (!task) {
-		CAM_ERR_RATE_LIMIT(CAM_ICP,
-			"%s: No free task Dev hdl:0x%x session hdl:0x%x dev_type:%d",
-			ctx_data->ctx_id_string, ctx_data->acquire_dev_cmd.dev_handle,
-			ctx_data->acquire_dev_cmd.session_handle,
-			ctx_data->icp_dev_acquire_info->dev_type);
+		CAM_ERR_RATE_LIMIT(CAM_ICP, "%s: No free cmd task", ctx_data->ctx_id_string);
 		return -ENOMEM;
 	}
 
@@ -5042,11 +5035,8 @@ static int cam_icp_mgr_send_config_io(struct cam_icp_hw_ctx_data *ctx_data,
 	rc = cam_req_mgr_workq_enqueue_task(task, hw_mgr,
 		CRM_TASK_PRIORITY_0);
 	if (rc) {
-		CAM_ERR_RATE_LIMIT(CAM_ICP,
-			"%s: Enqueue task failed dev hdl:0x%x session hdl:0x%x dev_type:%d",
-			ctx_data->ctx_id_string, ctx_data->acquire_dev_cmd.dev_handle,
-			ctx_data->acquire_dev_cmd.session_handle,
-			ctx_data->icp_dev_acquire_info->dev_type);
+		CAM_ERR_RATE_LIMIT(CAM_ICP, "%s: Failed to enqueue io config task",
+			ctx_data->ctx_id_string);
 		return rc;
 	}
 
@@ -5643,6 +5633,7 @@ static int cam_icp_packet_generic_blob_handler(void *user_data,
 	struct icp_cmd_generic_blob *blob;
 	struct cam_icp_hw_ctx_data *ctx_data;
 	struct cam_icp_hw_mgr *hw_mgr;
+	struct cam_icp_acquire_dev_info dev_io_info;
 	uint32_t index;
 	size_t io_buf_size, clk_update_size;
 	int rc = 0;
@@ -5788,18 +5779,15 @@ static int cam_icp_packet_generic_blob_handler(void *user_data,
 	case CAM_ICP_CMD_GENERIC_BLOB_CFG_IO:
 		CAM_DBG(CAM_ICP, "%s: CAM_ICP_CMD_GENERIC_BLOB_CFG_IO", ctx_data->ctx_id_string);
 		pResource = *((uint32_t *)blob_data);
-		if (copy_from_user(&ctx_data->icp_dev_io_info,
+		if (copy_from_user(&dev_io_info,
 			(void __user *)pResource,
 			sizeof(struct cam_icp_acquire_dev_info))) {
 			CAM_ERR(CAM_ICP, "%s: Failed in copy from user", ctx_data->ctx_id_string);
 			return -EFAULT;
 		}
-		CAM_DBG(CAM_ICP, "%s: buf handle %d",
-			ctx_data->ctx_id_string,
-			ctx_data->icp_dev_io_info.io_config_cmd_handle);
-		rc = cam_mem_get_io_buf(
-			ctx_data->icp_dev_io_info.io_config_cmd_handle,
-			hw_mgr->iommu_hdl,
+		CAM_DBG(CAM_ICP, "%s: buf handle %d", ctx_data->ctx_id_string,
+			dev_io_info.io_config_cmd_handle);
+		rc = cam_mem_get_io_buf(dev_io_info.io_config_cmd_handle, hw_mgr->iommu_hdl,
 			blob->io_buf_addr, &io_buf_size, NULL);
 		if (rc)
 			CAM_ERR(CAM_ICP, "%s: Failed in blob update", ctx_data->ctx_id_string);
@@ -7030,10 +7018,8 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 			kzalloc(bitmap_size, GFP_KERNEL);
 	if (!ctx_data->hfi_frame_process.bitmap) {
 		CAM_ERR_RATE_LIMIT(CAM_ICP,
-			"%s: hfi frame bitmap failed dev hdl:0x%x session hdl:0x%x dev type %d",
-			ctx_data->ctx_id_string, ctx_data->acquire_dev_cmd.dev_handle,
-			ctx_data->acquire_dev_cmd.session_handle,
-			ctx_data->icp_dev_acquire_info->dev_type);
+			"%s: failed to allocate hfi frame bitmap", ctx_data->ctx_id_string);
+			rc = -ENOMEM;
 		goto ioconfig_failed;
 	}
 
@@ -7048,10 +7034,7 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		icp_dev_acquire_info,
 		sizeof(struct cam_icp_acquire_dev_info))) {
 		CAM_ERR_RATE_LIMIT(CAM_ICP,
-			"%s: copy from user failed dev hdl:0x%x session hdl:0x%x dev type %d",
-			ctx_data->ctx_id_string, ctx_data->acquire_dev_cmd.dev_handle,
-			ctx_data->acquire_dev_cmd.session_handle,
-			ctx_data->icp_dev_acquire_info->dev_type);
+			"%s: copy from user failed", ctx_data->ctx_id_string);
 		goto copy_to_user_failed;
 	}
 

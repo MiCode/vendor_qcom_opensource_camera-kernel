@@ -263,7 +263,7 @@ struct hfi_frame_process_info {
 	uint32_t out_resource[CAM_FRAME_CMD_MAX][CAM_MAX_OUT_RES];
 	uint32_t in_resource[CAM_FRAME_CMD_MAX];
 	uint32_t in_free_resource[CAM_FRAME_CMD_MAX];
-	uint32_t fw_process_flag[CAM_FRAME_CMD_MAX];
+	bool fw_process_flag[CAM_FRAME_CMD_MAX];
 	struct cam_icp_clk_bw_request clk_info[CAM_FRAME_CMD_MAX];
 	struct cam_icp_clk_bw_req_internal_v2 clk_info_v2[CAM_FRAME_CMD_MAX];
 	struct icp_frame_info frame_info[CAM_FRAME_CMD_MAX];
@@ -304,7 +304,6 @@ struct cam_ctx_clk_info {
  * @ctx_mutex: Mutex for context
  * @fw_handle: Firmware handle
  * @scratch_mem_size: Scratch memory size
- * @acquire_dev_cmd: Acquire command
  * @icp_dev_acquire_info: Acquire device info
  * @ctxt_event_cb: Context callback function
  * @state: context state
@@ -312,13 +311,11 @@ struct cam_ctx_clk_info {
  * @chain_ctx: Peer context
  * @hfi_frame_process: Frame process command
  * @wait_complete: Completion info
- * @temp_payload: Payload for destroy handle data
  * @ctx_id: Context Id
  * @bw_config_version: BW config version indicator
  * @clk_info: Current clock info of a context
  * @watch_dog: watchdog timer handle
  * @watch_dog_reset_counter: Counter for watch dog reset
- * @icp_dev_io_info: io config resource
  * @last_flush_req: last flush req for this ctx
  * @perf_stats: performance statistics info
  * @evt_inject_params: Event injection data for hw_mgr_ctx
@@ -332,7 +329,6 @@ struct cam_icp_hw_ctx_data {
 	struct mutex ctx_mutex;
 	uint32_t fw_handle;
 	uint32_t scratch_mem_size;
-	struct cam_acquire_dev_cmd acquire_dev_cmd;
 	struct cam_icp_acquire_dev_info *icp_dev_acquire_info;
 	cam_hw_event_cb_func ctxt_event_cb;
 	uint32_t state;
@@ -340,13 +336,11 @@ struct cam_icp_hw_ctx_data {
 	struct cam_icp_hw_ctx_data *chain_ctx;
 	struct hfi_frame_process_info hfi_frame_process;
 	struct completion wait_complete;
-	struct hfi_cmd_destroy temp_payload;
 	uint32_t ctx_id;
 	uint32_t bw_config_version;
 	struct cam_ctx_clk_info clk_info;
 	struct cam_req_mgr_timer *watch_dog;
 	uint32_t watch_dog_reset_counter;
-	struct cam_icp_acquire_dev_info icp_dev_io_info;
 	uint64_t last_flush_req;
 	char ctx_id_string[128];
 	struct cam_icp_ctx_perf_stats perf_stats;

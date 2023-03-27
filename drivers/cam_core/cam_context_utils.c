@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -728,8 +728,9 @@ int32_t cam_context_acquire_dev_to_hw(struct cam_context *ctx,
 	rc = ctx->hw_mgr_intf->hw_acquire(ctx->hw_mgr_intf->hw_mgr_priv,
 		&param);
 	if (rc != 0) {
-		CAM_ERR(CAM_CTXT, "[%s][%d] Acquire device failed",
-			ctx->dev_name, ctx->ctx_id);
+		CAM_ERR(CAM_CTXT,
+			"[%s][%d] Acquire device failed session hdl: 0x%x dev hdl: 0x%x",
+			ctx->dev_name, ctx->ctx_id, ctx->session_hdl, ctx->dev_hdl);
 		goto end;
 	}
 
