@@ -185,12 +185,10 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 		return rc;
 	}
 
-	if (e_ctrl->io_master_info.master_type == CCI_MASTER) {
-		rc = camera_io_init(&(e_ctrl->io_master_info));
-		if (rc) {
-			CAM_ERR(CAM_EEPROM, "cci_init failed");
-			goto cci_failure;
-		}
+	rc = camera_io_init(&(e_ctrl->io_master_info));
+	if (rc) {
+		CAM_ERR(CAM_EEPROM, "cci_init failed");
+		goto cci_failure;
 	}
 
 	return rc;
@@ -234,8 +232,7 @@ static int cam_eeprom_power_down(struct cam_eeprom_ctrl_t *e_ctrl)
 		return rc;
 	}
 
-	if (e_ctrl->io_master_info.master_type == CCI_MASTER)
-		camera_io_release(&(e_ctrl->io_master_info));
+	camera_io_release(&(e_ctrl->io_master_info));
 
 	return rc;
 }

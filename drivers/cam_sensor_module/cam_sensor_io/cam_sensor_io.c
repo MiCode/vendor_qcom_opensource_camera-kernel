@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_io.h"
 #include "cam_sensor_i2c.h"
 #include "cam_sensor_i3c.h"
+#include <linux/pm_runtime.h>
 
 int32_t camera_io_dev_poll(struct camera_io_master *io_master_info,
 	uint32_t addr, uint16_t data, uint32_t data_mask,
@@ -188,6 +189,8 @@ int32_t camera_io_dev_write_continuous(struct camera_io_master *io_master_info,
 
 int32_t camera_io_init(struct camera_io_master *io_master_info)
 {
+	int rc = 0;
+
 	if (!io_master_info) {
 		CAM_ERR(CAM_SENSOR, "Invalid Args");
 		return -EINVAL;
@@ -199,8 +202,19 @@ int32_t camera_io_init(struct camera_io_master *io_master_info)
 						io_master_info->cci_client->cci_device);
 		return cam_sensor_cci_i2c_util(io_master_info->cci_client, MSM_CCI_INIT);
 	case I2C_MASTER:
-	case SPI_MASTER:
-	case I3C_MASTER: return 0;
+	case I3C_MASTER:
+		if ((io_master_info->client != NULL) &&
+			(io_master_info->client->adapter != NULL)) {
+			CAM_DBG(CAM_SENSOR, "%s:%d: Calling get_sync",
+				__func__, __LINE__);
+			rc = pm_runtime_get_sync(io_master_info->client->adapter->dev.parent);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR, "Failed to get sync rc: %d", rc);
+				return -EINVAL;
+			}
+		}
+		return 0;
+	case SPI_MASTER: return 0;
 	default:
 		CAM_ERR(CAM_SENSOR, "Invalid Master Type:%d", io_master_info->master_type);
 	}
@@ -219,8 +233,15 @@ int32_t camera_io_release(struct camera_io_master *io_master_info)
 	case CCI_MASTER:
 		return cam_sensor_cci_i2c_util(io_master_info->cci_client, MSM_CCI_RELEASE);
 	case I2C_MASTER:
-	case SPI_MASTER:
-	case I3C_MASTER: return 0;
+	case I3C_MASTER:
+		if ((io_master_info->client != NULL) &&
+			(io_master_info->client->adapter != NULL)) {
+			CAM_DBG(CAM_SENSOR, "%s:%d: Calling put_sync",
+				__func__, __LINE__);
+			pm_runtime_put_sync(io_master_info->client->adapter->dev.parent);
+		}
+		return 0;
+	case SPI_MASTER: return 0;
 	default:
 		CAM_ERR(CAM_SENSOR, "Invalid Master Type:%d", io_master_info->master_type);
 	}
