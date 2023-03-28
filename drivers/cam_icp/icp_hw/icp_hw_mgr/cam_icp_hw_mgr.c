@@ -3070,6 +3070,11 @@ static int cam_icp_process_msg_pkt_type(
 
 		break;
 
+	case HFI_MSG_DBG_SYNX_TEST:
+		CAM_DBG(CAM_ICP, "received DBG_SYNX_TEST");
+		size_processed = sizeof(struct hfi_cmd_synx_test_payload);
+		complete(&hw_mgr->icp_complete);
+		break;
 	default:
 		CAM_ERR(CAM_ICP, "[%s] invalid msg : %u",
 			hw_mgr->hw_mgr_name, msg_ptr[ICP_PACKET_TYPE]);
@@ -3969,7 +3974,6 @@ static int cam_icp_mgr_icp_power_collapse(struct cam_icp_hw_mgr *hw_mgr)
 	bool send_freq_info = true;
 
 	CAM_DBG(CAM_PERF, "[%s] ENTER", hw_mgr->hw_mgr_name);
-
 	if (!icp_dev_intf) {
 		CAM_ERR(CAM_ICP, "[%s] ICP device interface is NULL", hw_mgr->hw_mgr_name);
 		return -EINVAL;
@@ -6600,6 +6604,137 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	return rc;
 }
 
+static int cam_icp_mgr_synx_core_control(
+	struct cam_icp_hw_mgr *hw_mgr,
+	struct cam_synx_core_control *synx_core_ctrl)
+{
+	int rc;
+
+	if (synx_core_ctrl->core_control) {
+		rc = cam_icp_mgr_icp_resume(hw_mgr);
+		if (!rc)
+			/* Set FW log level for synx */
+			if (hw_mgr->icp_debug_type)
+				hfi_set_debug_level(hw_mgr->hfi_handle,
+					hw_mgr->icp_debug_type, hw_mgr->icp_dbg_lvl);
+	} else {
+		rc = cam_icp_mgr_icp_power_collapse(hw_mgr);
+	}
+
+	if (rc)
+		CAM_ERR(CAM_ICP, "[%s] Failed to process core control resume: %s",
+			hw_mgr->hw_mgr_name, CAM_BOOL_TO_YESNO(synx_core_ctrl->core_control));
+
+	CAM_INFO(CAM_ICP, "Synx test core control: %s done rc: %d",
+		CAM_BOOL_TO_YESNO(synx_core_ctrl->core_control), rc);
+	return rc;
+}
+
+static int cam_icp_mgr_synx_send_test_cmd(
+	struct cam_icp_hw_mgr *hw_mgr,
+	struct cam_synx_test_cmd *synx_test_params)
+{
+	int rc = 0;
+	size_t size;
+	dma_addr_t iova;
+	struct hfi_cmd_synx_test_payload synx_test_cmd;
+	unsigned long rem_jiffies;
+	int timeout = 5000;
+
+	if (!hw_mgr->icp_resumed) {
+		rc = cam_icp_mgr_icp_resume(hw_mgr);
+		if (rc) {
+			CAM_ERR(CAM_ICP, "Failed to resume ICP rc: %d", rc);
+			goto end;
+		}
+
+		/* Set FW log level for synx */
+		if (hw_mgr->icp_debug_type)
+			hfi_set_debug_level(hw_mgr->hfi_handle,
+				hw_mgr->icp_debug_type, hw_mgr->icp_dbg_lvl);
+	}
+
+	synx_test_cmd.pkt_type = HFI_CMD_DBG_SYNX_TEST;
+	synx_test_cmd.size = sizeof(synx_test_cmd);
+
+	rc = cam_mem_get_io_buf(synx_test_params->ip_mem_hdl, hw_mgr->iommu_hdl,
+		&iova, &size, NULL);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed to get buf for hdl: %d rc: %d",
+			synx_test_params->ip_mem_hdl, rc);
+		goto end;
+	}
+
+	synx_test_cmd.input_iova = (uint32_t)iova;
+	synx_test_cmd.input_size = (uint32_t)size;
+
+	rc = cam_mem_get_io_buf(synx_test_params->op_mem_hdl, hw_mgr->iommu_hdl,
+		&iova, &size, NULL);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed to get buf for hdl: %d rc: %d",
+			synx_test_params->ip_mem_hdl, rc);
+		goto end;
+	}
+
+	synx_test_cmd.output_iova = (uint32_t)iova;
+	synx_test_cmd.output_size = (uint32_t)size;
+
+	CAM_DBG(CAM_ICP,
+		"Input (hdl: 0x%x iova: 0x%x size: 0x%x) output (hdl: 0x%x iova: 0x%x size: 0x%x)",
+		synx_test_params->ip_mem_hdl, synx_test_cmd.input_iova, synx_test_cmd.input_size,
+		synx_test_params->op_mem_hdl, synx_test_cmd.output_iova, synx_test_cmd.output_size);
+
+	reinit_completion(&hw_mgr->icp_complete);
+	rc = hfi_write_cmd(hw_mgr->hfi_handle, &synx_test_cmd);
+	if (rc)
+		goto end;
+
+	rem_jiffies = CAM_COMMON_WAIT_FOR_COMPLETION_TIMEOUT_ERRMSG(
+			&hw_mgr->icp_complete, msecs_to_jiffies(timeout), CAM_ICP,
+			"FW response timeout for synx test cmd");
+	if (!rem_jiffies) {
+		rc = -ETIMEDOUT;
+		goto end;
+	}
+
+	CAM_INFO(CAM_ICP, "Synx test cmd done rc: %d", rc);
+
+end:
+	return rc;
+}
+
+static int cam_icp_mgr_service_synx_test_cmds(void *hw_priv, void *synx_args)
+{
+	int rc;
+	struct cam_icp_hw_mgr *hw_mgr = hw_priv;
+	struct cam_synx_test_params *synx_params;
+
+	if ((!hw_priv) || (!synx_args)) {
+		CAM_ERR(CAM_ICP, "Input params are Null:");
+		return -EINVAL;
+	}
+
+	synx_params = (struct cam_synx_test_params *)synx_args;
+	mutex_lock(&hw_mgr->hw_mgr_mutex);
+	switch (synx_params->cmd_type) {
+	case CAM_SYNX_TEST_CMD_TYPE_CORE_CTRL: {
+		rc = cam_icp_mgr_synx_core_control(hw_mgr, &synx_params->u.core_ctrl);
+	}
+		break;
+	case CAM_SYNX_TEST_CMD_TYPE_SYNX_CMD: {
+		rc = cam_icp_mgr_synx_send_test_cmd(hw_mgr, &synx_params->u.test_cmd);
+	}
+		break;
+	default:
+		rc = -EINVAL;
+		goto end;
+	}
+
+end:
+	mutex_unlock(&hw_mgr->hw_mgr_mutex);
+	return rc;
+}
+
 static int cam_icp_mgr_hw_flush(void *hw_priv, void *hw_flush_args)
 {
 	struct cam_hw_flush_args *flush_args = hw_flush_args;
@@ -8007,6 +8142,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	hw_mgr_intf->hw_inject_evt = cam_icp_mgr_inject_evt;
 	hw_mgr->secure_mode = CAM_SECURE_MODE_NON_SECURE;
 	hw_mgr->mini_dump_cb = mini_dump_cb;
+	hw_mgr_intf->synx_trigger = cam_icp_mgr_service_synx_test_cmds;
 
 	mutex_init(&hw_mgr->hw_mgr_mutex);
 	spin_lock_init(&hw_mgr->hw_mgr_lock);

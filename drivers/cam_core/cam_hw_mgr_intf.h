@@ -651,6 +651,7 @@ struct cam_hw_inject_evt_param {
  * @hw_dump:                   Function pointer for HW dump
  * @hw_recovery:               Function pointer for HW recovery callback
  * @hw_inject_evt:             Function pointer for HW event injection callback
+ * @synx_trigger:              Function pointer for synx test trigger
  *
  */
 struct cam_hw_mgr_intf {
@@ -676,6 +677,7 @@ struct cam_hw_mgr_intf {
 	int (*hw_dump)(void *hw_priv, void *hw_dump_args);
 	int (*hw_recovery)(void *hw_priv, void *hw_recovery_args);
 	void (*hw_inject_evt)(void *hw_priv, void *evt_args);
+	int (*synx_trigger)(void *hw_priv, void *synx_params);
 };
 
 #endif /* _CAM_HW_MGR_INTF_H_ */

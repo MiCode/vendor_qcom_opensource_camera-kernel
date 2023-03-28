@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_HFI_SESSION_DEFS_H
@@ -595,4 +595,23 @@ struct hfi_msg_ipe_frame_process {
 	uint64_t user_data;
 } __packed;
 
+/**
+ * struct hfi_cmd_synx_test_payload
+ *        Same struct used for cmd and response
+ *
+ * @size: Size of the pkt
+ * @pkt_type: pkt type (cmd/response)
+ * @input_size: Input buffer size
+ * @input_iova: Input buffer address
+ * @output_size: Output buffer size
+ * @output_iova: Output buffer address
+ */
+struct hfi_cmd_synx_test_payload {
+	uint32_t size;
+	uint32_t pkt_type;
+	uint32_t input_size;
+	uint32_t input_iova;
+	uint32_t output_size;
+	uint32_t output_iova;
+} __packed;
 #endif /* _CAM_HFI_SESSION_DEFS_H */

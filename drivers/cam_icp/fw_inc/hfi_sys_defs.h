@@ -122,6 +122,7 @@
 #define HFI_CMD_DBG_COMMON_START \
 		(HFI_DOMAIN_BASE_DBG + HFI_CMD_START_OFFSET + 0x0)
 #define HFI_CMD_DBG_TEST_START  (HFI_CMD_DBG_COMMON_START + 0x800)
+#define HFI_CMD_DBG_SYNX_TEST   (HFI_CMD_DBG_TEST_START + 0x1)
 #define HFI_CMD_DBG_END         (HFI_CMD_DBG_COMMON_START + 0xFFF)
 
 /* System level messages */
@@ -192,8 +193,10 @@
 
 /* ICP core level Debug test message range */
 #define HFI_MSG_DBG_COMMON_START \
-		(HFI_DOMAIN_BASE_DBG + 0x0)
+		(HFI_DOMAIN_BASE_DBG + HFI_MSG_START_OFFSET + 0x0)
+
 #define HFI_MSG_DBG_TEST_START  (HFI_MSG_DBG_COMMON_START + 0x800)
+#define HFI_MSG_DBG_SYNX_TEST   (HFI_MSG_DBG_TEST_START + 0x1)
 #define HFI_MSG_DBG_END         (HFI_MSG_DBG_COMMON_START + 0xFFF)
 
 /* System  level property base offset */
