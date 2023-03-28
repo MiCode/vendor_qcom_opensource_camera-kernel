@@ -10,6 +10,7 @@
 #include <linux/bitmap.h>
 #include <synx_api.h>
 
+#include "cam_sync_api.h"
 #include "cam_sync.h"
 #include "cam_debug_util.h"
 
@@ -137,6 +138,17 @@ int cam_synx_obj_signal_obj(struct cam_synx_obj_signal *signal_synx_obj);
  */
 int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
 	cam_sync_callback_for_synx_obj sync_cb);
+
+/**
+ * @brief: Synx recovery for a given core
+ *
+ * @param core_id: Core ID we want to recover for
+ *
+ * @return Status of operation. Zero in case of success
+ * -EINVAL if core_id is invalid
+ */
+int cam_synx_core_recovery(
+	enum cam_sync_synx_supported_cores core_id);
 
 /**
  * @brief: cam synx driver open

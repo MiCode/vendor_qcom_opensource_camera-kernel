@@ -4048,6 +4048,9 @@ static void cam_icp_mgr_proc_shutdown(struct cam_icp_hw_mgr *hw_mgr)
 	icp_dev_intf->hw_ops.deinit(icp_dev_intf->hw_priv,
 		&send_freq_info, sizeof(send_freq_info));
 
+	if (hw_mgr->synx_signaling_en)
+		cam_sync_synx_core_recovery(hw_mgr->synx_core_id);
+
 	hw_mgr->icp_resumed = false;
 }
 
@@ -8074,6 +8077,20 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	rc = cam_icp_get_svs_clk_info(hw_mgr);
 	if (rc)
 		goto icp_get_svs_clk_failed;
+
+	if (hw_mgr->synx_signaling_en) {
+		switch (hw_mgr->hw_mgr_id) {
+		case 0:
+			hw_mgr->synx_core_id = CAM_ICP_0_SYNX_CORE;
+			break;
+		case 1:
+			hw_mgr->synx_core_id = CAM_ICP_1_SYNX_CORE;
+			break;
+		default:
+			hw_mgr->synx_core_id = CAM_INVALID_SYNX_CORE;
+			break;
+		}
+	}
 
 	g_icp_hw_mgr[device_idx] = hw_mgr;
 

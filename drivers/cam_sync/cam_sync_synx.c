@@ -722,6 +722,36 @@ monitor_dump:
 	return rc;
 }
 
+int cam_synx_core_recovery(
+	enum cam_sync_synx_supported_cores cam_core_id)
+{
+	int rc;
+	enum synx_client_id client_id = SYNX_CLIENT_MAX;
+
+	switch (cam_core_id) {
+	case CAM_ICP_0_SYNX_CORE:
+		client_id = SYNX_CLIENT_ICP_CTX0;
+		break;
+	default:
+		rc = -EINVAL;
+		goto err;
+	}
+
+	rc = synx_recover(client_id);
+	if (rc)
+		goto err;
+
+	CAM_DBG(CAM_SYNX, "Synx recovery for synx_client: %d[%d] success",
+		client_id, cam_core_id);
+
+	return rc;
+
+err:
+	CAM_ERR(CAM_SYNX, "Failed to recover for synx_client: %d rc: %d",
+			client_id, rc);
+	return rc;
+}
+
 int __cam_synx_init_session(void)
 {
 	struct synx_queue_desc queue_desc;

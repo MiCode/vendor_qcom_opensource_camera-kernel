@@ -420,6 +420,7 @@ struct cam_icp_hw_ctx_data {
  * @iommu_hdl: Non secure IOMMU handle
  * @iommu_sec_hdl: Secure IOMMU handle
  * @hfi_handle: hfi handle for this ICP hw mgr
+ * @synx_core_id: Synx core ID if applicable
  * @hfi_mem: Memory for hfi
  * @cmd_work: Work queue for hfi commands
  * @msg_work: Work queue for hfi messages
@@ -473,6 +474,7 @@ struct cam_icp_hw_mgr {
 	int32_t iommu_hdl;
 	int32_t iommu_sec_hdl;
 	int32_t hfi_handle;
+	enum cam_sync_synx_supported_cores synx_core_id;
 	struct icp_hfi_mem_info hfi_mem;
 	struct cam_req_mgr_core_workq *cmd_work;
 	struct cam_req_mgr_core_workq *msg_work;
