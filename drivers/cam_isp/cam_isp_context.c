@@ -3680,6 +3680,9 @@ static int __cam_isp_ctx_validate_for_req_reapply_util(
 	struct cam_isp_ctx_req *req_isp = NULL;
 	struct cam_context *ctx = ctx_isp->base;
 
+	if (!in_interrupt())
+		spin_lock_bh(&ctx->lock);
+
 	/* Check for req in active/wait lists */
 	if (list_empty(&ctx->active_req_list)) {
 		CAM_DBG(CAM_ISP,
@@ -3738,6 +3741,8 @@ static int __cam_isp_ctx_validate_for_req_reapply_util(
 	}
 
 end:
+	if (!in_interrupt())
+		spin_unlock_bh(&ctx->lock);
 	return rc;
 }
 
