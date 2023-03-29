@@ -157,5 +157,7 @@ int cam_ofe_toggle_clk(struct cam_hw_soc_info *soc_info, bool clk_enable)
 	else
 		cam_soc_util_clk_disable_default(soc_info, CAM_CLK_SW_CLIENT_IDX);
 
+	CAM_DBG(CAM_ICP, "%s OFE clock", clk_enable ? "Enable" : "Disable");
+
 	return rc;
 }
