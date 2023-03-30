@@ -35,6 +35,7 @@ enum cam_cpas_handle_id {
 struct cam_tfe_soc_private {
 	uint32_t    cpas_handle;
 	uint32_t    cpas_version;
+	uint32_t    rt_wrapper_base;
 	int32_t     dsp_clk_index;
 	uint32_t    num_pid;
 	uint32_t    pid[CAM_ISP_HW_MAX_PID_VAL];
