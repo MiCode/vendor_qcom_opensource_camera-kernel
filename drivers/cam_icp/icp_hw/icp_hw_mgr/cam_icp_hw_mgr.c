@@ -4377,8 +4377,12 @@ static int cam_icp_mgr_release_ctx(struct cam_icp_hw_mgr *hw_mgr, int ctx_id)
 	CAM_DBG(CAM_ICP, "%s: E: recovery = %d",
 		hw_mgr->ctx_data[ctx_id].ctx_id_string,
 		atomic_read(&hw_mgr->recovery));
-	cam_icp_mgr_abort_handle(&hw_mgr->ctx_data[ctx_id]);
-	cam_icp_mgr_destroy_handle(&hw_mgr->ctx_data[ctx_id]);
+
+	if (!atomic_read(&hw_mgr->recovery)) {
+		cam_icp_mgr_abort_handle(&hw_mgr->ctx_data[ctx_id]);
+		cam_icp_mgr_destroy_handle(&hw_mgr->ctx_data[ctx_id]);
+	}
+
 	cam_icp_mgr_cleanup_ctx(&hw_mgr->ctx_data[ctx_id]);
 
 	hw_mgr->ctx_data[ctx_id].fw_handle = 0;
