@@ -440,6 +440,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.multi_vcdt_en_shift_val                      = 0,
 	.timestamp_stb_sel_shift_val                  = 8,
 	.vfr_en_shift_val                             = 0,
+	.mup_shift_val                                = 28,
 	.early_eof_supported                          = 1,
 	.vfr_supported                                = 1,
 	.multi_vcdt_supported                         = 1,

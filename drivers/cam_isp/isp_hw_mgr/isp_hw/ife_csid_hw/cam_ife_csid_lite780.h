@@ -433,6 +433,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.vfr_en_shift_val                             = 0,
 	.early_eof_supported                          = 1,
 	.vfr_supported                                = 1,
+	.mup_shift_val                                = 28,
 	.multi_vcdt_supported                         = 1,
 	.ts_comb_vcdt_en                              = true,
 	.ts_comb_vcdt_mask                            = 3,
