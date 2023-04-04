@@ -219,6 +219,11 @@
  */
 #define CAM_IFE_USE_WM_PACK                  BIT(0)
 
+/*
+ * to indicate if RCS to be enabled.
+ */
+#define CAM_IFE_WM_RCS_EN                    BIT(1)
+
 /**
  * struct cam_isp_drv_config - CSID config for DRV
  *        Enables DRV and provides worst case timeout value in INIT packet,
