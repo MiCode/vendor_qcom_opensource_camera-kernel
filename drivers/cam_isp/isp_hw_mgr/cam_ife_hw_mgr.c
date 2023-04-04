@@ -2197,11 +2197,13 @@ static int cam_ife_hw_mgr_acquire_res_ife_out_pixel(
 
 			ife_out_res->hw_res[j] =
 				vfe_acquire.vfe_out.rsrc_node;
-			index = vfe_acquire.vfe_out.comp_grp_id;
-			comp_grp = &ife_ctx->vfe_bus_comp_grp[index];
-			comp_grp->res_id[comp_grp->num_res] =
-				ife_out_res->hw_res[j]->res_id;
-			comp_grp->num_res++;
+			if (j == CAM_ISP_HW_SPLIT_LEFT) {
+				index = vfe_acquire.vfe_out.comp_grp_id;
+				comp_grp = &ife_ctx->vfe_bus_comp_grp[index];
+				comp_grp->res_id[comp_grp->num_res] =
+					ife_out_res->hw_res[j]->res_id;
+				comp_grp->num_res++;
+			}
 
 			CAM_DBG(CAM_ISP, "resource type:0x%x res id:0x%x comp grp id:%d ctx:%u",
 				ife_out_res->hw_res[j]->res_type,
@@ -2395,11 +2397,13 @@ static int cam_ife_hw_mgr_acquire_res_sfe_out_pix(
 
 			sfe_out_res->hw_res[j] =
 				sfe_acquire.sfe_out.rsrc_node;
-			index = sfe_acquire.sfe_out.comp_grp_id;
-			comp_grp = &ife_ctx->sfe_bus_comp_grp[index];
-			comp_grp->res_id[comp_grp->num_res] =
-				sfe_out_res->hw_res[j]->res_id;
-			comp_grp->num_res++;
+			if (j == CAM_ISP_HW_SPLIT_LEFT) {
+				index = sfe_acquire.sfe_out.comp_grp_id;
+				comp_grp = &ife_ctx->sfe_bus_comp_grp[index];
+				comp_grp->res_id[comp_grp->num_res] =
+					sfe_out_res->hw_res[j]->res_id;
+				comp_grp->num_res++;
+			}
 
 			CAM_DBG(CAM_ISP,
 				"ctx:%u res_type:0x%x res: %s res id:0x%x comp grp id:%d",
