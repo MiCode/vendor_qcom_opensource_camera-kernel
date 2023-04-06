@@ -131,6 +131,25 @@ struct cam_isp_tfe_query_cap_cmd {
 	struct cam_isp_tfe_dev_cap_info dev_caps[CAM_ISP_TFE_HW_MAX];
 };
 
+/**
+ * struct cam_isp_tfe_query_cap_cmd_v2 - ISP TFE query device
+ * capability payload
+ *
+ * @version                     returned query cap cmd api version
+ * @num_dev:                    returned number of device capabilities
+ * @device_iommu:               returned iommu handles for device
+ * @cdm_iommu:                  returned iommu handles for cdm
+ * @dev_caps:                   returned device capability array
+ *
+ */
+struct cam_isp_tfe_query_cap_cmd_v2 {
+	__u32                           version;
+	__s32                           num_dev;
+	struct cam_iommu_handle         device_iommu;
+	struct cam_iommu_handle         cdm_iommu;
+	struct cam_isp_tfe_dev_cap_info dev_caps[1];
+};
+
 /* Acquire Device */
 /**
  * struct cam_isp_tfe_out_port_info - An output port resource info

@@ -1403,7 +1403,10 @@ static int cam_tfe_bus_init_comp_grp(uint32_t index,
 	INIT_LIST_HEAD(&comp_grp->list);
 
 	comp_grp->res_id = index;
-	rsrc_data->comp_grp_id   = index;
+	if (bus_priv->common_data.is_lite)
+		rsrc_data->comp_grp_id   = hw_info->bus_client_reg[index].comp_group;
+	else
+		rsrc_data->comp_grp_id   = index;
 	rsrc_data->common_data   = &bus_priv->common_data;
 	rsrc_data->max_wm_per_comp_grp =
 		bus_priv->max_wm_per_comp_grp;

@@ -12,7 +12,7 @@
 #include "cam_tfe.h"
 
 /* MAX TFE CSID instance */
-#define CAM_TFE_CSID_HW_NUM_MAX                        3
+#define CAM_TFE_CSID_HW_NUM_MAX                        4
 #define CAM_TFE_CSID_RDI_MAX                           3
 
 /**

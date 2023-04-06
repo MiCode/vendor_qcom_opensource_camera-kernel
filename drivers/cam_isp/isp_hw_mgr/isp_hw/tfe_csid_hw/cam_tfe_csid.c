@@ -33,6 +33,10 @@ static const struct of_device_id cam_tfe_csid_dt_match[] = {
 		.compatible = "qcom,csid770",
 		.data = &cam_tfe_csid770_hw_info,
 	},
+	{
+		.compatible = "qcom,csid-lite770",
+		.data = &cam_tfe_csid770_hw_info,
+	},
 	{}
 };
 

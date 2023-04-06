@@ -179,64 +179,155 @@ static int cam_tfe_mgr_handle_reg_dump(struct cam_tfe_hw_mgr_ctx *ctx,
 	return rc;
 }
 
-static int cam_tfe_mgr_get_hw_caps(void *hw_mgr_priv, void *hw_caps_args)
+static int cam_tfe_mgr_get_hw_caps_internal(void *hw_mgr_priv,
+	struct cam_isp_tfe_query_cap_cmd_v2     *query_isp)
 {
-	int rc = 0;
-	int i;
+	int i, rc = 0;
 	uint32_t num_dev = 0;
 	struct cam_tfe_hw_mgr                  *hw_mgr = hw_mgr_priv;
-	struct cam_query_cap_cmd               *query = hw_caps_args;
-	struct cam_isp_tfe_query_cap_cmd        query_isp;
 
-	CAM_DBG(CAM_ISP, "enter");
-
-	if (sizeof(struct cam_isp_tfe_query_cap_cmd) != query->size) {
-		CAM_ERR(CAM_ISP,
-			"Input query cap size:%u does not match expected query cap size: %u",
-			query->size, sizeof(struct cam_isp_tfe_query_cap_cmd));
-		return -EFAULT;
-	}
-
-	if (copy_from_user(&query_isp,
-		u64_to_user_ptr(query->caps_handle),
-		sizeof(struct cam_isp_tfe_query_cap_cmd))) {
-		rc = -EFAULT;
-		return rc;
-	}
-
-	query_isp.device_iommu.non_secure = hw_mgr->mgr_common.img_iommu_hdl;
-	query_isp.device_iommu.secure = hw_mgr->mgr_common.img_iommu_hdl_secure;
-	query_isp.cdm_iommu.non_secure = hw_mgr->mgr_common.cmd_iommu_hdl;
-	query_isp.cdm_iommu.secure = hw_mgr->mgr_common.cmd_iommu_hdl_secure;
+	query_isp->device_iommu.non_secure = hw_mgr->mgr_common.img_iommu_hdl;
+	query_isp->device_iommu.secure = hw_mgr->mgr_common.img_iommu_hdl_secure;
+	query_isp->cdm_iommu.non_secure = hw_mgr->mgr_common.cmd_iommu_hdl;
+	query_isp->cdm_iommu.secure = hw_mgr->mgr_common.cmd_iommu_hdl_secure;
 
 	for (i = 0; i < CAM_TFE_CSID_HW_NUM_MAX; i++) {
 		if (!hw_mgr->csid_devices[i])
-			continue;
+			break;
+		if (query_isp->num_dev < i)
+			return -EINVAL;
 
-		query_isp.dev_caps[i].hw_type = CAM_ISP_TFE_HW_TFE;
-		query_isp.dev_caps[i].hw_version.major = 5;
-		query_isp.dev_caps[i].hw_version.minor = 3;
-		query_isp.dev_caps[i].hw_version.incr = 0;
+		query_isp->dev_caps[i].hw_type = CAM_ISP_TFE_HW_TFE;
+		query_isp->dev_caps[i].hw_version.major = 7;
+		query_isp->dev_caps[i].hw_version.minor = 7;
+		query_isp->dev_caps[i].hw_version.incr = 0;
 
 		/*
 		 * device number is based on number of full tfe
 		 * if pix is not supported, set reserve to 1
 		 */
 		if (hw_mgr->tfe_csid_dev_caps[i].num_pix) {
-			query_isp.dev_caps[i].hw_version.reserved = 0;
+			query_isp->dev_caps[i].hw_version.reserved = 0;
 			num_dev++;
-		} else
-			query_isp.dev_caps[i].hw_version.reserved = 1;
+		} else {
+			query_isp->dev_caps[i].hw_version.reserved = 1;
+		}
 	}
 
-	query_isp.num_dev = num_dev;
+	query_isp->num_dev = num_dev;
+	return rc;
+}
+
+static int cam_tfe_mgr_get_hw_caps(void *hw_mgr_priv,
+	void *hw_caps_args)
+{
+	int rc = 0;
+	int i, query_size;
+	uint32_t version = 0;
+	struct cam_query_cap_cmd               *query = hw_caps_args;
+	struct cam_tfe_hw_mgr                  *hw_mgr = hw_mgr_priv;
+	struct cam_isp_tfe_query_cap_cmd        query_isp;
+	struct cam_isp_tfe_query_cap_cmd_v2    *query_isp_v2;
+
+	query_size = sizeof(struct cam_isp_tfe_query_cap_cmd_v2) +
+		((CAM_TFE_CSID_HW_NUM_MAX - 1) * sizeof(struct cam_isp_tfe_dev_cap_info));
+
+	query_isp_v2 = kzalloc(query_size, GFP_KERNEL);
+
+	if (!query_isp_v2) {
+		CAM_ERR(CAM_ISP, "Mem alloc failed");
+		return -ENOMEM;
+	}
+
+	query_isp_v2->num_dev = CAM_TFE_CSID_HW_NUM_MAX;
+	rc = cam_tfe_mgr_get_hw_caps_internal(hw_mgr_priv, query_isp_v2);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Invalid num devs");
+		kfree(query_isp_v2);
+		return rc;
+	}
+
+	query_isp.device_iommu.non_secure = query_isp_v2->device_iommu.non_secure;
+	query_isp.device_iommu.secure = query_isp_v2->device_iommu.secure;
+	query_isp.cdm_iommu.non_secure = query_isp_v2->cdm_iommu.non_secure;
+	query_isp.cdm_iommu.secure = query_isp_v2->cdm_iommu.secure;
+
+	for (i = 0; i < CAM_ISP_TFE_HW_MAX; i++) {
+		if (!hw_mgr->csid_devices[i])
+			continue;
+		query_isp.dev_caps[i] = query_isp_v2->dev_caps[i];
+	}
+
+	query_isp.num_dev = query_isp_v2->num_dev;
 
 	if (copy_to_user(u64_to_user_ptr(query->caps_handle),
-		&query_isp, sizeof(struct cam_isp_tfe_query_cap_cmd)))
+		&query_isp, sizeof(struct cam_isp_tfe_query_cap_cmd))) {
+		CAM_ERR(CAM_ISP, "copy to user failed, query cap version %d", version);
+		kfree(query_isp_v2);
+		return -EFAULT;
+	}
+
+	kfree(query_isp_v2);
+	return rc;
+}
+
+static int cam_tfe_mgr_get_hw_caps_v2(void *hw_mgr_priv,
+	void *hw_caps_args)
+{
+	int query_size, rc = 0;
+	struct cam_query_cap_cmd                *query = hw_caps_args;
+	struct cam_isp_tfe_query_cap_cmd_v2      tmp_query_isp_v2;
+	struct cam_isp_tfe_query_cap_cmd_v2     *query_isp_v2;
+
+	if (copy_from_user(&tmp_query_isp_v2, u64_to_user_ptr(query->caps_handle),
+		sizeof(tmp_query_isp_v2))) {
 		rc = -EFAULT;
+		return rc;
+	}
 
-	CAM_DBG(CAM_ISP, "exit rc :%d", rc);
+	if (tmp_query_isp_v2.version != CAM_QUERY_CAP_V2) {
+		CAM_ERR(CAM_ISP, "Query cap Version %d invalid", tmp_query_isp_v2.version);
+		return -EINVAL;
+	}
 
+	if (!tmp_query_isp_v2.num_dev) {
+		CAM_ERR(CAM_ISP, "Invalid Num of dev is %d query cap version %d",
+			tmp_query_isp_v2.num_dev, tmp_query_isp_v2.version);
+		rc = -EINVAL;
+		return rc;
+	}
+
+	query_size = sizeof(struct cam_isp_tfe_query_cap_cmd_v2) +
+		((tmp_query_isp_v2.num_dev - 1) * sizeof(struct cam_isp_tfe_dev_cap_info));
+
+	query_isp_v2 = kzalloc(query_size, GFP_KERNEL);
+
+	if (!query_isp_v2) {
+		CAM_ERR(CAM_ISP, "Mem alloc failed");
+		return -ENOMEM;
+	}
+
+	query_isp_v2->version = tmp_query_isp_v2.version;
+	query_isp_v2->num_dev = tmp_query_isp_v2.num_dev;
+
+	rc = cam_tfe_mgr_get_hw_caps_internal(hw_mgr_priv, query_isp_v2);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Invalid Num of dev is %d query cap version %d",
+			tmp_query_isp_v2.num_dev, tmp_query_isp_v2.version);
+		kfree(query_isp_v2);
+		return -EINVAL;
+	}
+
+	if (copy_to_user(u64_to_user_ptr(query->caps_handle), &query_isp_v2,
+		(sizeof(struct cam_isp_tfe_query_cap_cmd_v2) + ((query_isp_v2->num_dev - 1)
+		* sizeof(struct cam_isp_tfe_dev_cap_info))))) {
+		CAM_ERR(CAM_ISP, "copy to user failed, query cap version %d",
+			tmp_query_isp_v2.version);
+		kfree(query_isp_v2);
+		return -EFAULT;
+	}
+
+	kfree(query_isp_v2);
 	return rc;
 }
 
@@ -1731,7 +1822,7 @@ static int cam_tfe_mgr_acquire_hw_for_ctx(
 	cam_tfe_hw_mgr_preprocess_port(tfe_ctx, in_port, &ipp_count,
 		&rdi_count, &ppp_count, pdaf_enable, &lcr_enable);
 
-	if ((!ipp_count && !rdi_count && !ppp_count) || (!ipp_count && ppp_count)) {
+	if (!ipp_count && !rdi_count && !ppp_count) {
 		CAM_ERR(CAM_ISP,
 			"Invalid path count : Ipp %d ppp %d rdi %d",
 			ipp_count, ppp_count, rdi_count);
@@ -6470,7 +6561,7 @@ static int cam_tfe_hw_mgr_debug_register(void)
 
 	rc = cam_debugfs_create_subdir("tfe", &dbgfileptr);
 	if (rc) {
-		CAM_ERR(CAM_ISP,"DebugFS could not create directory!");
+		CAM_ERR(CAM_ISP, "DebugFS could not create directory!");
 		rc = -ENOENT;
 		goto end;
 	}
@@ -6694,6 +6785,7 @@ int cam_tfe_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 	/* fill return structure */
 	hw_mgr_intf->hw_mgr_priv = &g_tfe_hw_mgr;
 	hw_mgr_intf->hw_get_caps = cam_tfe_mgr_get_hw_caps;
+	hw_mgr_intf->hw_get_caps_v2 = cam_tfe_mgr_get_hw_caps_v2;
 	hw_mgr_intf->hw_acquire = cam_tfe_mgr_acquire;
 	hw_mgr_intf->hw_start = cam_tfe_mgr_start_hw;
 	hw_mgr_intf->hw_stop = cam_tfe_mgr_stop_hw;
