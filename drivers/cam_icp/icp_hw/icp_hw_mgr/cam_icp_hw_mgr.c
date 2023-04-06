@@ -2783,6 +2783,8 @@ static int cam_icp_mgr_process_ofe_indirect_ack_msg(uint32_t *msg_ptr)
 		}
 		CAM_DBG(CAM_ICP, "%s: received OFE config io response",
 			ctx_data->ctx_id_string);
+
+		complete(&ctx_data->wait_complete);
 		break;
 	}
 	case HFI_OFE_CMD_OPCODE_FRAME_PROCESS:
