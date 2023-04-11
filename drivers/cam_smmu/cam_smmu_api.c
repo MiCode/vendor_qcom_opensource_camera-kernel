@@ -32,19 +32,12 @@
 #define SHARED_MEM_POOL_GRANULARITY 16
 
 #define IOMMU_INVALID_DIR -1
-#define BYTE_SIZE 8
-#define COOKIE_NUM_BYTE 2
-#define COOKIE_SIZE (BYTE_SIZE*COOKIE_NUM_BYTE)
-#define COOKIE_MASK ((1<<COOKIE_SIZE) - 1)
-#define MULTI_CLIENT_REGION_SHIFT 28
-#define CAM_SMMU_HDL_MASK ((BIT(MULTI_CLIENT_REGION_SHIFT)) - 1)
 #define HANDLE_INIT (-1)
 #define CAM_SMMU_CB_MAX 6
 #define CAM_SMMU_SHARED_HDL_MAX 6
 #define CAM_SMMU_MULTI_REGION_MAX 2
 
 #define GET_SMMU_HDL(x, y) (((x) << COOKIE_SIZE) | ((y) & COOKIE_MASK))
-#define GET_SMMU_TABLE_IDX(x) ((((x) & CAM_SMMU_HDL_MASK) >> COOKIE_SIZE) & COOKIE_MASK)
 #define GET_SMMU_MULTI_CLIENT_IDX(x) (((x) >> MULTI_CLIENT_REGION_SHIFT))
 #define CAM_SMMU_HDL_VALIDATE(x, y) ((x) != ((y) & CAM_SMMU_HDL_MASK))
 
@@ -327,15 +320,6 @@ struct cam_smmu_mini_dump_info {
 };
 
 static struct cam_iommu_cb_set iommu_cb_set;
-
-/*
- * This is expected to succeed as the SMMU bind would have
- * failed if it could not fetch the CSF version from SMMU proxy
- */
-void cam_smmu_get_csf_version(struct cam_csf_version *csf_ver)
-{
-	memcpy(csf_ver, &iommu_cb_set.csf_version, sizeof(*csf_ver));
-}
 
 static enum dma_data_direction cam_smmu_translate_dir(
 	enum cam_smmu_map_dir dir);
@@ -5336,6 +5320,25 @@ static int cam_smmu_create_debug_fs(void)
 
 end:
 	return rc;
+}
+
+int cam_smmu_driver_init(struct cam_csf_version *csf_ver, int32_t *num_cbs)
+{
+	/* expect inputs to be valid */
+	if (!csf_ver || !num_cbs) {
+		CAM_ERR(CAM_SMMU, "Invalid params csf: %p num_cbs: %p",
+			csf_ver, num_cbs);
+		return -EINVAL;
+	}
+
+	*num_cbs = iommu_cb_set.cb_num;
+	memcpy(csf_ver, &iommu_cb_set.csf_version, sizeof(*csf_ver));
+	return 0;
+}
+
+void cam_smmu_driver_deinit(void)
+{
+	/* no-op */
 }
 
 static int cam_smmu_fw_dev_component_bind(struct device *dev,
