@@ -1660,7 +1660,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.minor_version                           = 8,
 	.version_incr                            = 0,
 	.num_rdis                                = 5,
-	.num_pix                                 = 1,
+	.num_pix                                 = 3,
 	.num_ppp                                 = 1,
 	.rst_done_shift_val                      = 1,
 	.path_en_shift_val                       = 31,
@@ -1726,7 +1726,9 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.decode_format_payload_only              = 0xF,
 	.timestamp_enabled_in_cfg0               = true,
 	.camif_irq_support                       = true,
-	.capabilities                            = CAM_IFE_CSID_CAP_SPLIT_RUP_AUP,
+	.capabilities                            = CAM_IFE_CSID_CAP_SPLIT_RUP_AUP |
+							CAM_IFE_CSID_CAP_SKIP_PATH_CFG1 |
+							CAM_IFE_CSID_CAP_SKIP_EPOCH_CFG,
 	.drv_rup_en_val_map = {
 		2, /*RDI0 */
 		3, /*RDI1 */
