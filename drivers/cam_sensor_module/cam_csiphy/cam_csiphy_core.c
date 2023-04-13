@@ -340,6 +340,7 @@ int cam_csiphy_dump_status_reg(struct csiphy_device *csiphy_dev)
 	void __iomem *lane1_offset = 0;
 	void __iomem *lane2_offset = 0;
 	void __iomem *lane3_offset = 0;
+	void __iomem *clk_offset = 0;
 	struct csiphy_reg_parms_t *csiphy_reg;
 	struct cam_cphy_dphy_status_reg_params_t *status_regs;
 	int i = 0;
@@ -394,11 +395,15 @@ int cam_csiphy_dump_status_reg(struct csiphy_device *csiphy_dev)
 			lane1_offset + csiphy_reg->size_offset_betn_lanes;
 		lane3_offset =
 			lane2_offset + csiphy_reg->size_offset_betn_lanes;
+		clk_offset =
+			lane3_offset + (csiphy_reg->size_offset_betn_lanes / 2);
 
 		for (i = 0; i < status_regs->csiphy_2ph_status_size; i++) {
 			CAM_INFO(CAM_CSIPHY,
-				"PHY: %d, Status%u. Ln0: 0x%x, Ln1: 0x%x, Ln2: 0x%x, Ln3: 0x%x",
+				"PHY: %d, Status%u. "
+				"CLK_LN: 0x%x Ln0: 0x%x, Ln1: 0x%x, Ln2: 0x%x, Ln3: 0x%x",
 				soc_info->index, i,
+				cam_io_r(clk_offset + (i * 4)),
 				cam_io_r(lane0_offset + (i * 4)),
 				cam_io_r(lane1_offset + (i * 4)),
 				cam_io_r(lane2_offset + (i * 4)),
@@ -1053,7 +1058,6 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 	uint64_t intermediate_var = 0;
 	uint16_t settle_cnt = 0;
 	uint32_t reg_addr, reg_data, reg_param_type;
-	uint8_t  skew_cal_enable;
 	int32_t  delay;
 	struct csiphy_reg_t *config_params;
 	uint8_t csiphy_index = 0;
@@ -1083,7 +1087,6 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 	intermediate_var = csiphy_device->csiphy_info[idx].settle_time;
 	do_div(intermediate_var, 200000000);
 	settle_cnt = intermediate_var;
-	skew_cal_enable = csiphy_device->csiphy_info[idx].mipi_flags;
 	csiphy_index = csiphy_device->soc_info.index;
 
 	CAM_DBG(CAM_CSIPHY, "required data rate : %llu", required_phy_data_rate);
@@ -1138,11 +1141,6 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 			break;
 			case CSIPHY_SETTLE_CNT_HIGHER_BYTE:
 				cam_io_w_mb((settle_cnt >> 8) & 0xFF,
-					csiphybase + reg_addr);
-			break;
-			case CSIPHY_SKEW_CAL:
-			if (skew_cal_enable)
-				cam_io_w_mb(reg_data,
 					csiphybase + reg_addr);
 			break;
 			case CSIPHY_AUXILIARY_SETTING: {
@@ -1388,6 +1386,8 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 		case CSIPHY_SKEW_CAL:
 		if (skew_cal_enable)
 			cam_io_w_mb(reg_array[i].reg_data, csiphybase + reg_array[i].reg_addr);
+		else
+			cam_io_w_mb(0x00, csiphybase + reg_array[i].reg_addr);
 		break;
 		default:
 			CAM_DBG(CAM_CSIPHY, "Do Nothing");
@@ -2538,7 +2538,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->start_dev_count++;
 
 			CAM_INFO(CAM_CSIPHY,
-				"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, sec_mode: %d, Datarate: %llu, Settletime: %llu",
+				"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, skew_en: %d sec_mode: %d, Datarate: %llu, Settletime: %llu",
 				soc_info->index,
 				csiphy_dev->csiphy_info[offset].conn_csid_idx,
 				g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
@@ -2546,6 +2546,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 				offset,
 				csiphy_dev->combo_mode,
 				csiphy_dev->cphy_dphy_combo_mode,
+				csiphy_dev->csiphy_info[offset].mipi_flags,
 				csiphy_dev->csiphy_info[offset].secure_mode,
 				csiphy_dev->csiphy_info[offset].data_rate,
 				csiphy_dev->csiphy_info[offset].settle_time);
