@@ -1428,12 +1428,136 @@ static inline bool cam_ife_hw_mgr_check_path_port_compat(
 	return (in_type == CAM_ISP_HW_VFE_IN_CAMIF);
 }
 
-static void cam_ife_hw_mgr_dump_all_ctx(void)
+static void cam_ife_hw_mgr_dump_acquire_resources(
+	struct cam_ife_hw_mgr_ctx    *hwr_mgr_ctx)
 {
-	uint32_t i;
+	struct cam_isp_hw_mgr_res    *hw_mgr_res = NULL;
+	struct cam_isp_hw_mgr_res    *hw_mgr_res_temp = NULL;
+	struct cam_isp_resource_node *hw_res = NULL;
+	uint64_t ms, hrs, min, sec;
+	int i = 0, j = 0;
+
+	CAM_CONVERT_TIMESTAMP_FORMAT(hwr_mgr_ctx->ts, hrs, min, sec, ms);
+
+	CAM_INFO(CAM_ISP,
+		"**** %llu:%llu:%llu.%llu ctx_idx: %u rdi_only: %s is_dual: %s acquired ****",
+		hrs, min, sec, ms,
+		hwr_mgr_ctx->ctx_index,
+		(hwr_mgr_ctx->flags.is_rdi_only_context ? "true" : "false"),
+		(hwr_mgr_ctx->flags.is_dual ? "true" : "false"));
+
+	/* Iterate over CSID resources */
+	list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
+		&hwr_mgr_ctx->res_list_ife_csid, list) {
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			hw_res = hw_mgr_res->hw_res[i];
+			if (hw_res && hw_res->hw_intf)
+				CAM_INFO(CAM_ISP,
+					"CSID split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
+					i, hwr_mgr_ctx->ctx_index,
+					hw_res->hw_intf->hw_idx,
+					hw_res->res_name,
+					hw_res->res_type,
+					hw_res->res_id,
+					cam_ife_hw_mgr_get_res_state
+					(hw_res->res_state));
+		}
+	}
+
+	/* Iterate over IFE IN resources */
+	list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
+		&hwr_mgr_ctx->res_list_ife_src, list) {
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			hw_res = hw_mgr_res->hw_res[i];
+			if (hw_res && hw_res->hw_intf)
+				CAM_INFO(CAM_ISP,
+					"IFE src split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
+					i, hwr_mgr_ctx->ctx_index,
+					hw_res->hw_intf->hw_idx,
+					hw_res->res_name,
+					hw_res->res_type,
+					hw_res->res_id,
+					cam_ife_hw_mgr_get_res_state
+					(hw_res->res_state));
+		}
+	}
+
+	/* Iterate over SFE IN resources */
+	list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
+		&hwr_mgr_ctx->res_list_sfe_src, list) {
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			hw_res = hw_mgr_res->hw_res[i];
+			if (hw_res && hw_res->hw_intf)
+				CAM_INFO(CAM_ISP,
+					"SFE src split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
+					i, hwr_mgr_ctx->ctx_index,
+					hw_res->hw_intf->hw_idx,
+					hw_res->res_name,
+					hw_res->res_type,
+					hw_res->res_id,
+					cam_ife_hw_mgr_get_res_state
+					(hw_res->res_state));
+		}
+	}
+
+	/* Iterate over IFE/SFE RD resources */
+	list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
+		&hwr_mgr_ctx->res_list_ife_in_rd, list) {
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			hw_res = hw_mgr_res->hw_res[i];
+			if (hw_res && hw_res->hw_intf)
+				CAM_INFO(CAM_ISP,
+					"src_rd split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
+					i, hwr_mgr_ctx->ctx_index,
+					hw_res->hw_intf->hw_idx,
+					hw_res->res_name,
+					hw_res->res_type,
+					hw_res->res_id,
+					cam_ife_hw_mgr_get_res_state
+					(hw_res->res_state));
+		}
+	}
+
+	/* Iterate over IFE OUT resources */
+	for (i = 0; i < max_ife_out_res; i++) {
+		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX; j++) {
+			hw_mgr_res = &hwr_mgr_ctx->res_list_ife_out[i];
+			hw_res = hw_mgr_res->hw_res[j];
+			if (hw_res && hw_res->hw_intf)
+				CAM_INFO(CAM_ISP,
+					"IFE out split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
+					i, hwr_mgr_ctx->ctx_index,
+					hw_res->hw_intf->hw_idx,
+					hw_res->res_name,
+					hw_res->res_type,
+					hw_res->res_id,
+					cam_ife_hw_mgr_get_res_state
+					(hw_res->res_state));
+		}
+	}
+
+	/* Iterate over SFE OUT resources */
+	for (i = 0; i < max_sfe_out_res; i++) {
+		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX; j++) {
+			hw_mgr_res = &hwr_mgr_ctx->res_list_sfe_out[i];
+			hw_res = hw_mgr_res->hw_res[j];
+			if (hw_res && hw_res->hw_intf)
+				CAM_INFO(CAM_ISP,
+					"SFE out split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
+					i, hwr_mgr_ctx->ctx_index,
+					hw_res->hw_intf->hw_idx,
+					hw_res->res_name,
+					hw_res->res_type,
+					hw_res->res_id,
+					cam_ife_hw_mgr_get_res_state
+					(hw_res->res_state));
+		}
+	}
+}
+
+static void cam_ife_hw_mgr_dump_acq_rsrc_for_all_ctx(void)
+{
 	struct cam_ife_hw_mgr_ctx       *ctx;
-	struct cam_isp_hw_mgr_res       *hw_mgr_res;
-	struct cam_isp_hw_mgr_res       *hw_mgr_res_temp;
 	struct cam_ife_hw_mgr_ctx       *ctx_temp;
 
 	mutex_lock(&g_ife_hw_mgr.ctx_mutex);
@@ -1450,51 +1574,7 @@ static void cam_ife_hw_mgr_dump_all_ctx(void)
 			ctx->ctx_index, ctx->flags.is_dual,
 			ctx->num_base, ctx->flags.is_rdi_only_context);
 
-		list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
-			&ctx->res_list_ife_csid, list) {
-			for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-				if (!hw_mgr_res->hw_res[i])
-					continue;
-
-				CAM_INFO_RATE_LIMIT(CAM_ISP,
-					"csid:%d ctx id:%u res_type:%d res: %s res_id:%d res_state:%d",
-					hw_mgr_res->hw_res[i]->hw_intf->hw_idx, ctx->ctx_index,
-					hw_mgr_res->hw_res[i]->res_type,
-					hw_mgr_res->hw_res[i]->res_name,
-					hw_mgr_res->hw_res[i]->res_id,
-					hw_mgr_res->hw_res[i]->res_state);
-			}
-		}
-
-		list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
-			&ctx->res_list_ife_src, list) {
-			for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-				if (!hw_mgr_res->hw_res[i])
-					continue;
-
-				CAM_INFO_RATE_LIMIT(CAM_ISP,
-					"ife IN:%d ctx id:%u res_type:%d res_id:%d res_state:%d",
-					hw_mgr_res->hw_res[i]->hw_intf->hw_idx, ctx->ctx_index,
-					hw_mgr_res->hw_res[i]->res_type,
-					hw_mgr_res->hw_res[i]->res_id,
-					hw_mgr_res->hw_res[i]->res_state);
-			}
-		}
-
-		list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
-			&ctx->res_list_sfe_src, list) {
-			for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-				if (!hw_mgr_res->hw_res[i])
-					continue;
-
-				CAM_INFO_RATE_LIMIT(CAM_ISP,
-					"sfe IN:%d ctx id:%u res_type:%d res_id:%d res_state:%d",
-					hw_mgr_res->hw_res[i]->hw_intf->hw_idx, ctx->ctx_index,
-					hw_mgr_res->hw_res[i]->res_type,
-					hw_mgr_res->hw_res[i]->res_id,
-					hw_mgr_res->hw_res[i]->res_state);
-			}
-		}
+		cam_ife_hw_mgr_dump_acquire_resources(ctx);
 	}
 	mutex_unlock(&g_ife_hw_mgr.ctx_mutex);
 }
@@ -1504,7 +1584,6 @@ static void cam_ife_hw_mgr_print_acquire_info(
 	uint32_t num_pd_port, uint32_t num_rdi_port, int acquire_failed)
 {
 	struct cam_isp_hw_mgr_res    *hw_mgr_res = NULL;
-	struct cam_isp_hw_mgr_res    *hw_mgr_res_temp = NULL;
 	struct cam_isp_resource_node *hw_res = NULL;
 	char log_info[128];
 	int hw_idx[CAM_ISP_HW_SPLIT_MAX] = {-1, -1};
@@ -1588,118 +1667,7 @@ fail:
 		sfe_hw_idx[CAM_ISP_HW_SPLIT_LEFT], sfe_hw_idx[CAM_ISP_HW_SPLIT_RIGHT],
 		hw_mgr_ctx->ctx_index);
 
-	list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
-		&hw_mgr_ctx->res_list_ife_src, list) {
-		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			hw_res = hw_mgr_res->hw_res[i];
-			if (hw_res && hw_res->hw_intf)
-				CAM_INFO(CAM_ISP,
-					"IFE src split_id:%d res:%s hw_idx:%u state:%s ctx_idx: %u",
-					i,
-					hw_res->res_name,
-					hw_res->hw_intf->hw_idx,
-					cam_ife_hw_mgr_get_res_state
-					(hw_res->res_state), hw_mgr_ctx->ctx_index);
-		}
-	}
-
-	list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
-		&hw_mgr_ctx->res_list_sfe_src, list) {
-		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			hw_res = hw_mgr_res->hw_res[i];
-			if (hw_res && hw_res->hw_intf)
-				CAM_INFO(CAM_ISP,
-					"SFE src split_id:%d res:%s hw_idx:%u state:%s ctx_idx: %u",
-					i,
-					hw_res->res_name,
-					hw_res->hw_intf->hw_idx,
-					cam_ife_hw_mgr_get_res_state
-					(hw_res->res_state), hw_mgr_ctx->ctx_index);
-		}
-	}
-	cam_ife_hw_mgr_dump_all_ctx();
-}
-
-static void cam_ife_hw_mgr_dump_acq_data(
-	struct cam_ife_hw_mgr_ctx    *hwr_mgr_ctx)
-{
-	struct cam_isp_hw_mgr_res    *hw_mgr_res = NULL;
-	struct cam_isp_hw_mgr_res    *hw_mgr_res_temp = NULL;
-	struct cam_isp_resource_node *hw_res = NULL;
-	uint64_t ms, hrs, min, sec;
-	int i = 0, j = 0;
-
-	CAM_CONVERT_TIMESTAMP_FORMAT(hwr_mgr_ctx->ts, hrs, min, sec, ms);
-
-	CAM_INFO(CAM_ISP,
-		"**** %llu:%llu:%llu.%llu ctx_idx: %u rdi_only: %s is_dual: %s acquired ****",
-		hrs, min, sec, ms,
-		hwr_mgr_ctx->ctx_index,
-		(hwr_mgr_ctx->flags.is_rdi_only_context ? "true" : "false"),
-		(hwr_mgr_ctx->flags.is_dual ? "true" : "false"));
-
-	/* Iterate over CSID resources */
-	list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
-		&hwr_mgr_ctx->res_list_ife_csid, list) {
-		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			hw_res = hw_mgr_res->hw_res[i];
-			if (hw_res && hw_res->hw_intf)
-				CAM_INFO(CAM_ISP,
-					"CSID split_id: %d ctx_idx: %u res: %s hw_idx: %u state: %s",
-					i, hwr_mgr_ctx->ctx_index,
-					hw_res->res_name,
-					hw_res->hw_intf->hw_idx,
-					cam_ife_hw_mgr_get_res_state
-					(hw_res->res_state));
-		}
-	}
-
-	/* Iterate over IFE IN resources */
-	list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
-		&hwr_mgr_ctx->res_list_ife_src, list) {
-		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			hw_res = hw_mgr_res->hw_res[i];
-			if (hw_res && hw_res->hw_intf)
-				CAM_INFO(CAM_ISP,
-					"IFE src split_id: %d ctx_idx: %u res: %s hw_idx: %u state: %s",
-					i, hwr_mgr_ctx->ctx_index,
-					hw_res->res_name,
-					hw_res->hw_intf->hw_idx,
-					cam_ife_hw_mgr_get_res_state
-					(hw_res->res_state));
-		}
-	}
-
-	/* Iterate over IFE RD resources */
-	list_for_each_entry_safe(hw_mgr_res, hw_mgr_res_temp,
-		&hwr_mgr_ctx->res_list_ife_in_rd, list) {
-		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
-			hw_res = hw_mgr_res->hw_res[i];
-			if (hw_res && hw_res->hw_intf)
-				CAM_INFO(CAM_ISP,
-					"IFE src_rd split_id: %d ctx_idx: %u res: %s hw_idx: %u state: %s",
-					i, hwr_mgr_ctx->ctx_index,
-					hw_res->res_name,
-					hw_res->hw_intf->hw_idx,
-					cam_ife_hw_mgr_get_res_state
-					(hw_res->res_state));
-		}
-	}
-
-	/* Iterate over IFE OUT resources */
-	for (i = 0; i < hwr_mgr_ctx->num_acq_vfe_out; i++) {
-		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX; j++) {
-			hw_mgr_res = &hwr_mgr_ctx->res_list_ife_out[i];
-			hw_res = hw_mgr_res->hw_res[j];
-			if (hw_res && hw_res->hw_intf)
-				CAM_INFO(CAM_ISP,
-					"IFE out split_id: %d ctx_idx: %u res: %s res_id: 0x%x hw_idx: %u state: %s",
-					j, hwr_mgr_ctx->ctx_index, hw_res->res_name, hw_res->res_id,
-					hw_res->hw_intf->hw_idx,
-					cam_ife_hw_mgr_get_res_state
-					(hw_res->res_state));
-		}
-	}
+	cam_ife_hw_mgr_dump_acq_rsrc_for_all_ctx();
 }
 
 static int cam_ife_mgr_csid_change_halt_mode(struct cam_ife_hw_mgr_ctx *ctx,
@@ -13101,7 +13069,7 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 		}
 		break;
 	case CAM_HW_MGR_CMD_DUMP_ACQ_INFO:
-		cam_ife_hw_mgr_dump_acq_data(ctx);
+		cam_ife_hw_mgr_dump_acquire_resources(ctx);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "Invalid cmd, ctx_idx: %u", ctx->ctx_index);
