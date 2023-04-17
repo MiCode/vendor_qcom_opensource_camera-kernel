@@ -848,15 +848,10 @@ int cam_hfi_resume(int client_handle)
 	cam_io_w_mb((uint32_t)hfi_mem->fw_uncached.len,
 		icp_base + HFI_REG_FWUNCACHED_REGION_SIZE);
 
-	cam_io_w_mb((uint32_t)hfi_mem->global_sync.iova,
-		icp_base + HFI_REG_FWUNCACHED_GLOBAL_SYNC_IOVA);
-	cam_io_w_mb((uint32_t)hfi_mem->global_sync.len,
-		icp_base + HFI_REG_FWUNCACHED_GLOBAL_SYNC_LEN);
-
-	cam_io_w_mb((uint32_t)hfi_mem->hwmutex.iova,
-		icp_base + HFI_REG_DEVICE_HWMUTEX_IOVA);
-	cam_io_w_mb((uint32_t)hfi_mem->hwmutex.len,
-		icp_base + HFI_REG_DEVICE_HWMUTEX_SIZE);
+	cam_io_w_mb((uint32_t)hfi_mem->device_mem.iova,
+		icp_base + HFI_REG_DEVICE_REGION_IOVA);
+	cam_io_w_mb((uint32_t)hfi_mem->device_mem.len,
+		icp_base + HFI_REG_DEVICE_REGION_IOVA_SIZE);
 
 	CAM_DBG(CAM_HFI, "IO1 : [0x%x 0x%x] IO2 [0x%x 0x%x]",
 		hfi_mem->io_mem.iova, hfi_mem->io_mem.len,
@@ -870,13 +865,10 @@ int cam_hfi_resume(int client_handle)
 		hfi_mem->sec_heap.iova, hfi_mem->sec_heap.len,
 		hfi_mem->qdss.iova, hfi_mem->qdss.len);
 
-	CAM_DBG(CAM_HFI, "QTbl : [0x%x 0x%x] Sfr [0x%x 0x%x]",
+	CAM_DBG(CAM_HFI, "QTbl : [0x%x 0x%x] Sfr [0x%x 0x%x] Device [0x%x 0x%x]",
 		hfi_mem->qtbl.iova, hfi_mem->qtbl.len,
-		hfi_mem->sfr_buf.iova, hfi_mem->sfr_buf.len);
-
-	CAM_DBG(CAM_HFI, "global sync : [0x%x 0x%x] hwmutex [0x%x 0x%x]",
-		hfi_mem->global_sync.iova, hfi_mem->global_sync.len,
-		hfi_mem->hwmutex.iova, hfi_mem->hwmutex.len);
+		hfi_mem->sfr_buf.iova, hfi_mem->sfr_buf.len,
+		hfi_mem->device_mem.iova, hfi_mem->device_mem.len);
 
 	return rc;
 }
@@ -1067,14 +1059,10 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 		icp_base + HFI_REG_FWUNCACHED_REGION_IOVA);
 	cam_io_w_mb((uint32_t)hfi_mem->fw_uncached.len,
 		icp_base + HFI_REG_FWUNCACHED_REGION_SIZE);
-	cam_io_w_mb((uint32_t)hfi_mem->global_sync.iova,
-		icp_base + HFI_REG_FWUNCACHED_GLOBAL_SYNC_IOVA);
-	cam_io_w_mb((uint32_t)hfi_mem->global_sync.len,
-		icp_base + HFI_REG_FWUNCACHED_GLOBAL_SYNC_LEN);
-	cam_io_w_mb((uint32_t)hfi_mem->hwmutex.iova,
-		icp_base + HFI_REG_DEVICE_HWMUTEX_IOVA);
-	cam_io_w_mb((uint32_t)hfi_mem->hwmutex.len,
-		icp_base + HFI_REG_DEVICE_HWMUTEX_SIZE);
+	cam_io_w_mb((uint32_t)hfi_mem->device_mem.iova,
+		icp_base + HFI_REG_DEVICE_REGION_IOVA);
+	cam_io_w_mb((uint32_t)hfi_mem->device_mem.len,
+		icp_base + HFI_REG_DEVICE_REGION_IOVA_SIZE);
 
 	CAM_DBG(CAM_HFI, "[%s] HFI handle: %d",
 		hfi->client_name, client_handle);
@@ -1091,13 +1079,10 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 		hfi_mem->sec_heap.iova, hfi_mem->sec_heap.len,
 		hfi_mem->qdss.iova, hfi_mem->qdss.len);
 
-	CAM_DBG(CAM_HFI, "QTbl : [0x%x 0x%x] Sfr [0x%x 0x%x]",
+	CAM_DBG(CAM_HFI, "QTbl : [0x%x 0x%x] Sfr [0x%x 0x%x] Device [0x%x 0x%x]",
 		hfi_mem->qtbl.iova, hfi_mem->qtbl.len,
-		hfi_mem->sfr_buf.iova, hfi_mem->sfr_buf.len);
-
-	CAM_DBG(CAM_HFI, "global sync : [0x%x 0x%x] hwmutex [0x%x 0x%x]",
-		hfi_mem->global_sync.iova, hfi_mem->global_sync.len,
-		hfi_mem->hwmutex.iova, hfi_mem->hwmutex.len);
+		hfi_mem->sfr_buf.iova, hfi_mem->sfr_buf.len,
+		hfi_mem->device_mem.iova, hfi_mem->device_mem.len);
 
 	if (cam_presil_mode_enabled())
 		cam_hfi_presil_setup(hfi_mem);

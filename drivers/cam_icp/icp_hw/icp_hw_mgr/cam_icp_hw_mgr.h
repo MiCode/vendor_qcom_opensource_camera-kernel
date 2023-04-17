@@ -107,10 +107,13 @@ struct hfi_mini_dump_info;
  * @sfr_buf: Memory info for sfr buffer
  * @fw_uncached_generic: Memory info for fw uncached region
  * @fw_uncached_global_sync: Memory info for global sync, in fw uncached region
- * @hwmutex: Memory info for hwmutex region mapped as device memory
+ * @synx_hwmutex: Memory info for synx hwmutex region mapped as device memory
+ * @ipc_hwmutex: Memory info for ipc hwmutex region mapped as device memory
+ * @global_cntr: Memory info for global cntr region mapped as device memory
  * @shmem: Memory info for shared region
  * @io_mem: Memory info for io region
  * @fw_uncached: Memory info for fw uncached nested region
+ * @device: Memory info for the device region
  * @fw_uncached_region: region support for fw uncached
  */
 struct icp_hfi_mem_info {
@@ -124,10 +127,13 @@ struct icp_hfi_mem_info {
 	struct cam_mem_mgr_memory_desc sfr_buf;
 	struct cam_mem_mgr_memory_desc fw_uncached_generic;
 	struct cam_mem_mgr_memory_desc fw_uncached_global_sync;
-	struct cam_mem_mgr_memory_desc hwmutex;
+	struct cam_mem_mgr_memory_desc synx_hwmutex;
+	struct cam_mem_mgr_memory_desc ipc_hwmutex;
+	struct cam_mem_mgr_memory_desc global_cntr;
 	struct cam_smmu_region_info shmem;
 	struct cam_smmu_region_info io_mem;
 	struct cam_smmu_region_info fw_uncached;
+	struct cam_smmu_region_info device;
 	bool fw_uncached_region;
 };
 
