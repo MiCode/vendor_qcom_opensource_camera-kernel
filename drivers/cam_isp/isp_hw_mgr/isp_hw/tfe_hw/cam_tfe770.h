@@ -1378,7 +1378,7 @@ static struct cam_tfe_bus_hw_info  tfe770_bus_hw_info = {
 	.support_consumed_addr = true,
 	.pdaf_rdi2_mux_en = false,
 	.rdi_width = 128,
-	.en_cfg_shift = 16,
+	.mode_cfg_shift = 16,
 	.height_shift = 16,
 };
 

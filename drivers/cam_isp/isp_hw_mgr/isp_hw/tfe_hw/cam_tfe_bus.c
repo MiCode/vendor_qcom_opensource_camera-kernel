@@ -71,7 +71,7 @@ struct cam_tfe_bus_common_data {
 	uint32_t                                    num_sec_out;
 	uint32_t                                    comp_done_shift;
 	uint32_t                                    rdi_width;
-	uint32_t                                    en_cfg_shift;
+	uint32_t                                    mode_cfg_shift;
 	uint32_t                                    height_shift;
 	bool                                        is_lite;
 	bool                                        support_consumed_addr;
@@ -652,7 +652,7 @@ static int cam_tfe_bus_acquire_rdi_wm(
 {
 	int pack_fmt = 0;
 	int rdi_width = rsrc_data->common_data->rdi_width;
-	int en_cfg_shift = rsrc_data->common_data->en_cfg_shift;
+	int mode_cfg_shift = rsrc_data->common_data->mode_cfg_shift;
 	if (rdi_width == 64)
 		pack_fmt = 0xa;
 	else if (rdi_width == 128)
@@ -672,7 +672,7 @@ static int cam_tfe_bus_acquire_rdi_wm(
 			rsrc_data->height = 0;
 			rsrc_data->stride =
 				CAM_TFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << en_cfg_shift) | 0x1;
+			rsrc_data->en_cfg = (0x1 << mode_cfg_shift) | 0x1;
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_8:
@@ -689,7 +689,7 @@ static int cam_tfe_bus_acquire_rdi_wm(
 			rsrc_data->height = 0;
 			rsrc_data->stride =
 				CAM_TFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << en_cfg_shift) | 0x1;
+			rsrc_data->en_cfg = (0x1 << mode_cfg_shift) | 0x1;
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_10:
@@ -705,7 +705,7 @@ static int cam_tfe_bus_acquire_rdi_wm(
 			rsrc_data->height = 0;
 			rsrc_data->stride =
 				CAM_TFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << en_cfg_shift) | 0x1;
+			rsrc_data->en_cfg = (0x1 << mode_cfg_shift) | 0x1;
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_12:
@@ -721,7 +721,7 @@ static int cam_tfe_bus_acquire_rdi_wm(
 			rsrc_data->height = 0;
 			rsrc_data->stride =
 				CAM_TFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << en_cfg_shift) | 0x1;
+			rsrc_data->en_cfg = (0x1 << mode_cfg_shift) | 0x1;
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_14:
@@ -737,7 +737,7 @@ static int cam_tfe_bus_acquire_rdi_wm(
 			rsrc_data->height = 0;
 			rsrc_data->stride =
 				CAM_TFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << en_cfg_shift) | 0x1;
+			rsrc_data->en_cfg = (0x1 << mode_cfg_shift) | 0x1;
 		}
 		break;
 	case CAM_FORMAT_PLAIN16_10:
@@ -757,7 +757,7 @@ static int cam_tfe_bus_acquire_rdi_wm(
 			rsrc_data->height = 0;
 			rsrc_data->stride =
 				CAM_TFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << en_cfg_shift) | 0x1;
+			rsrc_data->en_cfg = (0x1 << mode_cfg_shift) | 0x1;
 		}
 		break;
 
@@ -775,7 +775,7 @@ static int cam_tfe_bus_acquire_rdi_wm(
 			rsrc_data->height = 0;
 			rsrc_data->stride =
 				CAM_TFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << en_cfg_shift) | 0x1;
+			rsrc_data->en_cfg = (0x1 << mode_cfg_shift) | 0x1;
 		}
 		break;
 	default:
@@ -911,7 +911,7 @@ static int cam_tfe_bus_acquire_wm(
 		rsrc_data->width = 0;
 		rsrc_data->height = 0;
 		rsrc_data->stride = 1;
-		rsrc_data->en_cfg = (0x1 << rsrc_data->common_data->en_cfg_shift) | 0x1;
+		rsrc_data->en_cfg = (0x1 << rsrc_data->common_data->mode_cfg_shift) | 0x1;
 
 		/*RS state packet format*/
 		if (rsrc_data->index == 15)
@@ -923,7 +923,7 @@ static int cam_tfe_bus_acquire_wm(
 			rsrc_data->width = 0;
 			rsrc_data->height = 0;
 			rsrc_data->stride = 1;
-			rsrc_data->en_cfg = 0x1;
+			rsrc_data->en_cfg = (0x1 << rsrc_data->common_data->mode_cfg_shift) | 0x1;
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid format %d out_type:%d index: %d",
@@ -2823,7 +2823,7 @@ int cam_tfe_bus_init(
 	bus_priv->common_data.max_bw_counter_limit = hw_info->max_bw_counter_limit;
 	bus_priv->common_data.counter_limit_shift = hw_info->counter_limit_shift;
 	bus_priv->common_data.counter_limit_mask = hw_info->counter_limit_mask;
-	bus_priv->common_data.en_cfg_shift = hw_info->en_cfg_shift;
+	bus_priv->common_data.mode_cfg_shift = hw_info->mode_cfg_shift;
 	bus_priv->common_data.height_shift = hw_info->height_shift;
 	bus_priv->common_data.pack_align_shift = hw_info->pack_align_shift;
 

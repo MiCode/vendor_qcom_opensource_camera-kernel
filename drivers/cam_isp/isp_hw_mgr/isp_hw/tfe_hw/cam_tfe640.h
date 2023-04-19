@@ -1192,7 +1192,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 	.max_bw_counter_limit  = 0xFF,
 	.counter_limit_shift   = 1,
 	.counter_limit_mask    = 0xF,
-	.en_cfg_shift = 16,
+	.mode_cfg_shift = 16,
 	.height_shift = 16,
 };
 

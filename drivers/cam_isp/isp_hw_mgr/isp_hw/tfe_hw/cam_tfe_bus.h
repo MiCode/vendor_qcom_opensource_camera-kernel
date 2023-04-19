@@ -195,6 +195,8 @@ struct cam_tfe_bus_tfe_out_hw_info {
  * @num_comp_grp:          Number of composite group
  * @max_wm_per_comp_grp:   Max number of wm associated with one composite group
  * @comp_done_shift:       Mask shift for comp done mask
+ * @mode_cfg_shift:        Mask shift for mode config
+ * @height_shift:          Mask shift for height shift
  * @top_bus_wr_irq_shift:  Mask shift for top level BUS WR irq
  * @comp_buf_done_mask:    Composite buf done bits mask
  * @comp_rup_done_mask:    Reg update done mask
@@ -219,7 +221,7 @@ struct cam_tfe_bus_hw_info {
 	uint32_t num_comp_grp;
 	uint32_t max_wm_per_comp_grp;
 	uint32_t comp_done_shift;
-	uint32_t en_cfg_shift;
+	uint32_t mode_cfg_shift;
 	uint32_t height_shift;
 	uint32_t top_bus_wr_irq_shift;
 	uint32_t comp_buf_done_mask;
