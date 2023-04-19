@@ -127,6 +127,7 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_FPS_CONFIG                17
 #define CAM_ISP_GENERIC_BLOB_TYPE_INIT_CONFIG               18
 #define CAM_ISP_GENERIC_BLOB_TYPE_RDI_LCR_CONFIG            19
+#define CAM_ISP_GENERIC_BLOB_TYPE_SFE_FCG_CFG               20
 #define CAM_ISP_GENERIC_BLOB_TYPE_SFE_CLOCK_CONFIG          21
 #define CAM_ISP_GENERIC_BLOB_TYPE_SFE_CORE_CONFIG           22
 #define CAM_ISP_GENERIC_BLOB_TYPE_SFE_OUT_CONFIG            23
@@ -139,6 +140,7 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_NFI_MODE_SWITCH           30
 #define CAM_ISP_GENERIC_BLOB_TYPE_IRQ_COMP_CFG              31
 #define CAM_ISP_GENERIC_BLOB_TYPE_VFE_OUT_CONFIG_V2         32
+#define CAM_ISP_GENERIC_BLOB_TYPE_IFE_FCG_CFG               33
 
 #define CAM_ISP_VC_DT_CFG    4
 
@@ -203,6 +205,20 @@
 /* ISP core cfg flag params */
 #define CAM_ISP_PARAM_CORE_CFG_HDR_MUX_SEL BIT(0)
 #define CAM_ISP_PARAM_CORE_CFG_PP_FORMAT   BIT(16)
+
+/* Indicate which module is configured for FCG */
+#define CAM_ISP_FCG_ENABLE_PHASE         BIT(0)
+#define CAM_ISP_FCG_ENABLE_STATS         BIT(1)
+
+/*
+ * Indicate which channel is configured for FCG
+ * For SFE, channel 1/2 are used on demand
+ * For IFE, treat it as channel 0
+ * For TFE, use Multi Context Mask to indicate the path
+ */
+#define CAM_ISP_FCG_MASK_CH0                 0x1
+#define CAM_ISP_FCG_MASK_CH1                 0x2
+#define CAM_ISP_FCG_MASK_CH2                 0x4
 
 /**
  * Decode format1 Support for multi VCDT use case.
@@ -972,6 +988,89 @@ struct cam_isp_sfe_init_scratch_buf_config {
 	__u32  num_ports;
 	__u32  reserved;
 	struct cam_isp_sfe_scratch_buf_info port_scratch_cfg[1];
+};
+
+/**
+ * struct cam_isp_predict_fcg_config - FCG config in a single prediction
+ *
+ * @version:                    Version Info
+ * @phase_index_g:              Starting index of LUT for G channel in phase
+ * @phase_index_r:              Starting index of LUT for R channel in phase
+ * @phase_index_b:              Starting index of LUT for B channel in phase
+ * @stats_index_g:              Starting index of LUT for G channel in stats
+ * @stats_index_r:              Starting index of LUT for R channel in stats
+ * @stats_index_b:              Starting index of LUT for B channel in stats
+ * @num_valid_params:           Number of valid params being used
+ * @valid_param_mask:           Indicate the exact params being used
+ * @params:                     Params for future change
+ */
+struct cam_isp_predict_fcg_config {
+	__u32                                   version;
+	__u32                                   phase_index_g;
+	__u32                                   phase_index_r;
+	__u32                                   phase_index_b;
+	__u32                                   stats_index_g;
+	__u32                                   stats_index_r;
+	__u32                                   stats_index_b;
+	__u32                                   num_valid_params;
+	__u32                                   valid_param_mask;
+	__u32                                   params[5];
+};
+
+/**
+ * struct cam_isp_ch_ctx_fcg_config - FCG config in a single channel for SFE/IFE
+ *                                    or in a single context in TFE
+ *
+ * @version:                    Version Info
+ * @fcg_ch_ctx_id:              Index of the channel to be configured that FCG
+ *                              blocks reside on. If one wants to config FCG
+ *                              block for IFE/SFE, CAM_ISP_FCG_MASK_CH0/1/2 is
+ *                              used. If one wants to config FCG block for TFE,
+ *                              multi context mask is used.
+ * @fcg_enable_mask:            Indicate which module will be enabled for
+ *                              FCG. For example, if one wants to config
+ *                              SFE FCG STATS module, CAM_ISP_FCG_ENABLE_STATS
+ *                              will be set in mask
+ * @num_valid_params:           Number of valid params being used
+ * @valid_param_mask:           Indicate the exact params being used
+ * @params:                     Params for future change
+ * @predicted_fcg_configs:      Pointer to fcg config for each prediction of
+ *                              the channel in serial order
+ */
+struct cam_isp_ch_ctx_fcg_config {
+	__u32                                   version;
+	__u32                                   fcg_ch_ctx_id;
+	__u32                                   fcg_enable_mask;
+	__u32                                   num_valid_params;
+	__u32                                   valid_param_mask;
+	__u32                                   params[5];
+	struct cam_isp_predict_fcg_config       predicted_fcg_configs[1];
+};
+
+/**
+ * struct cam_isp_generic_fcg_config - FCG config for a frame
+ *
+ * @version:                    Version info
+ * @size:                       Size for the whole FCG configurations
+ * @num_ch_ctx:                 Number of channels for fcg config in SFE/IFE
+ *                              or number of contexts in TFE
+ * @num_predictions:            Number of predictions for each channel
+ *                              in SFE/IFE or for each context in TFE
+ * @num_valid_params:           Number of valid params being used
+ * @valid_param_mask:           Indicate the exact params being used
+ * @params:                     Params for future change
+ * @ch_ctx_fcg_configs:         Pointer to fcg config for each channel in
+ *                              SFE/IFE or for each context in TFE
+ */
+struct cam_isp_generic_fcg_config {
+	__u32                                  version;
+	__u32                                  size;
+	__u32                                  num_ch_ctx;
+	__u32                                  num_predictions;
+	__u32                                  num_valid_params;
+	__u32                                  valid_params_mask;
+	__u32                                  params[4];
+	struct cam_isp_ch_ctx_fcg_config       ch_ctx_fcg_configs[1];
 };
 
 /**
