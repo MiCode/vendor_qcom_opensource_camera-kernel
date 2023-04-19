@@ -1652,7 +1652,7 @@ static int cam_tfe_csid_enable_pxl_path(
 		val = (TFE_CSID_HALT_MODE_SLAVE << pxl_reg->halt_mode_shift);
 	else
 		/* Default is internal halt mode */
-		val = 0;
+		val = 1 << pxl_reg->halt_master_sel_shift;
 
 	/*
 	 * Resume at frame boundary if Master or No Sync.
@@ -1866,7 +1866,17 @@ static int cam_tfe_csid_enable_ppp_path(
 			ppp_reg->halt_master_sel_shift);
 	else
 		/* Default is internal halt mode */
-		val = 0;
+		val = (TFE_CSID_HALT_MODE_SLAVE  << ppp_reg->halt_mode_shift) |
+			(ppp_reg->halt_master_sel_master_val <<
+			ppp_reg->halt_master_sel_shift);
+
+	/*
+	 * Resume at frame boundary if Master or No Sync.
+	 * Slave will get resume command from Master.
+	 */
+	if (path_data->sync_mode == CAM_ISP_HW_SYNC_MASTER ||
+		path_data->sync_mode == CAM_ISP_HW_SYNC_NONE)
+		val |= CAM_TFE_CSID_RESUME_AT_FRAME_BOUNDARY;
 
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base + ppp_reg->csid_pxl_ctrl_addr);
 
