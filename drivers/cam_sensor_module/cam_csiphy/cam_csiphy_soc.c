@@ -214,7 +214,7 @@ int32_t cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 
 	if (soc_info->is_clk_drv_en && param->use_hw_client_voting && param->is_drv_config_en) {
 		int clk_vote_level_high = vote_level;
-		int clk_vote_level_low = CAM_LOWSVS_VOTE;
+		int clk_vote_level_low = soc_info->lowest_clk_level;
 
 		rc = cam_soc_util_set_clk_rate_level(soc_info, param->conn_csid_idx,
 			clk_vote_level_high, clk_vote_level_low, false);

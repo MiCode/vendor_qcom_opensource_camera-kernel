@@ -116,7 +116,7 @@ static int cam_csiphy_cpas_ops(
 
 	if (start) {
 		ahb_vote.type = CAM_VOTE_ABSOLUTE;
-		ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+		ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 		axi_vote.num_paths = 1;
 		axi_vote.axi_path[0].path_data_type =
 			CAM_AXI_PATH_DATA_ALL;
@@ -2523,7 +2523,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 			if (soc_info->is_clk_drv_en && param->use_hw_client_voting) {
 				if (param->is_drv_config_en)
-					clk_vote_level_low = CAM_LOWSVS_VOTE;
+					clk_vote_level_low = soc_info->lowest_clk_level;
 
 				rc = cam_soc_util_set_clk_rate_level(&csiphy_dev->soc_info,
 					param->conn_csid_idx, clk_vote_level_high,

@@ -40,7 +40,7 @@ int cam_cre_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 	int rc;
 
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		CAM_SVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc)
 		CAM_ERR(CAM_CRE, "enable platform failed %d", rc);
 

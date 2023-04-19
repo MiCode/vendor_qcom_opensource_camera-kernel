@@ -1894,7 +1894,7 @@ int cam_hw_cdm_get_cdm_config(struct cam_hw_info *cdm_hw)
 	core = (struct cam_cdm *)cdm_hw->core_info;
 	soc_info = &cdm_hw->soc_info;
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-			CAM_SVS_VOTE, true);
+			soc_info->lowest_clk_level, true);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Enable platform failed for dev %s",
 				soc_info->dev_name);
@@ -1997,7 +1997,7 @@ int cam_hw_cdm_init(void *hw_priv,
 	cdm_core = (struct cam_cdm *)cdm_hw->core_info;
 
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		CAM_SVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Enable platform failed for %s%d",
 			soc_info->label_name, soc_info->index);

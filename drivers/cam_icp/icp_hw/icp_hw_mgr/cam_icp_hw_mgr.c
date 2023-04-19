@@ -667,7 +667,7 @@ static int cam_icp_remove_ctx_bw(struct cam_icp_hw_mgr *hw_mgr,
 	if (total_ab_bw == 0) {
 		/* If no more contexts are active, reduce AHB vote to minimum */
 		clk_update.ahb_vote.type = CAM_VOTE_ABSOLUTE;
-		clk_update.ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+		clk_update.ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 		clk_update.ahb_vote_valid = true;
 	} else {
 		clk_update.ahb_vote_valid = false;

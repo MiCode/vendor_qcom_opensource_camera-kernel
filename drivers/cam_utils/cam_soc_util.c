@@ -1020,18 +1020,20 @@ const char *cam_soc_util_get_string_from_level(enum cam_vote_level level)
 		return "";
 	case CAM_MINSVS_VOTE:
 		return "MINSVS[1]";
+	case CAM_LOWSVS_D1_VOTE:
+		return "LOWSVSD1[2]";
 	case CAM_LOWSVS_VOTE:
-		return "LOWSVS[2]";
+		return "LOWSVS[3]";
 	case CAM_SVS_VOTE:
-		return "SVS[3]";
+		return "SVS[4]";
 	case CAM_SVSL1_VOTE:
-		return "SVSL1[4]";
+		return "SVSL1[5]";
 	case CAM_NOMINAL_VOTE:
-		return "NOM[5]";
+		return "NOM[6]";
 	case CAM_NOMINALL1_VOTE:
-		return "NOML1[6]";
+		return "NOML1[7]";
 	case CAM_TURBO_VOTE:
-		return "TURBO[7]";
+		return "TURBO[8]";
 	default:
 		return "";
 	}
@@ -1212,6 +1214,8 @@ int cam_soc_util_get_level_from_string(const char *string,
 		*level = CAM_SUSPEND_VOTE;
 	} else if (!strcmp(string, "minsvs")) {
 		*level = CAM_MINSVS_VOTE;
+	} else if (!strcmp(string, "lowsvsd1")) {
+		*level = CAM_LOWSVS_D1_VOTE;
 	} else if (!strcmp(string, "lowsvs")) {
 		*level = CAM_LOWSVS_VOTE;
 	} else if (!strcmp(string, "svs")) {
@@ -2223,7 +2227,7 @@ int cam_soc_util_set_clk_rate_level(struct cam_hw_soc_info *soc_info,
 {
 	int i, rc = 0;
 	enum cam_vote_level apply_level_high;
-	enum cam_vote_level apply_level_low = CAM_LOWSVS_VOTE;
+	enum cam_vote_level apply_level_low = soc_info->lowest_clk_level;
 	unsigned long applied_clk_rate;
 
 	if ((soc_info->num_clk == 0) ||

@@ -158,7 +158,7 @@ int cam_cci_init(struct v4l2_subdev *sd,
 	}
 
 	ahb_vote.type = CAM_VOTE_ABSOLUTE;
-	ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+	ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	axi_vote.num_paths = 1;
 	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_ALL;
 	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_WRITE;
@@ -177,7 +177,7 @@ int cam_cci_init(struct v4l2_subdev *sd,
 
 	/* Enable Regulators and IRQ*/
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		CAM_LOWSVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc < 0) {
 		CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d request platform resources failed, rc: %d",
 			cci_dev->soc_info.index, master, rc);

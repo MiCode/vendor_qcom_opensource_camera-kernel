@@ -159,7 +159,7 @@ int cam_tfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 	soc_private = soc_info->soc_private;
 
 	ahb_vote.type       = CAM_VOTE_ABSOLUTE;
-	ahb_vote.vote.level = CAM_SVS_VOTE;
+	ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	axi_vote.num_paths = 1;
 	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_IFE_VID;
 	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_WRITE;
@@ -175,7 +175,7 @@ int cam_tfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 	}
 
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDXs, true,
-		CAM_LOWSVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Error! enable platform failed rc=%d", rc);
 		goto stop_cpas;

@@ -4676,6 +4676,7 @@ static int cam_ife_csid_ver2_set_cesta_clk_rate(struct cam_ife_csid_ver2_hw *csi
 {
 	struct cam_hw_soc_info *soc_info = &csid_hw->hw_info->soc_info;
 	bool channel_switch = force_channel_switch;
+	uint32_t lowest_clk_lvl = soc_info->lowest_clk_level;
 	int rc = 0;
 
 	CAM_DBG(CAM_ISP, "CSID:%d clk_rate=%llu, channel_switch=%d, identifier=%s",
@@ -4684,12 +4685,12 @@ static int cam_ife_csid_ver2_set_cesta_clk_rate(struct cam_ife_csid_ver2_hw *csi
 	if (csid_hw->clk_rate) {
 		rc = cam_soc_util_set_src_clk_rate(soc_info, csid_hw->hw_intf->hw_idx,
 			csid_hw->clk_rate,
-			soc_info->clk_rate[CAM_LOWSVS_VOTE][soc_info->src_clk_idx]);
+			soc_info->clk_rate[lowest_clk_lvl][soc_info->src_clk_idx]);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Failed in setting cesta clk rates[high low]:[%ld %ld] client_idx:%d rc:%d",
 				csid_hw->clk_rate,
-				soc_info->clk_rate[CAM_LOWSVS_VOTE][soc_info->src_clk_idx],
+				soc_info->clk_rate[lowest_clk_lvl][soc_info->src_clk_idx],
 				csid_hw->hw_intf->hw_idx, rc);
 			return rc;
 		}
@@ -7100,7 +7101,7 @@ int cam_ife_csid_ver2_irq_line_test(void *hw_priv)
 
 	mem_base = csid_hw->hw_info->soc_info.reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 	csid_reg = csid_hw->core_info->csid_reg;
-	rc = cam_ife_csid_enable_soc_resources(soc_info, CAM_LOWSVS_VOTE);
+	rc = cam_ife_csid_enable_soc_resources(soc_info, soc_info->lowest_clk_level);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "CSID[%u] Enable soc failed", csid_hw->hw_intf->hw_idx);
 		return rc;
