@@ -590,6 +590,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.top_irq_mask                     = 0x40,
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
+		.crop_drop_enable                 = false,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info

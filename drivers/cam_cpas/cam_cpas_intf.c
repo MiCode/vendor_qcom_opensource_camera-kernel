@@ -444,9 +444,19 @@ int cam_cpas_get_hw_info(uint32_t *camera_family,
 }
 EXPORT_SYMBOL(cam_cpas_get_hw_info);
 
-int cam_cpas_reg_write(uint32_t client_handle,
-	enum cam_cpas_reg_base reg_base, uint32_t offset, bool mb,
-	uint32_t value)
+static inline enum cam_cpas_reg_base __cam_cpas_get_internal_reg_base(
+	enum cam_cpas_regbase_types reg_base)
+{
+	switch (reg_base) {
+	case CAM_CPAS_REGBASE_CPASTOP:
+		return CAM_CPAS_REG_CPASTOP;
+	default:
+		return CAM_CPAS_REG_MAX;
+	}
+}
+
+int cam_cpas_reg_write(uint32_t client_handle, enum cam_cpas_regbase_types reg_base,
+	uint32_t offset, bool mb, uint32_t value)
 {
 	int rc;
 
@@ -457,9 +467,17 @@ int cam_cpas_reg_write(uint32_t client_handle,
 
 	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
 		struct cam_cpas_hw_cmd_reg_read_write cmd_reg_write;
+		enum cam_cpas_reg_base internal_reg_base;
+
+		internal_reg_base = __cam_cpas_get_internal_reg_base(reg_base);
+		if (internal_reg_base >= CAM_CPAS_REG_MAX) {
+			CAM_ERR(CAM_CPAS, "Invalid reg base: %d for write ops client: %u",
+				reg_base, client_handle);
+			return -EINVAL;
+		}
 
 		cmd_reg_write.client_handle = client_handle;
-		cmd_reg_write.reg_base = reg_base;
+		cmd_reg_write.reg_base = internal_reg_base;
 		cmd_reg_write.offset = offset;
 		cmd_reg_write.value = value;
 		cmd_reg_write.mb = mb;
@@ -479,9 +497,8 @@ int cam_cpas_reg_write(uint32_t client_handle,
 }
 EXPORT_SYMBOL(cam_cpas_reg_write);
 
-int cam_cpas_reg_read(uint32_t client_handle,
-	enum cam_cpas_reg_base reg_base, uint32_t offset, bool mb,
-	uint32_t *value)
+int cam_cpas_reg_read(uint32_t client_handle, enum cam_cpas_regbase_types reg_base,
+	uint32_t offset, bool mb, uint32_t *value)
 {
 	int rc;
 
@@ -497,9 +514,17 @@ int cam_cpas_reg_read(uint32_t client_handle,
 
 	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
 		struct cam_cpas_hw_cmd_reg_read_write cmd_reg_read;
+		enum cam_cpas_reg_base internal_reg_base;
+
+		internal_reg_base = __cam_cpas_get_internal_reg_base(reg_base);
+		if (internal_reg_base >= CAM_CPAS_REG_MAX) {
+			CAM_ERR(CAM_CPAS, "Invalid reg base: %d for read ops client: %u",
+				reg_base, client_handle);
+			return -EINVAL;
+		}
 
 		cmd_reg_read.client_handle = client_handle;
-		cmd_reg_read.reg_base = reg_base;
+		cmd_reg_read.reg_base = internal_reg_base;
 		cmd_reg_read.offset = offset;
 		cmd_reg_read.mb = mb;
 		cmd_reg_read.value = 0;

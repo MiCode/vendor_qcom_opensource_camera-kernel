@@ -136,7 +136,7 @@ static inline int cam_sensor_util_aon_ops(bool get_access, uint32_t phy_idx)
 	return cam_csiphy_util_update_aon_ops(get_access, phy_idx);
 }
 
-static inline int cam_sensor_util_aon_registration(uint32_t phy_idx, uint8_t aon_camera_id)
+static inline int cam_sensor_util_aon_registration(uint32_t phy_idx, uint32_t aon_camera_id)
 {
 	CAM_DBG(CAM_SENSOR, "Register phy_idx: %u for AON_Camera_ID: %d", phy_idx, aon_camera_id);
 	return cam_csiphy_util_update_aon_registration(phy_idx, aon_camera_id);

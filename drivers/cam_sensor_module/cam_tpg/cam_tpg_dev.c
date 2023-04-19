@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_tpg_dev.h"
@@ -167,9 +167,10 @@ static int tpg_subdev_init(struct cam_tpg_device *tpg_dev,
 static int tpg_soc_info_init(struct cam_tpg_device *tpg_dev,
 		struct device *dev)
 {
-	int32_t rc = 0;
+	int32_t rc = 0, i;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct device_node *of_node = NULL;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	if (!dev || !tpg_dev)
 		return -EINVAL;
@@ -193,10 +194,11 @@ static int tpg_soc_info_init(struct cam_tpg_device *tpg_dev,
 		return rc;
 	}
 
+	for (i = 0; i < tpg_dev->soc_info.irq_count; i++)
+		irq_data[i] = tpg_dev;
+
 	rc = cam_soc_util_request_platform_resource(
-			&tpg_dev->soc_info,
-			cam_tpg_irq_handler,
-			tpg_dev);
+		&tpg_dev->soc_info, cam_tpg_irq_handler, &(irq_data[0]));
 	if (rc)
 		CAM_ERR(CAM_TPG, "unable to request platfrom resources");
 	else

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_eeprom_dev.h"
@@ -248,6 +248,8 @@ static int cam_eeprom_i2c_component_bind(struct device *dev,
 	rc = cam_eeprom_init_subdev(e_ctrl);
 	if (rc)
 		goto free_soc;
+
+	cam_sensor_module_add_i2c_device((void *) e_ctrl, CAM_SENSOR_EEPROM);
 
 	if (soc_private->i2c_info.slave_addr != 0)
 		e_ctrl->io_master_info.client->addr =
@@ -523,6 +525,8 @@ static int cam_eeprom_component_bind(struct device *dev,
 	rc = cam_eeprom_init_subdev(e_ctrl);
 	if (rc)
 		goto free_soc;
+
+	cam_sensor_module_add_i2c_device((void *) e_ctrl, CAM_SENSOR_EEPROM);
 
 	e_ctrl->bridge_intf.device_hdl = -1;
 	e_ctrl->bridge_intf.ops.get_dev_info = NULL;

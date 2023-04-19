@@ -635,8 +635,8 @@ int32_t cam_sensor_update_i2c_info(struct cam_cmd_i2c_info *i2c_info,
 		cci_client->retries = 3;
 		cci_client->id_map = 0;
 		cci_client->i2c_freq_mode = i2c_info->i2c_freq_mode;
-		CAM_DBG(CAM_SENSOR, " Master: %d sid: %d freq_mode: %d",
-			cci_client->cci_i2c_master, i2c_info->slave_addr,
+		CAM_DBG(CAM_SENSOR, "CCI: %d Master: %d slave_addr: 0x%x freq_mode: %d",
+			cci_client->cci_device, cci_client->cci_i2c_master, i2c_info->slave_addr,
 			i2c_info->i2c_freq_mode);
 	} else if (s_ctrl->io_master_info.master_type == I2C_MASTER) {
 		s_ctrl->io_master_info.client->addr = i2c_info->slave_addr;
@@ -1644,13 +1644,9 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 	if (s_ctrl->bob_pwm_switch) {
-		rc = cam_sensor_bob_pwm_mode_switch(soc_info,
-			s_ctrl->bob_reg_index, true);
-		if (rc) {
-			CAM_WARN(CAM_SENSOR,
-			"BoB PWM setup failed rc: %d", rc);
-			rc = 0;
-		}
+		if (cam_sensor_bob_pwm_mode_switch(soc_info,
+			s_ctrl->bob_reg_index, true))
+			CAM_WARN(CAM_SENSOR, "BoB PWM setup failed");
 	}
 
 	if (s_ctrl->aon_camera_id != NOT_AON_CAM) {

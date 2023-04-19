@@ -2244,6 +2244,7 @@ static int cam_hw_cdm_component_bind(struct device *dev,
 	struct cam_cpas_register_params cpas_parms;
 	char cdm_name[128], work_q_name[128];
 	struct platform_device *pdev = to_platform_device(dev);
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	cdm_hw_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!cdm_hw_intf)
@@ -2358,8 +2359,11 @@ static int cam_hw_cdm_component_bind(struct device *dev,
 		CAM_DBG(CAM_CDM, "wq %s", work_q_name);
 	}
 
+	for (i = 0; i < cdm_hw->soc_info.irq_count; i++)
+		irq_data[i] = cdm_hw;
+
 	rc = cam_soc_util_request_platform_resource(&cdm_hw->soc_info,
-			cam_hw_cdm_irq, cdm_hw);
+			cam_hw_cdm_irq, &(irq_data[0]));
 	if (rc) {
 		CAM_ERR(CAM_CDM,
 			"Failed to request platform resource for %s%u",

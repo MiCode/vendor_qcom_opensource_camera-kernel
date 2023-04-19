@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -445,16 +445,15 @@ static int cam_flash_component_bind(struct device *dev,
 	}
 
 	if (of_find_property(pdev->dev.of_node, "cci-master", NULL)) {
+
 		/* Get CCI master */
-		rc = of_property_read_u32(pdev->dev.of_node, "cci-master",
-			&fctrl->cci_i2c_master);
-		CAM_DBG(CAM_FLASH, "cci-master %d, rc %d",
-			fctrl->cci_i2c_master, rc);
-		if (rc < 0) {
+		if (of_property_read_u32(pdev->dev.of_node, "cci-master",
+			&fctrl->cci_i2c_master)) {
 			/* Set default master 0 */
 			fctrl->cci_i2c_master = MASTER_0;
-			rc = 0;
 		}
+		CAM_DBG(CAM_FLASH, "cci-master %d",
+			fctrl->cci_i2c_master);
 
 		fctrl->io_master_info.master_type = CCI_MASTER;
 		rc = cam_flash_init_default_params(fctrl);
@@ -508,6 +507,8 @@ static int cam_flash_component_bind(struct device *dev,
 		else
 			goto free_resource;
 	}
+
+	cam_sensor_module_add_i2c_device((void *) fctrl, CAM_SENSOR_FLASH);
 
 	fctrl->bridge_intf.device_hdl = -1;
 	fctrl->bridge_intf.link_hdl = -1;
@@ -675,6 +676,8 @@ static int cam_flash_i2c_component_bind(struct device *dev,
 		rc = -ENOMEM;
 		goto unreg_subdev;
 	}
+
+	cam_sensor_module_add_i2c_device((void *) fctrl, CAM_SENSOR_FLASH);
 
 	INIT_LIST_HEAD(&(fctrl->i2c_data.init_settings.list_head));
 	INIT_LIST_HEAD(&(fctrl->i2c_data.config_settings.list_head));

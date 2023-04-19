@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SENSOR_CMN_HEADER_
@@ -208,6 +208,15 @@ struct cam_sensor_i2c_reg_array {
 	uint32_t data_mask;
 };
 
+enum cam_sensor_module_debugfs_device_type {
+	CAM_SENSOR_ACTUATOR,
+	CAM_SENSOR_EEPROM,
+	CAM_SENSOR_FLASH,
+	CAM_SENSOR_OIS,
+	CAM_SENSOR_DEVICE,
+	CAM_SENSOR_MAX,
+};
+
 struct cam_sensor_i2c_reg_setting {
 	struct cam_sensor_i2c_reg_array *reg_setting;
 	uint32_t size;
@@ -353,5 +362,27 @@ struct msm_camera_gpio_conf {
 	uint8_t camera_on_table_size;
 	struct msm_camera_gpio_num_info *gpio_num_info;
 };
+
+/**
+ * cam_sensor_module_add_i2c_device()
+ * @brief: Each sensor device passes its ctrl struct to a global
+ *         structure of i2c devices in cam_sensor_module_debug.c
+ * @ctrl_struct: Passed as void pointer, and recast to actual struct
+ *               based on device_type
+ * @device_type: Device type based on cam_sensor_module_debugfs_device_type
+ */
+void cam_sensor_module_add_i2c_device(void *ctrl_struct, int device_type);
+
+/**
+ * cam_sensor_module_debug_register()
+ * @brief Creates debugfs entry
+ */
+int cam_sensor_module_debug_register(void);
+
+/**
+ * cam_sensor_module_debug_deregister(void)
+ * @brief Take down debugfs entry
+ */
+void cam_sensor_module_debug_deregister(void);
 
 #endif /* _CAM_SENSOR_CMN_HEADER_ */

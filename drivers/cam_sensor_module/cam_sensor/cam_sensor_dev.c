@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_dev.h"
@@ -289,6 +289,8 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.bubble_update[i].list_head));
 	}
 
+	cam_sensor_module_add_i2c_device((void *) s_ctrl, CAM_SENSOR_DEVICE);
+
 	s_ctrl->bridge_intf.device_hdl = -1;
 	s_ctrl->bridge_intf.link_hdl = -1;
 	s_ctrl->bridge_intf.ops.get_dev_info = cam_sensor_publish_dev_info;
@@ -318,7 +320,6 @@ static void cam_sensor_i2c_component_unbind(struct device *dev,
 {
 	struct i2c_client         *client = NULL;
 	struct cam_sensor_ctrl_t  *s_ctrl = NULL;
-	struct cam_hw_soc_info    *soc_info = NULL;
 
 	client = container_of(dev, struct i2c_client, dev);
 	if (!client) {
@@ -338,7 +339,6 @@ static void cam_sensor_i2c_component_unbind(struct device *dev,
 	cam_sensor_shutdown(s_ctrl);
 	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
 	cam_unregister_subdev(&(s_ctrl->v4l2_dev_str));
-	soc_info = &s_ctrl->soc_info;
 
 	kfree(s_ctrl->i2c_data.per_frame);
 	kfree(s_ctrl->i2c_data.frame_skip);
@@ -478,6 +478,8 @@ static int cam_sensor_component_bind(struct device *dev,
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.frame_skip[i].list_head));
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.bubble_update[i].list_head));
 	}
+
+	cam_sensor_module_add_i2c_device((void *) s_ctrl, CAM_SENSOR_DEVICE);
 
 	s_ctrl->bridge_intf.device_hdl = -1;
 	s_ctrl->bridge_intf.link_hdl = -1;
@@ -672,6 +674,8 @@ int cam_sensor_driver_init(void)
 		goto i3c_register_err;
 	}
 
+	cam_sensor_module_debug_register();
+
 	return 0;
 
 i3c_register_err:
@@ -696,6 +700,8 @@ void cam_sensor_driver_exit(void)
 	}
 
 	i3c_driver_unregister(&cam_sensor_i3c_driver);
+
+	cam_sensor_module_debug_deregister();
 }
 
 MODULE_DESCRIPTION("cam_sensor_driver");

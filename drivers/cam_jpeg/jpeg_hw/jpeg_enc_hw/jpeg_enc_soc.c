@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -15,12 +15,13 @@
 #include "cam_debug_util.h"
 
 int cam_jpeg_enc_init_soc_resources(struct cam_hw_soc_info *soc_info,
-	irq_handler_t jpeg_enc_irq_handler, void *irq_data)
+	irq_handler_t jpeg_enc_irq_handler, void *data)
 {
 	struct cam_jpeg_enc_soc_private  *soc_private;
 	struct platform_device *pdev = NULL;
 	int num_pid = 0, i = 0;
 	int rc;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	soc_private = kzalloc(sizeof(struct cam_jpeg_enc_soc_private),
 		GFP_KERNEL);
@@ -34,9 +35,11 @@ int cam_jpeg_enc_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	if (rc)
 		return rc;
 
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = data;
+
 	rc = cam_soc_util_request_platform_resource(soc_info,
-		jpeg_enc_irq_handler,
-		irq_data);
+		jpeg_enc_irq_handler, &(irq_data[0]));
 	if (rc)
 		CAM_ERR(CAM_JPEG, "init soc failed %d", rc);
 

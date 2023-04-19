@@ -57,7 +57,7 @@
 #define CAM_ISP_CONTEXT_DUMP_TAG_MAX_LEN 64
 
 /* AEB error count threshold */
-#define CAM_ISP_CONTEXT_AEB_ERROR_CNT_MAX 3
+#define CAM_ISP_CONTEXT_AEB_ERROR_CNT_MAX 6
 
 /* Debug Buffer length*/
 #define CAM_ISP_CONTEXT_DBG_BUF_LEN 300
@@ -212,7 +212,7 @@ struct cam_isp_context_state_monitor {
 	enum cam_isp_state_change_trigger    trigger;
 	uint64_t                             req_id;
 	int64_t                              frame_id;
-	unsigned int                         evt_time_stamp;
+	struct timespec64                    evt_time_stamp;
 };
 
 /**

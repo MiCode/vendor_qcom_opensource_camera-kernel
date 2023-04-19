@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -90,7 +90,8 @@ int cam_lrme_soc_init_resources(struct cam_hw_soc_info *soc_info,
 {
 	struct cam_lrme_soc_private *soc_private;
 	struct cam_cpas_register_params cpas_register_param;
-	int rc;
+	int rc, i;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc) {
@@ -98,8 +99,10 @@ int cam_lrme_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		return rc;
 	}
 
-	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler,
-		private_data);
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = private_data;
+
+	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler, &(irq_data[0]));
 	if (rc) {
 		CAM_ERR(CAM_LRME, "Failed in request_platform_resource rc=%d",
 			rc);

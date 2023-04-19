@@ -1702,8 +1702,9 @@ cleanup_clients:
 int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 	irq_handler_t irq_handler, struct cam_hw_info *cpas_hw)
 {
-	int rc = 0;
+	int rc = 0, i;
 	struct cam_cpas_private_soc *soc_private;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc) {
@@ -1711,13 +1712,15 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		return rc;
 	}
 
-	if ((soc_info->irq_num > 0) && !irq_handler) {
+	if (soc_info->irq_count > 0 && !irq_handler) {
 		CAM_ERR(CAM_CPAS, "Invalid IRQ handler");
 		return -EINVAL;
 	}
 
-	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler,
-		cpas_hw);
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = cpas_hw;
+
+	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler, &(irq_data[0]));
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "failed in request_platform_resource, rc=%d",
 			rc);

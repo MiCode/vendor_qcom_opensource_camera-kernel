@@ -448,7 +448,7 @@ static int32_t cam_icp_deinit_idle_clk(void *priv, void *data)
 		goto done;
 	}
 
-	hw_dev_type = ctx_data->hw_dev_type;
+	hw_dev_type = CAM_ICP_GET_HW_DEV_TYPE_FROM_HW_CLK_TYPE(clk_info->hw_type);
 	if (!CAM_ICP_IS_VALID_HW_DEV_TYPE(hw_dev_type)) {
 		CAM_ERR(CAM_ICP, "%s: Invalid HW device type: %u",
 			ctx_data->ctx_id_string, hw_dev_type);
@@ -458,8 +458,8 @@ static int32_t cam_icp_deinit_idle_clk(void *priv, void *data)
 
 	clk_upd_cmd.dev_pc_enable = hw_mgr->dev_pc_flag;
 
-	CAM_DBG(CAM_PERF, "[%s] Disable %d",
-		hw_mgr->hw_mgr_name, clk_info->hw_type);
+	CAM_DBG(CAM_PERF, "[%s] Disable clock: %u hw dev type: %u",
+		hw_mgr->hw_mgr_name, clk_info->hw_type, hw_dev_type);
 
 	for (i = 0; i < hw_mgr->hw_dev_cnt[hw_dev_type]; i++) {
 		dev_intf = hw_mgr->devices[hw_dev_type][i];

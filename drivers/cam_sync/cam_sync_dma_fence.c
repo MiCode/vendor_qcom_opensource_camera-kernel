@@ -440,13 +440,15 @@ static int __cam_dma_fence_signal_fence(
 	int32_t status)
 {
 	int rc;
-	unsigned long flags;
 	bool fence_signaled = false;
 
-	spin_lock_irqsave(dma_fence->lock, flags);
+	spin_lock_bh(dma_fence->lock);
 	fence_signaled = dma_fence_is_signaled_locked(dma_fence);
 	if (fence_signaled) {
 		rc = -EPERM;
+		CAM_DBG(CAM_DMA_FENCE,
+			"dma fence seqno: %llu is already signaled",
+			dma_fence->seqno);
 		goto end;
 	}
 
@@ -456,10 +458,7 @@ static int __cam_dma_fence_signal_fence(
 	rc = dma_fence_signal_locked(dma_fence);
 
 end:
-	spin_unlock_irqrestore(dma_fence->lock, flags);
-	if (fence_signaled)
-		CAM_DBG(CAM_DMA_FENCE, "dma fence seqno: %llu is already signaled",
-			dma_fence->seqno);
+	spin_unlock_bh(dma_fence->lock);
 	return rc;
 }
 
@@ -529,7 +528,7 @@ int cam_dma_fence_internal_signal(
 		signal_dma_fence->dma_fence_fd, dma_fence->seqno,
 		signal_dma_fence->status, rc);
 
-	return rc;
+	return 0;
 
 monitor_dump:
 	__cam_dma_fence_dump_monitor_array(dma_fence_row_idx);
@@ -674,14 +673,23 @@ static int __cam_dma_fence_release(int32_t dma_row_idx)
 
 	if (row->state == CAM_DMA_FENCE_STATE_ACTIVE) {
 		CAM_WARN(CAM_DMA_FENCE,
-			"Unsignaled fence being released name: %s seqno: %llu fd:%d",
+			"Unsignaled fence being released name: %s seqno: %llu fd: %d",
 			row->name, dma_fence->seqno, row->fd);
 		if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
 			&cam_sync_monitor_mask))
 			cam_generic_fence_update_monitor_array(dma_row_idx,
-				&g_cam_dma_fence_dev->dev_lock, g_cam_dma_fence_dev->monitor_data,
+				&g_cam_dma_fence_dev->dev_lock,
+				g_cam_dma_fence_dev->monitor_data,
 				CAM_FENCE_OP_SIGNAL);
-		__cam_dma_fence_signal_fence(dma_fence, -ECANCELED);
+	}
+
+	/* Ensure dma fence is signaled prior to release */
+	if (!row->ext_dma_fence) {
+		rc = __cam_dma_fence_signal_fence(dma_fence, -ECANCELED);
+		if ((!rc) && (row->state == CAM_DMA_FENCE_STATE_SIGNALED))
+			CAM_WARN(CAM_DMA_FENCE,
+				"Unsignaled fence being released name: %s seqno: %llu fd: %d, row was marked as signaled",
+				row->name, dma_fence->seqno, row->fd);
 	}
 
 	CAM_DBG(CAM_DMA_FENCE,
@@ -779,18 +787,15 @@ void cam_dma_fence_close(void)
 
 			/* Signal and put if the dma fence is created from camera */
 			if (!row->ext_dma_fence) {
-				if (row->state != CAM_DMA_FENCE_STATE_SIGNALED) {
-					if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
-						&cam_sync_monitor_mask))
-						cam_generic_fence_update_monitor_array(i,
-							&g_cam_dma_fence_dev->dev_lock,
-							g_cam_dma_fence_dev->monitor_data,
-							CAM_FENCE_OP_SIGNAL);
-					__cam_dma_fence_signal_fence(row->fence, -EADV);
-				}
-				dma_fence_put(row->fence);
+				if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
+					&cam_sync_monitor_mask))
+					cam_generic_fence_update_monitor_array(i,
+						&g_cam_dma_fence_dev->dev_lock,
+						g_cam_dma_fence_dev->monitor_data,
+						CAM_FENCE_OP_SIGNAL);
+				__cam_dma_fence_signal_fence(row->fence, -EADV);
 			}
-
+			dma_fence_put(row->fence);
 			memset(row, 0, sizeof(struct cam_dma_fence_row));
 			clear_bit(i, g_cam_dma_fence_dev->bitmap);
 		}
@@ -798,10 +803,13 @@ void cam_dma_fence_close(void)
 	}
 
 	if (g_cam_dma_fence_dev->monitor_data) {
-		for (i = 0; i < CAM_DMA_FENCE_TABLE_SZ; i++)
+		for (i = 0; i < CAM_DMA_FENCE_TABLE_SZ; i++) {
 			kfree(g_cam_dma_fence_dev->monitor_data[i]);
+			g_cam_dma_fence_dev->monitor_data[i] = NULL;
+		}
 	}
 	kfree(g_cam_dma_fence_dev->monitor_data);
+	g_cam_dma_fence_dev->monitor_data = NULL;
 
 	mutex_unlock(&g_cam_dma_fence_dev->dev_lock);
 	CAM_DBG(CAM_DMA_FENCE, "Close on Camera DMA fence driver");

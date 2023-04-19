@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SMMU_API_H_
@@ -55,6 +55,22 @@ enum cam_smmu_subregion_id {
 	CAM_SMMU_SUBREGION_HWMUTEX,
 	CAM_SMMU_SUBREGION_GLOBAL_SYNC_MEM,
 	CAM_SMMU_SUBREGION_MAX,
+};
+
+/**
+ * @brief          : Represents camera security framework version
+ *
+ * @param arch_ver          : Captures the version of the high level secure
+ *                            camera architecture.
+ * @param max_ver           : Captures the version of the solution with in the
+ *                            high level architecture.
+ * @param min_ver           : Captures the version of the memory assignment
+ *                            mechanism with in the solution.
+ */
+struct cam_csf_version {
+	uint32_t              arch_ver;
+	uint32_t              max_ver;
+	uint32_t              min_ver;
 };
 
 /**
@@ -501,5 +517,10 @@ bool cam_smmu_is_expanded_memory(void);
  * @brief : API to query whether page fault non fatal is enable for a device's context bank
  */
 int cam_smmu_is_cb_non_fatal_fault_en(int smmu_hdl, bool *non_fatal_en);
+
+/**
+ * @brief : API to get CSF version in use that's received from SMMU proxy driver
+ */
+void cam_smmu_get_csf_version(struct cam_csf_version *csf_ver);
 
 #endif /* _CAM_SMMU_API_H_ */

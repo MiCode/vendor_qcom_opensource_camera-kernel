@@ -641,6 +641,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
 		.sof_retiming_dis_shift           = 5,
+		.crop_drop_enable                 = true,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info

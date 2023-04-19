@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -30,6 +30,9 @@
 
 static struct cam_mem_table tbl;
 static atomic_t cam_mem_mgr_state = ATOMIC_INIT(CAM_MEM_MGR_UNINITIALIZED);
+
+/* Number of words for dumping req state info */
+#define CAM_MEM_MGR_DUMP_BUF_NUM_WORDS  29
 
 /* cam_mem_mgr_debug - global struct to keep track of debug settings for mem mgr
  *
@@ -254,6 +257,8 @@ int cam_mem_mgr_init(void)
 	cam_mem_mgr_create_debug_fs();
 	cam_common_register_mini_dump_cb(cam_mem_mgr_mini_dump_cb,
 		"cam_mem", NULL);
+
+	cam_smmu_get_csf_version(&tbl.csf_version);
 
 	return 0;
 put_heaps:
@@ -580,11 +585,13 @@ static int cam_mem_mgr_get_dma_heaps(void)
 	int rc = 0;
 
 	tbl.system_heap = NULL;
+	tbl.system_movable_heap = NULL;
 	tbl.system_uncached_heap = NULL;
 	tbl.camera_heap = NULL;
 	tbl.camera_uncached_heap = NULL;
 	tbl.secure_display_heap = NULL;
 	tbl.ubwc_p_heap = NULL;
+	tbl.ubwc_p_movable_heap = NULL;
 
 	tbl.system_heap = dma_heap_find("qcom,system");
 	if (IS_ERR_OR_NULL(tbl.system_heap)) {
@@ -592,6 +599,14 @@ static int cam_mem_mgr_get_dma_heaps(void)
 		CAM_ERR(CAM_MEM, "qcom system heap not found, rc=%d", rc);
 		tbl.system_heap = NULL;
 		goto put_heaps;
+	}
+
+	tbl.system_movable_heap = dma_heap_find("qcom,system-movable");
+	if (IS_ERR_OR_NULL(tbl.system_movable_heap)) {
+		rc = PTR_ERR(tbl.system_movable_heap);
+		CAM_DBG(CAM_MEM, "qcom system heap not found, rc=%d", rc);
+		tbl.system_movable_heap = NULL;
+		/* not fatal error, we can fallback to system heap */
 	}
 
 	tbl.system_uncached_heap = dma_heap_find("qcom,system-uncached");
@@ -617,6 +632,13 @@ static int cam_mem_mgr_get_dma_heaps(void)
 	if (IS_ERR_OR_NULL(tbl.ubwc_p_heap)) {
 		CAM_DBG(CAM_MEM, "qcom ubwcp heap not found, err=%d", PTR_ERR(tbl.ubwc_p_heap));
 		tbl.ubwc_p_heap = NULL;
+	}
+
+	tbl.ubwc_p_movable_heap = dma_heap_find("qcom,ubwcp-movable");
+	if (IS_ERR_OR_NULL(tbl.ubwc_p_movable_heap)) {
+		CAM_DBG(CAM_MEM, "qcom ubwcp movable heap not found, err=%d",
+			PTR_ERR(tbl.ubwc_p_movable_heap));
+		tbl.ubwc_p_movable_heap = NULL;
 	}
 
 	tbl.secure_display_heap = dma_heap_find("qcom,display");
@@ -645,10 +667,10 @@ static int cam_mem_mgr_get_dma_heaps(void)
 	}
 
 	CAM_INFO(CAM_MEM,
-		"Heaps : system=%pK, system_uncached=%pK, camera=%pK, camera-uncached=%pK, secure_display=%pK, ubwc_p_heap=%pK",
-		tbl.system_heap, tbl.system_uncached_heap,
+		"Heaps : system=%pK %pK, system_uncached=%pK, camera=%pK, camera-uncached=%pK, secure_display=%pK, ubwc_p=%pK %pK",
+		tbl.system_heap, tbl.system_movable_heap, tbl.system_uncached_heap,
 		tbl.camera_heap, tbl.camera_uncached_heap,
-		tbl.secure_display_heap, tbl.ubwc_p_heap);
+		tbl.secure_display_heap, tbl.ubwc_p_heap,  tbl.ubwc_p_movable_heap);
 
 	return 0;
 put_heaps:
@@ -666,6 +688,7 @@ bool cam_mem_mgr_ubwc_p_heap_supported(void)
 
 static int cam_mem_util_get_dma_buf(size_t len,
 	unsigned int cam_flags,
+	enum cam_mem_mgr_allocator alloc_type,
 	struct dma_buf **buf,
 	unsigned long *i_ino)
 {
@@ -711,11 +734,15 @@ static int cam_mem_util_get_dma_buf(size_t len,
 	}
 
 	if (cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) {
-		heap = tbl.secure_display_heap;
-
-		vmids[num_vmids] = VMID_CP_CAMERA;
-		perms[num_vmids] = PERM_READ | PERM_WRITE;
-		num_vmids++;
+		if (IS_CSF25(tbl.csf_version.arch_ver, tbl.csf_version.max_ver)) {
+			heap = tbl.system_heap;
+			len = cam_align_dma_buf_size(len);
+		} else {
+			heap = tbl.secure_display_heap;
+			vmids[num_vmids] = VMID_CP_CAMERA;
+			perms[num_vmids] = PERM_READ | PERM_WRITE;
+			num_vmids++;
+		}
 
 		if (cam_flags & CAM_MEM_FLAG_CDSP_OUTPUT) {
 			CAM_DBG(CAM_MEM, "Secure mode CDSP flags");
@@ -735,12 +762,19 @@ static int cam_mem_util_get_dma_buf(size_t len,
 			return -EINVAL;
 		}
 
-		heap = tbl.ubwc_p_heap;
-		CAM_DBG(CAM_MEM, "Allocating from ubwc-p heap, size=%d, flags=0x%x",
-			len, cam_flags);
+		if (tbl.ubwc_p_movable_heap && (alloc_type == CAM_MEMMGR_ALLOC_USER))
+			heap = tbl.ubwc_p_movable_heap;
+		else
+			heap = tbl.ubwc_p_heap;
+		CAM_DBG(CAM_MEM, "Allocating from ubwc-p heap %pK, size=%d, flags=0x%x",
+			heap, len, cam_flags);
 	} else if (use_cached_heap) {
 		try_heap = tbl.camera_heap;
-		heap = tbl.system_heap;
+
+		if (tbl.system_movable_heap && (alloc_type == CAM_MEMMGR_ALLOC_USER))
+			heap = tbl.system_movable_heap;
+		else
+			heap = tbl.system_heap;
 	} else {
 		try_heap = tbl.camera_uncached_heap;
 		heap = tbl.system_uncached_heap;
@@ -780,7 +814,8 @@ static int cam_mem_util_get_dma_buf(size_t len,
 
 	*i_ino = file_inode((*buf)->file)->i_ino;
 
-	if ((cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) ||
+	if (((cam_flags & CAM_MEM_FLAG_PROTECTED_MODE) &&
+		!IS_CSF25(tbl.csf_version.arch_ver, tbl.csf_version.max_ver)) ||
 		(cam_flags & CAM_MEM_FLAG_EVA_NOPIXEL)) {
 		if (num_vmids >= CAM_MAX_VMIDS) {
 			CAM_ERR(CAM_MEM, "Insufficient array size for vmids %d", num_vmids);
@@ -824,6 +859,7 @@ bool cam_mem_mgr_ubwc_p_heap_supported(void)
 
 static int cam_mem_util_get_dma_buf(size_t len,
 	unsigned int cam_flags,
+	enum cam_mem_mgr_allocator alloc_type,
 	struct dma_buf **buf,
 	unsigned long *i_ino)
 {
@@ -891,7 +927,7 @@ static int cam_mem_util_buffer_alloc(size_t len, uint32_t flags,
 {
 	int rc;
 
-	rc = cam_mem_util_get_dma_buf(len, flags, dmabuf, i_ino);
+	rc = cam_mem_util_get_dma_buf(len, flags, CAM_MEMMGR_ALLOC_USER, dmabuf, i_ino);
 	if (rc) {
 		CAM_ERR(CAM_MEM,
 			"Error allocating dma buf : len=%llu, flags=0x%x",
@@ -1655,7 +1691,7 @@ int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,
 		return -EINVAL;
 	}
 
-	rc = cam_mem_util_get_dma_buf(inp->size, inp->flags, &buf, &i_ino);
+	rc = cam_mem_util_get_dma_buf(inp->size, inp->flags, CAM_MEMMGR_ALLOC_KERNEL, &buf, &i_ino);
 
 	if (rc) {
 		CAM_ERR(CAM_MEM, "ION alloc failed for shared buffer");
@@ -1835,7 +1871,7 @@ int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,
 		return -EINVAL;
 	}
 
-	rc = cam_mem_util_get_dma_buf(inp->size, 0, &buf, &i_ino);
+	rc = cam_mem_util_get_dma_buf(inp->size, 0, CAM_MEMMGR_ALLOC_KERNEL, &buf, &i_ino);
 
 	if (rc) {
 		CAM_ERR(CAM_MEM, "ION alloc failed for sec heap buffer");
@@ -1911,6 +1947,102 @@ ion_fail:
 	return rc;
 }
 EXPORT_SYMBOL(cam_mem_mgr_reserve_memory_region);
+
+static void *cam_mem_mgr_user_dump_buf(
+	void *dump_struct, uint8_t *addr_ptr)
+{
+	struct cam_mem_buf_queue          *buf = NULL;
+	uint64_t                          *addr;
+	int                                i = 0;
+
+	buf = (struct cam_mem_buf_queue *)dump_struct;
+
+	addr = (uint64_t *)addr_ptr;
+
+	*addr++ = buf->timestamp.tv_sec;
+	*addr++ = buf->timestamp.tv_nsec / NSEC_PER_USEC;
+	*addr++ = buf->fd;
+	*addr++ = buf->i_ino;
+	*addr++ = buf->buf_handle;
+	*addr++ = buf->len;
+	*addr++ = buf->align;
+	*addr++ = buf->flags;
+	*addr++ = buf->vaddr;
+	*addr++ = buf->kmdvaddr;
+	*addr++ = buf->is_imported;
+	*addr++ = buf->is_internal;
+	*addr++ = buf->num_hdl;
+	for (i = 0; i < buf->num_hdl; i++)
+		*addr++ = buf->hdls[i];
+
+	return addr;
+}
+
+int cam_mem_mgr_dump_user(struct cam_dump_req_cmd *dump_req)
+{
+	int                             rc = 0;
+	int                             i;
+	struct cam_common_hw_dump_args  dump_args;
+	size_t                          buf_len;
+	size_t                          remain_len;
+	uint32_t                        min_len;
+	uintptr_t                       cpu_addr;
+
+	rc = cam_mem_get_cpu_buf(dump_req->buf_handle,
+		&cpu_addr, &buf_len);
+	if (rc) {
+		CAM_ERR(CAM_MEM, "Invalid handle %u rc %d",
+			dump_req->buf_handle, rc);
+		return rc;
+	}
+	if (buf_len <= dump_req->offset) {
+		CAM_WARN(CAM_MEM, "Dump buffer overshoot len %zu offset %zu",
+			buf_len, dump_req->offset);
+		return -ENOSPC;
+	}
+
+	remain_len = buf_len - dump_req->offset;
+	min_len =
+		(CAM_MEM_BUFQ_MAX *
+		(CAM_MEM_MGR_DUMP_BUF_NUM_WORDS * sizeof(uint64_t) +
+		sizeof(struct cam_common_hw_dump_header)));
+
+	if (remain_len < min_len) {
+		CAM_WARN(CAM_MEM, "Dump buffer exhaust remain %zu min %u",
+			remain_len, min_len);
+		return -ENOSPC;
+	}
+
+	dump_args.req_id = dump_req->issue_req_id;
+	dump_args.cpu_addr = cpu_addr;
+	dump_args.buf_len = buf_len;
+	dump_args.offset = dump_req->offset;
+	dump_args.ctxt_to_hw_map = NULL;
+
+	mutex_lock(&tbl.m_lock);
+	for (i = 1; i < CAM_MEM_BUFQ_MAX; i++) {
+		if (tbl.bufq[i].active) {
+			mutex_lock(&tbl.bufq[i].q_lock);
+			rc = cam_common_user_dump_helper(&dump_args,
+				cam_mem_mgr_user_dump_buf,
+				&tbl.bufq[i],
+				sizeof(uint64_t), "MEM_MGR_BUF.%d:", i);
+			if (rc) {
+				CAM_ERR(CAM_CRM,
+					"Dump state info failed, rc: %d",
+					rc);
+				return rc;
+			}
+			mutex_unlock(&tbl.bufq[i].q_lock);
+		}
+	}
+	mutex_unlock(&tbl.m_lock);
+
+	dump_req->offset = dump_args.offset;
+
+	return rc;
+}
+
 
 int cam_mem_mgr_free_memory_region(struct cam_mem_mgr_memory_desc *inp)
 {

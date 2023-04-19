@@ -693,6 +693,7 @@ int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
 	cb_params.userdata = row;
 	cb_params.cancel_cb_func = NULL;
 	cb_params.h_synx = synx_obj;
+	cb_params.timeout_ms = SYNX_NO_TIMEOUT;
 	cb_params.cb_func = __cam_synx_obj_signal_cb;
 
 	if (test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &cam_sync_monitor_mask))
@@ -810,10 +811,13 @@ void cam_synx_obj_close(void)
 	}
 
 	if (g_cam_synx_obj_dev->monitor_data) {
-		for (i = 0; i < CAM_SYNX_TABLE_SZ; i++)
+		for (i = 0; i < CAM_SYNX_TABLE_SZ; i++) {
 			kfree(g_cam_synx_obj_dev->monitor_data[i]);
+			g_cam_synx_obj_dev->monitor_data[i] = NULL;
+		}
 	}
 	kfree(g_cam_synx_obj_dev->monitor_data);
+	g_cam_synx_obj_dev->monitor_data = NULL;
 
 	mutex_unlock(&g_cam_synx_obj_dev->dev_lock);
 	CAM_DBG(CAM_SYNX, "Close on Camera SYNX driver");

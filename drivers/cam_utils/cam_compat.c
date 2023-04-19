@@ -111,6 +111,47 @@ int cam_cpas_drv_channel_switch_for_dev(const struct device *dev)
 }
 #endif
 
+int cam_smmu_fetch_csf_version(struct cam_csf_version *csf_version)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	struct csf_version csf_ver;
+	int rc;
+
+	/* Fetch CSF version from SMMU proxy driver */
+	rc = smmu_proxy_get_csf_version(&csf_ver);
+	if (rc) {
+		CAM_ERR(CAM_SMMU,
+			"Failed to get CSF version from SMMU proxy: %d", rc);
+		return rc;
+	}
+
+	csf_version->arch_ver = csf_ver.arch_ver;
+	csf_version->max_ver = csf_ver.max_ver;
+	csf_version->min_ver = csf_ver.min_ver;
+#else
+	/* This defaults to the legacy version */
+	csf_version->arch_ver = 2;
+	csf_version->max_ver = 0;
+	csf_version->min_ver = 0;
+#endif
+	return 0;
+}
+
+unsigned long cam_update_dma_map_attributes(unsigned long attrs)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	attrs |= DMA_ATTR_QTI_SMMU_PROXY_MAP;
+#endif
+	return attrs;
+}
+
+size_t cam_align_dma_buf_size(size_t len)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	len = ALIGN(len, SMMU_PROXY_MEM_ALIGNMENT);
+#endif
+	return len;
+}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
 int cam_reserve_icp_fw(struct cam_fw_alloc_info *icp_fw, size_t fw_length)
@@ -683,9 +724,9 @@ int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
-	soc_info->irq_num = platform_get_irq(soc_info->pdev, 0);
-	if (soc_info->irq_num < 0) {
-		rc = soc_info->irq_num;
+	soc_info->irq_num[0] = platform_get_irq(soc_info->pdev, 0);
+	if (soc_info->irq_num[0] < 0) {
+		rc = soc_info->irq_num[0];
 		return rc;
 	}
 
@@ -734,17 +775,30 @@ int cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 
 int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
 {
-	int rc = 0;
+	int rc = 0, i;
 
-	soc_info->irq_line =
-		platform_get_resource_byname(soc_info->pdev,
-		IORESOURCE_IRQ, soc_info->irq_name);
-	if (!soc_info->irq_line) {
-		rc = -ENODEV;
-		return rc;
+	for (i = 0; i < soc_info->irq_count; i++) {
+		soc_info->irq_line[i] = platform_get_resource_byname(soc_info->pdev,
+			IORESOURCE_IRQ, soc_info->irq_name[i]);
+		if (!soc_info->irq_line[i]) {
+			CAM_ERR(CAM_UTIL, "Failed to get IRQ line for irq: %s of %s",
+				soc_info->irq_name[i], soc_info->dev_name);
+			rc = -ENODEV;
+			return rc;
+		}
+		soc_info->irq_num[i] = soc_info->irq_line[i]->start;
 	}
-	soc_info->irq_num = soc_info->irq_line->start;
 
 	return rc;
 }
 #endif
+
+bool cam_secure_get_vfe_fd_port_config(void)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	return false;
+#else
+	return true;
+#endif
+}
+

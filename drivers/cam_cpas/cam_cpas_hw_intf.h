@@ -32,6 +32,20 @@ enum cam_cpas_hw_type {
 };
 
 /**
+ * enum cam_cpas_reg_base - Enum for register base identifier. These
+ *                          are the identifiers used in generic register
+ *                          write/read APIs provided by cpas driver.
+ */
+enum cam_cpas_reg_base {
+	CAM_CPAS_REG_CPASTOP,
+	CAM_CPAS_REG_CAMNOC,
+	CAM_CPAS_REG_CAMSS,
+	CAM_CPAS_REG_RPMH,
+	CAM_CPAS_REG_CESTA,
+	CAM_CPAS_REG_MAX
+};
+
+/**
  * enum cam_cpas_hw_cmd_process - Enum for CPAS HW process command type
  */
 enum cam_cpas_hw_cmd_process {

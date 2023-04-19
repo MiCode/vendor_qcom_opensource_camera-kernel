@@ -216,16 +216,15 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 	if (s_ctrl->io_master_info.master_type == CCI_MASTER) {
+
 		/* Get CCI master */
-		rc = of_property_read_u32(of_node, "cci-master",
-			&s_ctrl->cci_i2c_master);
-		CAM_DBG(CAM_SENSOR, "cci-master %d, rc %d",
-			s_ctrl->cci_i2c_master, rc);
-		if (rc < 0) {
+		if (of_property_read_u32(of_node, "cci-master",
+			&s_ctrl->cci_i2c_master)) {
 			/* Set default master 0 */
 			s_ctrl->cci_i2c_master = MASTER_0;
-			rc = 0;
 		}
+		CAM_DBG(CAM_SENSOR, "cci-master %d",
+			s_ctrl->cci_i2c_master);
 
 		of_parent = of_get_parent(of_node);
 		if (of_property_read_u32(of_parent, "cell-index",

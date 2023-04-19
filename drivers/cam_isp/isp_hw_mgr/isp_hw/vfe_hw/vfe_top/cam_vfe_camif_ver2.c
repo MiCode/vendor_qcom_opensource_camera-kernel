@@ -554,33 +554,7 @@ static int cam_vfe_camif_reg_dump(
 	}
 
 	soc_private = camif_priv->soc_info->soc_private;
-	if (soc_private->cpas_version == CAM_CPAS_TITAN_175_V120 ||
-		soc_private->cpas_version == CAM_CPAS_TITAN_175_V130 ||
-		soc_private->cpas_version == CAM_CPAS_TITAN_165_V100) {
-		cam_cpas_reg_read(soc_private->cpas_handle,
-			CAM_CPAS_REG_CAMNOC, 0x3A20, true, &val);
-		CAM_INFO(CAM_ISP, "IFE0_nRDI_MAXWR_LOW offset 0x3A20 val 0x%x",
-			val);
-
-		cam_cpas_reg_read(soc_private->cpas_handle,
-			CAM_CPAS_REG_CAMNOC, 0x5420, true, &val);
-		CAM_INFO(CAM_ISP, "IFE1_nRDI_MAXWR_LOW offset 0x5420 val 0x%x",
-			val);
-
-		cam_cpas_reg_read(soc_private->cpas_handle,
-			CAM_CPAS_REG_CAMNOC, 0x3620, true, &val);
-		CAM_INFO(CAM_ISP,
-			"IFE0123_RDI_WR_MAXWR_LOW offset 0x3620 val 0x%x", val);
-
-	} else if (soc_private->cpas_version < CAM_CPAS_TITAN_175_V120) {
-		cam_cpas_reg_read(soc_private->cpas_handle,
-			CAM_CPAS_REG_CAMNOC, 0x420, true, &val);
-		CAM_INFO(CAM_ISP, "IFE02_MAXWR_LOW offset 0x420 val 0x%x", val);
-
-		cam_cpas_reg_read(soc_private->cpas_handle,
-			CAM_CPAS_REG_CAMNOC, 0x820, true, &val);
-		CAM_INFO(CAM_ISP, "IFE13_MAXWR_LOW offset 0x820 val 0x%x", val);
-	}
+	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
 
 	return 0;
 }

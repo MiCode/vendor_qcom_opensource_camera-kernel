@@ -23,6 +23,11 @@
 #include "cam_cpastop_hw.h"
 #include "cam_smmu_api.h"
 
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+#include <smmu-proxy/linux/qti-smmu-proxy.h>
+#include <linux/qcom-dma-mapping.h>
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 #include <linux/ion.h>
 #include <linux/msm_ion.h>
@@ -45,6 +50,8 @@ MODULE_IMPORT_NS(DMA_BUF);
 #include <linux/ITrustedCameraDriver.h>
 #include <linux/CTrustedCameraDriver.h>
 #endif
+
+#define IS_CSF25(x, y) ((((x) == 2) && ((y) == 5)) ? 1 : 0)
 
 struct cam_fw_alloc_info {
 	struct device *fw_dev;
@@ -97,5 +104,13 @@ int cam_eeprom_spi_driver_remove(struct spi_device *sdev);
 #endif
 
 int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info);
+
+bool cam_secure_get_vfe_fd_port_config(void);
+
+int cam_smmu_fetch_csf_version(struct cam_csf_version *csf_version);
+
+unsigned long cam_update_dma_map_attributes(unsigned long attr);
+
+size_t cam_align_dma_buf_size(size_t len);
 
 #endif /* _CAM_COMPAT_H_ */

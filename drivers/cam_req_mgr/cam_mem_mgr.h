@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_MEM_MGR_H_
@@ -19,6 +19,12 @@
 enum cam_mem_mgr_state {
 	CAM_MEM_MGR_UNINITIALIZED,
 	CAM_MEM_MGR_INITIALIZED,
+};
+
+/*Enum for memory allocation initiator */
+enum cam_mem_mgr_allocator {
+	CAM_MEMMGR_ALLOC_USER,
+	CAM_MEMMGR_ALLOC_KERNEL,
 };
 
 /*Enum for possible SMMU operations */
@@ -89,12 +95,15 @@ struct cam_mem_buf_queue {
  * @force_cache_allocs: Force all internal buffer allocations with cache
  * @need_shared_buffer_padding: Whether padding is needed for shared buffer
  *                              allocations.
+ * @csf_version: Camera security framework version
  * @system_heap: Handle to system heap
+ * @system_movable_heap: Handle to system movable heap
  * @system_uncached_heap: Handle to system uncached heap
  * @camera_heap: Handle to camera heap
  * @camera_uncached_heap: Handle to camera uncached heap
  * @secure_display_heap: Handle to secure display heap
  * @ubwc_p_heap: Handle to ubwc-p heap
+ * @ubwc_p_movable_heap: Handle to ubwc-p movable heap
  */
 struct cam_mem_table {
 	struct mutex m_lock;
@@ -104,13 +113,16 @@ struct cam_mem_table {
 	size_t dbg_buf_idx;
 	bool force_cache_allocs;
 	bool need_shared_buffer_padding;
+	struct cam_csf_version csf_version;
 #if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
 	struct dma_heap *system_heap;
+	struct dma_heap *system_movable_heap;
 	struct dma_heap *system_uncached_heap;
 	struct dma_heap *camera_heap;
 	struct dma_heap *camera_uncached_heap;
 	struct dma_heap *secure_display_heap;
 	struct dma_heap *ubwc_p_heap;
+	struct dma_heap *ubwc_p_movable_heap;
 #endif
 
 };
@@ -240,4 +252,11 @@ int cam_mem_mgr_send_buffer_to_presil(int32_t iommu_hdl, int32_t buf_handle);
  */
 int cam_mem_mgr_retrieve_buffer_from_presil(int32_t buf_handle,
 	uint32_t buf_size, uint32_t offset, int32_t iommu_hdl);
+
+/**
+ * @brief: Dump mem mgr info into user buffer
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
+ */
+int cam_mem_mgr_dump_user(struct cam_dump_req_cmd *dump_req);
 #endif /* _CAM_MEM_MGR_H_ */

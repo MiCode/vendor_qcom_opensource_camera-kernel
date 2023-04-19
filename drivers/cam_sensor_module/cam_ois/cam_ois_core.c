@@ -765,7 +765,6 @@ static int cam_ois_fw_download(struct cam_ois_ctrl_t *o_ctrl)
 	}
 	vfree(vaddr);
 	vaddr = NULL;
-	fw_size = 0;
 	release_firmware(fw);
 
 	rc = request_firmware(&fw, fw_name_coeff, dev);
@@ -812,7 +811,6 @@ static int cam_ois_fw_download(struct cam_ois_ctrl_t *o_ctrl)
 release_firmware:
 	vfree(vaddr);
 	vaddr = NULL;
-	fw_size = 0;
 	release_firmware(fw);
 	return rc;
 }

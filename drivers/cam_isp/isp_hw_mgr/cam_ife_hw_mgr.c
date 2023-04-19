@@ -5913,7 +5913,6 @@ free_cdm_cmd:
 	cam_ife_mgr_free_cdm_cmd(&ife_ctx->cdm_cmd);
 free_res:
 	cam_ife_hw_mgr_release_hw_for_ctx(ife_ctx);
-	cam_cdm_release(ife_ctx->cdm_handle);
 	cam_ife_hw_mgr_put_ctx(&ife_hw_mgr->free_ctx_list, &ife_ctx);
 free_mem:
 	if (gen_port_info) {
@@ -8807,7 +8806,6 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 	prepare_hw_data->mup_en = true;
 	prepare_hw_data->mup_val = mup_config->mup;
 
-	csid_mup_upd_args.mup_args.mup = mup_config->mup;
 	for (i = 0; i < ctx->num_base; i++) {
 		if (ctx->base[i].hw_type != CAM_ISP_HW_TYPE_CSID)
 			continue;
@@ -11577,16 +11575,20 @@ static int cam_ife_mgr_csid_add_reg_update(struct cam_ife_hw_mgr_ctx *ctx,
 	struct cam_hw_prepare_update_args *prepare,
 	struct cam_kmd_buf_info *kmd_buf)
 {
-	int                                   i;
-	int                                   rc = 0;
-	uint32_t                              hw_idx;
-	struct cam_ife_hw_mgr                *hw_mgr;
-	struct cam_isp_hw_mgr_res            *hw_mgr_res;
-	struct cam_ife_csid_hw_caps          *csid_caps;
-	struct cam_isp_resource_node         *res;
-	struct cam_isp_change_base_args       change_base_info = {0};
+	int                                     i;
+	int                                     rc = 0;
+	uint32_t                                hw_idx;
+	struct cam_ife_hw_mgr                  *hw_mgr;
+	struct cam_isp_hw_mgr_res              *hw_mgr_res;
+	struct cam_ife_csid_hw_caps            *csid_caps;
+	struct cam_isp_resource_node           *res;
+	struct cam_isp_prepare_hw_update_data  *prepare_hw_data = NULL;
+	struct cam_isp_change_base_args         change_base_info = {0};
 	struct cam_isp_csid_reg_update_args
 			rup_args[CAM_IFE_CSID_HW_NUM_MAX]  = {0};
+
+	prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
+		prepare->priv;
 
 	hw_mgr = ctx->hw_mgr;
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
@@ -11608,6 +11610,8 @@ static int cam_ife_mgr_csid_add_reg_update(struct cam_ife_hw_mgr_ctx *ctx,
 
 			rup_args[hw_idx].res[rup_args[hw_idx].num_res] = res;
 			rup_args[hw_idx].num_res++;
+			rup_args[hw_idx].mup_en = prepare_hw_data->mup_en;
+			rup_args[hw_idx].mup_val = prepare_hw_data->mup_val;
 
 			CAM_DBG(CAM_ISP,
 				"Reg update queued for res %d hw_id %d, ctx_idx: %u",
@@ -14886,15 +14890,17 @@ static ssize_t cam_ife_hw_mgr_perfcnt_write(
 	size_t size, loff_t *loff_t)
 {
 	char *delimiter1, *delimiter2;
-	char input_buf[16];
+	char input_buf[16] = {'\0'};
 	uint32_t counter_idx = 0, counter_val = 0;
 	struct cam_ife_hw_mgr_debug *debug_cfg = &g_ife_hw_mgr.debug_cfg;
 
 	if (size >= 16)
 		return -EINVAL;
 
-	if (copy_from_user(input_buf, ubuf, sizeof(input_buf)))
+	if (copy_from_user(input_buf, ubuf, size))
 		return -EFAULT;
+
+	input_buf[size] = '\0';
 
 	if ((!g_ife_hw_mgr.isp_caps.num_ife_perf_counters) &&
 		(!g_ife_hw_mgr.isp_caps.num_sfe_perf_counters))

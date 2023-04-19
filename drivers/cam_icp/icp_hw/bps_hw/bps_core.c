@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -161,7 +161,7 @@ static int cam_bps_handle_pc(struct cam_hw_info *bps_dev)
 	}
 
 	rc = cam_cpas_reg_read(core_info->cpas_handle,
-			CAM_CPAS_REG_CPASTOP, hw_info->pwr_ctrl,
+			CAM_CPAS_REGBASE_CPASTOP, hw_info->pwr_ctrl,
 			true, &pwr_ctrl);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "power ctrl read failed rc=%d", rc);
@@ -170,7 +170,7 @@ static int cam_bps_handle_pc(struct cam_hw_info *bps_dev)
 
 	if (!(pwr_ctrl & BPS_COLLAPSE_MASK)) {
 		rc = cam_cpas_reg_read(core_info->cpas_handle,
-				CAM_CPAS_REG_CPASTOP, hw_info->pwr_status,
+				CAM_CPAS_REGBASE_CPASTOP, hw_info->pwr_status,
 				true, &pwr_status);
 		if (rc) {
 			CAM_ERR(CAM_ICP, "power status read failed rc=%d", rc);
@@ -178,7 +178,7 @@ static int cam_bps_handle_pc(struct cam_hw_info *bps_dev)
 		}
 
 		cam_cpas_reg_write(core_info->cpas_handle,
-			CAM_CPAS_REG_CPASTOP,
+			CAM_CPAS_REGBASE_CPASTOP,
 			hw_info->pwr_ctrl, true, 0x1);
 
 		if ((pwr_status >> BPS_PWR_ON_MASK))
@@ -193,7 +193,7 @@ static int cam_bps_handle_pc(struct cam_hw_info *bps_dev)
 	}
 
 	rc = cam_cpas_reg_read(core_info->cpas_handle,
-			CAM_CPAS_REG_CPASTOP, hw_info->pwr_ctrl,
+			CAM_CPAS_REGBASE_CPASTOP, hw_info->pwr_ctrl,
 			true, &pwr_ctrl);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "power ctrl read failed rc=%d", rc);
@@ -201,7 +201,7 @@ static int cam_bps_handle_pc(struct cam_hw_info *bps_dev)
 	}
 
 	rc = cam_cpas_reg_read(core_info->cpas_handle,
-			CAM_CPAS_REG_CPASTOP, hw_info->pwr_status,
+			CAM_CPAS_REGBASE_CPASTOP, hw_info->pwr_status,
 			true, &pwr_status);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "power status read failed rc=%d", rc);
@@ -232,7 +232,7 @@ static int cam_bps_handle_resume(struct cam_hw_info *bps_dev)
 	}
 
 	rc = cam_cpas_reg_read(core_info->cpas_handle,
-			CAM_CPAS_REG_CPASTOP, hw_info->pwr_ctrl,
+			CAM_CPAS_REGBASE_CPASTOP, hw_info->pwr_ctrl,
 			true, &pwr_ctrl);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "power ctrl read failed rc=%d", rc);
@@ -242,7 +242,7 @@ static int cam_bps_handle_resume(struct cam_hw_info *bps_dev)
 	if (pwr_ctrl & BPS_COLLAPSE_MASK) {
 		CAM_DBG(CAM_PERF, "BPS: pwr_ctrl set(%x)", pwr_ctrl);
 		cam_cpas_reg_write(core_info->cpas_handle,
-			CAM_CPAS_REG_CPASTOP,
+			CAM_CPAS_REGBASE_CPASTOP,
 			hw_info->pwr_ctrl, true, 0);
 	}
 
@@ -253,7 +253,7 @@ static int cam_bps_handle_resume(struct cam_hw_info *bps_dev)
 	}
 
 	rc = cam_cpas_reg_read(core_info->cpas_handle,
-			CAM_CPAS_REG_CPASTOP, hw_info->pwr_ctrl,
+			CAM_CPAS_REGBASE_CPASTOP, hw_info->pwr_ctrl,
 			true, &pwr_ctrl);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "power ctrl read failed rc=%d", rc);
@@ -261,7 +261,7 @@ static int cam_bps_handle_resume(struct cam_hw_info *bps_dev)
 	}
 
 	rc = cam_cpas_reg_read(core_info->cpas_handle,
-			CAM_CPAS_REG_CPASTOP, hw_info->pwr_status,
+			CAM_CPAS_REGBASE_CPASTOP, hw_info->pwr_status,
 			true, &pwr_status);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "power status read failed rc=%d", rc);
@@ -340,10 +340,10 @@ static int cam_bps_cmd_reset(struct cam_hw_soc_info *soc_info,
 	}
 
 	cam_cpas_reg_read(core_info->cpas_handle,
-		CAM_CPAS_REG_CPASTOP, core_info->bps_hw_info->pwr_ctrl,
+		CAM_CPAS_REGBASE_CPASTOP, core_info->bps_hw_info->pwr_ctrl,
 		true, &pwr_ctrl);
 	cam_cpas_reg_read(core_info->cpas_handle,
-		CAM_CPAS_REG_CPASTOP, core_info->bps_hw_info->pwr_status,
+		CAM_CPAS_REGBASE_CPASTOP, core_info->bps_hw_info->pwr_status,
 		true, &pwr_status);
 	CAM_DBG(CAM_ICP, "(After) pwr_ctrl = %x pwr_status = %x",
 		pwr_ctrl, pwr_status);
@@ -433,7 +433,7 @@ int cam_bps_process_cmd(void *device_priv, uint32_t cmd_type,
 			if (clk_upd_cmd->dev_pc_enable) {
 				cam_bps_handle_pc(bps_dev);
 				cam_cpas_reg_write(core_info->cpas_handle,
-					CAM_CPAS_REG_CPASTOP,
+					CAM_CPAS_REGBASE_CPASTOP,
 					hw_info->pwr_ctrl, true, 0x0);
 			}
 			rc = cam_bps_toggle_clk(soc_info, true);

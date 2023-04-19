@@ -966,36 +966,54 @@ static int cam_soc_util_get_clk_level_to_apply(
 
 int cam_soc_util_irq_enable(struct cam_hw_soc_info *soc_info)
 {
+	int i, rc = 0;
+
 	if (!soc_info) {
 		CAM_ERR(CAM_UTIL, "Invalid arguments");
 		return -EINVAL;
 	}
 
-	if (soc_info->irq_num < 0) {
-		CAM_ERR(CAM_UTIL, "No IRQ line available");
-		return -ENODEV;
+	for (i = 0; i < soc_info->irq_count; i++) {
+		if (soc_info->irq_num[i] < 0) {
+			CAM_ERR(CAM_UTIL, "No IRQ line available for irq: %s dev: %s",
+				soc_info->irq_name[i], soc_info->dev_name);
+			rc = -ENODEV;
+			goto disable_irq;
+		}
+
+		enable_irq(soc_info->irq_num[i]);
 	}
 
-	enable_irq(soc_info->irq_num);
+	return rc;
 
-	return 0;
+disable_irq:
+	for (i = i - 1; i >= 0; i--)
+		disable_irq(soc_info->irq_num[i]);
+
+	return rc;
 }
 
 int cam_soc_util_irq_disable(struct cam_hw_soc_info *soc_info)
 {
+	int i, rc = 0;
+
 	if (!soc_info) {
 		CAM_ERR(CAM_UTIL, "Invalid arguments");
 		return -EINVAL;
 	}
 
-	if (soc_info->irq_num < 0) {
-		CAM_ERR(CAM_UTIL, "No IRQ line available");
-		return -ENODEV;
+	for (i = 0; i < soc_info->irq_count; i++) {
+		if (soc_info->irq_num[i] < 0) {
+			CAM_ERR(CAM_UTIL, "No IRQ line available irq: %s dev:",
+				soc_info->irq_name[i], soc_info->dev_name);
+			rc = -ENODEV;
+			continue;
+		}
+
+		disable_irq(soc_info->irq_num[i]);
 	}
 
-	disable_irq(soc_info->irq_num);
-
-	return 0;
+	return rc;
 }
 
 long cam_soc_util_get_clk_round_rate(struct cam_hw_soc_info *soc_info,
@@ -2084,10 +2102,8 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 	CAM_DBG(CAM_UTIL, "gpio count %d", gpio_array_size);
 
 	gpio_array = kcalloc(gpio_array_size, sizeof(uint16_t), GFP_KERNEL);
-	if (!gpio_array) {
-		rc = -ENOMEM;
-		goto err;
-	}
+	if (!gpio_array)
+		goto free_gpio_conf;
 
 	for (i = 0; i < gpio_array_size; i++) {
 		gpio_array[i] = of_get_gpio(of_node, i);
@@ -2095,23 +2111,21 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 	}
 
 	gconf = kzalloc(sizeof(*gconf), GFP_KERNEL);
-	if (!gconf) {
-		rc = -ENOMEM;
-		goto free_gpio_array;
-	}
+	if (!gconf)
+		return -ENOMEM;
 
 	rc = cam_soc_util_get_dt_gpio_req_tbl(of_node, gconf, gpio_array,
 		gpio_array_size);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "failed in msm_camera_get_dt_gpio_req_tbl");
-		goto free_gpio_conf;
+		goto free_gpio_array;
 	}
 
 	gconf->cam_gpio_common_tbl = kcalloc(gpio_array_size,
 				sizeof(struct gpio), GFP_KERNEL);
 	if (!gconf->cam_gpio_common_tbl) {
 		rc = -ENOMEM;
-		goto free_gpio_conf;
+		goto free_gpio_array;
 	}
 
 	for (i = 0; i < gpio_array_size; i++)
@@ -2123,12 +2137,12 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 
 	return rc;
 
-free_gpio_conf:
-	kfree(gconf);
 free_gpio_array:
 	kfree(gpio_array);
-err:
+free_gpio_conf:
+	kfree(gconf);
 	soc_info->gpio_data = NULL;
+
 	return rc;
 }
 
@@ -2201,6 +2215,7 @@ static int cam_soc_util_get_dt_regulator_info
 	if (count != -EINVAL) {
 		if (count <= 0) {
 			CAM_ERR(CAM_UTIL, "no regulators found");
+			count = 0;
 			return -EINVAL;
 		}
 
@@ -2322,34 +2337,54 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 		}
 	}
 
-	rc = of_property_read_string_index(of_node, "interrupt-names", 0,
-		&soc_info->irq_name);
-	if (rc) {
-		CAM_DBG(CAM_UTIL, "No interrupt line preset for: %s",
-			soc_info->dev_name);
+	count = of_property_count_strings(of_node, "interrupt-names");
+	if (count <= 0) {
+		CAM_DBG(CAM_UTIL, "No interrupt line present for: %s", soc_info->dev_name);
+		soc_info->irq_count = 0;
 	} else {
+		if (count > CAM_SOC_MAX_IRQ_LINES_PER_DEV) {
+			CAM_ERR(CAM_UTIL,
+				"Number of interrupt: %d exceeds maximum allowable interrupts: %d",
+				count, CAM_SOC_MAX_IRQ_LINES_PER_DEV);
+			return -EINVAL;
+		}
+
+		soc_info->irq_count = count;
+		for (i = 0; i < soc_info->irq_count; i++) {
+			rc = of_property_read_string_index(of_node, "interrupt-names",
+				i, &soc_info->irq_name[i]);
+			if (rc) {
+				CAM_ERR(CAM_UTIL, "failed to read interrupt name at %d", i);
+				return rc;
+			}
+		}
+
 		rc = cam_compat_util_get_irq(soc_info);
 		if (rc < 0) {
-			CAM_ERR(CAM_UTIL, "get irq resource failed: %d", rc);
+			CAM_ERR(CAM_UTIL, "get irq resource failed: %d for: %s",
+				rc, soc_info->dev_name);
 #ifndef CONFIG_CAM_PRESIL
 			return rc;
 #else
 			/* Pre-sil for new devices not present on old */
-			soc_info->irq_line =
-				&dummy_irq_line[next_dummy_irq_line_num++];
-			CAM_DBG(CAM_PRESIL, "interrupt line for dev %s irq name %s number %d",
-				soc_info->dev_name, soc_info->irq_name,
-				soc_info->irq_line->start);
+			for (i = 0; i < soc_info->irq_count; i++) {
+				soc_info->irq_line[i] =
+					&dummy_irq_line[next_dummy_irq_line_num++];
+				CAM_DBG(CAM_PRESIL,
+					"interrupt line for dev %s irq name %s number %d",
+					soc_info->dev_name, soc_info->irq_name[i],
+					soc_info->irq_line[i]->start);
+			}
 #endif
 		}
 	}
-
 
 	rc = of_property_read_string_index(of_node, "compatible", 0,
 		(const char **)&soc_info->compatible);
 	if (rc) {
 		CAM_DBG(CAM_UTIL, "No compatible string present for: %s",
 			soc_info->dev_name);
+		rc = 0;
 	}
 
 	soc_info->is_nrt_dev = false;
@@ -2868,12 +2903,18 @@ int cam_soc_util_request_irq(struct device *dev,
 
 int cam_soc_util_request_platform_resource(
 	struct cam_hw_soc_info *soc_info,
-	irq_handler_t handler, void *irq_data)
+	irq_handler_t handler, void **irq_data)
 {
 	int i = 0, rc = 0;
 
 	if (!soc_info || !soc_info->dev) {
 		CAM_ERR(CAM_UTIL, "Invalid parameters");
+		return -EINVAL;
+	}
+
+	if (unlikely(soc_info->irq_count >= CAM_SOC_MAX_IRQ_LINES_PER_DEV)) {
+		CAM_ERR(CAM_UTIL, "Invalid irq count: %u Max IRQ per device: %d",
+			soc_info->irq_count, CAM_SOC_MAX_IRQ_LINES_PER_DEV);
 		return -EINVAL;
 	}
 
@@ -2912,20 +2953,18 @@ int cam_soc_util_request_platform_resource(
 			goto put_regulator;
 	}
 
-	if (soc_info->irq_num > 0) {
-
-		rc = cam_soc_util_request_irq(soc_info->dev,
-			soc_info->irq_num,
-			handler, IRQF_TRIGGER_RISING,
-			soc_info->irq_name, irq_data,
-			soc_info->mem_block[0]->start);
+	for (i = 0; i < soc_info->irq_count; i++) {
+		rc = cam_soc_util_request_irq(soc_info->dev, soc_info->irq_num[i],
+			handler, IRQF_TRIGGER_RISING, soc_info->irq_name[i],
+				irq_data[i], soc_info->mem_block[0]->start);
 		if (rc) {
-			CAM_ERR(CAM_UTIL, "irq request fail");
+			CAM_ERR(CAM_UTIL, "irq request fail for irq name: %s dev: %s",
+				soc_info->irq_name[i], soc_info->dev_name);
 			rc = -EBUSY;
-			goto put_regulator;
+			goto put_irq;
 		}
 
-		soc_info->irq_data = irq_data;
+		soc_info->irq_data[i] = irq_data[i];
 	}
 
 	/* Get Clock */
@@ -3019,10 +3058,12 @@ put_clk:
 		}
 	}
 
-	if (soc_info->irq_num > 0) {
-		disable_irq(soc_info->irq_num);
-		devm_free_irq(soc_info->dev,
-			soc_info->irq_num, irq_data);
+put_irq:
+	if (i == -1)
+		i = soc_info->irq_count;
+	for (i = i - 1; i >= 0; i--) {
+		if (soc_info->irq_num[i] > 0)
+			disable_irq(soc_info->irq_num[i]);
 	}
 
 put_regulator:
@@ -3092,19 +3133,22 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 		soc_info->reg_map[i].size = 0;
 	}
 
-	if (soc_info->irq_num > 0) {
-		if (cam_presil_mode_enabled()) {
-			if (cam_soc_util_is_presil_address_space(soc_info->mem_block[0]->start)) {
-				b_ret = cam_presil_unsubscribe_device_irq(
-					soc_info->irq_line->start);
-				CAM_DBG(CAM_PRESIL, "UnSubscribe IRQ: Ret=%d NUM=%d Name=%s",
-					b_ret, soc_info->irq_line->start, soc_info->irq_name);
+	for (i = soc_info->irq_count; i >= 0; i--) {
+		if (soc_info->irq_num[i] > 0) {
+			if (cam_presil_mode_enabled()) {
+				if (cam_soc_util_is_presil_address_space(
+					soc_info->mem_block[0]->start)) {
+					b_ret = cam_presil_unsubscribe_device_irq(
+						soc_info->irq_line[i]->start);
+					CAM_DBG(CAM_PRESIL,
+						"UnSubscribe IRQ: Ret=%d NUM=%d Name=%s",
+						b_ret, soc_info->irq_line[i]->start,
+						soc_info->irq_name[i]);
+				}
 			}
-		}
 
-		disable_irq(soc_info->irq_num);
-		devm_free_irq(soc_info->dev,
-			soc_info->irq_num, soc_info->irq_data);
+			disable_irq(soc_info->irq_num[i]);
+		}
 	}
 
 	cam_soc_util_release_pinctrl(soc_info);
@@ -3119,9 +3163,9 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 
 int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 	int cesta_client_idx, bool enable_clocks, enum cam_vote_level clk_level,
-	bool enable_irq)
+	bool irq_enable)
 {
-	int rc = 0;
+	int rc = 0, i;
 
 	if (!soc_info)
 		return -EINVAL;
@@ -3138,15 +3182,27 @@ int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 			goto disable_regulator;
 	}
 
-	if (enable_irq) {
-		rc  = cam_soc_util_irq_enable(soc_info);
-		if (rc)
-			goto disable_clk;
+	if (irq_enable) {
+		for (i = 0; i < soc_info->irq_count; i++) {
+			if (soc_info->irq_num[i] < 0) {
+				CAM_ERR(CAM_UTIL, "No IRQ line available for irq: %s dev: %s",
+					soc_info->irq_name[i], soc_info->dev_name);
+				rc = -ENODEV;
+				goto disable_irq;
+			}
+
+			enable_irq(soc_info->irq_num[i]);
+		}
 	}
 
 	return rc;
 
-disable_clk:
+disable_irq:
+	if (irq_enable) {
+		for (i = i - 1; i >= 0; i--)
+			disable_irq(soc_info->irq_num[i]);
+	}
+
 	if (enable_clocks)
 		cam_soc_util_clk_disable_default(soc_info, cesta_client_idx);
 

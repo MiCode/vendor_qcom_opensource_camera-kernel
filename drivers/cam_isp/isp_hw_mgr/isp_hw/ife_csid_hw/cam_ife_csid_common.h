@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_COMMON_H_
@@ -38,6 +38,7 @@
 #define CAM_IFE_CSID_CAP_RDI_UNPACK_MSB                   0x2
 #define CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI            0x80
 #define CAM_IFE_CSID_CAP_SOF_RETIME_DIS                   0x100
+#define CAM_IFE_CSID_CAP_SPLIT_RUP_AUP                    0x1000
 
 /*
  * CSID RX debug vc-dt capture
@@ -75,6 +76,8 @@
 #define CAM_IFE_CSID_BIN_VERTICAL                         BIT(2)
 
 #define CAM_IFE_CSID_WIDTH_FUSE_VAL_MAX			  4
+
+#define CAM_IFE_CSID_RUP_AUP_SET_VAL                      BIT(0)
 
 /* factor to conver qtime to boottime */
 extern int64_t qtime_to_boottime;
