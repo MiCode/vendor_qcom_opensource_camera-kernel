@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_CRE_HW_INTF_H
@@ -15,7 +16,7 @@
 
 #define CRE_VOTE                     640000000
 
-#define CAM_CRE_HW_DUMP_TAG_MAX_LEN 32
+#define CAM_CRE_HW_DUMP_TAG_MAX_LEN 128
 #define CAM_CRE_HW_DUMP_NUM_WORDS   5
 
 struct cam_cre_set_irq_cb {

@@ -54,7 +54,7 @@
 #define CAM_CRM_DUMP_EVENT_NUM_WORDS  6
 
 /* Maximum length of tag while dumping */
-#define CAM_CRM_DUMP_TAG_MAX_LEN 64
+#define CAM_CRM_DUMP_TAG_MAX_LEN 128
 
 /* Number of headers in dumping req state info function*/
 #define CAM_CRM_DUMP_EVENT_NUM_HEADERS  2

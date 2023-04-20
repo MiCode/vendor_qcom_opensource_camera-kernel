@@ -58,7 +58,7 @@
 #define DDR_TYPE_LPDDR5X       9
 
 /* Maximum length of tag while dumping */
-#define CAM_SOC_HW_DUMP_TAG_MAX_LEN 32
+#define CAM_SOC_HW_DUMP_TAG_MAX_LEN 128
 
 /* Client index to be used to vote clk frequency through sw client */
 #define CAM_CLK_SW_CLIENT_IDX -1

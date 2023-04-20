@@ -29,7 +29,7 @@ struct cam_context;
 #define CAM_CTX_RES_MAX              20
 
 /* max tag  dump header string length*/
-#define CAM_CTXT_DUMP_TAG_MAX_LEN 64
+#define CAM_CTXT_DUMP_TAG_MAX_LEN 128
 
 /* Number of words to be dumped for context*/
 #define CAM_CTXT_DUMP_NUM_WORDS 10

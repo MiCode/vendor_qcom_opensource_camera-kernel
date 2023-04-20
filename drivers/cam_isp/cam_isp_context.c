@@ -5209,7 +5209,7 @@ hw_dump:
 
 	/* Dump time info */
 	rc = cam_common_user_dump_helper(&dump_args, cam_isp_ctx_user_dump_timer,
-		req, sizeof(uint64_t), "ISP_CTX_DUMP:.%c", req_type);
+		req, sizeof(uint64_t), "ISP_CTX_DUMP.%c:", req_type);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Time dump fail %lld, rc: %d, ctx_idx: %u, link: 0x%x",
 			req->request_id, rc, ctx->ctx_id, ctx->link_hdl);
