@@ -2461,16 +2461,17 @@ int cam_smmu_reserve_buf_region(enum cam_smmu_region_id region,
 		buf_info->table->sgl,
 		buf_info->table->orig_nents,
 		prot);
-	if (size != region_info->iova_len) {
+	if (region_info->iova_len < size) {
 		CAM_ERR(CAM_SMMU,
-			"IOMMU mapping failed size=%zu, iova_len=%zu",
+			"IOMMU mapping failed for size=%zu available iova_len=%zu",
 			size, region_info->iova_len);
 		rc = -EINVAL;
 		goto err_unmap_sg;
 	}
 
 	*iova = (uint32_t)region_info->iova_start;
-	*request_len = region_info->iova_len;
+	/* Assign size mapped */
+	*request_len = size;
 	*is_buf_allocated = true;
 	mutex_unlock(&cb_info->lock);
 
