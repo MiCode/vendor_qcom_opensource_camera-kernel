@@ -928,7 +928,7 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 	qtbl_hdr = &qtbl->q_tbl_hdr;
 	qtbl_hdr->qtbl_version = 0xFFFFFFFF;
 	qtbl_hdr->qtbl_size = sizeof(struct hfi_qtbl);
-	qtbl_hdr->qtbl_qhdr0_offset = sizeof(struct hfi_qtbl_hdr);
+	qtbl_hdr->qtbl_qhdr0_offset = offsetof(struct hfi_qtbl, q_hdr);
 	qtbl_hdr->qtbl_qhdr_size = sizeof(struct hfi_q_hdr);
 	qtbl_hdr->qtbl_num_q = ICP_HFI_NUMBER_OF_QS;
 	qtbl_hdr->qtbl_num_active_q = ICP_HFI_NUMBER_OF_QS;
