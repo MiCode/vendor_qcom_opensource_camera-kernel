@@ -1925,7 +1925,6 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	struct cam_isp_resource_node                 *res;
 	struct cam_ife_csid_ver2_hw                  *csid_hw = NULL;
 	struct cam_isp_hw_event_info                  evt_info;
-	struct cam_hw_soc_info                       *soc_info;
 	struct cam_hw_info                           *hw_info;
 	struct cam_ife_csid_ver2_path_cfg            *path_cfg;
 	uint32_t                                      irq_status_ipp;
@@ -1946,7 +1945,6 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	hw_info = (struct cam_hw_info *)res->hw_intf->hw_priv;
 	csid_hw = (struct cam_ife_csid_ver2_hw *)hw_info->core_info;
 	csid_reg = csid_hw->core_info->csid_reg;
-	soc_info = &csid_hw->hw_info->soc_info;
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
 
 	if (!path_cfg || (path_cfg->irq_reg_idx >= CAM_IFE_CSID_IRQ_REG_MAX)) {
@@ -2047,7 +2045,6 @@ static int cam_ife_csid_ver2_ppp_bottom_half(
 	struct cam_ife_csid_ver2_reg_info            *csid_reg;
 	struct cam_isp_resource_node                 *res;
 	struct cam_ife_csid_ver2_hw                  *csid_hw = NULL;
-	struct cam_hw_soc_info                       *soc_info;
 	struct cam_hw_info                           *hw_info;
 	uint32_t                                      irq_status_ppp;
 	uint32_t                                      err_mask;
@@ -2065,7 +2062,6 @@ static int cam_ife_csid_ver2_ppp_bottom_half(
 	res   =  handler_priv;
 	hw_info = (struct cam_hw_info *)res->hw_intf->hw_priv;
 	csid_hw = (struct cam_ife_csid_ver2_hw *)hw_info->core_info;
-	soc_info = &csid_hw->hw_info->soc_info;
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
 
 	if (!path_cfg || (path_cfg->irq_reg_idx >= CAM_IFE_CSID_IRQ_REG_MAX)) {
@@ -2130,7 +2126,6 @@ static int cam_ife_csid_ver2_rdi_bottom_half(
 	struct cam_ife_csid_ver2_path_cfg            *path_cfg;
 	struct cam_isp_resource_node                 *res;
 	const struct cam_ife_csid_ver2_path_reg_info *rdi_reg;
-	struct cam_hw_soc_info                       *soc_info;
 	struct cam_hw_info                           *hw_info;
 	uint32_t                                      irq_status_rdi;
 	uint32_t                                      err_mask;
@@ -2164,7 +2159,6 @@ static int cam_ife_csid_ver2_rdi_bottom_half(
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
 		csid_hw->core_info->csid_reg;
-	soc_info = &csid_hw->hw_info->soc_info;
 
 	irq_status_rdi = payload->irq_reg_val;
 	rdi_reg = csid_reg->path_reg[res->res_id];

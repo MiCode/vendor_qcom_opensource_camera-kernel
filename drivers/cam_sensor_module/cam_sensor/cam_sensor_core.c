@@ -742,7 +742,6 @@ int32_t cam_handle_cmd_buffers_for_probe(void *cmd_buf,
 			CAM_ERR(CAM_SENSOR, "Updating the slave Info");
 			return rc;
 		}
-		cmd_buf = probe_info;
 	}
 		break;
 	case 1: {

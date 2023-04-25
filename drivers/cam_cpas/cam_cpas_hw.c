@@ -3287,7 +3287,6 @@ static void cam_cpas_dump_monitor_array(
 		entry = &cpas_core->monitor_entries[index];
 		CAM_CONVERT_TIMESTAMP_FORMAT(entry->timestamp, hrs, min, sec, ms);
 		log_buf[0] = '\0';
-		len = 0;
 
 		CAM_INFO(CAM_CPAS,
 			"**** %llu:%llu:%llu.%llu : Index[%d] Identifier[%s][%d] camnoc=sw : %ld, hw clients [%ld %ld][%ld %ld][%ld %ld], ahb=%d",

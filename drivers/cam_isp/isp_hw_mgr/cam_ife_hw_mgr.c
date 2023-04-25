@@ -7507,7 +7507,7 @@ start_only:
 		for (i = 0; i < ctx->num_acq_sfe_out; i++) {
 			hw_mgr_res = &ctx->res_list_sfe_out[i];
 			rc = cam_ife_hw_mgr_start_hw_res(
-				&ctx->res_list_sfe_out[i], ctx);
+				hw_mgr_res, ctx);
 			if (rc) {
 				CAM_ERR(CAM_ISP, "Can not start SFE OUT (%d), ctx_idx: %u",
 					i, ctx->ctx_index);

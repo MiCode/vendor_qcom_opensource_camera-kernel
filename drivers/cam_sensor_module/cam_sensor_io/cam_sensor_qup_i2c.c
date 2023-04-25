@@ -263,7 +263,7 @@ static inline int32_t cam_qup_i2c_write_optimized(struct camera_io_master *clien
 {
 	int32_t rc = 0;
 	uint8_t len = 0;
-	struct cam_sensor_i2c_reg_array *reg_setting_previous;
+	struct cam_sensor_i2c_reg_array *reg_setting_previous = NULL;
 	uint32_t offset = 0;
 	struct cam_sensor_i2c_reg_array *reg_setting;
 	enum camera_sensor_i2c_type addr_type;
@@ -276,7 +276,6 @@ static inline int32_t cam_qup_i2c_write_optimized(struct camera_io_master *clien
 		return -EINVAL;
 
 	reg_setting = write_setting->reg_setting;
-	reg_setting_previous = NULL;
 	addr_type =  write_setting->addr_type;
 	data_type = write_setting->data_type;
 

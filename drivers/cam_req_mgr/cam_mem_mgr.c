@@ -1789,7 +1789,6 @@ int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,
 	uint32_t mem_handle;
 	int32_t idx;
 	int32_t smmu_hdl = 0;
-	int32_t num_hdl = 0;
 	unsigned long i_ino = 0;
 
 	enum cam_smmu_region_id region = CAM_SMMU_REGION_SHARED;
@@ -1861,7 +1860,6 @@ int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,
 	}
 
 	smmu_hdl = inp->smmu_hdl;
-	num_hdl = 1;
 
 	idx = cam_mem_get_slot();
 	if (idx < 0) {
@@ -1960,7 +1958,6 @@ int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,
 	uint32_t mem_handle;
 	int32_t idx;
 	int32_t smmu_hdl = 0;
-	int32_t num_hdl = 0;
 	uintptr_t kvaddr = 0;
 	unsigned long i_ino = 0;
 
@@ -2014,7 +2011,6 @@ int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,
 	}
 
 	smmu_hdl = inp->smmu_hdl;
-	num_hdl = 1;
 
 	idx = cam_mem_get_slot();
 	if (idx < 0) {
