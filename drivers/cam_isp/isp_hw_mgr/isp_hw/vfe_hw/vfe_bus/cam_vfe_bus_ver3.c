@@ -904,9 +904,16 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			ALIGNUP(rsrc_data->width * 2, 16) / 16;
 		rsrc_data->en_cfg = 0x1;
 
-		if (rsrc_data->use_wm_pack &&
-			rsrc_data->default_line_based)
-			rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 8);
+		if (rsrc_data->use_wm_pack) {
+			rsrc_data->pack_fmt = cam_vfe_bus_ver3_get_packer_fmt(rsrc_data->format,
+				rsrc_data->index);
+			/* LSB aligned */
+			rsrc_data->pack_fmt |= (1 <<
+				rsrc_data->common_data->pack_align_shift);
+
+			if (rsrc_data->default_line_based)
+				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 8);
+		}
 		break;
 	case CAM_FORMAT_PLAIN64:
 		rsrc_data->width =

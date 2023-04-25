@@ -2732,6 +2732,9 @@ static bool cam_ife_csid_hw_ver2_need_unpack_mipi(
 	  * We still need to set need_unpack here so that we unpack incoming data (say MIPI10)
 	  * into MSB. If default_out_format can be set to 16_10/16_12/16_14 - then we can remove
 	  */
+	case CAM_FORMAT_PLAIN16_10:
+	case CAM_FORMAT_PLAIN16_12:
+	case CAM_FORMAT_PLAIN16_14:
 	case CAM_FORMAT_PLAIN16_16:
 		need_unpack = (bool)(path_reg->capabilities & CAM_IFE_CSID_CAP_RDI_UNPACK_MSB);
 		break;
