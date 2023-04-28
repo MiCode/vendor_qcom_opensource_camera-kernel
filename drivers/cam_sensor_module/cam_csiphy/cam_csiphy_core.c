@@ -2538,7 +2538,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->start_dev_count++;
 
 			CAM_INFO(CAM_CSIPHY,
-				"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, skew_en: %d sec_mode: %d, Datarate: %llu, Settletime: %llu",
+				"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, skew_en: %d, sec_mode: %d, Datarate: %llu, Settletime: %llu",
 				soc_info->index,
 				csiphy_dev->csiphy_info[offset].conn_csid_idx,
 				g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
@@ -2651,16 +2651,18 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		csiphy_dev->csiphy_state = CAM_CSIPHY_START;
 
 		CAM_INFO(CAM_CSIPHY,
-			"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, slot: %d, sec_mode: %d, Datarate: %llu, Settletime: %llu, combo: %u, cphy+dphy: %u",
+			"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, skew_en: %d, sec_mode: %d, Datarate: %llu, Settletime: %llu",
 			soc_info->index,
 			csiphy_dev->csiphy_info[offset].conn_csid_idx,
 			g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
+			csiphy_dev->start_dev_count,
 			offset,
+			csiphy_dev->combo_mode,
+			csiphy_dev->cphy_dphy_combo_mode,
+			csiphy_dev->csiphy_info[offset].mipi_flags,
 			csiphy_dev->csiphy_info[offset].secure_mode,
 			csiphy_dev->csiphy_info[offset].data_rate,
-			csiphy_dev->csiphy_info[offset].settle_time,
-			csiphy_dev->combo_mode,
-			csiphy_dev->cphy_dphy_combo_mode);
+			csiphy_dev->csiphy_info[offset].settle_time);
 	}
 		break;
 	case CAM_CONFIG_DEV_EXTERNAL: {
