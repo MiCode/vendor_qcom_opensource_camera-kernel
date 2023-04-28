@@ -41,8 +41,10 @@
 
 #define ICP_FRAME_PROCESS_SUCCESS 0
 #define ICP_FRAME_PROCESS_FAILURE 1
-#define ICP_MSG_BUF_SIZE        256
-#define ICP_DBG_BUF_SIZE        102400
+
+/* size of buffer to drain from msg/dbq queue */
+#define ICP_MSG_BUF_SIZE_IN_WORDS 512
+#define ICP_DBG_BUF_SIZE_IN_WORDS 25600
 
 #define ICP_OVER_CLK_THRESHOLD  5
 #define ICP_TWO_DEV_BW_SHARE_RATIO 2
@@ -425,8 +427,10 @@ struct cam_icp_hw_ctx_data {
  * @cmd_work: Work queue for hfi commands
  * @msg_work: Work queue for hfi messages
  * @timer_work: Work queue for timer watchdog
- * @msg_buf: Buffer for message data from firmware
- * @dbg_buf: Buffer for debug data from firmware
+ * @msg_buf: Drain Buffer for message data from firmware
+ *           Buffer is an array of type __u32, total size
+ *           would be sizeof(_u32) * queue_size
+ * @dbg_buf: Drain Buffer for debug data from firmware
  * @icp_complete: Completion info
  * @cmd_work_data: Pointer to command work queue task
  * @msg_work_data: Pointer to message work queue task
@@ -479,8 +483,8 @@ struct cam_icp_hw_mgr {
 	struct cam_req_mgr_core_workq *cmd_work;
 	struct cam_req_mgr_core_workq *msg_work;
 	struct cam_req_mgr_core_workq *timer_work;
-	uint32_t msg_buf[ICP_MSG_BUF_SIZE];
-	uint32_t dbg_buf[ICP_DBG_BUF_SIZE];
+	uint32_t msg_buf[ICP_MSG_BUF_SIZE_IN_WORDS];
+	uint32_t dbg_buf[ICP_DBG_BUF_SIZE_IN_WORDS];
 	struct completion icp_complete;
 	struct hfi_cmd_work_data *cmd_work_data;
 	struct hfi_msg_work_data *msg_work_data;

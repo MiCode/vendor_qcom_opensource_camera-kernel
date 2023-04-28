@@ -147,6 +147,7 @@ void cam_hfi_mini_dump(int client_handle, struct hfi_mini_dump_info *dst)
 	memcpy(dst->msg_q, dwords, ICP_CMD_Q_SIZE_IN_BYTES);
 	dst->msg_q_state = hfi->msg_q_state;
 	dst->cmd_q_state = hfi->cmd_q_state;
+	dst->dbg_q_state = hfi->dbg_q_state;
 }
 
 void cam_hfi_queue_dump(int client_handle, bool dump_queue_data)
@@ -302,7 +303,7 @@ err:
 }
 
 int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
-	uint32_t *words_read)
+	size_t buf_words_size, uint32_t *words_read)
 {
 	struct hfi_info *hfi;
 	struct hfi_qtbl *q_tbl_ptr;
@@ -310,6 +311,7 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	uint32_t new_read_idx, size_in_words, word_diff, temp;
 	uint32_t *read_q, *read_ptr, *write_ptr;
 	uint32_t size_upper_bound = 0;
+	struct mutex *q_lock;
 	int rc = 0;
 
 	rc = hfi_get_client_info(client_handle, &hfi);
@@ -325,13 +327,19 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 		return -EINVAL;
 	}
 
-	if (!((q_id == Q_MSG) || (q_id == Q_DBG))) {
-		CAM_ERR(CAM_HFI, "[%s] Invalid q :%u",
-			hfi->client_name, q_id);
+	switch (q_id) {
+	case Q_MSG:
+		q_lock = &hfi->msg_q_lock;
+		break;
+	case Q_DBG:
+		q_lock = &hfi->dbg_q_lock;
+		break;
+	default:
+		CAM_ERR(CAM_HFI, "Invalid q_id: %u for read", q_id);
 		return -EINVAL;
 	}
 
-	mutex_lock(&hfi->msg_q_lock);
+	mutex_lock(q_lock);
 	if (hfi->hfi_state != HFI_READY ||
 		!hfi->msg_q_state) {
 		CAM_ERR(CAM_HFI, "[%s] Invalid hfi state:%u msg q state: %u hfi hdl: %d",
@@ -378,6 +386,14 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 		goto err;
 	}
 
+	if (size_in_words > buf_words_size) {
+		CAM_ERR(CAM_HFI,
+			"[%s] hdl: %d Size of buffer: %u is smaller than size to read from queue: %u",
+			hfi->client_name, client_handle, buf_words_size, size_in_words);
+		rc = -EIO;
+		goto err;
+	}
+
 	new_read_idx = q->qhdr_read_idx + size_in_words;
 
 	if (new_read_idx < q->qhdr_q_size) {
@@ -397,9 +413,10 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	 */
 	wmb();
 err:
-	mutex_unlock(&hfi->msg_q_lock);
+	mutex_unlock(q_lock);
 	return rc;
 }
+
 #endif /* #ifndef CONFIG_CAM_PRESIL */
 
 int hfi_cmd_ubwc_config(int client_handle, uint32_t *ubwc_cfg)
@@ -902,6 +919,7 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 
 	mutex_lock(&hfi->cmd_q_lock);
 	mutex_lock(&hfi->msg_q_lock);
+	mutex_lock(&hfi->dbg_q_lock);
 
 	hfi->hfi_state = HFI_INIT;
 	memcpy(&hfi->map, hfi_mem, sizeof(hfi->map));
@@ -1109,18 +1127,21 @@ int cam_hfi_init(int client_handle, struct hfi_mem_info *hfi_mem,
 
 	hfi->cmd_q_state = true;
 	hfi->msg_q_state = true;
+	hfi->dbg_q_state = true;
 	hfi->hfi_state = HFI_READY;
 
 	hfi_irq_enable(hfi);
 
-	mutex_unlock(&hfi->cmd_q_lock);
+	mutex_unlock(&hfi->dbg_q_lock);
 	mutex_unlock(&hfi->msg_q_lock);
+	mutex_unlock(&hfi->cmd_q_lock);
 
 	return rc;
 
 regions_fail:
-	mutex_unlock(&hfi->cmd_q_lock);
+	mutex_unlock(&hfi->dbg_q_lock);
 	mutex_unlock(&hfi->msg_q_lock);
+	mutex_unlock(&hfi->cmd_q_lock);
 	return rc;
 }
 
@@ -1145,11 +1166,14 @@ void cam_hfi_deinit(int client_handle)
 
 	mutex_lock(&hfi->cmd_q_lock);
 	mutex_lock(&hfi->msg_q_lock);
+	mutex_lock(&hfi->dbg_q_lock);
 
 	hfi->hfi_state = HFI_DEINIT;
 	hfi->cmd_q_state = false;
 	hfi->msg_q_state = false;
+	hfi->dbg_q_state = false;
 
+	mutex_unlock(&hfi->dbg_q_lock);
 	mutex_unlock(&hfi->cmd_q_lock);
 	mutex_unlock(&hfi->msg_q_lock);
 
@@ -1229,6 +1253,7 @@ int cam_hfi_register(int *client_handle, const char *client_name)
 
 	mutex_init(&hfi->cmd_q_lock);
 	mutex_init(&hfi->msg_q_lock);
+	mutex_init(&hfi->dbg_q_lock);
 
 	return rc;
 
@@ -1253,6 +1278,7 @@ int cam_hfi_unregister(int *client_handle)
 	}
 
 	mutex_lock(&g_hfi_lock);
+	mutex_destroy(&hfi->dbg_q_lock);
 	mutex_destroy(&hfi->msg_q_lock);
 	mutex_destroy(&hfi->cmd_q_lock);
 	cam_free_clear((void *)hfi);
@@ -1334,10 +1360,11 @@ int hfi_write_cmd(int client_handle, void *cmd_ptr)
 }
 
 int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
-	uint32_t *words_read)
+	size_t buf_words_size, uint32_t *words_read)
 {
 	struct hfi_info *hfi;
 	int presil_rc = CAM_PRESIL_BLOCKED;
+	struct mutex *q_lock = NULL;
 	int rc = 0;
 
 	rc = hfi_get_client_info(client_handle, &hfi);
@@ -1353,12 +1380,19 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 		return -EINVAL;
 	}
 
-	if (q_id > Q_DBG) {
-		CAM_ERR(CAM_HFI, "[%s] Invalid q :%u hdl: %d",
-			hfi->client_name, q_id, client_handle);
+	switch (q_id) {
+	case Q_MSG:
+		q_lock = &hfi->msg_q_lock;
+		break;
+	case Q_DBG:
+		q_lock = &hfi->dbg_q_lock;
+		break;
+	default:
+		CAM_ERR(CAM_HFI, "Invalid q_id: %u for read", q_id);
 		return -EINVAL;
 	}
-	mutex_lock(&hfi->msg_q_lock);
+
+	mutex_lock(q_lock);
 
 	memset(pmsg, 0x0, sizeof(uint32_t) * 256 /* ICP_MSG_BUF_SIZE */);
 	*words_read = 0;
@@ -1375,7 +1409,7 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 		hfi->client_name, client_handle, presil_rc);
 	}
 
-	mutex_unlock(&hfi->msg_q_lock);
+	mutex_unlock(q_lock);
 	return rc;
 }
 #else
