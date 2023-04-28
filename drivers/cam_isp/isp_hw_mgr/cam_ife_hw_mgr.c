@@ -7233,6 +7233,7 @@ static void cam_ife_hw_mgr_set_hw_debug_config(
 
 	/* Set IFE bus debug args */
 	vfe_debug_args.disable_ife_mmu_prefetch = hw_mgr->debug_cfg.disable_ife_mmu_prefetch;
+	vfe_debug_args.enable_ife_frame_irqs = hw_mgr->debug_cfg.enable_ife_frame_irqs;
 	vfe_debug_args.num_counters = hw_mgr->isp_caps.num_ife_perf_counters;
 	for (i = 0; i < hw_mgr->isp_caps.num_ife_perf_counters; i++)
 		vfe_debug_args.vfe_perf_counter_val[i] =
@@ -15158,6 +15159,9 @@ static int cam_ife_hw_mgr_debug_register(void)
 	debugfs_create_bool("disable_ife_mmu_prefetch", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry,
 		&g_ife_hw_mgr.debug_cfg.disable_ife_mmu_prefetch);
+	debugfs_create_bool("enable_ife_frame_irqs", 0644,
+		g_ife_hw_mgr.debug_cfg.dentry,
+		&g_ife_hw_mgr.debug_cfg.enable_ife_frame_irqs);
 	debugfs_create_file("sfe_cache_debug", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_sfe_cache_debug);
 	debugfs_create_file("test_irq_line", 0644,

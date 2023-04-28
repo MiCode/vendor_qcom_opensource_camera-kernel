@@ -40,6 +40,7 @@ struct cam_vfe_top_ver4_priv {
 	uint8_t                                  log_buf[CAM_VFE_LEN_LOG_BUF];
 	uint32_t                                 sof_cnt;
 	struct cam_vfe_top_ver4_perf_counter_cfg perf_counters[CAM_VFE_PERF_CNT_MAX];
+	bool                                     enable_ife_frame_irqs;
 };
 
 enum cam_vfe_top_ver4_fsm_state {
@@ -97,6 +98,22 @@ struct cam_vfe_mux_ver4_data {
 	bool                               enable_sof_irq_debug;
 	bool                               handle_camif_irq;
 };
+
+static inline int cam_vfe_top_ver4_get_hw_ctxt_from_irq_status(
+	struct cam_vfe_mux_ver4_data *vfe_priv,
+	uint32_t irq_status)
+{
+	int i;
+
+	for (i = 0; i < CAM_ISP_MULTI_CTXT_MAX; i++)
+		if (irq_status & vfe_priv->reg_data->frm_irq_hw_ctxt_mask[i])
+			break;
+
+	if (i < CAM_ISP_MULTI_CTXT_MAX)
+		return i;
+
+	return -1;
+}
 
 static int cam_vfe_top_ver4_get_path_port_map(struct cam_vfe_top_ver4_priv *top_priv,
 	void *cmd_args, uint32_t arg_size)
@@ -1110,6 +1127,8 @@ int cam_vfe_top_ver4_process_cmd(void *device_priv, uint32_t cmd_type,
 			for (i = 0; i < max_counters; i++)
 				top_priv->perf_counters[i].perf_counter_val =
 					debug_cfg->vfe_perf_counter_val[i];
+
+		top_priv->enable_ife_frame_irqs = debug_cfg->enable_ife_frame_irqs;
 	}
 		break;
 	default:
@@ -1201,24 +1220,24 @@ static int cam_vfe_handle_irq_top_half(uint32_t evt_id,
 
 	th_payload->evt_payload_priv = evt_payload;
 
-	if (th_payload->evt_status_arr[CAM_IFE_IRQ_CAMIF_REG_STATUS1]
+	if (th_payload->evt_status_arr[vfe_priv->common_reg->frame_timing_irq_reg_idx]
 			& vfe_priv->reg_data->sof_irq_mask) {
 		trace_cam_log_event("SOF", "TOP_HALF",
-		th_payload->evt_status_arr[CAM_IFE_IRQ_CAMIF_REG_STATUS1],
+		th_payload->evt_status_arr[vfe_priv->common_reg->frame_timing_irq_reg_idx],
 		vfe_res->hw_intf->hw_idx);
 	}
 
-	if (th_payload->evt_status_arr[CAM_IFE_IRQ_CAMIF_REG_STATUS1]
+	if (th_payload->evt_status_arr[vfe_priv->common_reg->frame_timing_irq_reg_idx]
 			& vfe_priv->reg_data->epoch0_irq_mask) {
 		trace_cam_log_event("EPOCH0", "TOP_HALF",
-		th_payload->evt_status_arr[CAM_IFE_IRQ_CAMIF_REG_STATUS1],
+		th_payload->evt_status_arr[vfe_priv->common_reg->frame_timing_irq_reg_idx],
 		vfe_res->hw_intf->hw_idx);
 	}
 
-	if (th_payload->evt_status_arr[CAM_IFE_IRQ_CAMIF_REG_STATUS1]
+	if (th_payload->evt_status_arr[vfe_priv->common_reg->frame_timing_irq_reg_idx]
 			& vfe_priv->reg_data->eof_irq_mask) {
 		trace_cam_log_event("EOF", "TOP_HALF",
-		th_payload->evt_status_arr[CAM_IFE_IRQ_CAMIF_REG_STATUS1],
+		th_payload->evt_status_arr[vfe_priv->common_reg->frame_timing_irq_reg_idx],
 		vfe_res->hw_intf->hw_idx);
 	}
 
@@ -1284,8 +1303,17 @@ static int cam_vfe_handle_sof(struct cam_vfe_mux_ver4_data *vfe_priv,
 			vfe_priv->irq_debug_cnt = 0;
 		}
 	} else {
-		CAM_DBG(CAM_ISP, "VFE:%u Received SOF",
-			vfe_priv->hw_intf->hw_idx);
+		uint32_t frm_irq_status =
+			payload->irq_reg_val[vfe_priv->common_reg->frame_timing_irq_reg_idx];
+		int hw_ctxt_id = -1;
+
+		if (vfe_priv->reg_data->is_mc_path)
+			hw_ctxt_id = cam_vfe_top_ver4_get_hw_ctxt_from_irq_status(vfe_priv,
+				frm_irq_status);
+
+		CAM_DBG(CAM_ISP, "VFE:%u is_mc:%s hw_ctxt:%d Received SOF",
+			vfe_priv->hw_intf->hw_idx,
+			CAM_BOOL_TO_YESNO(vfe_priv->reg_data->is_mc_path), hw_ctxt_id);
 		vfe_priv->sof_ts.tv_sec = payload->ts.mono_time.tv_sec;
 		vfe_priv->sof_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
 	}
@@ -1313,7 +1341,17 @@ static int cam_vfe_handle_eof(struct cam_vfe_mux_ver4_data *vfe_priv,
 	struct cam_vfe_top_irq_evt_payload *payload,
 	struct cam_isp_hw_event_info *evt_info)
 {
-	CAM_DBG(CAM_ISP, "VFE:%u Received EOF", vfe_priv->hw_intf->hw_idx);
+	uint32_t frm_irq_status =
+		payload->irq_reg_val[vfe_priv->common_reg->frame_timing_irq_reg_idx];
+	int hw_ctxt_id = -1;
+
+	if (vfe_priv->reg_data->is_mc_path)
+		hw_ctxt_id = cam_vfe_top_ver4_get_hw_ctxt_from_irq_status(vfe_priv, frm_irq_status);
+
+	CAM_DBG(CAM_ISP, "VFE:%u is_mc:%s hw_ctxt:%d Received EOF",
+		vfe_priv->hw_intf->hw_idx,
+		CAM_BOOL_TO_YESNO(vfe_priv->reg_data->is_mc_path), hw_ctxt_id);
+
 	vfe_priv->eof_ts.tv_sec = payload->ts.mono_time.tv_sec;
 	vfe_priv->eof_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
 
@@ -1332,7 +1370,8 @@ static int __cam_vfe_handle_frame_timing_irqs(struct cam_isp_resource_node *vfe_
 			cam_isp_hw_evt_type_to_string(event_type));
 	} else {
 		handle_irq_fn(vfe_priv, payload, evt_info);
-		if (vfe_priv->event_cb)
+		if (!(vfe_priv->top_priv->enable_ife_frame_irqs)
+			&& vfe_priv->event_cb)
 			vfe_priv->event_cb(vfe_priv->priv, event_type, evt_info);
 	}
 	vfe_priv->fsm_state = cam_vfe_top_ver4_fsm_next_state(vfe_res, vfe_priv->fsm_state);
@@ -1447,9 +1486,10 @@ static int cam_vfe_handle_irq_bottom_half(void *handler_priv,
 				vfe_priv->reg_data->epoch0_irq_mask |
 				vfe_priv->reg_data->eof_irq_mask;
 
-	if (irq_status[CAM_IFE_IRQ_CAMIF_REG_STATUS1] & frame_timing_mask) {
+	if (irq_status[vfe_priv->common_reg->frame_timing_irq_reg_idx] & frame_timing_mask) {
 		ret = cam_vfe_handle_frame_timing_irqs(vfe_res,
-			irq_status[CAM_IFE_IRQ_CAMIF_REG_STATUS1] & frame_timing_mask,
+			irq_status[vfe_priv->common_reg->frame_timing_irq_reg_idx] &
+			frame_timing_mask,
 			payload, &evt_info);
 	}
 
@@ -1484,11 +1524,11 @@ static int cam_vfe_handle_irq_bottom_half(void *handler_priv,
 	}
 
 	/* Perf counter dump */
-	if (irq_status[CAM_IFE_IRQ_CAMIF_REG_STATUS1] &
+	if (irq_status[vfe_priv->common_reg->frame_timing_irq_reg_idx] &
 		vfe_priv->reg_data->eof_irq_mask)
 		cam_vfe_top_dump_perf_counters("EOF", vfe_res->res_name, vfe_priv->top_priv);
 
-	if (irq_status[CAM_IFE_IRQ_CAMIF_REG_STATUS1] &
+	if (irq_status[vfe_priv->common_reg->frame_timing_irq_reg_idx] &
 		vfe_priv->reg_data->sof_irq_mask)
 		cam_vfe_top_dump_perf_counters("SOF", vfe_res->res_name, vfe_priv->top_priv);
 
@@ -1629,19 +1669,24 @@ skip_core_cfg:
 	}
 
 	/* Skip subscribing to timing irqs in these scenarios:
+	 * Debug config is not enabled for IFE frame timing IRQs, and
 	 *     1. Resource is dual IFE slave
 	 *     2. Resource is not primary RDI
 	 *     3. non-sfe use cases, such cases are taken care in CSID.
 	 */
-	if (((rsrc_data->sync_mode == CAM_ISP_HW_SYNC_SLAVE) && rsrc_data->is_dual) ||
+
+	if (!(rsrc_data->top_priv->enable_ife_frame_irqs) &&
+		(((rsrc_data->sync_mode == CAM_ISP_HW_SYNC_SLAVE) && rsrc_data->is_dual) ||
 		(!rsrc_data->is_pixel_path && !vfe_res->is_rdi_primary_res) ||
-		!rsrc_data->handle_camif_irq)
-		goto subscribe_err;
+		!rsrc_data->handle_camif_irq))
+		goto skip_frame_irq_subscribe;
 
-	irq_mask[CAM_IFE_IRQ_CAMIF_REG_STATUS1] = rsrc_data->reg_data->sof_irq_mask |
-		rsrc_data->reg_data->epoch0_irq_mask | rsrc_data->reg_data->eof_irq_mask;
+	irq_mask[rsrc_data->common_reg->frame_timing_irq_reg_idx] =
+		rsrc_data->reg_data->sof_irq_mask | rsrc_data->reg_data->epoch0_irq_mask |
+		rsrc_data->reg_data->eof_irq_mask;
 
-	rsrc_data->n_frame_irqs = hweight32(irq_mask[CAM_IFE_IRQ_CAMIF_REG_STATUS1]);
+	rsrc_data->n_frame_irqs =
+		hweight32(irq_mask[rsrc_data->common_reg->frame_timing_irq_reg_idx]);
 
 	if (!rsrc_data->frame_irq_handle) {
 		rsrc_data->frame_irq_handle = cam_irq_controller_subscribe_irq(
@@ -1663,7 +1708,7 @@ skip_core_cfg:
 		}
 	}
 
-subscribe_err:
+skip_frame_irq_subscribe:
 	err_irq_mask[CAM_IFE_IRQ_CAMIF_REG_STATUS0] = rsrc_data->reg_data->error_irq_mask;
 
 	if (!rsrc_data->irq_err_handle) {

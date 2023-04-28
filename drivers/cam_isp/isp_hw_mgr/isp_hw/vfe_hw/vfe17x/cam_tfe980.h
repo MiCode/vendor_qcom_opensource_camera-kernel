@@ -548,6 +548,7 @@ static struct cam_vfe_top_ver4_reg_offset_common tfe980_top_common_reg = {
 	.bayer_debug_cfg          = 0x0000C1EC,
 	.num_top_debug_reg        = 35,
 	.top_debug = tfe980_top_debug_reg,
+	.frame_timing_irq_reg_idx = CAM_IFE_IRQ_CAMIF_REG_STATUS0,
 };
 
 static struct cam_vfe_ver4_path_reg_data tfe980_ipp_common_reg_data = {
@@ -559,6 +560,13 @@ static struct cam_vfe_ver4_path_reg_data tfe980_ipp_common_reg_data = {
 	.pdaf_violation_mask             = 0x2000000,
 	.enable_diagnostic_hw            = 0x1,
 	.top_debug_cfg_en                = 3,
+	.is_mc_path                      = true,
+	/* SOF and EOF mask combined for each context */
+	.frm_irq_hw_ctxt_mask = {
+		0x30,
+		0xC0,
+		0x300,
+	},
 };
 
 static struct cam_vfe_ver4_path_reg_data tfe980_pdlib_reg_data = {

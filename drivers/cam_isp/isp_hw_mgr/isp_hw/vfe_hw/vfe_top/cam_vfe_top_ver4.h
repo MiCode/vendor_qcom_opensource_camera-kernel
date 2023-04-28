@@ -93,6 +93,7 @@ struct cam_vfe_top_ver4_reg_offset_common {
 	uint32_t pdaf_input_cfg_1;
 	uint32_t num_top_debug_reg;
 	uint32_t *top_debug;
+	uint32_t frame_timing_irq_reg_idx;
 };
 
 struct cam_vfe_top_common_cfg {
@@ -188,6 +189,8 @@ struct cam_vfe_ver4_path_reg_data {
 	uint32_t                                     ipp_violation_mask;
 	uint32_t                                     bayer_violation_mask;
 	uint32_t                                     pdaf_violation_mask;
+	bool                                         is_mc_path;
+	uint32_t                                     frm_irq_hw_ctxt_mask[CAM_ISP_MULTI_CTXT_MAX];
 };
 
 

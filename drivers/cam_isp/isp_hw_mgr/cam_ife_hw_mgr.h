@@ -57,6 +57,7 @@ enum cam_ife_ctx_master_type {
  * @per_req_reg_dump:          Enable per request reg dump
  * @disable_ubwc_comp:         Disable UBWC compression
  * @disable_ife_mmu_prefetch:  Disable MMU prefetch for IFE bus WR
+ * @enable_ife_frame_irqs:     Enable Frame timing IRQs for IFE/MCTFE
  * @rx_capture_debug_set:      If rx capture debug is set by user
  * @disable_isp_drv:           Disable ISP DRV config
  * @enable_presil_reg_dump:    Enable per req regdump in presil
@@ -79,6 +80,7 @@ struct cam_ife_hw_mgr_debug {
 	bool           per_req_reg_dump;
 	bool           disable_ubwc_comp;
 	bool           disable_ife_mmu_prefetch;
+	bool           enable_ife_frame_irqs;
 	bool           rx_capture_debug_set;
 	bool           disable_isp_drv;
 	bool           enable_presil_reg_dump;

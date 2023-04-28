@@ -393,11 +393,13 @@ struct cam_vfe_generic_ubwc_config {
  * @num_counters            : Number of perf counters configured
  * @vfe_perf_counter_val    : VFE perf counter values
  * @disable_ife_mmu_prefetch: Disable IFE mmu prefetch
+ * @enable_ife_frame_irqs:    Enable IFE frame timing IRQs
  */
 struct cam_vfe_generic_debug_config {
 	uint32_t  num_counters;
 	uint32_t  vfe_perf_counter_val[CAM_VFE_PERF_CNT_MAX];
 	bool      disable_ife_mmu_prefetch;
+	bool      enable_ife_frame_irqs;
 };
 
 /*
