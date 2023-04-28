@@ -256,94 +256,6 @@ int32_t cam_qup_i2c_poll(struct i2c_client *client,
 	return rc;
 }
 
-static int32_t cam_qup_i2c_write(struct camera_io_master *client,
-	struct cam_sensor_i2c_reg_array *reg_setting,
-	enum camera_sensor_i2c_type addr_type,
-	enum camera_sensor_i2c_type data_type)
-{
-	int32_t rc = 0;
-	unsigned char *buf = NULL;
-	uint8_t len = 0;
-
-	buf = kzalloc(I2C_REG_MAX_BUF_SIZE, GFP_KERNEL | GFP_DMA);
-	if (!buf) {
-		CAM_ERR(CAM_SENSOR, "Buffer memory allocation failed");
-		return -ENOMEM;
-	}
-
-	CAM_DBG(CAM_SENSOR, "reg addr = 0x%x data type: %d",
-			reg_setting->reg_addr, data_type);
-	if (addr_type == CAMERA_SENSOR_I2C_TYPE_BYTE) {
-		buf[0] = reg_setting->reg_addr;
-		CAM_DBG(CAM_SENSOR, "byte %d: 0x%x", len, buf[len]);
-		len = 1;
-	} else if (addr_type == CAMERA_SENSOR_I2C_TYPE_WORD) {
-		buf[0] = reg_setting->reg_addr >> 8;
-		buf[1] = reg_setting->reg_addr;
-		CAM_DBG(CAM_SENSOR, "byte %d: 0x%x", len, buf[len]);
-		CAM_DBG(CAM_SENSOR, "byte %d: 0x%x", len+1, buf[len+1]);
-		len = 2;
-	} else if (addr_type == CAMERA_SENSOR_I2C_TYPE_3B) {
-		buf[0] = reg_setting->reg_addr >> 16;
-		buf[1] = reg_setting->reg_addr >> 8;
-		buf[2] = reg_setting->reg_addr;
-		len = 3;
-	} else if (addr_type == CAMERA_SENSOR_I2C_TYPE_DWORD) {
-		buf[0] = reg_setting->reg_addr >> 24;
-		buf[1] = reg_setting->reg_addr >> 16;
-		buf[2] = reg_setting->reg_addr >> 8;
-		buf[3] = reg_setting->reg_addr;
-		len = 4;
-	} else {
-		CAM_ERR(CAM_SENSOR, "Invalid I2C addr type");
-		rc = -EINVAL;
-		goto deallocate_buffer;
-	}
-
-	CAM_DBG(CAM_SENSOR, "Data: 0x%x", reg_setting->reg_data);
-	if (data_type == CAMERA_SENSOR_I2C_TYPE_BYTE) {
-		buf[len] = reg_setting->reg_data;
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len, buf[len]);
-		len += 1;
-	} else if (data_type == CAMERA_SENSOR_I2C_TYPE_WORD) {
-		buf[len] = reg_setting->reg_data >> 8;
-		buf[len+1] = reg_setting->reg_data;
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len, buf[len]);
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+1, buf[len+1]);
-		len += 2;
-	} else if (data_type == CAMERA_SENSOR_I2C_TYPE_3B) {
-		buf[len] = reg_setting->reg_data >> 16;
-		buf[len + 1] = reg_setting->reg_data >> 8;
-		buf[len + 2] = reg_setting->reg_data;
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len, buf[len]);
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+1, buf[len+1]);
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+2, buf[len+2]);
-		len += 3;
-	} else if (data_type == CAMERA_SENSOR_I2C_TYPE_DWORD) {
-		buf[len] = reg_setting->reg_data >> 24;
-		buf[len + 1] = reg_setting->reg_data >> 16;
-		buf[len + 2] = reg_setting->reg_data >> 8;
-		buf[len + 3] = reg_setting->reg_data;
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len, buf[len]);
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+1, buf[len+1]);
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+2, buf[len+2]);
-		CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len+3, buf[len+3]);
-		len += 4;
-	} else {
-		CAM_ERR(CAM_SENSOR, "Invalid Data Type");
-		rc = -EINVAL;
-		goto deallocate_buffer;
-	}
-
-	rc = cam_qup_i2c_txdata(client, buf, len);
-	if (rc < 0)
-		CAM_ERR(CAM_SENSOR, "failed rc: %d", rc);
-
-deallocate_buffer:
-	kfree(buf);
-	return rc;
-}
-
 static inline int32_t cam_qup_i2c_write_optimized(struct camera_io_master *client,
 	struct cam_sensor_i2c_reg_setting *write_setting,
 	struct i2c_msg *msgs,
@@ -524,36 +436,6 @@ deallocate_buffer:
 	return rc;
 }
 
-static int32_t cam_qup_i2c_write_seq(struct camera_io_master *client,
-	struct cam_sensor_i2c_reg_setting *write_setting)
-{
-	int i;
-	int32_t rc = 0;
-	struct cam_sensor_i2c_reg_array *reg_setting;
-
-	reg_setting = write_setting->reg_setting;
-
-	for (i = 0; i < write_setting->size; i++) {
-		reg_setting->reg_addr += i;
-		rc = cam_qup_i2c_write(client, reg_setting,
-			write_setting->addr_type, write_setting->data_type);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR,
-				"Sequential i2c write failed: rc: %d", rc);
-			break;
-		}
-		reg_setting++;
-	}
-
-	if (write_setting->delay > 20)
-		msleep(write_setting->delay);
-	else if (write_setting->delay)
-		usleep_range(write_setting->delay * 1000, (write_setting->delay
-			* 1000) + 1000);
-
-	return rc;
-}
-
 static int32_t cam_qup_i2c_write_burst(struct camera_io_master *client,
 	struct cam_sensor_i2c_reg_setting *write_setting)
 {
@@ -690,7 +572,7 @@ int32_t cam_qup_i2c_write_continuous_table(struct camera_io_master *client,
 	if (cam_sensor_i2c_write_flag == CAM_SENSOR_I2C_WRITE_BURST)
 		rc = cam_qup_i2c_write_burst(client, write_settings);
 	else if (cam_sensor_i2c_write_flag == CAM_SENSOR_I2C_WRITE_SEQ)
-		rc = cam_qup_i2c_write_seq(client, write_settings);
+		rc = cam_qup_i2c_write_burst(client, write_settings);
 
 	return rc;
 }
