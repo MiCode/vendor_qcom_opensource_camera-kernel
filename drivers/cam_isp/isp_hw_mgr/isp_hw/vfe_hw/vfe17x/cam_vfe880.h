@@ -872,6 +872,14 @@ static struct cam_vfe_top_ver4_debug_reg_info vfe880_dbg_reg_info[CAM_VFE_880_NU
 	},
 };
 
+static struct cam_vfe_ver4_fcg_module_info vfe880_fcg_module_info = {
+	.fcg_index_shift                     = 16,
+	.max_reg_val_pair_size               = 4,
+	.fcg_type_size                       = 2,
+	.fcg_phase_index_cfg_0               = 0xC870,
+	.fcg_phase_index_cfg_1               = 0xC874,
+};
+
 static struct cam_vfe_top_ver4_hw_info vfe880_top_hw_info = {
 	.common_reg = &vfe880_top_common_reg,
 	.vfe_full_hw_info = {
@@ -907,6 +915,8 @@ static struct cam_vfe_top_ver4_hw_info vfe880_top_hw_info = {
 	.debug_reg_info                  = &vfe880_dbg_reg_info,
 	.pdaf_lcr_res_mask               = vfe880_pdaf_lcr_res_mask,
 	.num_pdaf_lcr_res                = ARRAY_SIZE(vfe880_pdaf_lcr_res_mask),
+	.fcg_module_info                 = &vfe880_fcg_module_info,
+	.fcg_supported                   = true,
 };
 
 static struct cam_irq_register_set vfe880_bus_irq_reg[2] = {

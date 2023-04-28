@@ -792,6 +792,17 @@ static struct cam_vfe_top_ver4_debug_reg_info tfe980_dbg_reg_info[CAM_TFE_980_NU
 	},
 };
 
+static struct cam_vfe_ver4_fcg_module_info tfe980_fcg_module_info = {
+	.fcg_index_shift                     = 16,
+	.max_reg_val_pair_size               = 6,
+	.fcg_type_size                       = 2,
+	.fcg_phase_index_cfg_0               = 0x0000DE70,
+	.fcg_phase_index_cfg_1               = 0x0000DE74,
+	.fcg_reg_ctxt_shift                  = 0x0,
+	.fcg_reg_ctxt_sel                    = 0x0000DFF4,
+	.fcg_reg_ctxt_mask                   = 0x7,
+};
+
 static struct cam_vfe_top_ver4_hw_info tfe980_top_hw_info = {
 	.common_reg = &tfe980_top_common_reg,
 	.vfe_full_hw_info = {
@@ -830,6 +841,8 @@ static struct cam_vfe_top_ver4_hw_info tfe980_top_hw_info = {
 	.debug_reg_info                  = &tfe980_dbg_reg_info,
 	.pdaf_lcr_res_mask               = tfe980_pdaf_haf_res_mask,
 	.num_pdaf_lcr_res                = ARRAY_SIZE(tfe980_pdaf_haf_res_mask),
+	.fcg_module_info                 = &tfe980_fcg_module_info,
+	.fcg_mc_supported                = true,
 };
 
 static struct cam_irq_register_set tfe980_bus_irq_reg[2] = {
