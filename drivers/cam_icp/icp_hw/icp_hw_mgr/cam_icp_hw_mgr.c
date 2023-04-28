@@ -2971,7 +2971,8 @@ static void cam_icp_mgr_process_dbg_buf(struct cam_icp_hw_mgr *hw_mgr)
 	char *dbg_buf;
 	int rc = 0;
 
-	rc = hfi_read_message(hw_mgr->hfi_handle, hw_mgr->dbg_buf, Q_DBG, &read_len);
+	rc = hfi_read_message(hw_mgr->hfi_handle, hw_mgr->dbg_buf, Q_DBG,
+		ICP_DBG_BUF_SIZE_IN_WORDS, &read_len);
 	if (rc)
 		return;
 
@@ -3096,7 +3097,8 @@ static int32_t cam_icp_mgr_process_msg(void *priv, void *data)
 	task_data = data;
 	hw_mgr = priv;
 
-	rc = hfi_read_message(hw_mgr->hfi_handle, hw_mgr->msg_buf, Q_MSG, &read_len);
+	rc = hfi_read_message(hw_mgr->hfi_handle, hw_mgr->msg_buf, Q_MSG,
+		ICP_MSG_BUF_SIZE_IN_WORDS, &read_len);
 	if (rc) {
 		CAM_DBG(CAM_ICP, "Unable to read msg q rc %d", rc);
 	} else {
