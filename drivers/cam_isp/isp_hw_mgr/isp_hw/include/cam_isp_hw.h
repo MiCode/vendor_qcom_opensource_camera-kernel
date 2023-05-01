@@ -257,6 +257,7 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION,
 	CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR,
 	CAM_ISP_HW_CMD_DYNAMIC_CLOCK_UPDATE,
+	CAM_ISP_HW_CMD_SET_SYNC_HW_IDX,
 	CAM_ISP_HW_CMD_MAX,
 };
 
@@ -586,6 +587,20 @@ struct cam_isp_hw_dump_header {
 	uint8_t   tag[CAM_ISP_HW_DUMP_TAG_MAX_LEN];
 	uint64_t  size;
 	uint32_t  word_size;
+};
+
+/**
+ * struct cam_isp_session_data - Session data
+ *
+ * @Brief:          ISP session or usecase data
+ *
+ * @link_hdl:       Link handle
+ * @is_shdr:        Indicate is usecase is shdr
+ *
+ */
+struct cam_isp_session_data {
+	int32_t   link_hdl;
+	bool      is_shdr;
 };
 
 /**
