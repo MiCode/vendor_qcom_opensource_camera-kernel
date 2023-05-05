@@ -52,6 +52,9 @@
 
 #define ICP_DEVICE_IDLE_TIMEOUT 400
 
+/* Memory required to setup all HFI queues and sec heap */
+#define ICP_HFI_QUEUES_MEM_SIZE 0x700000
+
 /*
  * If synx fencing is enabled, send FW memory mapping
  * for synx hw_mutex, ipc hw_mutex, synx global mem
@@ -3248,15 +3251,38 @@ static int cam_icp_alloc_secheap_mem(struct cam_icp_hw_mgr *hw_mgr,
 	return rc;
 }
 
-static int cam_icp_alloc_shared_mem(
-	struct cam_icp_hw_mgr *hw_mgr, size_t size_requested,
-	struct cam_mem_mgr_memory_desc *alloc_out)
+static int cam_icp_alloc_sfr_mem(struct cam_icp_hw_mgr *hw_mgr,
+	struct cam_mem_mgr_memory_desc *sfr)
 {
 	int rc;
 	struct cam_mem_mgr_request_desc alloc;
 	struct cam_mem_mgr_memory_desc out;
 
-	alloc.size = size_requested;
+	alloc.size = SZ_8K;
+	alloc.align = 0;
+	alloc.flags = CAM_MEM_FLAG_HW_READ_WRITE |
+		CAM_MEM_FLAG_HW_SHARED_ACCESS;
+
+	alloc.smmu_hdl = hw_mgr->iommu_hdl;
+	rc = cam_mem_mgr_request_mem(&alloc, &out);
+	if (rc)
+		return rc;
+
+	*sfr = out;
+	CAM_DBG(CAM_ICP, "[%s] kva: %llX, iova: %x, hdl: %x, len: %lld",
+		hw_mgr->hw_mgr_name, out.kva, out.iova, out.mem_handle, out.len);
+
+	return rc;
+}
+
+static int cam_icp_alloc_shared_mem(struct cam_icp_hw_mgr *hw_mgr,
+	struct cam_mem_mgr_memory_desc *qtbl)
+{
+	int rc;
+	struct cam_mem_mgr_request_desc alloc;
+	struct cam_mem_mgr_memory_desc out;
+
+	alloc.size = SZ_1M;
 	alloc.align = 0;
 	alloc.flags = CAM_MEM_FLAG_HW_READ_WRITE |
 		CAM_MEM_FLAG_HW_SHARED_ACCESS;
@@ -3268,7 +3294,7 @@ static int cam_icp_alloc_shared_mem(
 		return rc;
 	}
 
-	*alloc_out = out;
+	*qtbl = out;
 	CAM_DBG(CAM_ICP, "[%s] kva: %llX, iova: %x, hdl: %x, len: %lld",
 		hw_mgr->hw_mgr_name,
 		out.kva, out.iova, out.mem_handle, out.len);
@@ -3508,7 +3534,6 @@ static int cam_icp_allocate_hfi_mem(struct cam_icp_hw_mgr *hw_mgr)
 	int rc;
 	struct cam_smmu_region_info fwuncached_region_info = {0};
 	bool fwuncached_region_exists = false;
-	size_t qtbl_size, cmdq_size, msgq_size, dbgq_size, sfr_size, sec_heap_size;
 
 	rc = cam_smmu_get_region_info(hw_mgr->iommu_hdl,
 		CAM_SMMU_REGION_SHARED, &hw_mgr->hfi_mem.shmem);
@@ -3532,17 +3557,6 @@ static int cam_icp_allocate_hfi_mem(struct cam_icp_hw_mgr *hw_mgr)
 		goto fw_alloc_failed;
 	}
 
-	/*
-	 * Compute sizes aligned to page size, and add a padding
-	 * of a page between regions
-	 */
-	qtbl_size = ALIGN(ICP_QTBL_SIZE_IN_BYTES, PAGE_SIZE) + PAGE_SIZE;
-	cmdq_size = ALIGN(ICP_CMD_Q_SIZE_IN_BYTES, PAGE_SIZE) + PAGE_SIZE;
-	msgq_size = ALIGN(ICP_MSG_Q_SIZE_IN_BYTES, PAGE_SIZE) + PAGE_SIZE;
-	dbgq_size = ALIGN(ICP_DBG_Q_SIZE_IN_BYTES, PAGE_SIZE) + PAGE_SIZE;
-	sfr_size = ALIGN(ICP_MSG_SFR_SIZE_IN_BYTES, PAGE_SIZE) + PAGE_SIZE;
-	sec_heap_size = ALIGN(ICP_SEC_HEAP_SIZE_IN_BYTES, PAGE_SIZE) + PAGE_SIZE;
-
 	rc = cam_smmu_get_region_info(hw_mgr->iommu_hdl,
 		CAM_SMMU_REGION_FWUNCACHED, &fwuncached_region_info);
 	if (!rc)
@@ -3552,13 +3566,9 @@ static int cam_icp_allocate_hfi_mem(struct cam_icp_hw_mgr *hw_mgr)
 		struct cam_mem_mgr_request_desc alloc;
 		struct cam_mem_mgr_memory_desc out;
 		uint32_t offset;
+		uint64_t size;
 
-		/*
-		 * FW uncached consists of the qtbl, HFI queues, SFR buffer
-		 * and secondary heap
-		 */
-		alloc.size = qtbl_size + cmdq_size + msgq_size + dbgq_size +
-			sfr_size + sec_heap_size;
+		alloc.size = ICP_HFI_QUEUES_MEM_SIZE;
 		alloc.align = 0;
 		alloc.flags = CAM_MEM_FLAG_KMD_ACCESS;
 		alloc.smmu_hdl = hw_mgr->iommu_hdl;
@@ -3583,53 +3593,59 @@ static int cam_icp_allocate_hfi_mem(struct cam_icp_hw_mgr *hw_mgr)
 
 		offset = 0;
 
+		size = SZ_1M;
 		hw_mgr->hfi_mem.sec_heap.iova       = out.iova + offset;
 		hw_mgr->hfi_mem.sec_heap.kva        = out.kva + offset;
-		hw_mgr->hfi_mem.sec_heap.len        = sec_heap_size;
+		hw_mgr->hfi_mem.sec_heap.len        = size;
 		hw_mgr->hfi_mem.sec_heap.smmu_hdl   = out.smmu_hdl;
 		hw_mgr->hfi_mem.sec_heap.mem_handle = out.mem_handle;
 		hw_mgr->hfi_mem.sec_heap.region     = out.region;
-		offset += (uint32_t)sec_heap_size;
+		offset += (uint32_t)size;
 
+		size = SZ_1M;
 		hw_mgr->hfi_mem.qtbl.iova       = out.iova + offset;
 		hw_mgr->hfi_mem.qtbl.kva        = out.kva + offset;
-		hw_mgr->hfi_mem.qtbl.len        = qtbl_size;
+		hw_mgr->hfi_mem.qtbl.len        = size;
 		hw_mgr->hfi_mem.qtbl.smmu_hdl   = out.smmu_hdl;
 		hw_mgr->hfi_mem.qtbl.mem_handle = out.mem_handle;
 		hw_mgr->hfi_mem.qtbl.region     = out.region;
-		offset += (uint32_t)qtbl_size;
+		offset += (uint32_t)size;
 
+		size = SZ_1M;
 		hw_mgr->hfi_mem.cmd_q.iova       = out.iova + offset;
 		hw_mgr->hfi_mem.cmd_q.kva        = out.kva + offset;
-		hw_mgr->hfi_mem.cmd_q.len        = cmdq_size;
+		hw_mgr->hfi_mem.cmd_q.len        = size;
 		hw_mgr->hfi_mem.cmd_q.smmu_hdl   = out.smmu_hdl;
 		hw_mgr->hfi_mem.cmd_q.mem_handle = out.mem_handle;
 		hw_mgr->hfi_mem.cmd_q.region     = out.region;
-		offset += (uint32_t)cmdq_size;
+		offset += (uint32_t)size;
 
+		size = SZ_1M;
 		hw_mgr->hfi_mem.msg_q.iova       = out.iova + offset;
 		hw_mgr->hfi_mem.msg_q.kva        = out.kva + offset;
-		hw_mgr->hfi_mem.msg_q.len        = msgq_size;
+		hw_mgr->hfi_mem.msg_q.len        = size;
 		hw_mgr->hfi_mem.msg_q.smmu_hdl   = out.smmu_hdl;
 		hw_mgr->hfi_mem.msg_q.mem_handle = out.mem_handle;
 		hw_mgr->hfi_mem.msg_q.region     = out.region;
-		offset += (uint32_t)msgq_size;
+		offset += (uint32_t)size;
 
+		size = SZ_1M;
 		hw_mgr->hfi_mem.dbg_q.iova       = out.iova + offset;
 		hw_mgr->hfi_mem.dbg_q.kva        = out.kva + offset;
-		hw_mgr->hfi_mem.dbg_q.len        = dbgq_size;
+		hw_mgr->hfi_mem.dbg_q.len        = size;
 		hw_mgr->hfi_mem.dbg_q.smmu_hdl   = out.smmu_hdl;
 		hw_mgr->hfi_mem.dbg_q.mem_handle = out.mem_handle;
 		hw_mgr->hfi_mem.dbg_q.region     = out.region;
-		offset += (uint32_t)dbgq_size;
+		offset += (uint32_t)size;
 
+		size = SZ_8K;
 		hw_mgr->hfi_mem.sfr_buf.iova       = out.iova + offset;
 		hw_mgr->hfi_mem.sfr_buf.kva        = out.kva + offset;
-		hw_mgr->hfi_mem.sfr_buf.len        = sfr_size;
+		hw_mgr->hfi_mem.sfr_buf.len        = size;
 		hw_mgr->hfi_mem.sfr_buf.smmu_hdl   = out.smmu_hdl;
 		hw_mgr->hfi_mem.sfr_buf.mem_handle = out.mem_handle;
 		hw_mgr->hfi_mem.sfr_buf.region     = out.region;
-		offset += (uint32_t)sfr_size;
+		offset += (uint32_t)size;
 
 		if (offset > out.len) {
 			CAM_ERR(CAM_ICP,
@@ -3639,35 +3655,35 @@ static int cam_icp_allocate_hfi_mem(struct cam_icp_hw_mgr *hw_mgr)
 			goto qtbl_alloc_failed;
 		}
 	} else {
-		rc = cam_icp_alloc_shared_mem(hw_mgr, qtbl_size, &hw_mgr->hfi_mem.qtbl);
+		rc = cam_icp_alloc_shared_mem(hw_mgr, &hw_mgr->hfi_mem.qtbl);
 		if (rc) {
 			CAM_ERR(CAM_ICP, "[%s] Unable to allocate qtbl memory, rc %d",
 				hw_mgr->hw_mgr_name, rc);
 			goto qtbl_alloc_failed;
 		}
 
-		rc = cam_icp_alloc_shared_mem(hw_mgr, cmdq_size, &hw_mgr->hfi_mem.cmd_q);
+		rc = cam_icp_alloc_shared_mem(hw_mgr, &hw_mgr->hfi_mem.cmd_q);
 		if (rc) {
 			CAM_ERR(CAM_ICP, "[%s] Unable to allocate cmd q memory rc %d",
 				hw_mgr->hw_mgr_name, rc);
 			goto cmd_q_alloc_failed;
 		}
 
-		rc = cam_icp_alloc_shared_mem(hw_mgr, msgq_size, &hw_mgr->hfi_mem.msg_q);
+		rc = cam_icp_alloc_shared_mem(hw_mgr, &hw_mgr->hfi_mem.msg_q);
 		if (rc) {
 			CAM_ERR(CAM_ICP, "[%s] Unable to allocate msg q memory rc %d",
 				hw_mgr->hw_mgr_name, rc);
 			goto msg_q_alloc_failed;
 		}
 
-		rc = cam_icp_alloc_shared_mem(hw_mgr, dbgq_size, &hw_mgr->hfi_mem.dbg_q);
+		rc = cam_icp_alloc_shared_mem(hw_mgr, &hw_mgr->hfi_mem.dbg_q);
 		if (rc) {
 			CAM_ERR(CAM_ICP, "[%s] Unable to allocate dbg q memory rc %d",
 				hw_mgr->hw_mgr_name, rc);
 			goto dbg_q_alloc_failed;
 		}
 
-		rc = cam_icp_alloc_shared_mem(hw_mgr, sfr_size, &hw_mgr->hfi_mem.sfr_buf);
+		rc = cam_icp_alloc_sfr_mem(hw_mgr, &hw_mgr->hfi_mem.sfr_buf);
 		if (rc) {
 			CAM_ERR(CAM_ICP, "[%s] Unable to allocate sfr buffer rc %d",
 				hw_mgr->hw_mgr_name, rc);
@@ -3690,10 +3706,8 @@ static int cam_icp_allocate_hfi_mem(struct cam_icp_hw_mgr *hw_mgr)
 		fwuncached_region_info.iova_len);
 
 	CAM_DBG(CAM_ICP,
-		"[%s] FwUncached[0x%x %lld] FwUncached_Generic[0x%x %p %lld] QTbl[0x%x %p %lld] CmdQ[0x%x %p %lld] MsgQ[0x%x %p %lld]",
+		"[%s] FwUncached[0x%x %p %lld] QTbl[0x%x %p %lld] CmdQ[0x%x %p %lld] MsgQ[0x%x %p %lld]",
 		hw_mgr->hw_mgr_name,
-		hw_mgr->hfi_mem.fw_uncached.iova_start,
-		hw_mgr->hfi_mem.fw_uncached.iova_len,
 		hw_mgr->hfi_mem.fw_uncached_generic.iova,
 		hw_mgr->hfi_mem.fw_uncached_generic.kva,
 		hw_mgr->hfi_mem.fw_uncached_generic.len,

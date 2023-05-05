@@ -39,13 +39,11 @@
 #define ICP_QHDR_RX_TYPE_MASK                   0x00FF0000
 #define ICP_QHDR_PRI_TYPE_MASK                  0x0000FF00
 #define ICP_QHDR_Q_ID_MASK                      0x000000FF
-#define ICP_QTBL_SIZE_IN_BYTES                  sizeof(struct hfi_qtbl)
 
 #define ICP_CMD_Q_SIZE_IN_BYTES                 8192
 #define ICP_MSG_Q_SIZE_IN_BYTES                 8192
 #define ICP_DBG_Q_SIZE_IN_BYTES                 102400
 #define ICP_MSG_SFR_SIZE_IN_BYTES               4096
-#define ICP_SEC_HEAP_SIZE_IN_BYTES              1048576
 
 #define ICP_HFI_QTBL_HOSTID1                    0x01000000
 #define ICP_HFI_QTBL_STATUS_ENABLED             0x00000001
