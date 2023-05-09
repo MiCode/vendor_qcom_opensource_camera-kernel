@@ -5807,12 +5807,13 @@ static uint64_t __cam_ife_csid_ver2_get_time_stamp(void __iomem *mem_base,
 	uint32_t timestamp0_addr, uint32_t timestamp1_addr,
 	bool ts_comb_vcdt_en, uint32_t ts_comb_vcdt_mask)
 {
-	uint64_t timestamp_val, time_hi, time_lo;
+	uint64_t timestamp_val, time_hi, time_lo, mask;
 
 	time_hi = cam_io_r_mb(mem_base + timestamp1_addr);
 	time_lo = cam_io_r_mb(mem_base + timestamp0_addr);
+	mask = (uint64_t)ts_comb_vcdt_mask;
 	if (ts_comb_vcdt_en)
-		time_lo &= ~ts_comb_vcdt_mask;
+		time_lo &= ~mask;
 
 	timestamp_val = (time_hi << 32) | time_lo;
 

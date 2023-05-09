@@ -2836,6 +2836,9 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 		bus_priv->common_data.core_index, evt_payload->image_size_violation_status,
 		evt_payload->ccif_violation_status);
 
+	memset(&evt_info, 0, sizeof(evt_info));
+	memset(&err_evt_info, 0, sizeof(err_evt_info));
+
 	if (image_size_violation || constraint_violation) {
 		status = evt_payload->image_size_violation_status;
 		if (!status)
