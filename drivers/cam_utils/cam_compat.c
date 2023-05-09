@@ -198,13 +198,15 @@ int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 	uint32_t camera_hw_version, rc = 0;
 
 	rc = cam_cpas_get_cpas_hw_version(&camera_hw_version);
-	if (!rc && qcom_scm_smmu_notify_secure_lut(smmu_se_ife, safe_trigger)) {
+	if (!rc) {
 		switch (camera_hw_version) {
 		case CAM_CPAS_TITAN_170_V100:
 		case CAM_CPAS_TITAN_170_V110:
 		case CAM_CPAS_TITAN_175_V100:
-			CAM_ERR(CAM_ISP, "scm call to enable safe failed");
-			rc = -EINVAL;
+			if (qcom_scm_smmu_notify_secure_lut(smmu_se_ife, safe_trigger)) {
+				CAM_ERR(CAM_ISP, "scm call to enable safe failed");
+				rc = -EINVAL;
+			}
 			break;
 		default:
 			break;
@@ -265,13 +267,15 @@ int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 	};
 
 	rc = cam_cpas_get_cpas_hw_version(&camera_hw_version);
-	if (!rc && scm_call2(SCM_SIP_FNID(0x15, 0x3), &description)) {
+	if (!rc) {
 		switch (camera_hw_version) {
 		case CAM_CPAS_TITAN_170_V100:
 		case CAM_CPAS_TITAN_170_V110:
 		case CAM_CPAS_TITAN_175_V100:
-			CAM_ERR(CAM_ISP, "scm call to enable safe failed");
-			rc = -EINVAL;
+			if (scm_call2(SCM_SIP_FNID(0x15, 0x3), &description)) {
+				CAM_ERR(CAM_ISP, "scm call to enable safe failed");
+				rc = -EINVAL;
+			}
 			break;
 		default:
 			break;
