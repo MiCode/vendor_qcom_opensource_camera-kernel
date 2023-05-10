@@ -183,6 +183,12 @@ struct cam_iommu_handle {
 #define CAM_FORMAT_ARGB_16                      48
 #define CAM_FORMAT_PLAIN16_10_LSB               49
 #define CAM_FORMAT_YUV422_10                    50
+#define CAM_FORMAT_GBR_UBWC_TP10                51
+#define CAM_FORMAT_GBR_TP10                     52
+#define CAM_FORMAT_UBWC_P016                    53
+#define CAM_FORMAT_BAYER_UBWC_TP10              54
+
+/* This macro is deprecated and no longer needed */
 #define CAM_FORMAT_MAX                          51
 
 /* Pixel Patterns */
