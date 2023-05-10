@@ -376,15 +376,17 @@ struct cam_req_mgr_state_monitor {
 
 /**
  * struct cam_req_mgr_req_data
- * @in_q             : Poiner to Input request queue
- * @l_tbl            : unique pd request tables.
- * @num_tbl          : how many unique pd value devices are present
- * @apply_data       : Holds information about request id for a request
- * @prev_apply_data  : Holds information about request id for a previous
- *                     applied request
- * @state_monitor    : used to track the request state in CRM
- * @next_state_idx   : indicates index to hold new request state
- * @lock             : mutex lock protecting request data ops.
+ * @in_q                  : Poiner to Input request queue
+ * @l_tbl                 : unique pd request tables.
+ * @num_tbl               : how many unique pd value devices are present
+ * @apply_data            : Holds information about request id for a request
+ * @prev_apply_data       : Holds information about request id for a previous
+ *                          applied request
+ * @state_monitor         : used to track the request state in CRM
+ * @next_state_idx        : indicates index to hold new request state
+ * @lock                  : mutex lock protecting request data ops.
+ * @monitor_slock         : spin lock protecting state mointor variables
+ * @reset_link_spin_lock  : spin lock protecting link data ops when reset link
  */
 struct cam_req_mgr_req_data {
 	struct cam_req_mgr_req_queue *in_q;
@@ -397,6 +399,7 @@ struct cam_req_mgr_req_data {
 	int32_t                       next_state_idx;
 	struct mutex                  lock;
 	spinlock_t                    monitor_slock;
+	spinlock_t                    reset_link_spin_lock;
 };
 
 /**

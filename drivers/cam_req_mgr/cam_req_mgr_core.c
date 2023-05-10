@@ -53,6 +53,7 @@ void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 {
 	int i = 0;
 
+	spin_lock_bh(&link->req.reset_link_spin_lock);
 	link->link_hdl = 0;
 	link->num_devs = 0;
 	link->max_delay = CAM_PIPELINE_DELAY_0;
@@ -90,15 +91,17 @@ void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 	link->try_for_internal_recovery = false;
 	link->is_sending_req = false;
 	atomic_set(&link->eof_event_cnt, 0);
-	mutex_lock(&link->lock);
-	link->properties_mask = CAM_LINK_PROPERTY_NONE;
-	mutex_unlock(&link->lock);
 	link->cont_empty_slots = 0;
 	__cam_req_mgr_reset_apply_data(link);
 	__cam_req_mgr_reset_state_monitor_array(link);
 
 	for (i = 0; i < MAXIMUM_LINKS_PER_SESSION - 1; i++)
 		link->sync_link[i] = NULL;
+	spin_unlock_bh(&link->req.reset_link_spin_lock);
+
+	mutex_lock(&link->lock);
+	link->properties_mask = CAM_LINK_PROPERTY_NONE;
+	mutex_unlock(&link->lock);
 }
 
 void cam_req_mgr_handle_core_shutdown(void)
@@ -2901,7 +2904,6 @@ static void __cam_req_mgr_free_link(struct cam_req_mgr_core_link *link)
 {
 	ptrdiff_t i;
 	kfree(link->req.in_q);
-	link->req.in_q = NULL;
 	link->parent = NULL;
 	i = link - g_links;
 	CAM_DBG(CAM_CRM, "free link index %d", i);
@@ -4224,13 +4226,21 @@ static int cam_req_mgr_cb_notify_trigger(
 	trigger_id = trigger_data->trigger_id;
 	trigger = trigger_data->trigger;
 
+	spin_lock_bh(&link->req.reset_link_spin_lock);
 	in_q = link->req.in_q;
+	if (!in_q) {
+		CAM_DBG(CAM_CRM, "in_q ptr NULL, link_hdl %x", trigger_data->link_hdl);
+		spin_unlock_bh(&link->req.reset_link_spin_lock);
+		rc = -EINVAL;
+		goto end;
+	}
 
 	state.req_state = CAM_CRM_NOTIFY_TRIGGER;
 	state.req_id = in_q->slot[in_q->rd_idx].req_id;
 	state.dev_hdl = -1;
 	state.frame_id = trigger_data->frame_id;
 	__cam_req_mgr_update_state_monitor_array(link, &state);
+	spin_unlock_bh(&link->req.reset_link_spin_lock);
 
 	/*
 	 * Reduce the workq overhead when there is
@@ -5784,6 +5794,7 @@ int cam_req_mgr_core_device_init(void)
 		mutex_init(&g_links[i].lock);
 		spin_lock_init(&g_links[i].link_state_spin_lock);
 		spin_lock_init(&g_links[i].req.monitor_slock);
+		spin_lock_init(&g_links[i].req.reset_link_spin_lock);
 		atomic_set(&g_links[i].is_used, 0);
 		cam_req_mgr_core_link_reset(&g_links[i]);
 	}
