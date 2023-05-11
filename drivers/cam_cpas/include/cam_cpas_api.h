@@ -12,6 +12,7 @@
 
 #include <media/cam_cpas.h>
 #include "cam_soc_util.h"
+#include "cam_req_mgr_interface.h"
 
 #define CAM_HW_IDENTIFIER_LENGTH 128
 
@@ -1009,5 +1010,14 @@ int cam_cpas_enable_clks_for_domain_id(bool enable);
  * @return rue if supported
  */
 bool cam_cpas_is_notif_staling_supported(void);
+
+/**
+ * cam_cpas_dump_state_monitor_info()
+ *
+ * @brief: API to dump the state monitor info of cpas.
+ * @info:  Dump information.
+ * @return 0 on success
+ */
+int cam_cpas_dump_state_monitor_info(struct cam_req_mgr_dump_info *info);
 
 #endif /* _CAM_CPAS_API_H_ */

@@ -19,6 +19,7 @@
 #include "cam_req_mgr_debug.h"
 #include "cam_common_util.h"
 #include "cam_mem_mgr.h"
+#include "cam_cpas_api.h"
 
 static struct cam_req_mgr_core_device *g_crm_core_dev;
 static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_PER_SESSION];
@@ -5649,6 +5650,11 @@ int cam_req_mgr_dump_request(struct cam_dump_req_cmd *dump_req)
 		CAM_ERR(CAM_REQ,
 			"Fail to dump state monitor req %llu rc %d",
 			info.req_id, rc);
+
+	info.buf_handle = dump_req->buf_handle;
+	rc = cam_cpas_dump_state_monitor_info(&info);
+	if (rc)
+		CAM_ERR(CAM_CRM, "Fail to dump cpas vote info, rc %d", rc);
 
 	for (i = 0; i < link->num_devs; i++) {
 		device = &link->l_dev[i];
