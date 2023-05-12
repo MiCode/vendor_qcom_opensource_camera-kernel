@@ -22,6 +22,7 @@ static int32_t cam_qup_i2c_rxdata(
 {
 	int32_t rc = 0;
 	uint16_t saddr = dev_client->addr >> 1;
+	int i2c_msg_size = 2;
 	struct i2c_msg msgs[] = {
 		{
 			.addr  = saddr,
@@ -36,15 +37,21 @@ static int32_t cam_qup_i2c_rxdata(
 			.buf   = rxdata,
 		},
 	};
-	rc = i2c_transfer(dev_client->adapter, msgs, 2);
+	rc = i2c_transfer(dev_client->adapter, msgs, i2c_msg_size);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "failed 0x%x", saddr);
 		return rc;
 	}
-	/* Returns negative errno */
-	/* else the number of messages executed. */
-	/* So positive values are not errors. */
-	return 0;
+
+	if (rc == i2c_msg_size)
+		rc = 0;
+	else {
+		CAM_ERR(CAM_SENSOR, "i2c transfer failed, i2c_msg_size:%d rc:%d",
+			i2c_msg_size, rc);
+		rc = -EIO;
+	}
+
+	return rc;
 }
 
 static inline void  cam_qup_i2c_txdata_fill(
@@ -63,6 +70,7 @@ static int32_t cam_qup_i2c_txdata(
 {
 	int32_t rc = 0;
 	uint16_t saddr = dev_client->client->addr >> 1;
+	int i2c_msg_size = 1;
 	struct i2c_msg msg[] = {
 		{
 			.addr = saddr,
@@ -71,15 +79,16 @@ static int32_t cam_qup_i2c_txdata(
 			.buf = txdata,
 		 },
 	};
-	rc = i2c_transfer(dev_client->client->adapter, msg, 1);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "failed 0x%x", saddr);
-		return rc;
+	rc = i2c_transfer(dev_client->client->adapter, msg, i2c_msg_size);
+	if (rc == i2c_msg_size)
+		rc = 0;
+	else {
+		CAM_ERR(CAM_SENSOR, "i2c transfer failed, i2c_msg_size:%d rc:%d",
+			i2c_msg_size, rc);
+		rc = -EIO;
 	}
-	/* Returns negative errno, */
-	/* else the number of messages executed. */
-	/* So positive values are not errors. */
-	return 0;
+
+	return rc;
 }
 
 int32_t cam_qup_i2c_read(struct i2c_client *client,
@@ -427,6 +436,14 @@ int32_t cam_qup_i2c_write_table(struct camera_io_master *client,
 	else if (write_setting->delay)
 		usleep_range(write_setting->delay * 1000, (write_setting->delay
 			* 1000) + 1000);
+
+	if (rc == i2c_msg_size)
+		rc = 0;
+	else {
+		CAM_ERR(CAM_SENSOR, "i2c transfer failed, i2c_msg_size:%d rc:%d",
+			i2c_msg_size, rc);
+		rc = -EIO;
+	}
 
 deallocate_buffer:
 	kfree(buf);
