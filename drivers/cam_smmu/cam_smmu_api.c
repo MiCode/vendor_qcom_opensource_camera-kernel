@@ -1190,7 +1190,7 @@ static inline void cam_smmu_update_multiregion_dev_id(
 	int k;
 
 	for (k = 0; k < cb_info->num_multi_regions; k++) {
-		if (strcmp(cb_info->multi_region_clients[k], name)) {
+		if (!strcmp(cb_info->multi_region_clients[k], name)) {
 			*hdl |= ((k + 1) << MULTI_CLIENT_REGION_SHIFT);
 			CAM_DBG(CAM_SMMU, "%s got shared multi region handle 0x%x",
 				name, *hdl);
