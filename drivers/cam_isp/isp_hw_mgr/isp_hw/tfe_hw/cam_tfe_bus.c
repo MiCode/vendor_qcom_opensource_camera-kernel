@@ -1033,10 +1033,6 @@ static int cam_tfe_bus_start_wm(struct cam_isp_resource_node *wm_res)
 			rsrc_data->stride);
 	}
 
-	/* Enable WM */
-	cam_io_w_mb(rsrc_data->en_cfg, common_data->mem_base +
-		rsrc_data->hw_regs->cfg);
-
 	CAM_DBG(CAM_ISP, "TFE:%d WM:%d width = %d, height = %d",
 		common_data->core_index, rsrc_data->index,
 		rsrc_data->width, rsrc_data->height);
