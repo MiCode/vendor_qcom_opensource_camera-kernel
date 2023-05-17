@@ -3635,6 +3635,8 @@ start_only:
 		}
 	}
 
+	ctx->last_dump_flush_req_id = U64_MAX;
+	ctx->last_dump_err_req_id = U64_MAX;
 	return 0;
 
 err:
