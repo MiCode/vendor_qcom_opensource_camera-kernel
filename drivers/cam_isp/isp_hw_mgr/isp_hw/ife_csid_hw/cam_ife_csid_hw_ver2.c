@@ -1607,7 +1607,7 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(
 	struct cam_hw_soc_info                             *soc_info;
 	void __iomem                                       *base;
 	const struct cam_ife_csid_ver2_path_reg_info       *path_reg;
-	uint32_t vcdt_cfg0 = 0, cfg0 = 0, mup_rup_cfg = 0, cfg1 = 0;
+	uint32_t vcdt_cfg0 = 0, cfg0 = 0, cfg1 = 0;
 	uint32_t decode_fmt = 0, decode_fmt1 = 0;
 	uint32_t vc, dt, vc1, dt1;
 
@@ -1627,7 +1627,8 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(
 	cfg0 = cam_io_r_mb(base + path_reg->cfg0_addr);
 	cfg1 = cam_io_r_mb(base + path_reg->cfg1_addr);
 	vcdt_cfg0 = cam_io_r_mb(base + path_reg->multi_vcdt_cfg0_addr);
-	mup_rup_cfg = cam_io_r_mb(base + csid_reg->cmn_reg->rup_aup_cmd_addr);
+
+	CAM_INFO(CAM_ISP, "cfg0 = %x cfg1 = %x vcdt_cfg0 = %x ", cfg0, cfg1, vcdt_cfg0);
 
 	if (cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].valid) {
 		decode_fmt = ((cfg0 >>
@@ -1670,20 +1671,11 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(
 		}
 	}
 
-	if (!((mup_rup_cfg & path_reg->rup_aup_mask) &&
-		(mup_rup_cfg & csid_reg->cmn_reg->mup_shift_val))) {
-		CAM_ERR(CAM_ISP,
-			"CSID:%u MUP bit %d is programmed without RUP %d",
-			csid_hw->hw_intf->hw_idx,
-			mup_rup_cfg & path_reg->rup_aup_mask,
-			mup_rup_cfg & csid_reg->cmn_reg->mup_shift_val);
-	}
-
 	if (!(csid_hw->debug_info.debug_val &
 		    CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
 		csid_reg->cmn_reg->early_eof_supported) {
-		if (!((cfg1 & path_reg->early_eof_en_shift_val) &&
-			(cfg1 & path_reg->crop_v_en_shift_val))) {
+		if ((cfg1 & BIT(path_reg->early_eof_en_shift_val)) &&
+			!(cfg1 & BIT(path_reg->crop_v_en_shift_val))) {
 			CAM_ERR(CAM_ISP,
 				"CSID:%u Early EOF %d enabled without VCROP %d",
 				csid_hw->hw_intf->hw_idx,
