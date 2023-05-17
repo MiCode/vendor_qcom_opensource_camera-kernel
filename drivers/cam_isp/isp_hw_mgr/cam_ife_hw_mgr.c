@@ -13698,6 +13698,7 @@ static int cam_ife_hw_mgr_handle_csid_error(
 	/* Default error types */
 	recovery_data.error_type = CAM_ISP_HW_ERROR_OVERFLOW;
 	error_event_data.error_type = CAM_ISP_HW_ERROR_CSID_FATAL;
+	error_event_data.error_type |= err_type;
 
 	/* Notify IFE/SFE devices, determine bus overflow */
 	if (err_type & (CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW |
@@ -13708,7 +13709,6 @@ static int cam_ife_hw_mgr_handle_csid_error(
 			ctx, &is_bus_overflow);
 
 	if (err_type & CAM_ISP_NON_RECOVERABLE_CSID_ERRORS) {
-		error_event_data.error_type |= err_type;
 		recovery_data.error_type = err_type;
 		recoverable = false;
 	}
@@ -13730,7 +13730,6 @@ static int cam_ife_hw_mgr_handle_csid_error(
 			event_info->hw_idx, err_type, ctx->try_recovery_cnt,
 			ctx->recovery_req_id, ctx->ctx_index);
 
-		error_event_data.error_type |= err_type;
 		recovery_data.error_type = err_type;
 	}
 
