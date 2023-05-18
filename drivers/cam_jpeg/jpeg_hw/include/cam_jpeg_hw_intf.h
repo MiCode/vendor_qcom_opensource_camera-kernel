@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_JPEG_HW_INTF_H
@@ -16,7 +16,7 @@
 
 #define JPEG_VOTE                     640000000
 
-#define CAM_JPEG_HW_DUMP_TAG_MAX_LEN 32
+#define CAM_JPEG_HW_DUMP_TAG_MAX_LEN 128
 #define CAM_JPEG_HW_DUMP_NUM_WORDS   5
 #define CAM_JPEG_HW_MAX_NUM_PID      2
 #define CAM_JPEG_CAMNOC_MISR_VAL_ROW 2

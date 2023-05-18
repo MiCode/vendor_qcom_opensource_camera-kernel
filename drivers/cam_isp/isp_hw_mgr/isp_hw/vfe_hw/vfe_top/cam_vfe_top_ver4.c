@@ -39,7 +39,7 @@ struct cam_vfe_top_ver4_priv {
 	atomic_t                                 overflow_pending;
 	uint8_t                                  log_buf[CAM_VFE_LEN_LOG_BUF];
 	uint32_t                                 sof_cnt;
-	struct cam_vfe_top_ver4_perf_counter_cfg perf_counters[CAM_VFE_PERF_COUNTER_MAX];
+	struct cam_vfe_top_ver4_perf_counter_cfg perf_counters[CAM_VFE_PERF_CNT_MAX];
 };
 
 enum cam_vfe_top_ver4_fsm_state {
@@ -182,7 +182,7 @@ static int cam_vfe_top_ver4_pdaf_lcr_config(struct cam_vfe_top_ver4_priv *top_pr
 	}
 
 	reg_val_pair[reg_val_idx++] = hw_info->common_reg->pdaf_input_cfg_0;
-	reg_val_pair[reg_val_idx++] = hw_info->pdaf_lcr_res_mask[i].val;
+	reg_val_pair[reg_val_idx] = hw_info->pdaf_lcr_res_mask[i].val;
 	cdm_util_ops->cdm_write_regrandom(cdm_args->cmd.cmd_buf_addr,
 		num_reg_vals, reg_val_pair);
 	cdm_args->cmd.used_bytes = size * 4;
@@ -1956,7 +1956,7 @@ int cam_vfe_top_ver4_init(
 	top_priv->top_common.num_mux = hw_info->num_mux;
 
 	for (i = 0, j = 0; i < top_priv->top_common.num_mux &&
-		j < CAM_VFE_RDI_VER2_MAX; i++) {
+		j < hw_info->num_rdi; i++) {
 		top_priv->top_common.mux_rsrc[i].res_type =
 			CAM_ISP_RESOURCE_VFE_IN;
 		top_priv->top_common.mux_rsrc[i].hw_intf = hw_intf;
@@ -1998,7 +1998,7 @@ int cam_vfe_top_ver4_init(
 				CAM_ISP_RES_NAME_LEN, "RDI_%d", j);
 			rc = cam_vfe_res_mux_init(top_priv,
 				hw_intf, soc_info,
-				hw_info->rdi_hw_info[j++],
+				&hw_info->rdi_hw_info[j++],
 				&top_priv->top_common.mux_rsrc[i],
 				vfe_irq_controller);
 		} else {
@@ -2027,6 +2027,14 @@ int cam_vfe_top_ver4_init(
 	top_priv->common_data.hw_intf      = hw_intf;
 	top_priv->top_common.hw_idx        = hw_intf->hw_idx;
 	top_priv->common_data.common_reg   = hw_info->common_reg;
+
+	if (top_priv->common_data.common_reg->num_perf_counters > CAM_VFE_PERF_CNT_MAX) {
+		CAM_ERR(CAM_ISP, "Invalid number of perf counters: %d max: %d",
+			top_priv->common_data.common_reg->num_perf_counters,
+			CAM_VFE_PERF_CNT_MAX);
+		rc = -EINVAL;
+		goto deinit_resources;
+	}
 
 	return rc;
 

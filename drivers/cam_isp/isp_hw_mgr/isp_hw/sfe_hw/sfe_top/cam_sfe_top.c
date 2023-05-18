@@ -1647,7 +1647,6 @@ int cam_sfe_top_start(
 	struct cam_isp_resource_node         *sfe_res;
 	struct cam_hw_info                   *hw_info = NULL;
 	struct cam_sfe_path_data             *path_data;
-	struct cam_hw_soc_info               *soc_info = NULL;
 	uint32_t   error_mask[CAM_SFE_IRQ_REGISTERS_MAX];
 	uint32_t   sof_eof_mask[CAM_SFE_IRQ_REGISTERS_MAX];
 	uint32_t core_cfg = 0, i = 0;
@@ -1659,7 +1658,6 @@ int cam_sfe_top_start(
 
 	top_priv = (struct cam_sfe_top_priv *)priv;
 	sfe_res = (struct cam_isp_resource_node *) start_args;
-	soc_info = top_priv->common_data.soc_info;
 
 	hw_info = (struct cam_hw_info  *)sfe_res->hw_intf->hw_priv;
 	if (!hw_info) {

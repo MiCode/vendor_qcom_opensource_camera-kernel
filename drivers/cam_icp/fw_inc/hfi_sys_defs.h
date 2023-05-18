@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _HFI_DEFS_H_
@@ -122,6 +122,7 @@
 #define HFI_CMD_DBG_COMMON_START \
 		(HFI_DOMAIN_BASE_DBG + HFI_CMD_START_OFFSET + 0x0)
 #define HFI_CMD_DBG_TEST_START  (HFI_CMD_DBG_COMMON_START + 0x800)
+#define HFI_CMD_DBG_SYNX_TEST   (HFI_CMD_DBG_TEST_START + 0x1)
 #define HFI_CMD_DBG_END         (HFI_CMD_DBG_COMMON_START + 0xFFF)
 
 /* System level messages */
@@ -192,8 +193,10 @@
 
 /* ICP core level Debug test message range */
 #define HFI_MSG_DBG_COMMON_START \
-		(HFI_DOMAIN_BASE_DBG + 0x0)
+		(HFI_DOMAIN_BASE_DBG + HFI_MSG_START_OFFSET + 0x0)
+
 #define HFI_MSG_DBG_TEST_START  (HFI_MSG_DBG_COMMON_START + 0x800)
+#define HFI_MSG_DBG_SYNX_TEST   (HFI_MSG_DBG_TEST_START + 0x1)
 #define HFI_MSG_DBG_END         (HFI_MSG_DBG_COMMON_START + 0xFFF)
 
 /* System  level property base offset */
@@ -209,6 +212,7 @@
 #define HFI_PROP_SYS_ICP_HW_FREQUENCY      (HFI_PROPERTY_ICP_COMMON_START + 0xa)
 #define HFI_PROP_SYS_ICP_RAMDUMP_MODE      (HFI_PROPERTY_ICP_COMMON_START + 0xb)
 #define HFI_PROP_SYS_OFE_PC                (HFI_PROPERTY_ICP_COMMON_START + 0xc)
+#define HFI_PROP_SYS_MEM_REGIONS           (HFI_PROPERTY_ICP_COMMON_START + 0xe)
 
 /* Capabilities reported at sys init */
 #define HFI_CAPS_PLACEHOLDER_1         (HFI_COMMON_BASE + 0x1)
@@ -274,6 +278,17 @@
 #define ICP_PWR_CLP_IPE0         0x00010000
 #define ICP_PWR_CLP_IPE1         0x00020000
 #define ICP_PWR_CLP_OFE          0x00000001
+
+/* New mem region definitions */
+#define HFI_MEM_REGION_ID_IPCLITE_SHARED_MEM      0
+#define HFI_MEM_REGION_ID_SYNX_HW_MUTEX           1
+#define HFI_MEM_REGION_ID_GLOBAL_ATOMIC_HW_MUTEX  2
+#define HFI_MEM_REGION_ID_GLOBAL_CNTR             3
+
+/* Type of the new regions */
+#define HFI_MEM_REGION_TYPE_CACHED       0
+#define HFI_MEM_REGION_TYPE_UNCACHED     1
+#define HFI_MEM_REGION_TYPE_DEVICE       2
 
 /**
  * start of sys command packet types
@@ -424,11 +439,36 @@ struct hfi_cmd_ping_pkt {
  *             as part of HFI_MSG_SYS_RESET_ACK
  * @HFI_CMD_SYS_RESET
  */
-
 struct hfi_cmd_sys_reset_pkt {
 	uint32_t size;
 	uint32_t pkt_type;
 	uint64_t user_data;
+} __packed;
+
+/**
+ * struct hfi_cmd_mem_region_info
+ * Payload structure to configure HFI_PROP_SYS_MEM_REGIONS
+ * @region_id: region id (HW mutex/synx global mem/...)
+ * @region_type: Type of the region (cached/uncached/device/..)
+ * @start_addr: va to the start of this region
+ * @size: size of this region
+ */
+struct hfi_cmd_mem_region_info {
+	uint32_t region_id;
+	uint32_t region_type;
+	uint64_t start_addr;
+	uint32_t size;
+} __packed;
+
+/**
+ * struct hfi_cmd_mem_region_info
+ * Payload structure to configure HFI_PROP_SYS_MEM_REGIONS
+ * @num_valid_regions: Valid number of regions configured to FW
+ * @region_info: Region specific info
+ */
+struct hfi_cmd_config_mem_regions {
+	uint32_t num_valid_regions;
+	struct hfi_cmd_mem_region_info region_info[1];
 } __packed;
 
 /* end of sys command packet types */
@@ -615,5 +655,4 @@ struct hfi_msg_event_notify {
 /**
  * end of sys message packet types
  */
-
 #endif /* _HFI_DEFS_H_ */

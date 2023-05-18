@@ -17,7 +17,6 @@
 #include "cam_req_mgr_dev.h"
 #include "cam_smmu_api.h"
 #include "cam_compat.h"
-#include "cam_cpastop_hw.h"
 
 #define CAM_CPAS_LOG_BUF_LEN      512
 #define CAM_CPAS_APPLY_TYPE_START  1
@@ -638,40 +637,45 @@ static int cam_cpas_hw_dump_camnoc_buff_fill_info(
 	struct cam_hw_info *cpas_hw,
 	uint32_t client_handle)
 {
-	int rc = 0, i;
-	uint32_t val = 0;
+	int rc = 0, i, camnoc_idx;
+	uint32_t val = 0, client_idx = CAM_CPAS_GET_CLIENT_IDX(client_handle);
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
-	struct cam_camnoc_info *camnoc_info =
-		(struct cam_camnoc_info *) cpas_core->camnoc_info;
-	char log_buf[CAM_CPAS_LOG_BUF_LEN] = {0};
-	size_t len = 0;
+	struct cam_camnoc_info *camnoc_info;
+	char log_buf[CAM_CPAS_LOG_BUF_LEN];
+	size_t len;
 
-	if (!camnoc_info) {
-		CAM_ERR(CAM_CPAS, "Invalid camnoc info for hw_version: 0x%x",
-			cpas_hw->soc_info.hw_version);
-		return -EINVAL;
+	if (!CAM_CPAS_CLIENT_VALID(client_idx)) {
+		CAM_ERR(CAM_CPAS, "Invalid client idx: %u", client_idx);
+		return -EPERM;
 	}
 
-	for (i = 0; i < camnoc_info->specific_size; i++) {
-		if ((!camnoc_info->specific[i].enable) ||
-			(!camnoc_info->specific[i].maxwr_low.enable))
-			continue;
+	/* log buffer fill level of both RT/NRT NIU */
+	for (camnoc_idx = 0; camnoc_idx < cpas_core->num_valid_camnoc; camnoc_idx++) {
+		log_buf[0] = '\0';
+		len = 0;
+		camnoc_info = cpas_core->camnoc_info[camnoc_idx];
 
-		rc = cam_cpas_hw_reg_read(cpas_hw, client_handle,
-			CAM_CPAS_REG_CAMNOC,
-			camnoc_info->specific[i].maxwr_low.offset, true, &val);
-		if (rc)
-			break;
+		for (i = 0; i < camnoc_info->specific_size; i++) {
+			if ((!camnoc_info->specific[i].enable) ||
+				(!camnoc_info->specific[i].maxwr_low.enable))
+				continue;
 
-		len += scnprintf((log_buf + len), (CAM_CPAS_LOG_BUF_LEN - len),
-			" %s:[%d %d]", camnoc_info->specific[i].port_name,
-			(val & 0x7FF), (val & 0x7F0000) >> 16);
+			rc = cam_cpas_hw_reg_read(cpas_hw, client_handle,
+				camnoc_info->reg_base,
+				camnoc_info->specific[i].maxwr_low.offset, true, &val);
+			if (rc)
+				break;
+
+			len += scnprintf((log_buf + len), (CAM_CPAS_LOG_BUF_LEN - len),
+				" %s:[%d %d]", camnoc_info->specific[i].port_name,
+				(val & 0x7FF), (val & 0x7F0000) >> 16);
+		}
+
+		CAM_INFO(CAM_CPAS, "%s Fill level [Queued Pending] %s",
+			camnoc_info->camnoc_name, log_buf);
 	}
-
-	CAM_INFO(CAM_CPAS, "CAMNOC Fill level [Queued Pending] %s", log_buf);
 
 	return rc;
-
 }
 
 static void cam_cpas_print_smart_qos_priority(
@@ -681,12 +685,17 @@ static void cam_cpas_print_smart_qos_priority(
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
+	struct cam_camnoc_info *camnoc_info = NULL;
 	struct cam_cpas_tree_node *niu_node;
 	uint8_t i;
-	int32_t reg_indx = cpas_core->regbase_index[CAM_CPAS_REG_CAMNOC];
+	int32_t reg_indx;
 	char log_buf[CAM_CPAS_LOG_BUF_LEN] = {0};
 	size_t len = 0;
 	uint32_t val_low = 0, val_high = 0;
+
+	/* Smart QOS only apply to CPAS RT nius */
+	camnoc_info = cpas_core->camnoc_info[cpas_core->camnoc_rt_idx];
+	reg_indx = cpas_core->regbase_index[camnoc_info->reg_base];
 
 	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
@@ -702,7 +711,7 @@ static void cam_cpas_print_smart_qos_priority(
 			val_high, val_low);
 	}
 
-	CAM_INFO(CAM_CPAS, "SmartQoS [Node Pri_lut] %s", log_buf);
+	CAM_INFO(CAM_CPAS, "%s SmartQoS [Node Pri_lut] %s", camnoc_info->camnoc_name, log_buf);
 }
 
 static bool cam_cpas_is_new_rt_bw_lower(
@@ -952,13 +961,18 @@ static int cam_cpas_apply_smart_qos(
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	struct cam_cpas_tree_node *niu_node;
+	struct cam_camnoc_info *camnoc_info;
 	uint8_t i;
-	int32_t reg_indx = cpas_core->regbase_index[CAM_CPAS_REG_CAMNOC];
+	int32_t reg_indx;
 
 	if (cpas_core->smart_qos_dump) {
 		CAM_INFO(CAM_PERF, "Printing SmartQos values before update");
 		cam_cpas_print_smart_qos_priority(cpas_hw);
 	}
+
+	/* Smart QOS only apply to CPAS RT nius */
+	camnoc_info = cpas_core->camnoc_info[cpas_core->camnoc_rt_idx];
+	reg_indx = cpas_core->regbase_index[camnoc_info->reg_base];
 
 	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
@@ -2778,6 +2792,12 @@ static int cam_cpas_hw_register_client(struct cam_hw_info *cpas_hw,
 
 	rc = cam_common_util_get_string_index(soc_private->client_name,
 		soc_private->num_clients, client_name, &client_indx);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Client %s is not found in CPAS client list rc=%d",
+			client_name, rc);
+		mutex_unlock(&cpas_hw->hw_mutex);
+		return -ENODEV;
+	}
 
 	mutex_lock(&cpas_core->client_mutex[client_indx]);
 
@@ -2901,10 +2921,10 @@ static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw, bool ddr_only)
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
-	uint32_t i;
+	uint32_t i, vcd_idx;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
-	struct cam_camnoc_info *camnoc_info =
-		(struct cam_camnoc_info *) cpas_core->camnoc_info;
+	struct cam_cpas_cesta_info *cesta_info =
+		(struct cam_cpas_cesta_info *)cpas_core->cesta_info;
 
 	if ((cpas_core->streamon_clients > 0) && soc_private->enable_smart_qos && !ddr_only)
 		cam_cpas_print_smart_qos_priority(cpas_hw);
@@ -2960,32 +2980,29 @@ static int cam_cpas_log_vote(struct cam_hw_info *cpas_hw, bool ddr_only)
 		void __iomem *cesta_base =
 			soc_info->reg_map[reg_base_index].mem_base;
 		uint32_t vcd_base_inc =
-			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.vcd_base_inc;
-		uint32_t num_vcds =
-			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.num_vcds;
+			cesta_info->cesta_reg_info->vcd_currol.vcd_base_inc;
+		uint32_t num_vcds = cesta_info->num_vcds;
 		uint32_t vcd_curr_lvl_base =
-			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.reg_offset;
+			cesta_info->cesta_reg_info->vcd_currol.reg_offset;
 		uint32_t cesta_vcd_curr_perfol_offset, cesta_vcd_curr_perfol_val;
 
 		if (!atomic_inc_not_zero(&cpas_core->soc_access_count))
 			goto skip_vcd_dump;
 
-		for (i = 0; i <= num_vcds; i++) {
-			if (i == camnoc_info->cesta_info->vcd_info[i].index) {
-				cesta_vcd_curr_perfol_offset = vcd_curr_lvl_base +
-					(vcd_base_inc * i);
-				cesta_vcd_curr_perfol_val =
-					cam_io_r_mb(cesta_base + cesta_vcd_curr_perfol_offset);
-				CAM_INFO(CAM_CPAS,
-					"i=%d, VCD[index=%d, type=%d, name=%s] [offset=0x%x, value=0x%x]",
-					i, camnoc_info->cesta_info->vcd_info[i].index,
-					camnoc_info->cesta_info->vcd_info[i].type,
-					camnoc_info->cesta_info->vcd_info[i].clk,
-					cesta_vcd_curr_perfol_offset,
-					cesta_vcd_curr_perfol_val);
-			} else {
-				CAM_WARN(CAM_CPAS, "cesta vcd index out of range");
-			}
+		for (i = 0; i < num_vcds; i++) {
+			vcd_idx = cesta_info->vcd_info[i].index;
+			cesta_vcd_curr_perfol_offset = vcd_curr_lvl_base +
+				(vcd_base_inc * vcd_idx);
+			cesta_vcd_curr_perfol_val =
+				cam_io_r_mb(cesta_base + cesta_vcd_curr_perfol_offset);
+
+			CAM_INFO(CAM_CPAS,
+				"i=%d, VCD[index=%d, type=%d, name=%s] [offset=0x%x, value=0x%x]",
+				i, cesta_info->vcd_info[i].index,
+				cesta_info->vcd_info[i].type,
+				cesta_info->vcd_info[i].clk,
+				cesta_vcd_curr_perfol_offset,
+				cesta_vcd_curr_perfol_val);
 		}
 
 		atomic_dec(&cpas_core->soc_access_count);
@@ -3070,22 +3087,14 @@ static void cam_cpas_update_monitor_array(struct cam_hw_info *cpas_hw,
 	const char *identifier_string, int32_t identifier_value)
 {
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
-	struct cam_camnoc_info *camnoc_info =
-		(struct cam_camnoc_info *) cpas_core->camnoc_info;
+	struct cam_camnoc_info *camnoc_info = NULL;
+	struct cam_cpas_cesta_info *cesta_info = cpas_core->cesta_info;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	struct cam_cpas_monitor *entry;
-	int iterator;
-	int i, j = 0;
-	int reg_camnoc = cpas_core->regbase_index[CAM_CPAS_REG_CAMNOC];
-	uint32_t val = 0;
-
-	if (!camnoc_info) {
-		CAM_ERR(CAM_CPAS, "Invalid camnoc info for hw_version: 0x%x",
-			cpas_hw->soc_info.hw_version);
-		return;
-	}
+	int iterator, i, j = 0, vcd_idx, camnoc_reg_idx;
+	uint32_t val = 0, camnoc_idx;
 
 	CAM_CPAS_INC_MONITOR_HEAD(&cpas_core->monitor_head, &iterator);
 
@@ -3158,65 +3167,73 @@ static void cam_cpas_update_monitor_array(struct cam_hw_info *cpas_hw,
 			cpas_core->regbase_index[CAM_CPAS_REG_CESTA];
 		void __iomem *cesta_base =
 			soc_info->reg_map[reg_base_index].mem_base;
-		uint32_t vcd_base_inc =
-			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.vcd_base_inc;
-		uint32_t num_vcds =
-			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.num_vcds;
-		uint32_t vcd_curr_lvl_base =
-			camnoc_info->cesta_info->cesta_reg_info->vcd_currol.reg_offset;
+		uint32_t vcd_base_inc = cesta_info->cesta_reg_info->vcd_currol.vcd_base_inc;
+		uint32_t num_vcds = cesta_info->num_vcds;
+		uint32_t vcd_curr_lvl_base = cesta_info->cesta_reg_info->vcd_currol.reg_offset;
 		uint32_t cesta_vcd_curr_perfol_offset, cesta_vcd_curr_perfol_val;
 
 		if (atomic_inc_not_zero(&cpas_core->soc_access_count)) {
-			for (i = 0; i <= num_vcds; i++) {
-				if (i == camnoc_info->cesta_info->vcd_info[i].index) {
-					cesta_vcd_curr_perfol_offset = vcd_curr_lvl_base +
-						(vcd_base_inc * i);
-					cesta_vcd_curr_perfol_val =
-						cam_io_r_mb(cesta_base +
-						cesta_vcd_curr_perfol_offset);
-					entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[i].index =
-						camnoc_info->cesta_info->vcd_info[i].index;
-					entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[i]
-						.reg_value = cesta_vcd_curr_perfol_val;
-				}
+			for (i = 0; i < num_vcds; i++) {
+				vcd_idx = cesta_info->vcd_info[i].index;
+
+				cesta_vcd_curr_perfol_offset = vcd_curr_lvl_base +
+					(vcd_base_inc * vcd_idx);
+				cesta_vcd_curr_perfol_val =
+					cam_io_r_mb(cesta_base +
+					cesta_vcd_curr_perfol_offset);
+				entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[i].index =
+					cesta_info->vcd_info[i].index;
+				entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[i]
+					.reg_value = cesta_vcd_curr_perfol_val;
 			}
 			atomic_dec(&cpas_core->soc_access_count);
 			wake_up(&cpas_core->soc_access_count_wq);
 		}
 	}
 
-	for (i = 0; i < camnoc_info->specific_size; i++) {
-		if ((!camnoc_info->specific[i].enable) ||
-			(!camnoc_info->specific[i].maxwr_low.enable))
-			continue;
+	for (camnoc_idx = 0; camnoc_idx < cpas_core->num_valid_camnoc; camnoc_idx++) {
 
-		if (j >= CAM_CAMNOC_FILL_LVL_REG_INFO_MAX) {
-			CAM_WARN(CAM_CPAS,
-				"CPAS monitor reg info buffer full, max : %d",
-				j);
-			break;
+		camnoc_info = cpas_core->camnoc_info[camnoc_idx];
+		camnoc_reg_idx = cpas_core->regbase_index[camnoc_info->reg_base];
+
+		for (i = 0, j = 0; i < camnoc_info->specific_size; i++) {
+			if ((!camnoc_info->specific[i].enable) ||
+				(!camnoc_info->specific[i].maxwr_low.enable))
+				continue;
+
+			if (j >= CAM_CAMNOC_FILL_LVL_REG_INFO_MAX) {
+				CAM_WARN(CAM_CPAS,
+					"CPAS monitor reg info buffer full, max : %d",
+					j);
+				break;
+			}
+
+			entry->camnoc_port_name[camnoc_idx][j] =
+				camnoc_info->specific[i].port_name;
+			val = cam_io_r_mb(soc_info->reg_map[camnoc_reg_idx].mem_base +
+				camnoc_info->specific[i].maxwr_low.offset);
+			entry->camnoc_fill_level[camnoc_idx][j] = val;
+			j++;
 		}
 
-		entry->camnoc_port_name[j] = camnoc_info->specific[i].port_name;
-		val = cam_io_r_mb(soc_info->reg_map[reg_camnoc].mem_base +
-			camnoc_info->specific[i].maxwr_low.offset);
-		entry->camnoc_fill_level[j] = val;
-		j++;
+		entry->num_camnoc_lvl_regs[camnoc_idx] = j;
 	}
 
-	entry->num_camnoc_lvl_regs = j;
-
 	if (soc_private->enable_smart_qos) {
+
+		camnoc_info = cpas_core->camnoc_info[cpas_core->camnoc_rt_idx];
+		camnoc_reg_idx = cpas_core->regbase_index[camnoc_info->reg_base];
+
 		for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
 			struct cam_cpas_tree_node *niu_node =
 				soc_private->smart_qos_info->rt_wr_niu_node[i];
 
 			entry->rt_wr_niu_pri_lut_high[i] =
-				cam_io_r_mb(soc_info->reg_map[reg_camnoc].mem_base +
+				cam_io_r_mb(soc_info->reg_map[camnoc_reg_idx].mem_base +
 					niu_node->pri_lut_high_offset);
 
 			entry->rt_wr_niu_pri_lut_low[i] =
-				cam_io_r_mb(soc_info->reg_map[reg_camnoc].mem_base +
+				cam_io_r_mb(soc_info->reg_map[camnoc_reg_idx].mem_base +
 					niu_node->pri_lut_low_offset);
 		}
 	}
@@ -3228,17 +3245,17 @@ static void cam_cpas_dump_monitor_array(
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
-	int i = 0, j = 0, k = 0;
+	int i = 0, k = 0;
 	int64_t state_head = 0;
-	uint32_t index, num_entries, oldest_entry;
+	uint32_t index, num_entries, oldest_entry, camnoc_idx, j;
 	uint64_t ms, hrs, min, sec;
 	struct cam_cpas_monitor *entry;
 	struct timespec64 curr_timestamp;
 	char log_buf[CAM_CPAS_LOG_BUF_LEN];
 	size_t len;
 	uint8_t vcd_index;
-	struct cam_camnoc_info *camnoc_info =
-		(struct cam_camnoc_info *) cpas_core->camnoc_info;
+	struct cam_cpas_cesta_info *cesta_info = cpas_core->cesta_info;
+	struct cam_camnoc_info *camnoc_info;
 
 	if (!cpas_core->full_state_dump)
 		return;
@@ -3315,36 +3332,45 @@ static void cam_cpas_dump_monitor_array(
 
 		if (cpas_core->regbase_index[CAM_CPAS_REG_CESTA] != -1) {
 			uint32_t vcd_base_inc =
-				camnoc_info->cesta_info->cesta_reg_info->vcd_currol.vcd_base_inc;
+				cesta_info->cesta_reg_info->vcd_currol.vcd_base_inc;
 			uint32_t vcd_curr_lvl_base =
-				camnoc_info->cesta_info->cesta_reg_info->vcd_currol.reg_offset;
+				cesta_info->cesta_reg_info->vcd_currol.reg_offset;
 			uint32_t reg_offset;
-			uint32_t num_vcds =
-				camnoc_info->cesta_info->cesta_reg_info->vcd_currol.num_vcds;
+			uint32_t num_vcds = cesta_info->num_vcds;
 
-			for (k = 0; k <= num_vcds; k++) {
-				reg_offset = vcd_curr_lvl_base + (vcd_base_inc * i);
+			for (k = 0; k < num_vcds; k++) {
 				vcd_index =
 					entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[k].index;
+				reg_offset = vcd_curr_lvl_base + (vcd_base_inc * vcd_index);
 				CAM_INFO(CAM_CPAS,
 					"VCD[index=%d, type=%d, name=%s] [offset=0x%x, value=0x%x]",
 					vcd_index,
-					camnoc_info->cesta_info->vcd_info[vcd_index].type,
-					camnoc_info->cesta_info->vcd_info[vcd_index].clk,
+					cesta_info->vcd_info[k].type,
+					cesta_info->vcd_info[k].clk,
 					reg_offset,
 					entry->vcd_reg_debug_info.vcd_curr_lvl_debug_info[k]
 					.reg_value);
 			}
 		}
 
-		for (j = 0; j < entry->num_camnoc_lvl_regs; j++) {
-			len += scnprintf((log_buf + len),
-				(CAM_CPAS_LOG_BUF_LEN - len), " %s:[%d %d]",
-				entry->camnoc_port_name[j],
-				(entry->camnoc_fill_level[j] & 0x7FF),
-				(entry->camnoc_fill_level[j] & 0x7F0000) >> 16);
+		for (camnoc_idx = 0; camnoc_idx < cpas_core->num_valid_camnoc; camnoc_idx++) {
+
+			camnoc_info = cpas_core->camnoc_info[camnoc_idx];
+			log_buf[0] = '\0';
+			len = 0;
+
+			for (j = 0; j < entry->num_camnoc_lvl_regs[camnoc_idx]; j++) {
+				len += scnprintf((log_buf + len),
+					(CAM_CPAS_LOG_BUF_LEN - len), " %s:[%d %d]",
+					entry->camnoc_port_name[camnoc_idx][j],
+					(entry->camnoc_fill_level[camnoc_idx][j] & 0x7FF),
+					(entry->camnoc_fill_level[camnoc_idx][j] & 0x7F0000)
+					>> 16);
+			}
+
+			CAM_INFO(CAM_CPAS, "%s REG[Queued Pending] %s",
+				camnoc_info->camnoc_name, log_buf);
 		}
-		CAM_INFO(CAM_CPAS, "CAMNOC REG[Queued Pending] %s", log_buf);
 
 		if (soc_private->enable_smart_qos) {
 			len = 0;

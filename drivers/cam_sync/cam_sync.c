@@ -1437,6 +1437,18 @@ static int cam_generic_fence_process_dma_fence_cmd(
 	return rc;
 }
 
+int cam_sync_synx_core_recovery(
+	enum cam_sync_synx_supported_cores core_id)
+{
+	int rc = -EOPNOTSUPP;
+
+#if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
+	  rc = cam_synx_core_recovery(core_id);
+#endif
+
+	return rc;
+}
+
 #if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
 static int cam_generic_fence_validate_signal_input_info_util(
 	int32_t fence_type,

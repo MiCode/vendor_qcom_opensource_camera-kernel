@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE680_H_
@@ -472,6 +472,26 @@ static struct cam_irq_controller_reg_info vfe680_top_irq_reg_info = {
 	.clear_all_bitmask     = 0xFFFFFFFF,
 };
 
+static uint32_t vfe680_top_debug_reg[] = {
+	0x000000A0,
+	0x000000A4,
+	0x000000A8,
+	0x000000AC,
+	0x000000B0,
+	0x000000B4,
+	0x000000B8,
+	0x000000BC,
+	0x000000C0,
+	0x000000C4,
+	0x000000C8,
+	0x000000CC,
+	0x000000D0,
+	0x000000D4,
+	0x000000D8,
+	0x000000DC,
+	0x000000E0,
+};
+
 static struct cam_vfe_top_ver4_reg_offset_common vfe680_top_common_reg = {
 	.hw_version               = 0x00000000,
 	.hw_capability            = 0x00000004,
@@ -529,25 +549,7 @@ static struct cam_vfe_top_ver4_reg_offset_common vfe680_top_common_reg = {
 	},
 	.top_debug_cfg            = 0x000000FC,
 	.num_top_debug_reg        = CAM_VFE_680_NUM_DBG_REG,
-	.top_debug = {
-		0x000000A0,
-		0x000000A4,
-		0x000000A8,
-		0x000000AC,
-		0x000000B0,
-		0x000000B4,
-		0x000000B8,
-		0x000000BC,
-		0x000000C0,
-		0x000000C4,
-		0x000000C8,
-		0x000000CC,
-		0x000000D0,
-		0x000000D4,
-		0x000000D8,
-		0x000000DC,
-		0x000000E0,
-	},
+	.top_debug = vfe680_top_debug_reg,
 };
 
 static struct cam_vfe_ver4_path_reg_data vfe_pp_common_reg_data = {
@@ -595,7 +597,7 @@ static struct cam_vfe_ver4_path_reg_data vfe680_pdlib_reg_data = {
 };
 
 struct cam_vfe_ver4_path_hw_info
-	vfe680_rdi_hw_info_arr[CAM_VFE_RDI_VER2_MAX] = {
+	vfe680_rdi_hw_info_arr[] = {
 	{
 		.common_reg     = &vfe680_top_common_reg,
 		.reg_data       = &vfe680_vfe_full_rdi_reg_data[0],
@@ -792,24 +794,23 @@ static struct cam_vfe_top_ver4_hw_info vfe680_top_hw_info = {
 		.common_reg     = &vfe680_top_common_reg,
 		.reg_data       = &vfe680_pdlib_reg_data,
 	},
-	.rdi_hw_info[0] = &vfe680_rdi_hw_info_arr[0],
-	.rdi_hw_info[1] = &vfe680_rdi_hw_info_arr[1],
-	.rdi_hw_info[2] = &vfe680_rdi_hw_info_arr[2],
+	.rdi_hw_info            = vfe680_rdi_hw_info_arr,
 	.wr_client_desc         = vfe680_wr_client_desc,
 	.ipp_module_desc        = vfe680_ipp_mod_desc,
 	.num_mux = 5,
 	.mux_type = {
 		CAM_VFE_CAMIF_VER_4_0,
-		CAM_VFE_RDI_VER_1_0,
-		CAM_VFE_RDI_VER_1_0,
-		CAM_VFE_RDI_VER_1_0,
 		CAM_VFE_PDLIB_VER_1_0,
+		CAM_VFE_RDI_VER_1_0,
+		CAM_VFE_RDI_VER_1_0,
+		CAM_VFE_RDI_VER_1_0,
 	},
 	.num_path_port_map = 2,
 	.path_port_map = {
 		{CAM_ISP_HW_VFE_IN_PDLIB, CAM_ISP_IFE_OUT_RES_2PD},
 		{CAM_ISP_HW_VFE_IN_PDLIB, CAM_ISP_IFE_OUT_RES_PREPROCESS_2PD}
 	},
+	.num_rdi                         = ARRAY_SIZE(vfe680_rdi_hw_info_arr),
 	.num_top_errors                  = ARRAY_SIZE(vfe680_top_irq_err_desc),
 	.top_err_desc                    = vfe680_top_irq_err_desc,
 	.num_pdaf_violation_errors       = ARRAY_SIZE(vfe680_pdaf_violation_desc),
@@ -884,6 +885,34 @@ static struct cam_vfe_bus_ver3_reg_offset_ubwc_client
 	.off_lossy_var    = 0x0000135C,
 	.bw_limit         = 0x0000131C,
 	.ubwc_comp_en_bit = BIT(1),
+};
+
+static uint32_t vfe680_out_port_mid[][4] = {
+	{18, 0, 0, 0},
+	{19, 0, 0, 0},
+	{20, 0, 0, 0},
+	{8, 9, 10, 11},
+	{32, 0, 0, 0},
+	{33, 0, 0, 0},
+	{16, 17, 0, 0},
+	{36, 37, 38, 0},
+	{4, 0, 0, 0},
+	{41, 0, 0, 0},
+	{44, 0, 0, 0},
+	{42, 0, 0, 0},
+	{40, 0, 0, 0},
+	{46, 0, 0, 0},
+	{47, 0, 0, 0},
+	{12, 13, 14, 15},
+	{34, 0, 0, 0},
+	{35, 0, 0, 0},
+	{5, 6, 0, 0},
+	{48, 0, 0, 0},
+	{43, 0, 0, 0},
+	{7, 0, 0, 0},
+	{39, 0, 0, 0},
+	{49, 50, 0, 0},
+	{45, 0, 0, 0},
 };
 
 static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
@@ -1748,7 +1777,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_2,
-			.mid[0]        = 18,
+			.mid           = vfe680_out_port_mid[0],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.line_based    = 1,
 			.wm_idx        = {
@@ -1763,7 +1793,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_3,
-			.mid[0]        = 19,
+			.mid           = vfe680_out_port_mid[1],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.line_based    = 1,
 			.wm_idx        = {
@@ -1778,7 +1809,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_4,
-			.mid[0]        = 20,
+			.mid           = vfe680_out_port_mid[2],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.line_based    = 1,
 			.wm_idx        = {
@@ -1793,10 +1825,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 4096,
 			.max_height    = 4096,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 8,
-			.mid[1]        = 9,
-			.mid[2]        = 10,
-			.mid[3]        = 11,
+			.mid           = vfe680_out_port_mid[3],
+			.num_mid       = 4,
 			.num_wm        = 2,
 			.wm_idx        = {
 				0,
@@ -1812,7 +1842,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 1920,
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 32,
+			.mid           = vfe680_out_port_mid[4],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				2,
@@ -1826,7 +1857,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 1920,
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 33,
+			.mid           = vfe680_out_port_mid[5],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				3,
@@ -1840,8 +1872,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 16,
-			.mid[1]        = 17,
+			.mid           = vfe680_out_port_mid[6],
+			.num_mid       = 2,
 			.num_wm        = 1,
 			.wm_idx        = {
 				10,
@@ -1855,9 +1887,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 1920,
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 36,
-			.mid[1]        = 37,
-			.mid[2]        = 38,
+			.mid           = vfe680_out_port_mid[7],
+			.num_mid       = 3,
 			.num_wm        = 2,
 			.wm_idx        = {
 				8,
@@ -1873,7 +1904,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 1920,
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 4,
+			.mid           = vfe680_out_port_mid[8],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				20,
@@ -1888,7 +1920,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 41,
+			.mid           = vfe680_out_port_mid[9],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				13,
@@ -1902,7 +1935,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 44,
+
+			.mid           = vfe680_out_port_mid[10],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				16,
@@ -1916,7 +1951,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 42,
+			.mid           = vfe680_out_port_mid[11],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				14,
@@ -1930,7 +1966,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 40,
+			.mid           = vfe680_out_port_mid[12],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				12,
@@ -1944,7 +1981,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 46,
+			.mid           = vfe680_out_port_mid[13],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				18,
@@ -1958,7 +1996,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 47,
+			.mid           = vfe680_out_port_mid[14],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				19,
@@ -1972,10 +2011,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 4096,
 			.max_height    = 4096,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 12,
-			.mid[1]        = 13,
-			.mid[2]        = 14,
-			.mid[3]        = 15,
+			.mid           = vfe680_out_port_mid[15],
+			.num_mid       = 4,
 			.num_wm        = 2,
 			.wm_idx        = {
 				4,
@@ -1991,7 +2028,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 1920,
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 34,
+			.mid           = vfe680_out_port_mid[16],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				6,
@@ -2005,7 +2043,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 1920,
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 35,
+			.mid           = vfe680_out_port_mid[17],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				7,
@@ -2019,8 +2058,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 1920,
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_1,
-			.mid[0]        = 5,
-			.mid[1]        = 6,
+			.mid           = vfe680_out_port_mid[18],
+			.num_mid       = 2,
 			.num_wm        = 1,
 			.wm_idx        = {
 				21,
@@ -2034,7 +2073,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 48,
+			.mid           = vfe680_out_port_mid[19],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				23,
@@ -2048,7 +2088,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 43,
+			.mid           = vfe680_out_port_mid[20],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				15,
@@ -2062,7 +2103,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_1,
-			.mid[0]        = 7,
+			.mid           = vfe680_out_port_mid[21],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				22,
@@ -2076,7 +2118,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 39,
+			.mid           = vfe680_out_port_mid[22],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				11,
@@ -2090,8 +2133,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 49,
-			.mid[1]        = 50,
+			.mid           = vfe680_out_port_mid[23],
+			.num_mid       = 2,
 			.num_wm        = 1,
 			.wm_idx        = {
 				27,
@@ -2106,7 +2149,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe680_bus_hw_info = {
 			.max_width     = 1920,
 			.max_height    = 1080,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 45,
+			.mid           = vfe680_out_port_mid[24],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				17,

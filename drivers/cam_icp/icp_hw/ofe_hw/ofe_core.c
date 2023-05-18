@@ -452,6 +452,7 @@ int cam_ofe_process_cmd(void *device_priv, uint32_t cmd_type,
 			&clk_level);
 
 		if (!err) {
+			clk_upd_cmd->clk_level = clk_level;
 			ahb_vote.type = CAM_VOTE_ABSOLUTE;
 			ahb_vote.vote.level = clk_level;
 			cam_cpas_update_ahb_vote(

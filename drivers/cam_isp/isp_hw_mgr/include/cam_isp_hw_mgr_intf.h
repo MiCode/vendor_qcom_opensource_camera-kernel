@@ -131,6 +131,7 @@ enum cam_isp_hw_err_type {
 	CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP       = 0x00004000,
 	CAM_ISP_HW_ERROR_CSID_MISSING_EOT             = 0x00008000,
 	CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED   = 0x00010000,
+	CAM_ISP_HW_ERROR_CSID_CAMIF_FRAME_DROP        = 0x00020000,
 };
 
 /**
@@ -395,6 +396,7 @@ enum cam_isp_ctx_type {
  * @packet_op_code:        Packet opcode
  * @last_cdm_done:         Last cdm done request
  * @sof_ts:                SOF timestamps (current, boot and previous)
+ * @cdm_done_ts:           CDM callback done timestamp
  */
 struct cam_isp_hw_cmd_args {
 	uint32_t                          cmd_type;
@@ -410,6 +412,7 @@ struct cam_isp_hw_cmd_args {
 			uint64_t                      boot;
 		} sof_ts;
 	} u;
+	struct timespec64 cdm_done_ts;
 };
 
 /**
@@ -450,9 +453,10 @@ struct cam_isp_lcr_rdi_cfg_args {
  * @hw_mgr:             Input/output structure for the ISP hardware manager
  *                          initialization
  * @iommu_hdl:          Iommu handle to be returned
+ * @isp_device_type:    ISP device type
  */
 int cam_isp_hw_mgr_init(const char    *device_name_str,
-	struct cam_hw_mgr_intf *hw_mgr, int *iommu_hdl);
+	struct cam_hw_mgr_intf *hw_mgr, int *iommu_hdl, uint32_t isp_device_type);
 
 void cam_isp_hw_mgr_deinit(const char *device_name_str);
 

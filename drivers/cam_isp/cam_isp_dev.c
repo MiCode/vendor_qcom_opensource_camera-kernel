@@ -162,6 +162,11 @@ static int cam_isp_dev_component_bind(struct device *dev,
 		CAM_IFE_DEVICE_TYPE);
 		g_isp_dev.isp_device_type = CAM_IFE_DEVICE_TYPE;
 		g_isp_dev.max_context = CAM_IFE_CTX_MAX;
+	} else if (strnstr(compat_str, "mc_tfe", strlen(compat_str))) {
+		rc  = cam_subdev_probe(&g_isp_dev.sd, pdev, CAM_ISP_DEV_NAME,
+		CAM_TFE_MC_DEVICE_TYPE);
+		g_isp_dev.isp_device_type = CAM_TFE_MC_DEVICE_TYPE;
+		g_isp_dev.max_context = CAM_IFE_CTX_MAX;
 	} else if (strnstr(compat_str, "tfe", strlen(compat_str))) {
 		rc = cam_subdev_probe(&g_isp_dev.sd, pdev, CAM_ISP_DEV_NAME,
 		CAM_TFE_DEVICE_TYPE);
@@ -200,7 +205,8 @@ static int cam_isp_dev_component_bind(struct device *dev,
 		goto unregister;
 	}
 
-	rc = cam_isp_hw_mgr_init(compat_str, &hw_mgr_intf, &iommu_hdl);
+	rc = cam_isp_hw_mgr_init(compat_str, &hw_mgr_intf, &iommu_hdl,
+		g_isp_dev.isp_device_type);
 	if (rc != 0) {
 		CAM_ERR(CAM_ISP, "Can not initialized ISP HW manager!");
 		goto kfree;

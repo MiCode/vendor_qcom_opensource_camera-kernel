@@ -133,6 +133,105 @@ struct cam_ife_csid_ver2_camif_data {
 	uint32_t epoch1;
 };
 
+struct cam_ife_csid_ver2_rx_cfg  {
+	uint32_t phy_sel;
+	uint32_t lane_type;
+	uint32_t lane_num;
+	uint32_t lane_cfg;
+	uint32_t tpg_mux_sel;
+	uint32_t tpg_num_sel;
+	uint32_t mup;
+	uint32_t epd_supported;
+	uint32_t top_irq_handle;
+	uint32_t rx2_irq_handle;
+	uint32_t irq_handle;
+	uint32_t err_irq_handle[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
+	bool     dynamic_sensor_switch_en;
+};
+
+struct cam_ife_csid_ver2_csi2_rx_reg_info {
+	uint32_t irq_status_addr[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
+	uint32_t irq_mask_addr[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
+	uint32_t irq_clear_addr[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
+	uint32_t irq_set_addr[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
+	uint32_t cfg0_addr;
+	uint32_t cfg1_addr;
+	uint32_t capture_ctrl_addr;
+	uint32_t rst_strobes_addr;
+	uint32_t de_scramble_cfg0_addr;
+	uint32_t de_scramble_cfg1_addr;
+	uint32_t cap_unmap_long_pkt_hdr_0_addr;
+	uint32_t cap_unmap_long_pkt_hdr_1_addr;
+	uint32_t captured_short_pkt_0_addr;
+	uint32_t captured_short_pkt_1_addr;
+	uint32_t captured_long_pkt_0_addr;
+	uint32_t captured_long_pkt_1_addr;
+	uint32_t captured_long_pkt_ftr_addr;
+	uint32_t captured_cphy_pkt_hdr_addr;
+	uint32_t lane0_misr_addr;
+	uint32_t lane1_misr_addr;
+	uint32_t lane2_misr_addr;
+	uint32_t lane3_misr_addr;
+	uint32_t total_pkts_rcvd_addr;
+	uint32_t stats_ecc_addr;
+	uint32_t total_crc_err_addr;
+	uint32_t de_scramble_type3_cfg0_addr;
+	uint32_t de_scramble_type3_cfg1_addr;
+	uint32_t de_scramble_type2_cfg0_addr;
+	uint32_t de_scramble_type2_cfg1_addr;
+	uint32_t de_scramble_type1_cfg0_addr;
+	uint32_t de_scramble_type1_cfg1_addr;
+	uint32_t de_scramble_type0_cfg0_addr;
+	uint32_t de_scramble_type0_cfg1_addr;
+
+	/*configurations */
+	uint32_t rst_srb_all;
+	uint32_t rst_done_shift_val;
+	uint32_t irq_mask_all;
+	uint32_t misr_enable_shift_val;
+	uint32_t vc_mode_shift_val;
+	uint32_t capture_long_pkt_en_shift;
+	uint32_t capture_short_pkt_en_shift;
+	uint32_t capture_cphy_pkt_en_shift;
+	uint32_t capture_long_pkt_dt_shift;
+	uint32_t capture_long_pkt_vc_shift;
+	uint32_t capture_short_pkt_vc_shift;
+	uint32_t capture_cphy_pkt_dt_shift;
+	uint32_t capture_cphy_pkt_vc_shift;
+	uint32_t ecc_correction_shift_en;
+	uint32_t phy_bist_shift_en;
+	uint32_t epd_mode_shift_en;
+	uint32_t eotp_shift_en;
+	uint32_t dyn_sensor_switch_shift_en;
+	uint32_t rup_aup_latch_shift;
+	bool     rup_aup_latch_supported;
+	uint32_t phy_num_mask;
+	uint32_t vc_mask;
+	uint32_t wc_mask;
+	uint32_t dt_mask;
+	uint32_t vc_shift;
+	uint32_t dt_shift;
+	uint32_t wc_shift;
+	uint32_t calc_crc_mask;
+	uint32_t expected_crc_mask;
+	uint32_t calc_crc_shift;
+	uint32_t lane_num_shift;
+	uint32_t lane_cfg_shift;
+	uint32_t phy_type_shift;
+	uint32_t phy_num_shift;
+	uint32_t tpg_mux_en_shift;
+	uint32_t tpg_num_sel_shift;
+	uint32_t long_pkt_strobe_rst_shift;
+	uint32_t short_pkt_strobe_rst_shift;
+	uint32_t cphy_pkt_strobe_rst_shift;
+	uint32_t unmapped_pkt_strobe_rst_shift;
+	uint32_t fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
+	uint32_t part_fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
+	uint32_t non_fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
+	uint32_t debug_irq_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
+	uint32_t top_irq_mask[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+};
+
 /*
  *struct cam_ife_csid_ver2_rup_aup_mask: place holder for rup/aup mask parameter
  *
@@ -261,6 +360,20 @@ struct cam_ife_csid_ver2_top_reg_info {
 	bool     sfe_pipeline_bypassed;
 };
 
+struct cam_ife_csid_ver2_mc_ctxt_reg_info {
+	uint32_t epoch_irq_cfg_addr;
+};
+
+struct cam_ife_csid_ver2_mc_bcast_reg_info {
+	uint32_t  pix_store_cfg_addr;
+};
+
+struct cam_ife_csid_ver2_mc_reg_info {
+	uint32_t           irq_comp_cfg0_addr;
+	uint32_t           ipp_src_ctxt_mask_shift;
+	uint32_t           ipp_dst_ctxt_mask_shift;
+};
+
 struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t irq_status_addr;
 	uint32_t irq_mask_addr;
@@ -271,6 +384,8 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t debug_clr_cmd_addr;
 	uint32_t multi_vcdt_cfg0_addr;
 	uint32_t cfg1_addr;
+	uint32_t bin_cfg0_addr;
+	uint32_t pix_store_cfg0_addr;
 	uint32_t sparse_pd_extractor_cfg_addr;
 	uint32_t err_recovery_cfg0_addr;
 	uint32_t err_recovery_cfg1_addr;
@@ -284,6 +399,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t epoch_irq_cfg_addr;
 	uint32_t epoch0_subsample_ptrn_addr;
 	uint32_t epoch1_subsample_ptrn_addr;
+	uint32_t debug_rup_aup_status;
 	uint32_t debug_camif_1_addr;
 	uint32_t debug_camif_0_addr;
 	uint32_t frm_drop_pattern_addr;
@@ -303,6 +419,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t debug_misr_val3_addr;
 	uint32_t format_measure_cfg0_addr;
 	uint32_t format_measure_cfg1_addr;
+	uint32_t format_measure_cfg2_addr;
 	uint32_t format_measure0_addr;
 	uint32_t format_measure1_addr;
 	uint32_t format_measure2_addr;
@@ -334,6 +451,8 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t secure_mask_cfg0;
 	uint32_t path_batch_status;
 	uint32_t path_frame_id;
+	uint32_t cfg2_addr;
+	uint32_t debug_sim_monitor;
 
 	/*Shift Bit Configurations*/
 	uint32_t start_mode_master;
@@ -393,7 +512,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t rup_mask;
 	uint32_t aup_mask;
 	uint32_t rup_aup_set_mask;
-	uint32_t top_irq_mask;
+	uint32_t top_irq_mask[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
 	uint32_t epoch0_cfg_val;
 	uint32_t epoch1_cfg_val;
 	uint32_t epoch0_shift_val;
@@ -415,10 +534,11 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t aup_cmd_addr;
 	uint32_t offline_cmd_addr;
 	uint32_t shdr_master_slave_cfg_addr;
-	uint32_t top_irq_status_addr;
-	uint32_t top_irq_mask_addr;
-	uint32_t top_irq_clear_addr;
-	uint32_t top_irq_set_addr;
+	uint32_t top_irq_status_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	uint32_t top_irq_mask_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	uint32_t top_irq_clear_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	uint32_t top_irq_set_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	uint32_t multi_sensor_mode_addr;
 	uint32_t irq_cmd_addr;
 	uint32_t buf_done_irq_status_addr;
 	uint32_t buf_done_irq_mask_addr;
@@ -431,6 +551,9 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t drv_cfg2_addr;
 	uint32_t debug_drv_0_addr;
 	uint32_t debug_drv_1_addr;
+	uint32_t debug_sensor_hbi_irq_vcdt_addr;
+	uint32_t debug_violation_addr;
+	uint32_t debug_cfg_addr;
 
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;
@@ -550,8 +673,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t rdi_irq_mask_all;
 	uint32_t ppp_irq_mask_all;
 	uint32_t udi_irq_mask_all;
-	uint32_t top_err_irq_mask;
-	uint32_t top_reset_irq_mask;
+	uint32_t top_err_irq_mask[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	uint32_t top_reset_irq_mask[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
 	uint32_t top_buf_done_irq_mask;
 	uint32_t epoch_factor;
 	uint32_t decode_format_payload_only;
@@ -592,19 +715,23 @@ struct cam_ife_csid_ver2_reg_info {
 	struct cam_irq_controller_reg_info               *path_irq_reg_info[
 		CAM_IFE_PIX_PATH_RES_MAX];
 	const struct cam_ife_csid_ver2_common_reg_info   *cmn_reg;
-	const struct cam_ife_csid_csi2_rx_reg_info       *csi2_reg;
+	const struct cam_ife_csid_ver2_csi2_rx_reg_info  *csi2_reg;
 	const struct cam_ife_csid_ver2_path_reg_info     *path_reg[
 						    CAM_IFE_PIX_PATH_RES_MAX];
 	const struct cam_ife_csid_ver2_top_reg_info      *top_reg;
+	const struct cam_ife_csid_ver2_mc_reg_info       *ipp_mc_reg;
 	const uint32_t                                    need_top_cfg;
 	const uint32_t                                    csid_cust_node_map[
 		    CAM_IFE_CSID_HW_NUM_MAX];
 	const int                                         input_core_sel[
 		    CAM_IFE_CSID_HW_NUM_MAX][CAM_IFE_CSID_INPUT_CORE_SEL_MAX];
-	const struct cam_ife_csid_irq_desc               *rx_irq_desc;
+	const struct cam_ife_csid_irq_desc               (*rx_irq_desc)[][32];
 	const struct cam_ife_csid_irq_desc               *path_irq_desc;
-	const struct cam_ife_csid_top_irq_desc           *top_irq_desc;
-	const uint32_t                                    num_top_err_irqs;
+	const struct cam_ife_csid_top_irq_desc           (*top_irq_desc)[][32];
+	const uint32_t                                   *num_top_err_irqs;
+	const uint32_t                                   *num_rx_err_irqs;
+	const uint32_t                                    num_top_regs;
+	const uint32_t                                    num_rx_regs;
 };
 
 /*
@@ -653,7 +780,7 @@ struct cam_ife_csid_ver2_hw {
 						    [CAM_IFE_PIX_PATH_RES_MAX];
 	struct cam_ife_csid_cid_data           cid_data[CAM_IFE_CSID_CID_MAX];
 	struct cam_ife_csid_ver2_top_cfg       top_cfg;
-	struct cam_ife_csid_rx_cfg             rx_cfg;
+	struct cam_ife_csid_ver2_rx_cfg        rx_cfg;
 	struct cam_ife_csid_hw_counters        counters;
 	struct cam_ife_csid_hw_flags           flags;
 	struct cam_ife_csid_debug_info         debug_info;
@@ -667,8 +794,10 @@ struct cam_ife_csid_ver2_hw {
 	spinlock_t                             lock_state;
 	spinlock_t                             path_payload_lock;
 	spinlock_t                             rx_payload_lock;
-	void                                  *top_irq_controller;
-	void                                  *rx_irq_controller;
+	void                                  *top_irq_controller
+						[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	void                                  *rx_irq_controller
+						[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
 	void                                  *path_irq_controller[CAM_IFE_PIX_PATH_RES_MAX];
 	void                                  *buf_done_irq_controller;
 	struct cam_hw_intf                    *hw_intf;
@@ -684,8 +813,10 @@ struct cam_ife_csid_ver2_hw {
 	void                                  *tasklet;
 	int                                    reset_irq_handle;
 	int                                    buf_done_irq_handle;
-	int                                    top_err_irq_handle;
-	int                                    top_info_irq_handle;
+	int                                    top_err_irq_handle
+						[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	int                                    top_info_irq_handle
+						[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
 	enum cam_isp_hw_sync_mode              sync_mode;
 	uint32_t                               mup;
 	atomic_t                               discard_frame_per_path;
@@ -718,7 +849,7 @@ struct cam_ife_csid_ver2_res_mini_dump {
 struct cam_ife_csid_ver2_mini_dump_data {
 	struct cam_ife_csid_ver2_res_mini_dump  res[CAM_IFE_PIX_PATH_RES_MAX];
 	struct cam_ife_csid_hw_flags            flags;
-	struct cam_ife_csid_rx_cfg              rx_cfg;
+	struct cam_ife_csid_ver2_rx_cfg         rx_cfg;
 	struct cam_ife_csid_cid_data            cid_data[CAM_IFE_CSID_CID_MAX];
 	uint64_t                                clk_rate;
 	uint8_t                                 hw_state;

@@ -13,107 +13,112 @@
 #include "cam_irq_controller.h"
 #include "cam_isp_hw_mgr_intf.h"
 
-static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_680_rx_irq_desc[] = {
+static uint32_t cam_ife_csid_680_lite_num_top_regs[] = {0,};
+
+static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_680_rx_irq_desc[][32] = {
 	{
-		.bitmask = BIT(0),
-		.desc = "DL0_EOT",
+		{
+			.bitmask = BIT(0),
+			.desc = "DL0_EOT",
+		},
+		{
+			.bitmask = BIT(1),
+			.desc = "DL1_EOT",
+		},
+		{
+			.bitmask = BIT(2),
+			.desc = "DL2_EOT",
+		},
+		{
+			.bitmask = BIT(3),
+			.desc = "DL3_EOT",
+		},
+		{
+			.bitmask = BIT(4),
+			.desc = "DL0_SOT",
+		},
+		{
+			.bitmask = BIT(5),
+			.desc = "DL1_SOT",
+		},
+		{
+			.bitmask = BIT(6),
+			.desc = "DL2_SOT",
+		},
+		{
+			.bitmask = BIT(7),
+			.desc = "DL3_SOT",
+		},
+		{
+			.bitmask = BIT(8),
+			.desc = "LONG_PKT",
+		},
+		{
+			.bitmask = BIT(9),
+			.desc = "SHORT_PKT",
+		},
+		{
+			.bitmask = BIT(10),
+			.desc = "CPHY_PKT_HDR",
+		},
+		{
+			.bitmask = BIT(11),
+			.desc = "ERROR_CPHY_EOT_RECEPTION",
+		},
+		{
+			.bitmask = BIT(12),
+			.desc = "ERROR_CPHY_SOT_RECEPTION",
+		},
+		{
+			.bitmask = BIT(13),
+			.desc = "ERROR_CPHY_PH_CRC",
+		},
+		{
+			.bitmask = BIT(14),
+			.desc = "WARNING_ECC",
+		},
+		{
+			.bitmask = BIT(15),
+			.desc = "ERROR_LANE0_FIFO_OVERFLOW",
+		},
+		{
+			.bitmask = BIT(16),
+			.desc = "ERROR_LANE1_FIFO_OVERFLOW",
+		},
+		{
+			.bitmask = BIT(17),
+			.desc = "ERROR_LANE2_FIFO_OVERFLOW",
+		},
+		{
+			.bitmask = BIT(18),
+			.desc = "ERROR_LANE3_FIFO_OVERFLOW",
+		},
+		{
+			.bitmask = BIT(19),
+			.desc = "ERROR_CRC",
+		},
+		{
+			.bitmask = BIT(20),
+			.desc = "ERROR_ECC",
+		},
+		{
+			.bitmask = BIT(21),
+			.desc = "ERROR_MMAPPED_VC_DT",
+		},
+		{
+			.bitmask = BIT(22),
+			.desc = "ERROR_UNMAPPED_VC_DT",
+		},
+		{
+			.bitmask = BIT(23),
+			.desc = "ERROR_STREAM_UNDERFLOW",
+		},
+		{
+			.bitmask = BIT(24),
+			.desc = "ERROR_UNBOUNDED_FRAME",
+		},
 	},
-	{
-		.bitmask = BIT(1),
-		.desc = "DL1_EOT",
-	},
-	{
-		.bitmask = BIT(2),
-		.desc = "DL2_EOT",
-	},
-	{
-		.bitmask = BIT(3),
-		.desc = "DL3_EOT",
-	},
-	{
-		.bitmask = BIT(4),
-		.desc = "DL0_SOT",
-	},
-	{
-		.bitmask = BIT(5),
-		.desc = "DL1_SOT",
-	},
-	{
-		.bitmask = BIT(6),
-		.desc = "DL2_SOT",
-	},
-	{
-		.bitmask = BIT(7),
-		.desc = "DL3_SOT",
-	},
-	{
-		.bitmask = BIT(8),
-		.desc = "LONG_PKT",
-	},
-	{
-		.bitmask = BIT(9),
-		.desc = "SHORT_PKT",
-	},
-	{
-		.bitmask = BIT(10),
-		.desc = "CPHY_PKT_HDR",
-	},
-	{
-		.bitmask = BIT(11),
-		.desc = "ERROR_CPHY_EOT_RECEPTION",
-	},
-	{
-		.bitmask = BIT(12),
-		.desc = "ERROR_CPHY_SOT_RECEPTION",
-	},
-	{
-		.bitmask = BIT(13),
-		.desc = "ERROR_CPHY_PH_CRC",
-	},
-	{
-		.bitmask = BIT(14),
-		.desc = "WARNING_ECC",
-	},
-	{
-		.bitmask = BIT(15),
-		.desc = "ERROR_LANE0_FIFO_OVERFLOW",
-	},
-	{
-		.bitmask = BIT(16),
-		.desc = "ERROR_LANE1_FIFO_OVERFLOW",
-	},
-	{
-		.bitmask = BIT(17),
-		.desc = "ERROR_LANE2_FIFO_OVERFLOW",
-	},
-	{
-		.bitmask = BIT(18),
-		.desc = "ERROR_LANE3_FIFO_OVERFLOW",
-	},
-	{
-		.bitmask = BIT(19),
-		.desc = "ERROR_CRC",
-	},
-	{
-		.bitmask = BIT(20),
-		.desc = "ERROR_ECC",
-	},
-	{
-		.bitmask = BIT(21),
-		.desc = "ERROR_MMAPPED_VC_DT",
-	},
-	{
-		.bitmask = BIT(22),
-		.desc = "ERROR_UNMAPPED_VC_DT",
-	},
-	{
-		.bitmask = BIT(23),
-		.desc = "ERROR_STREAM_UNDERFLOW",
-	},
-	{
-		.bitmask = BIT(24),
-		.desc = "ERROR_UNBOUNDED_FRAME",
-	},
+	{}
 };
 
 static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_680_path_irq_desc[] = {
@@ -364,10 +369,10 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.rup_aup_cmd_addr                        = 0x18,
 	.offline_cmd_addr                        = 0x1C,
 	.shdr_master_slave_cfg_addr              = 0x20,
-	.top_irq_status_addr                     = 0x7C,
-	.top_irq_mask_addr                       = 0x80,
-	.top_irq_clear_addr                      = 0x84,
-	.top_irq_set_addr                        = 0x88,
+	.top_irq_status_addr                     = {0x7C,},
+	.top_irq_mask_addr                       = {0x80,},
+	.top_irq_clear_addr                      = {0x84,},
+	.top_irq_set_addr                        = {0x88,},
 	.buf_done_irq_status_addr                = 0x8C,
 	.buf_done_irq_mask_addr                  = 0x90,
 	.buf_done_irq_clear_addr                 = 0x94,
@@ -395,6 +400,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.multi_vcdt_en_shift_val                      = 0,
 	.timestamp_stb_sel_shift_val                  = 0,
 	.vfr_en_shift_val                             = 0,
+	.mup_shift_val                                = 28,
 	.early_eof_supported                          = 1,
 	.vfr_supported                                = 1,
 	.multi_vcdt_supported                         = 1,
@@ -419,7 +425,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.rst_cmd_sw_reset_complete_val                = 0x2,
 	.rst_cmd_irq_ctrl_only_val                    = 0x4,
 	.timestamp_strobe_val                         = 0x2,
-	.top_reset_irq_mask                           = 0x1,
+	.top_reset_irq_mask                           = {0x1,},
 	.top_buf_done_irq_mask                        = 0x2000,
 	.global_reset                                 = 1,
 	.rup_supported                                = 1,
@@ -428,12 +434,12 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.camif_irq_support                            = true,
 };
 
-static struct cam_ife_csid_csi2_rx_reg_info
+static struct cam_ife_csid_ver2_csi2_rx_reg_info
 	cam_ife_csid_lite_680_csi2_reg_info = {
-		.irq_status_addr                      = 0x9C,
-		.irq_mask_addr                        = 0xA0,
-		.irq_clear_addr                       = 0xA4,
-		.irq_set_addr                         = 0xA8,
+		.irq_status_addr                      = {0x9C,},
+		.irq_mask_addr                        = {0xA0,},
+		.irq_clear_addr                       = {0xA4,},
+		.irq_set_addr                         = {0xA8,},
 		/*CSI2 rx control */
 		.cfg0_addr                            = 0x200,
 		.cfg1_addr                            = 0x204,
@@ -500,10 +506,10 @@ static struct cam_ife_csid_csi2_rx_reg_info
 		.short_pkt_strobe_rst_shift           = 1,
 		.cphy_pkt_strobe_rst_shift            = 2,
 		.unmapped_pkt_strobe_rst_shift        = 3,
-		.fatal_err_mask                       = 0x19FA800,
-		.part_fatal_err_mask                  = 0x0001000,
-		.non_fatal_err_mask                   = 0x0200000,
-		.top_irq_mask                         = 0x4,
+		.top_irq_mask                         = {0x4,},
+		.fatal_err_mask                       = {0x19FA800,},
+		.part_fatal_err_mask                  = {0x0001000,},
+		.non_fatal_err_mask                   = {0x0200000,},
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -598,7 +604,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.epoch1_irq_mask                  = 0x400000,
 		.eof_irq_mask                     = 0x8,
 		.rup_aup_mask                     = 0x10001,
-		.top_irq_mask                     = 0x10,
+		.top_irq_mask                     = {0x10,},
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -690,7 +696,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.epoch1_irq_mask                = 0x400000,
 		.eof_irq_mask                   = 0x8,
 		.rup_aup_mask                   = 0x100010,
-		.top_irq_mask                   = 0x100,
+		.top_irq_mask                   = {0x100,},
 		.epoch0_shift_val               = 16,
 		.epoch1_shift_val               = 0,
 };
@@ -784,7 +790,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.epoch1_irq_mask                = 0x400000,
 		.eof_irq_mask                   = 0x8,
 		.rup_aup_mask                   = 0x200020,
-		.top_irq_mask                   = 0x200,
+		.top_irq_mask                   = {0x200,},
 		.epoch0_shift_val               = 16,
 		.epoch1_shift_val               = 0,
 };
@@ -878,7 +884,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.epoch1_irq_mask                = 0x400000,
 		.eof_irq_mask                   = 0x8,
 		.rup_aup_mask                   = 0x400040,
-		.top_irq_mask                   = 0x400,
+		.top_irq_mask                   = {0x400,},
 		.epoch0_shift_val               = 16,
 		.epoch1_shift_val               = 0,
 };
@@ -972,7 +978,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.epoch1_irq_mask                = 0x400000,
 		.eof_irq_mask                   = 0x8,
 		.rup_aup_mask                   = 0x800080,
-		.top_irq_mask                   = 0x800,
+		.top_irq_mask                   = {0x800,},
 		.epoch0_shift_val               = 16,
 		.epoch1_shift_val               = 0,
 };
@@ -998,7 +1004,10 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_lite_680_reg_info = {
 	.path_reg[CAM_IFE_PIX_PATH_RES_RDI_2] = &cam_ife_csid_lite_680_rdi_2_reg_info,
 	.path_reg[CAM_IFE_PIX_PATH_RES_RDI_3] = &cam_ife_csid_lite_680_rdi_3_reg_info,
 	.need_top_cfg = 0,
-	.rx_irq_desc        = cam_ife_csid_lite_680_rx_irq_desc,
+	.rx_irq_desc        = &cam_ife_csid_lite_680_rx_irq_desc,
 	.path_irq_desc      = cam_ife_csid_lite_680_path_irq_desc,
+	.num_top_err_irqs   = cam_ife_csid_680_lite_num_top_regs,
+	.num_top_regs       = 1,
+	.num_rx_regs        = 1,
 };
 #endif /* _CAM_IFE_CSID_LITE_680_H_ */

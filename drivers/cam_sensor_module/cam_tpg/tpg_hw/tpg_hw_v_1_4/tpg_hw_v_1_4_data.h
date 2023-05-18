@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_V_1_4_DATA_H__
@@ -19,6 +19,7 @@ struct tpg_hw_ops tpg_hw_v_1_4_ops = {
 	.process_cmd = tpg_hw_v_1_4_process_cmd,
 	.dump_status = tpg_hw_v_1_4_dump_status,
 	.write_settings = tpg_hw_write_settings,
+	.handle_irq  = tpg_hw_v_1_4_handle_irq,
 };
 
 struct tpg_hw_info tpg_v_1_4_hw_info = {

@@ -16,6 +16,12 @@
 #define SYNC_DEBUG_NAME_LEN 63
 typedef void (*sync_callback)(int32_t sync_obj, int status, void *data);
 
+enum cam_sync_synx_supported_cores {
+	CAM_ICP_0_SYNX_CORE = 1,
+	CAM_ICP_1_SYNX_CORE,
+	CAM_INVALID_SYNX_CORE,
+};
+
 /* Kernel APIs */
 
 /**
@@ -152,6 +158,17 @@ int cam_sync_wait(int32_t sync_obj, uint64_t timeout_ms);
  * -EINVAL if sync object is in bad state or arguments are invalid
  */
 int cam_sync_check_valid(int32_t sync_obj);
+
+/**
+ * @brief: Synx recovery for a given core
+ *
+ * @param core_id: Core ID we want to recover for
+ *
+ * @return Status of operation. Zero in case of success
+ * -EINVAL if core_id is invalid
+ */
+int cam_sync_synx_core_recovery(
+	enum cam_sync_synx_supported_cores core_id);
 
 /**
  * @brief : API to register SYNC to platform framework.

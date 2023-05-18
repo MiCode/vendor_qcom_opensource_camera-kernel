@@ -153,6 +153,7 @@ struct cam_vfe_bus_ver3_wm_resource_data {
 	uint32_t             acquired_height;
 	uint32_t             default_line_based;
 	bool                 use_wm_pack;
+	bool                 update_wm_format;
 };
 
 struct cam_vfe_bus_ver3_comp_grp_data {
@@ -195,7 +196,8 @@ struct cam_vfe_bus_ver3_vfe_out_data {
 	struct cam_cdm_utils_ops        *cdm_util_ops;
 	uint32_t                         secure_mode;
 	void                            *priv;
-	uint32_t                         mid[CAM_VFE_BUS_VER3_MAX_MID_PER_PORT];
+	uint32_t                        *mid;
+	uint32_t                         num_mid;
 	bool                             limiter_enabled;
 };
 
@@ -901,6 +903,17 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 		rsrc_data->width =
 			ALIGNUP(rsrc_data->width * 2, 16) / 16;
 		rsrc_data->en_cfg = 0x1;
+
+		if (rsrc_data->use_wm_pack) {
+			rsrc_data->pack_fmt = cam_vfe_bus_ver3_get_packer_fmt(rsrc_data->format,
+				rsrc_data->index);
+			/* LSB aligned */
+			rsrc_data->pack_fmt |= (1 <<
+				rsrc_data->common_data->pack_align_shift);
+
+			if (rsrc_data->default_line_based)
+				rsrc_data->width = ALIGNUP((rsrc_data->acquired_width), 8);
+		}
 		break;
 	case CAM_FORMAT_PLAIN64:
 		rsrc_data->width =
@@ -1404,6 +1417,7 @@ static int cam_vfe_bus_ver3_stop_wm(struct cam_isp_resource_node *wm_res)
 	rsrc_data->init_cfg_done = false;
 	rsrc_data->hfr_cfg_done = false;
 	rsrc_data->ubwc_updated = false;
+	rsrc_data->update_wm_format = false;
 
 	return 0;
 }
@@ -2378,9 +2392,8 @@ static int cam_vfe_bus_ver3_init_vfe_out_resource(uint32_t  index,
 	vfe_out->hw_intf = ver3_bus_priv->common_data.hw_intf;
 	vfe_out->irq_handle = 0;
 
-	for (i = 0; i < CAM_VFE_BUS_VER3_MAX_MID_PER_PORT; i++)
-		rsrc_data->mid[i] = ver3_hw_info->vfe_out_hw_info[index].mid[i];
-
+	rsrc_data->num_mid = ver3_hw_info->vfe_out_hw_info->num_mid;
+	rsrc_data->mid = ver3_hw_info->vfe_out_hw_info[index].mid;
 
 	return 0;
 }
@@ -3371,11 +3384,29 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 				reg_val_pair[j-1]);
 		}
 
-		val = wm_data->pack_fmt;
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-			wm_data->hw_regs->packer_cfg, val);
-		CAM_DBG(CAM_ISP, "VFE:%u WM:%d image pack_fmt %d",
-			bus_priv->common_data.core_index, wm_data->index, reg_val_pair[j-1]);
+		/*
+		 * For write master format update case, we check whether
+		 * the updated format matches with the io config format,
+		 * to help debug the wrong programming on a target who
+		 * doesn't support 2 decode formats on CSID.
+		 */
+		if (wm_data->update_wm_format) {
+			if ((!update_buf->use_scratch_cfg) &&
+				(io_cfg->format != wm_data->format))
+				CAM_WARN(CAM_ISP,
+					"VFE:%u format mismatch, wm_data format:%u io_cfg format:%u",
+					bus_priv->common_data.core_index,
+					wm_data->format,
+					io_cfg->format);
+
+			val = wm_data->pack_fmt;
+			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				wm_data->hw_regs->packer_cfg, val);
+			CAM_DBG(CAM_ISP, "VFE:%u WM:%d image pack_fmt %d",
+				bus_priv->common_data.core_index,
+				wm_data->index,
+				reg_val_pair[j-1]);
+		}
 
 		if (wm_data->en_ubwc) {
 			if (!wm_data->hw_regs->ubwc_regs) {
@@ -3821,6 +3852,8 @@ static int cam_vfe_bus_ver3_update_wm_config(
 	struct cam_vfe_bus_ver3_vfe_out_data        *vfe_out_data = NULL;
 	struct cam_vfe_bus_ver3_wm_resource_data    *wm_data = NULL;
 	struct cam_isp_vfe_wm_config                *wm_config = NULL;
+	enum   cam_vfe_bus_ver3_packer_format        packer_fmt =
+		PACKER_FMT_VER3_MAX;
 
 	if (!cmd_args) {
 		CAM_ERR(CAM_ISP, "Invalid args");
@@ -3860,19 +3893,50 @@ static int cam_vfe_bus_ver3_update_wm_config(
 		 * For RAW10/RAW12/RAW14 sensor mode seamless switch case,
 		 * the format may be changed on RDIs, so we update RDIs WM data.
 		 */
-		if (wm_config->packer_format &&
+		wm_data->update_wm_format = false;
+		if ((wm_config->packer_format != CAM_FORMAT_BASE) &&
 			(wm_data->format != wm_config->packer_format)) {
+			wm_data->update_wm_format = true;
 			wm_data->format = wm_config->packer_format;
+			packer_fmt = cam_vfe_bus_ver3_get_packer_fmt(
+				wm_config->packer_format, wm_data->index);
 
-			if ((vfe_out_data->out_type >= CAM_VFE_BUS_VER3_VFE_OUT_RDI0) &&
-				(vfe_out_data->out_type <= CAM_VFE_BUS_VER3_VFE_OUT_RDI3))
-				cam_vfe_bus_ver3_config_rdi_wm(wm_data);
+			/* Reconfigure only for valid packer fmt */
+			if (packer_fmt != PACKER_FMT_VER3_MAX) {
+				if ((vfe_out_data->out_type >= CAM_VFE_BUS_VER3_VFE_OUT_RDI0) &&
+					(vfe_out_data->out_type <= CAM_VFE_BUS_VER3_VFE_OUT_RDI3))
+					cam_vfe_bus_ver3_config_rdi_wm(wm_data);
+
+				/* LSB aligned for plain type format */
+				switch (wm_config->packer_format) {
+				case CAM_FORMAT_PLAIN16_10:
+				case CAM_FORMAT_PLAIN16_12:
+				case CAM_FORMAT_PLAIN16_14:
+				case CAM_FORMAT_PLAIN16_16:
+					packer_fmt |=
+						(1 << wm_data->common_data->pack_align_shift);
+					wm_data->pack_fmt = packer_fmt;
+					break;
+				default:
+					break;
+				}
+			} else {
+				CAM_ERR(CAM_ISP, "VFE:%u Invalid format:%d",
+					vfe_out_data->common_data->core_index,
+					wm_config->packer_format);
+				return -EINVAL;
+			}
+
+			CAM_DBG(CAM_ISP,
+				"VFE:%u WM:%d update format:%d pack_fmt:%d",
+				vfe_out_data->common_data->core_index, wm_data->index,
+				wm_config->packer_format, wm_data->pack_fmt);
 		}
 
 		CAM_DBG(CAM_ISP,
-			"VFE:%u WM:%d en_cfg:0x%X height:%d width:%d stride:%d pack_fmt:%d",
+			"VFE:%u WM:%d en_cfg:0x%X height:%d width:%d stride:%d",
 			vfe_out_data->common_data->core_index, wm_data->index, wm_data->en_cfg,
-			wm_data->height, wm_data->width, wm_data->stride, wm_data->pack_fmt);
+			wm_data->height, wm_data->width, wm_data->stride);
 	}
 
 	return 0;
@@ -4088,7 +4152,7 @@ static int cam_vfe_bus_get_res_for_mid(
 		if (!out_data)
 			continue;
 
-		for (j = 0; j < CAM_VFE_BUS_VER3_MAX_MID_PER_PORT; j++) {
+		for (j = 0; j < out_data->num_mid; j++) {
 			if (out_data->mid[j] == get_res->mid)
 				goto end;
 		}

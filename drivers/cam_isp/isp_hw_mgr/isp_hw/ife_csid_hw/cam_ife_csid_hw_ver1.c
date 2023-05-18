@@ -791,7 +791,7 @@ static int cam_ife_csid_ver1_deinit_udi_path(
 	soc_info = &csid_hw->hw_info->soc_info;
 	csid_reg = (struct cam_ife_csid_ver1_reg_info *)core_info->csid_reg;
 
-	id =  res->res_id > CAM_IFE_PIX_PATH_RES_UDI_0;
+	id =  res->res_id - CAM_IFE_PIX_PATH_RES_UDI_0;
 	path_reg = csid_reg->udi_reg[id];
 
 	if (!path_reg) {
@@ -1046,7 +1046,8 @@ static int cam_ife_csid_ver1_stop_udi_path(
 		return -EINVAL;
 	}
 
-	if (res->res_id >= CAM_IFE_PIX_PATH_RES_MAX) {
+	if (res->res_id < CAM_IFE_PIX_PATH_RES_UDI_0 ||
+			res->res_id > CAM_IFE_PIX_PATH_RES_UDI_2) {
 		CAM_DBG(CAM_ISP, "CSID:%d Invalid res id%d",
 			csid_hw->hw_intf->hw_idx, res->res_id);
 		return -EINVAL;
@@ -1923,7 +1924,7 @@ static int cam_ife_csid_ver1_start_udi_path(
 	soc_info = &csid_hw->hw_info->soc_info;
 	csid_reg = (struct cam_ife_csid_ver1_reg_info *)core_info->csid_reg;
 
-	id = res->res_id - CAM_IFE_PIX_PATH_RES_UDI_2;
+	id = res->res_id - CAM_IFE_PIX_PATH_RES_UDI_0;
 
 	path_reg = csid_reg->udi_reg[id];
 
@@ -2308,8 +2309,14 @@ static int cam_ife_csid_ver1_init_config_udi_path(
 	csid_reg = (struct cam_ife_csid_ver1_reg_info *)
 			csid_hw->core_info->csid_reg;
 
-	id = res->res_id - CAM_IFE_PIX_PATH_RES_UDI_0;
+	if (res->res_id < CAM_IFE_PIX_PATH_RES_UDI_0 ||
+			res->res_id > CAM_IFE_PIX_PATH_RES_UDI_2) {
+		CAM_DBG(CAM_ISP, "CSID:%d Invalid res id%d",
+			csid_hw->hw_intf->hw_idx, res->res_id);
+		return -EINVAL;
+	}
 
+	id = res->res_id - CAM_IFE_PIX_PATH_RES_UDI_0;
 	if (!csid_reg->udi_reg[id]) {
 		CAM_ERR(CAM_ISP, "CSID:%d UDI:%d is not supported on HW",
 			 csid_hw->hw_intf->hw_idx, res->res_id);
@@ -4201,8 +4208,6 @@ static int cam_ife_csid_ver1_bottom_half_handler(
 		if (!evt_payload->irq_status[i])
 			continue;
 
-		path_reg = NULL;
-
 		switch (i) {
 		case  CAM_IFE_CSID_IRQ_REG_IPP:
 			path_reg = csid_reg->ipp_reg;
@@ -4225,6 +4230,7 @@ static int cam_ife_csid_ver1_bottom_half_handler(
 			path_reg = csid_reg->udi_reg[id];
 			break;
 		default:
+			path_reg = NULL;
 			break;
 		}
 

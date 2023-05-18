@@ -421,11 +421,19 @@ static int32_t cam_spi_page_program(struct camera_io_master *client,
 	memcpy(tx + header_len, data, len);
 	CAM_DBG(CAM_SENSOR, "tx(%u): %02x %02x %02x %02x",
 		len, tx[0], tx[1], tx[2], tx[3]);
-	while ((rc = spi_write(spi, tx, len + header_len)) && retries) {
-		rc = cam_spi_wait(client, pg, addr_type);
-		msleep(client->spi_client->retry_delay);
-		retries--;
-	}
+	do {
+		rc = spi_write(spi, tx, len + header_len);
+		if (rc) {
+			if (retries == 0) {
+				break;
+			} else {
+				retries--;
+				cam_spi_wait(client, pg, addr_type);
+				msleep(client->spi_client->retry_delay);
+			}
+		}
+	} while (rc);
+
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "failed %d", rc);
 		return rc;

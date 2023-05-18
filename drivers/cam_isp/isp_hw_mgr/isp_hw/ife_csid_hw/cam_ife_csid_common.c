@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -128,31 +128,15 @@ static int cam_ife_csid_validate_rdi_format(uint32_t in_format,
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_10:
-		switch (out_format) {
-		case CAM_FORMAT_MIPI_RAW_10:
-		case CAM_FORMAT_PLAIN128:
-		case CAM_FORMAT_PLAIN16_10:
-		case CAM_FORMAT_PLAIN16_16:
-			break;
-		default:
-			rc = -EINVAL;
-			break;
-		}
-		break;
 	case CAM_FORMAT_MIPI_RAW_12:
-		switch (out_format) {
-		case CAM_FORMAT_MIPI_RAW_12:
-		case CAM_FORMAT_PLAIN16_12:
-		case CAM_FORMAT_PLAIN16_16:
-			break;
-		default:
-			rc = -EINVAL;
-			break;
-		}
-		break;
 	case CAM_FORMAT_MIPI_RAW_14:
 		switch (out_format) {
+		case CAM_FORMAT_MIPI_RAW_10:
+		case CAM_FORMAT_MIPI_RAW_12:
 		case CAM_FORMAT_MIPI_RAW_14:
+		case CAM_FORMAT_PLAIN128:
+		case CAM_FORMAT_PLAIN16_10:
+		case CAM_FORMAT_PLAIN16_12:
 		case CAM_FORMAT_PLAIN16_14:
 		case CAM_FORMAT_PLAIN16_16:
 			break;

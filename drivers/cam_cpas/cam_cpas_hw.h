@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_HW_H_
@@ -59,6 +59,20 @@
 	div_u64_rem(atomic64_add_return(1, head),\
 	CAM_CPAS_MONITOR_MAX_ENTRIES, (ret))
 #define CAM_CPAS_MAX_CESTA_VCD_NUM 9
+
+/**
+ * enum cam_camnoc_domain_type - Enum for different camnoc domains
+ * @CAM_CAMNOC_HW_COMBINED: refer to legacy camnoc info that combines RT/NRT HW
+ * @CAM_CAMNOC_HW_RT: type for camnoc RT info
+ * @CAM_CAMNOC_HW_NRT: type for camnoc NRT info
+ * @CAM_CAMNOC_HW_TYPE_MAX: camnoc info maximum type
+ */
+enum cam_camnoc_hw_type {
+	CAM_CAMNOC_HW_COMBINED,
+	CAM_CAMNOC_HW_RT,
+	CAM_CAMNOC_HW_NRT,
+	CAM_CAMNOC_HW_TYPE_MAX,
+};
 
 /**
  * enum cam_cpas_access_type - Enum for Register access type
@@ -322,9 +336,11 @@ struct cam_cpas_monitor {
 	uint32_t            fe_mnoc;
 	uint32_t            be_mnoc;
 	uint32_t            be_shub;
-	uint32_t            num_camnoc_lvl_regs;
-	const char          *camnoc_port_name[CAM_CAMNOC_FILL_LVL_REG_INFO_MAX];
-	uint32_t            camnoc_fill_level[CAM_CAMNOC_FILL_LVL_REG_INFO_MAX];
+	uint32_t            num_camnoc_lvl_regs[CAM_CAMNOC_HW_TYPE_MAX];
+	const char          *camnoc_port_name[CAM_CAMNOC_HW_TYPE_MAX]
+		[CAM_CAMNOC_FILL_LVL_REG_INFO_MAX];
+	uint32_t            camnoc_fill_level[CAM_CAMNOC_HW_TYPE_MAX]
+		[CAM_CAMNOC_FILL_LVL_REG_INFO_MAX];
 	uint32_t            rt_wr_niu_pri_lut_low[CAM_CPAS_MAX_RT_WR_NIU_NODES];
 	uint32_t            rt_wr_niu_pri_lut_high[CAM_CPAS_MAX_RT_WR_NIU_NODES];
 	struct cam_cpas_cesta_vcd_reg_debug_info vcd_reg_debug_info;
@@ -359,7 +375,11 @@ struct cam_cpas_monitor {
  * @applied_camnoc_axi_rate: applied camnoc axi clock rate through sw, hw clients
  * @monitor_head: Monitor array head
  * @monitor_entries: cpas monitor array
- * @camnoc_info: Pointer to camnoc header info
+ * @camnoc_info: array of camnoc info pointer
+ * @cesta_info: Pointer to cesta header info
+ * @num_valid_camnoc: number of valid camnoc info
+ * @camnoc_rt_idx: index to real time camnoc info array
+ * @camnoc_info_idx: map camnoc hw type to index used for camnoc_info array indexing
  * @full_state_dump: Whether to enable full cpas state dump or not
  * @smart_qos_dump: Whether to dump smart qos information on update
  * @slave_err_irq_en: Whether slave error irq is enabled to detect memory
@@ -378,7 +398,7 @@ struct cam_cpas {
 	uint32_t num_camnoc_axi_ports;
 	uint32_t registered_clients;
 	uint32_t streamon_clients;
-	uint32_t slave_err_irq_idx;
+	uint32_t slave_err_irq_idx[CAM_CAMNOC_HW_TYPE_MAX];
 	int32_t regbase_index[CAM_CPAS_REG_MAX];
 	struct cam_cpas_bus_client ahb_bus_client;
 	struct cam_cpas_axi_port axi_port[CAM_CPAS_MAX_AXI_PORTS];
@@ -392,10 +412,14 @@ struct cam_cpas {
 	struct cam_soc_util_clk_rates applied_camnoc_axi_rate;
 	atomic64_t  monitor_head;
 	struct cam_cpas_monitor monitor_entries[CAM_CPAS_MONITOR_MAX_ENTRIES];
-	void *camnoc_info;
+	void *camnoc_info[CAM_CAMNOC_HW_TYPE_MAX];
+	void *cesta_info;
+	uint8_t num_valid_camnoc;
+	int8_t camnoc_rt_idx;
+	int8_t camnoc_info_idx[CAM_CAMNOC_HW_TYPE_MAX];
 	bool full_state_dump;
 	bool smart_qos_dump;
-	bool slave_err_irq_en;
+	bool slave_err_irq_en[CAM_CAMNOC_HW_TYPE_MAX];
 	bool smmu_fault_handled;
 	bool force_hlos_drv;
 	bool force_cesta_sw_client;

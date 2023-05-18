@@ -843,7 +843,7 @@ DEFINE_SIMPLE_ATTRIBUTE(cam_soc_util_clk_lvl_control_low,
 static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
-	struct dentry *dbgfileptr = NULL, *clkdirptr = NULL;
+	struct dentry *clkdirptr = NULL;
 
 	if (!cam_debugfs_available())
 		return 0;
@@ -864,23 +864,20 @@ static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 		}
 	}
 
-	dbgfileptr = debugfs_create_dir(soc_info->dev_name, clkdirptr);
-	if (IS_ERR_OR_NULL(dbgfileptr)) {
+	soc_info->dentry = debugfs_create_dir(soc_info->dev_name, clkdirptr);
+	if (IS_ERR_OR_NULL(soc_info->dentry)) {
 		CAM_ERR(CAM_UTIL, "DebugFS could not create directory for dev:%s!",
 			soc_info->dev_name);
 		rc = -ENOENT;
 		goto end;
 	}
 	/* Store parent inode for cleanup in caller */
-	soc_info->dentry = dbgfileptr;
-
-	dbgfileptr = debugfs_create_file("clk_lvl_options", 0444,
+	debugfs_create_file("clk_lvl_options", 0444,
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_options);
-	dbgfileptr = debugfs_create_file("clk_lvl_control", 0644,
+	debugfs_create_file("clk_lvl_control", 0644,
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_control);
-	dbgfileptr = debugfs_create_file("clk_lvl_control_low", 0644,
+	debugfs_create_file("clk_lvl_control_low", 0644,
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_control_low);
-	rc = PTR_ERR_OR_ZERO(dbgfileptr);
 end:
 	return rc;
 }
@@ -2102,8 +2099,10 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 	CAM_DBG(CAM_UTIL, "gpio count %d", gpio_array_size);
 
 	gpio_array = kcalloc(gpio_array_size, sizeof(uint16_t), GFP_KERNEL);
-	if (!gpio_array)
-		goto free_gpio_conf;
+	if (!gpio_array) {
+		rc = -ENOMEM;
+		goto err;
+	}
 
 	for (i = 0; i < gpio_array_size; i++) {
 		gpio_array[i] = of_get_gpio(of_node, i);
@@ -2111,21 +2110,23 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 	}
 
 	gconf = kzalloc(sizeof(*gconf), GFP_KERNEL);
-	if (!gconf)
-		return -ENOMEM;
+	if (!gconf) {
+		rc = -ENOMEM;
+		goto free_gpio_array;
+	}
 
 	rc = cam_soc_util_get_dt_gpio_req_tbl(of_node, gconf, gpio_array,
 		gpio_array_size);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "failed in msm_camera_get_dt_gpio_req_tbl");
-		goto free_gpio_array;
+		goto free_gpio_conf;
 	}
 
 	gconf->cam_gpio_common_tbl = kcalloc(gpio_array_size,
 				sizeof(struct gpio), GFP_KERNEL);
 	if (!gconf->cam_gpio_common_tbl) {
 		rc = -ENOMEM;
-		goto free_gpio_array;
+		goto free_gpio_conf;
 	}
 
 	for (i = 0; i < gpio_array_size; i++)
@@ -2137,10 +2138,11 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 
 	return rc;
 
-free_gpio_array:
-	kfree(gpio_array);
 free_gpio_conf:
 	kfree(gconf);
+free_gpio_array:
+	kfree(gpio_array);
+err:
 	soc_info->gpio_data = NULL;
 
 	return rc;
@@ -2215,7 +2217,6 @@ static int cam_soc_util_get_dt_regulator_info
 	if (count != -EINVAL) {
 		if (count <= 0) {
 			CAM_ERR(CAM_UTIL, "no regulators found");
-			count = 0;
 			return -EINVAL;
 		}
 
@@ -2381,11 +2382,9 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 
 	rc = of_property_read_string_index(of_node, "compatible", 0,
 		(const char **)&soc_info->compatible);
-	if (rc) {
+	if (rc)
 		CAM_DBG(CAM_UTIL, "No compatible string present for: %s",
 			soc_info->dev_name);
-		rc = 0;
-	}
 
 	soc_info->is_nrt_dev = false;
 	if (of_property_read_bool(of_node, "nrt-device"))
@@ -2912,7 +2911,7 @@ int cam_soc_util_request_platform_resource(
 		return -EINVAL;
 	}
 
-	if (unlikely(soc_info->irq_count >= CAM_SOC_MAX_IRQ_LINES_PER_DEV)) {
+	if (unlikely(soc_info->irq_count > CAM_SOC_MAX_IRQ_LINES_PER_DEV)) {
 		CAM_ERR(CAM_UTIL, "Invalid irq count: %u Max IRQ per device: %d",
 			soc_info->irq_count, CAM_SOC_MAX_IRQ_LINES_PER_DEV);
 		return -EINVAL;

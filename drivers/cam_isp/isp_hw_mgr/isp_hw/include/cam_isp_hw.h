@@ -17,7 +17,7 @@
 #include "cam_hw_mgr_intf.h"
 
 /* Maximum length of tag while dumping */
-#define CAM_ISP_HW_DUMP_TAG_MAX_LEN 64
+#define CAM_ISP_HW_DUMP_TAG_MAX_LEN 128
 /* Max isp hw pid values number */
 #define CAM_ISP_HW_MAX_PID_VAL      4
 /* Maximum number of output ports that map to an architecture specific input path */

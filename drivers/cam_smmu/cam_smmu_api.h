@@ -18,6 +18,14 @@
 #include <linux/mutex.h>
 #include <linux/msm_ion.h>
 
+#define BYTE_SIZE 8
+#define COOKIE_NUM_BYTE 2
+#define COOKIE_SIZE (BYTE_SIZE*COOKIE_NUM_BYTE)
+#define COOKIE_MASK ((1<<COOKIE_SIZE) - 1)
+#define MULTI_CLIENT_REGION_SHIFT 28
+#define CAM_SMMU_HDL_MASK ((BIT(MULTI_CLIENT_REGION_SHIFT)) - 1)
+#define GET_SMMU_TABLE_IDX(x) ((((x) & CAM_SMMU_HDL_MASK) >> COOKIE_SIZE) & COOKIE_MASK)
+
 #define CAM_SMMU_GET_IOVA_DELTA(val1, val2)                                \
 ({                                                                         \
 	(val1) > (val2) ? (val1) - (val2) : (val2) - (val1);               \
@@ -52,8 +60,10 @@ enum cam_smmu_region_id {
 
 enum cam_smmu_subregion_id {
 	CAM_SMMU_SUBREGION_GENERIC,
-	CAM_SMMU_SUBREGION_HWMUTEX,
+	CAM_SMMU_SUBREGION_SYNX_HWMUTEX,
+	CAM_SMMU_SUBREGION_IPC_HWMUTEX,
 	CAM_SMMU_SUBREGION_GLOBAL_SYNC_MEM,
+	CAM_SMMU_SUBREGION_GLOBAL_CNTR,
 	CAM_SMMU_SUBREGION_MAX,
 };
 
@@ -519,8 +529,16 @@ bool cam_smmu_is_expanded_memory(void);
 int cam_smmu_is_cb_non_fatal_fault_en(int smmu_hdl, bool *non_fatal_en);
 
 /**
- * @brief : API to get CSF version in use that's received from SMMU proxy driver
+ * @brief : API to initialize any SMMU config, also get any capabilities
+ * such as num banks and the CSF version in use that's received from SMMU proxy driver
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-void cam_smmu_get_csf_version(struct cam_csf_version *csf_ver);
+int cam_smmu_driver_init(struct cam_csf_version *csf_ver, int32_t *num_cbs);
+
+/**
+ * @brief : API to deinitialize any initialized SMMU config
+ */
+void cam_smmu_driver_deinit(void);
 
 #endif /* _CAM_SMMU_API_H_ */

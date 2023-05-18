@@ -1332,11 +1332,20 @@ static struct cam_camnoc_info cam880_cpas100_camnoc_info = {
 		.sbm_enable_mask = 0x80,
 		.sbm_clear_mask = 0x4,
 	},
-	.cesta_info = &cam_v880_cesta_info,
 };
 
 static struct cam_cpas_camnoc_qchannel cam880_cpas100_qchannel_info = {
 	.qchannel_ctrl   = 0x5C,
 	.qchannel_status = 0x60,
 };
+
+static struct cam_cpas_info cam880_cpas100_cpas_info = {
+	.hw_caps_info = {
+		.num_caps_registers = 2,
+		.hw_caps_offsets = {0x8, 0xDC},
+	},
+	.qchannel_info = {&cam880_cpas100_qchannel_info},
+	.num_qchannel = 1,
+};
+
 #endif /* _CPASTOP_V880_100_H_ */

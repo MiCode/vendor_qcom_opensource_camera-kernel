@@ -463,6 +463,7 @@ static void __cam_isp_ctx_update_state_monitor_array(
 	uint64_t req_id)
 {
 	int iterator;
+	struct cam_context *ctx = ctx_isp->base;
 
 	INC_HEAD(&ctx_isp->state_monitor_head,
 		CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES, &iterator);
@@ -475,7 +476,12 @@ static void __cam_isp_ctx_update_state_monitor_array(
 		trigger_type;
 	ctx_isp->cam_isp_ctx_state_monitor[iterator].req_id =
 		req_id;
-	ktime_get_clocktai_ts64(&ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp);
+	if (trigger_type == CAM_ISP_STATE_CHANGE_TRIGGER_CDM_DONE)
+		ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp =
+			ctx->cdm_done_ts;
+	else
+		ktime_get_clocktai_ts64(
+			&ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp);
 }
 
 static const char *__cam_isp_ctx_substate_val_to_type(
@@ -517,6 +523,8 @@ static const char *__cam_isp_hw_evt_val_to_type(
 		return "EPOCH";
 	case CAM_ISP_STATE_CHANGE_TRIGGER_EOF:
 		return "EOF";
+	case CAM_ISP_STATE_CHANGE_TRIGGER_CDM_DONE:
+		return "CDM_DONE";
 	case CAM_ISP_STATE_CHANGE_TRIGGER_DONE:
 		return "DONE";
 	case CAM_ISP_STATE_CHANGE_TRIGGER_FLUSH:
@@ -1175,6 +1183,7 @@ static const char *__cam_isp_resource_handle_id_to_type(
 {
 	switch (device_type) {
 	case CAM_IFE_DEVICE_TYPE:
+	case CAM_TFE_MC_DEVICE_TYPE:
 		return __cam_isp_ife_sfe_resource_handle_id_to_type(resource_handle);
 	case CAM_TFE_DEVICE_TYPE:
 		return __cam_isp_tfe_resource_handle_id_to_type(resource_handle);
@@ -1246,6 +1255,35 @@ static int __cam_isp_ctx_get_hw_timestamp(struct cam_context *ctx, uint64_t *pre
 	*prev_ts = isp_hw_cmd_args.u.sof_ts.prev;
 	*curr_ts = isp_hw_cmd_args.u.sof_ts.curr;
 	*boot_ts = isp_hw_cmd_args.u.sof_ts.boot;
+
+	return 0;
+}
+
+static int __cam_isp_ctx_get_cdm_done_timestamp(struct cam_context *ctx,
+	uint64_t *last_cdm_done_req)
+{
+	struct cam_hw_cmd_args hw_cmd_args;
+	struct cam_isp_hw_cmd_args isp_hw_cmd_args;
+	struct tm ts;
+	int rc;
+
+	hw_cmd_args.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
+	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+	hw_cmd_args.u.internal_args = &isp_hw_cmd_args;
+
+	isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_GET_LAST_CDM_DONE;
+	rc = ctx->hw_mgr_intf->hw_cmd(ctx->ctxt_to_hw_map, &hw_cmd_args);
+	if (rc)
+		return rc;
+
+	*last_cdm_done_req = isp_hw_cmd_args.u.last_cdm_done;
+	ctx->cdm_done_ts = isp_hw_cmd_args.cdm_done_ts;
+	time64_to_tm(isp_hw_cmd_args.cdm_done_ts.tv_sec, 0, &ts);
+	CAM_DBG(CAM_ISP,
+		"last_cdm_done req: %llu ctx: %u link: 0x%x time[%d-%d %d:%d:%d.%lld]",
+		last_cdm_done_req, ctx->ctx_id, ctx->link_hdl,
+		ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
+		isp_hw_cmd_args.cdm_done_ts.tv_nsec / 1000000);
 
 	return 0;
 }
@@ -2748,7 +2786,7 @@ static int __cam_isp_ctx_reg_upd_in_applied_state(
 		goto end;
 	}
 	req = list_first_entry(&ctx->wait_req_list,
-			struct cam_ctx_request, list);
+		struct cam_ctx_request, list);
 	list_del_init(&req->list);
 
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
@@ -2927,6 +2965,16 @@ static int __cam_isp_ctx_notify_eof_in_activated_state(
 	struct cam_isp_context *ctx_isp, void *evt_data)
 {
 	int rc = 0;
+	struct cam_context *ctx = ctx_isp->base;
+	uint64_t last_cdm_done_req = 0;
+
+	/* update last cdm done timestamp */
+	rc = __cam_isp_ctx_get_cdm_done_timestamp(ctx, &last_cdm_done_req);
+	if (rc)
+		CAM_ERR(CAM_ISP, "ctx:%u link: 0x%x Failed to get timestamp from HW",
+			ctx->ctx_id, ctx->link_hdl);
+	__cam_isp_ctx_update_state_monitor_array(ctx_isp,
+		CAM_ISP_STATE_CHANGE_TRIGGER_CDM_DONE, last_cdm_done_req);
 
 	/* notify reqmgr with eof signal */
 	rc = __cam_isp_ctx_notify_trigger_util(CAM_TRIGGER_POINT_EOF, ctx_isp);
@@ -3824,7 +3872,6 @@ end:
 	do {
 		if (list_empty(&ctx->pending_req_list)) {
 			error_request_id = ctx_isp->last_applied_req_id;
-			req_isp = NULL;
 			break;
 		}
 		req = list_first_entry(&ctx->pending_req_list,
@@ -5162,7 +5209,7 @@ hw_dump:
 
 	/* Dump time info */
 	rc = cam_common_user_dump_helper(&dump_args, cam_isp_ctx_user_dump_timer,
-		req, sizeof(uint64_t), "ISP_CTX_DUMP:.%c", req_type);
+		req, sizeof(uint64_t), "ISP_CTX_DUMP.%c:", req_type);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Time dump fail %lld, rc: %d, ctx_idx: %u, link: 0x%x",
 			req->request_id, rc, ctx->ctx_id, ctx->link_hdl);

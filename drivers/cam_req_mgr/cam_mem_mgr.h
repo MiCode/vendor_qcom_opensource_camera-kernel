@@ -41,19 +41,38 @@ struct cam_presil_dmabuf_params {
 #endif
 
 /**
+ * struct cam_mem_buf_hw_vaddr_info
+ *
+ * @iommu_hdl:     IOMMU handle for the given bank
+ * @vaddr:         IOVA of the buffer
+ * @len:           cached length for a given handle
+ * @addr_updated:  Indicates if entry is updated only for addr caching
+ * @valid_mapping: Indicates if entry is indeed a valid mapping for this buf
+ *
+ */
+struct cam_mem_buf_hw_hdl_info {
+	int32_t iommu_hdl;
+	dma_addr_t vaddr;
+	size_t len;
+
+	bool addr_updated;
+	bool valid_mapping;
+};
+
+/**
  * struct cam_mem_buf_queue
  *
  * @dma_buf:        pointer to the allocated dma_buf in the table
  * @q_lock:         mutex lock for buffer
- * @hdls:           list of mapped handles
- * @num_hdl:        number of handles
  * @fd:             file descriptor of buffer
  * @i_ino:          inode number of this dmabuf. Uniquely identifies a buffer
  * @buf_handle:     unique handle for buffer
  * @align:          alignment for allocation
  * @len:            size of buffer
  * @flags:          attributes of buffer
- * @vaddr:          IOVA of buffer
+ * @num_hdls:       number of valid handles
+ * @vaddr_info:     Array of IOVA addresses mapped for different devices
+ *                  using the same indexing as SMMU
  * @kmdvaddr:       Kernel virtual address
  * @active:         state of the buffer
  * @is_imported:    Flag indicating if buffer is imported from an FD in user space
@@ -64,16 +83,15 @@ struct cam_presil_dmabuf_params {
 struct cam_mem_buf_queue {
 	struct dma_buf *dma_buf;
 	struct mutex q_lock;
-	int32_t hdls[CAM_MEM_MMU_MAX_HANDLE];
-	int32_t num_hdl;
 	int32_t fd;
 	unsigned long i_ino;
 	int32_t buf_handle;
 	int32_t align;
 	size_t len;
 	uint32_t flags;
-	dma_addr_t vaddr;
 	uintptr_t kmdvaddr;
+	int32_t num_hdls;
+	struct cam_mem_buf_hw_hdl_info *hdls_info;
 	bool active;
 	bool is_imported;
 	bool is_internal;
@@ -92,6 +110,11 @@ struct cam_mem_buf_queue {
  * @bits: max bits of the utility
  * @bufq: array of buffers
  * @dbg_buf_idx: debug buffer index to get usecases info
+ * @max_hdls_supported: Maximum number of SMMU device handles supported
+ *                      A buffer can only be mapped for these number of
+ *                      device context banks
+ * @max_hdls_info_size: Size of the hdls array allocated per buffer,
+ *                      computed value to be used in driver
  * @force_cache_allocs: Force all internal buffer allocations with cache
  * @need_shared_buffer_padding: Whether padding is needed for shared buffer
  *                              allocations.
@@ -111,6 +134,8 @@ struct cam_mem_table {
 	size_t bits;
 	struct cam_mem_buf_queue bufq[CAM_MEM_BUFQ_MAX];
 	size_t dbg_buf_idx;
+	int32_t max_hdls_supported;
+	size_t max_hdls_info_size;
 	bool force_cache_allocs;
 	bool need_shared_buffer_padding;
 	struct cam_csf_version csf_version;

@@ -933,8 +933,6 @@ int cam_flash_i2c_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 	int rc = 0, i = 0;
 	uintptr_t generic_ptr;
 	uint32_t total_cmd_buf_in_bytes = 0;
-	uint32_t processed_cmd_buf_in_bytes = 0;
-	uint16_t cmd_length_in_bytes = 0;
 	uint32_t *cmd_buf =  NULL;
 	uint32_t *offset = NULL;
 	uint32_t frm_offset = 0;
@@ -1012,7 +1010,6 @@ int cam_flash_i2c_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 		/* Loop through multiple command buffers */
 		for (i = 1; i < csl_packet->num_cmd_buf; i++) {
 			total_cmd_buf_in_bytes = cmd_desc[i].length;
-			processed_cmd_buf_in_bytes = 0;
 			if (!total_cmd_buf_in_bytes)
 				continue;
 			rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle,
@@ -1040,9 +1037,8 @@ int cam_flash_i2c_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 
 			/* Loop through cmd formats in one cmd buffer */
 			CAM_DBG(CAM_FLASH,
-				"command Type: %d,Processed: %d,Total: %d",
-				cmn_hdr->cmd_type, processed_cmd_buf_in_bytes,
-				total_cmd_buf_in_bytes);
+				"command Type: %d,Total: %d",
+				cmn_hdr->cmd_type, total_cmd_buf_in_bytes);
 			switch (cmn_hdr->cmd_type) {
 			case CAMERA_SENSOR_FLASH_CMD_TYPE_INIT_INFO:
 				if (len_of_buffer <
@@ -1053,12 +1049,6 @@ int cam_flash_i2c_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 
 				flash_init = (struct cam_flash_init *)cmd_buf;
 				fctrl->flash_type = flash_init->flash_type;
-				cmd_length_in_bytes =
-					sizeof(struct cam_flash_init);
-				processed_cmd_buf_in_bytes +=
-					cmd_length_in_bytes;
-				cmd_buf += cmd_length_in_bytes/
-						sizeof(uint32_t);
 				break;
 			case CAMERA_SENSOR_CMD_TYPE_I2C_INFO:
 				rc = cam_flash_slaveInfo_pkt_parser(
@@ -1069,27 +1059,15 @@ int cam_flash_i2c_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 					rc);
 					return rc;
 				}
-				cmd_length_in_bytes =
-					sizeof(struct cam_cmd_i2c_info);
-				processed_cmd_buf_in_bytes +=
-					cmd_length_in_bytes;
-				cmd_buf += cmd_length_in_bytes/
-						sizeof(uint32_t);
 				break;
 			case CAMERA_SENSOR_CMD_TYPE_PWR_UP:
 			case CAMERA_SENSOR_CMD_TYPE_PWR_DOWN:
 				CAM_DBG(CAM_FLASH,
 					"Received power settings");
-				cmd_length_in_bytes =
-					total_cmd_buf_in_bytes;
 				rc = cam_sensor_update_power_settings(
 					cmd_buf,
 					total_cmd_buf_in_bytes,
 					&fctrl->power_info, remain_len);
-				processed_cmd_buf_in_bytes +=
-					cmd_length_in_bytes;
-				cmd_buf += cmd_length_in_bytes/
-						sizeof(uint32_t);
 				if (rc) {
 					CAM_ERR(CAM_FLASH,
 					"Failed update power settings");
@@ -1113,13 +1091,6 @@ int cam_flash_i2c_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 					"pkt parsing failed: %d", rc);
 					return rc;
 				}
-				cmd_length_in_bytes =
-					cmd_desc[i].length;
-				processed_cmd_buf_in_bytes +=
-					cmd_length_in_bytes;
-				cmd_buf += cmd_length_in_bytes/
-						sizeof(uint32_t);
-
 				break;
 			}
 		}

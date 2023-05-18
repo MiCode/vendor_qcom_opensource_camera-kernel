@@ -14,7 +14,7 @@
 
 #define CAM_REQ_MGR_MAX_LINKED_DEV     16
 #define MAX_REQ_SLOTS                  48
-#define MAX_REQ_STATE_MONITOR_NUM      40
+#define MAX_REQ_STATE_MONITOR_NUM      108
 
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT          1000
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT_DEFAULT  5000
@@ -54,7 +54,7 @@
 #define CAM_CRM_DUMP_EVENT_NUM_WORDS  6
 
 /* Maximum length of tag while dumping */
-#define CAM_CRM_DUMP_TAG_MAX_LEN 64
+#define CAM_CRM_DUMP_TAG_MAX_LEN 128
 
 /* Number of headers in dumping req state info function*/
 #define CAM_CRM_DUMP_EVENT_NUM_HEADERS  2

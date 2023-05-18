@@ -25,6 +25,24 @@ enum cam_ife_csid_hw_irq_regs {
 };
 
 /**
+ * enum cam_ife_csid_top_irq_regs - Specify the top irq reg
+ */
+enum cam_ife_csid_top_irq_regs {
+	CAM_IFE_CSID_TOP_IRQ_STATUS_REG0,
+	CAM_IFE_CSID_TOP2_IRQ_STATUS_REG1,
+	CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX,
+};
+
+/**
+ * enum cam_ife_csid_rx_irq_regs - Specify the rx irq reg
+ */
+enum cam_ife_csid_rx_irq_regs {
+	CAM_IFE_CSID_RX_IRQ_STATUS_REG0,
+	CAM_IFE_CSID_RX2_IRQ_STATUS_REG1,
+	CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX,
+};
+
+/**
  * enum cam_ife_csid_input_core_type - Specify the csid input core
  */
 enum cam_ife_csid_input_core_type {
@@ -49,6 +67,8 @@ enum cam_ife_pix_path_res_id {
 	CAM_IFE_PIX_PATH_RES_UDI_0,
 	CAM_IFE_PIX_PATH_RES_UDI_1,
 	CAM_IFE_PIX_PATH_RES_UDI_2,
+	CAM_IFE_PIX_PATH_RES_IPP_1,
+	CAM_IFE_PIX_PATH_RES_IPP_2,
 	CAM_IFE_PIX_PATH_RES_MAX,
 };
 
@@ -155,6 +175,7 @@ struct cam_isp_in_port_generic_info {
 	uint32_t                        lcr_count;
 	uint32_t                        ife_rd_count;
 	uint32_t                        lite_path_count;
+	uint32_t                        sfe_port_count;
 	uint32_t                        sfe_in_path_type;
 	uint32_t                        sfe_ife_enable;
 	uint32_t                        epoch_factor;

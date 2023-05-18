@@ -1699,10 +1699,37 @@ cleanup_clients:
 	return rc;
 }
 
+static int cam_cpas_soc_fill_irq_data(struct cam_hw_info *cpas_hw,
+	struct cam_hw_soc_info *soc_info, void **irq_data)
+{
+	struct cam_cpas_private_soc *soc_private = soc_info->soc_private;
+	int i;
+
+	for (i = 0; i < soc_info->irq_count; i++) {
+		soc_private->irq_data[i].cpas_hw = cpas_hw;
+
+		if (!strcmp(soc_info->irq_name[i], "cpas_camnoc"))
+			soc_private->irq_data[i].camnoc_type = CAM_CAMNOC_HW_COMBINED;
+		else if (!strcmp(soc_info->irq_name[i], "cpas_camnoc_rt"))
+			soc_private->irq_data[i].camnoc_type = CAM_CAMNOC_HW_RT;
+		else if (!strcmp(soc_info->irq_name[i], "cpas_camnoc_nrt"))
+			soc_private->irq_data[i].camnoc_type = CAM_CAMNOC_HW_NRT;
+		else {
+			CAM_ERR(CAM_CPAS, "Unable to identify interrupt name: %s",
+				soc_info->irq_name[i]);
+			return -EINVAL;
+		}
+
+		irq_data[i] = &soc_private->irq_data[i];
+	}
+
+	return 0;
+}
+
 int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 	irq_handler_t irq_handler, struct cam_hw_info *cpas_hw)
 {
-	int rc = 0, i;
+	int rc = 0;
 	struct cam_cpas_private_soc *soc_private;
 	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
@@ -1717,31 +1744,39 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < soc_info->irq_count; i++)
-		irq_data[i] = cpas_hw;
-
-	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler, &(irq_data[0]));
-	if (rc) {
-		CAM_ERR(CAM_CPAS, "failed in request_platform_resource, rc=%d",
-			rc);
-		return rc;
-	}
-
 	soc_info->soc_private = kzalloc(sizeof(struct cam_cpas_private_soc),
 		GFP_KERNEL);
 	if (!soc_info->soc_private) {
-		rc = -ENOMEM;
-		goto release_res;
+		CAM_ERR(CAM_CPAS, "Failed to allocate soc private");
+		return -ENOMEM;
 	}
+	soc_private = (struct cam_cpas_private_soc *)soc_info->soc_private;
 
-	rc = cam_cpas_get_custom_dt_info(cpas_hw, soc_info->pdev,
-		soc_info->soc_private);
+	rc = cam_cpas_get_custom_dt_info(cpas_hw, soc_info->pdev, soc_private);
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "failed in get_custom_info, rc=%d", rc);
 		goto free_soc_private;
 	}
 
-	soc_private = (struct cam_cpas_private_soc *)soc_info->soc_private;
+	soc_private->irq_data = kcalloc(soc_info->irq_count, sizeof(struct cam_cpas_soc_irq_data),
+		GFP_KERNEL);
+	if (!soc_private->irq_data) {
+		CAM_ERR(CAM_CPAS, "Failed to allocate irq data");
+		rc = -ENOMEM;
+		goto free_soc_private;
+	}
+
+	rc = cam_cpas_soc_fill_irq_data(cpas_hw, soc_info, &(irq_data[0]));
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed to fill irq data rc=%d", rc);
+		goto free_irq_data;
+	}
+
+	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler, &(irq_data[0]));
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "failed in request_platform_resource, rc=%d", rc);
+		goto free_irq_data;
+	}
 
 	soc_info->is_clk_drv_en = soc_private->enable_cam_clk_drv;
 
@@ -1760,15 +1795,20 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		rc = cam_cpas_get_domain_id_support_clks(soc_info->pdev->dev.of_node,
 			soc_info, soc_private);
 		if (rc)
-			goto free_soc_private;
+			goto release_res;
 	}
 
 	return rc;
 
-free_soc_private:
-	kfree(soc_info->soc_private);
 release_res:
 	cam_soc_util_release_platform_resource(soc_info);
+free_irq_data:
+	kfree(soc_private->irq_data);
+free_soc_private:
+	kfree(soc_private->llcc_info);
+	kfree(soc_private->smart_qos_info);
+	kfree(soc_info->soc_private);
+	soc_info->soc_private = NULL;
 	return rc;
 }
 
@@ -1794,6 +1834,7 @@ int cam_cpas_soc_deinit_resources(struct cam_hw_soc_info *soc_info)
 	if (rc)
 		CAM_ERR(CAM_CPAS, "release platform failed, rc=%d", rc);
 
+	kfree(soc_private->irq_data);
 	kfree(soc_private->llcc_info);
 	kfree(soc_private->smart_qos_info);
 	kfree(soc_info->soc_private);
