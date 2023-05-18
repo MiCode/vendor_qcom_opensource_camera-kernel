@@ -118,7 +118,7 @@ static int cam_tpg_apply_req(
 		apply->request_id);
 	mutex_lock(&tpg_dev->mutex);
 	tpg_hw_apply(&tpg_dev->tpg_hw,
-			apply->request_id);
+		apply->request_id);
 	mutex_unlock(&tpg_dev->mutex);
 
 	return 0;

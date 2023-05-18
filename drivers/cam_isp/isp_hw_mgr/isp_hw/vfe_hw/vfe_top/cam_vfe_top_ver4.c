@@ -556,10 +556,10 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 	soc_info = top_priv->top_common.soc_info;
 	soc_private = soc_info->soc_private;
 
-	bus_overflow_status  = cam_io_r(soc_info->reg_map[VFE_CORE_BASE_IDX].mem_base +
-		    common_data->common_reg->bus_overflow_status);
+	bus_overflow_status = cam_io_r(soc_info->reg_map[VFE_CORE_BASE_IDX].mem_base +
+		common_data->common_reg->bus_overflow_status);
 	violation_status = cam_io_r(soc_info->reg_map[VFE_CORE_BASE_IDX].mem_base +
-		    common_data->common_reg->bus_violation_status);
+		common_data->common_reg->bus_violation_status);
 
 	if (soc_private->is_ife_lite)
 		CAM_ERR(CAM_ISP,

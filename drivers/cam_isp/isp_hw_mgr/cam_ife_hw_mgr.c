@@ -13614,7 +13614,7 @@ static int  cam_ife_hw_mgr_find_affected_ctx(
 		if (notify_err_cb)
 			notify_err_cb(ife_hwr_mgr_ctx->common.cb_priv,
 				CAM_ISP_HW_EVENT_ERROR,
-			        (void *)error_event_data);
+				(void *)error_event_data);
 		else {
 			CAM_WARN(CAM_ISP, "Error call back is not set, ctx_idx: %u",
 				ife_hwr_mgr_ctx->ctx_index);
@@ -13626,7 +13626,7 @@ static int  cam_ife_hw_mgr_find_affected_ctx(
 	for (i = 0; i < CAM_IFE_HW_NUM_MAX; i++) {
 		recovery_data->affected_core[i] = affected_core[i];
 		CAM_DBG(CAM_ISP, "Vfe core %d is affected (%d)",
-			 i, recovery_data->affected_core[i]);
+			i, recovery_data->affected_core[i]);
 	}
 end:
 	return 0;

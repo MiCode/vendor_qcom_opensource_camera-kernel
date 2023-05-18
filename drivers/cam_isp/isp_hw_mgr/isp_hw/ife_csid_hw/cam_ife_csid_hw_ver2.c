@@ -1743,7 +1743,7 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	uint8_t                                 *log_buf = NULL;
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-		    csid_hw->core_info->csid_reg;
+		csid_hw->core_info->csid_reg;
 
 	log_buf = csid_hw->log_buf;
 
@@ -2126,7 +2126,7 @@ static int cam_ife_csid_ver2_ppp_bottom_half(
 	irq_status_ppp = payload->irq_reg_val;
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-			csid_hw->core_info->csid_reg;
+		csid_hw->core_info->csid_reg;
 
 	path_reg = csid_reg->path_reg[res->res_id];
 	err_mask = path_reg->fatal_err_mask | path_reg->non_fatal_err_mask;

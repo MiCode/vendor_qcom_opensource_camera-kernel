@@ -837,7 +837,7 @@ static int __cam_isp_ctx_notify_v4l2_error_event(
 	if (rc)
 		CAM_ERR(CAM_ISP,
 			"Notifying v4l2 error [type: %u code: %u] failed for req id:%llu in ctx %u on link: 0x%x",
-			error_request_id, ctx->ctx_id);
+			error_type, error_code, error_request_id, ctx->ctx_id, ctx->link_hdl);
 
 	return rc;
 }
@@ -8486,8 +8486,8 @@ static int cam_isp_context_validate_event_notify_injection(struct cam_context *c
 
 		if (!non_fatal_en) {
 			CAM_ERR(CAM_ISP,
-			    "Fail to inject pagefault event notif. Pagefault fatal for ISP,ctx:%u link:0x%x",
-			    ctx->ctx_id, ctx->link_hdl);
+				"Fail to inject pagefault event notif. Pagefault fatal for ISP,ctx:%u link:0x%x",
+				ctx->ctx_id, ctx->link_hdl);
 			return -EINVAL;
 		}
 

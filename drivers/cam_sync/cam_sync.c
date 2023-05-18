@@ -1443,7 +1443,7 @@ int cam_sync_synx_core_recovery(
 	int rc = -EOPNOTSUPP;
 
 #if IS_ENABLED(CONFIG_TARGET_SYNX_ENABLE)
-	  rc = cam_synx_core_recovery(core_id);
+	rc = cam_synx_core_recovery(core_id);
 #endif
 
 	return rc;
