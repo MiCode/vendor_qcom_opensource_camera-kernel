@@ -653,6 +653,7 @@ static int cam_tfe_bus_acquire_rdi_wm(
 	int pack_fmt = 0;
 	int rdi_width = rsrc_data->common_data->rdi_width;
 	int mode_cfg_shift = rsrc_data->common_data->mode_cfg_shift;
+
 	if (rdi_width == 64)
 		pack_fmt = 0xa;
 	else if (rdi_width == 128)
@@ -2164,6 +2165,70 @@ end:
 
 }
 
+static int cam_tfe_bus_diable_wm(void *priv, void *cmd_args,
+	uint32_t arg_size)
+{
+	struct cam_tfe_bus_priv              *bus_priv;
+	struct cam_isp_hw_get_cmd_update     *update_buf;
+	struct cam_tfe_bus_tfe_out_data      *tfe_out_data = NULL;
+	struct cam_tfe_bus_wm_resource_data  *wm_data = NULL;
+	struct cam_cdm_utils_ops             *cdm_util_ops = NULL;
+	uint32_t *reg_val_pair;
+	uint32_t num_regval_pairs = 0;
+	uint32_t i, j, size = 0;
+
+	bus_priv = (struct cam_tfe_bus_priv  *) priv;
+	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
+	tfe_out_data = (struct cam_tfe_bus_tfe_out_data *) update_buf->res->res_priv;
+
+	if (!tfe_out_data || !(tfe_out_data->cdm_util_ops)) {
+		CAM_ERR(CAM_ISP, "Failed! invalid data");
+		return -EINVAL;
+	}
+
+	cdm_util_ops = tfe_out_data->cdm_util_ops;
+
+	reg_val_pair = &tfe_out_data->common_data->io_buf_update[0];
+	for (i = 0, j = 0; i < tfe_out_data->num_wm; i++) {
+		if (j >= (MAX_REG_VAL_PAIR_SIZE - MAX_BUF_UPDATE_REG_NUM * 2)) {
+			CAM_ERR(CAM_ISP,
+				"reg_val_pair %d exceeds the array limit %zu",
+				j, MAX_REG_VAL_PAIR_SIZE);
+			return -ENOMEM;
+		}
+		wm_data = tfe_out_data->wm_res[i]->res_priv;
+
+		CAM_TFE_ADD_REG_VAL_PAIR(reg_val_pair, j, wm_data->hw_regs->cfg, 0);
+		CAM_DBG(CAM_ISP, "WM:%d disabled cfg %x", wm_data->index, wm_data->hw_regs->cfg);
+	}
+
+	num_regval_pairs = j / 2;
+
+	if (num_regval_pairs) {
+		size = cdm_util_ops->cdm_required_size_reg_random(num_regval_pairs);
+
+		/* cdm util returns dwords, need to convert to bytes */
+		if ((size * 4) > update_buf->cmd.size) {
+			CAM_ERR(CAM_ISP,
+				"Failed! Buf size:%d insufficient, expected size:%d",
+				update_buf->cmd.size, size);
+			return -ENOMEM;
+		}
+
+		cdm_util_ops->cdm_write_regrandom(
+			update_buf->cmd.cmd_buf_addr,
+			num_regval_pairs, reg_val_pair);
+
+		/* cdm util returns dwords, need to convert to bytes */
+		update_buf->cmd.used_bytes = size * 4;
+	} else {
+		update_buf->cmd.used_bytes = 0;
+		CAM_DBG(CAM_ISP, "No reg val pairs. num_wms: %u", tfe_out_data->num_wm);
+	}
+
+	return 0;
+}
+
 static int cam_tfe_bus_update_wm(void *priv, void *cmd_args,
 	uint32_t arg_size)
 {
@@ -2752,6 +2817,9 @@ static int cam_tfe_bus_process_cmd(void *priv,
 		done = (struct cam_isp_hw_done_event_data *) cmd_args;
 		done->last_consumed_addr = cam_tfe_bus_get_last_consumed_addr(
 			bus_priv, done->resource_handle);
+		break;
+	case CAM_ISP_HW_CMD_BUS_WM_DISABLE:
+		rc = cam_tfe_bus_diable_wm(priv, cmd_args, arg_size);
 		break;
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "Invalid camif process command:%d",

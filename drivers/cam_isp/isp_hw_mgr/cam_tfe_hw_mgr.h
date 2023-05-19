@@ -129,6 +129,7 @@ struct cam_tfe_cdm_user_data {
  * @try_recovery_cnt          Retry count for overflow recovery
  * @current_mup               Current MUP val
  * @recovery_req_id           The request id on which overflow recovery happens
+ * @acquired_wm_mask          Bitmask of acquired out resource
  * @is_shdr                   Indicate if the usecase is SHDR
  * @is_shdr_slave             Indicate whether context is slave in shdr usecase
  */
@@ -178,6 +179,7 @@ struct cam_tfe_hw_mgr_ctx {
 	uint32_t                        current_mup;
 	uint32_t                        try_recovery_cnt;
 	uint64_t                        recovery_req_id;
+	uint64_t                        acquired_wm_mask;
 	enum cam_cdm_id                 cdm_id;
 	bool                            is_shdr;
 	bool                            is_shdr_slave;
