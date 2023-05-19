@@ -264,6 +264,9 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 		req->out_map_entries[j].sync_id = -1;
 	}
 
+	if (cam_presil_mode_enabled())
+		cam_packet_util_put_packet_addr(req->pf_data.packet_handle);
+
 	if (cam_debug_ctx_req_list & ctx->dev_id)
 		CAM_INFO(CAM_CTXT,
 			"[%s][%d] : Moving req[%llu] from active_list to free_list",
@@ -484,6 +487,7 @@ int32_t cam_context_config_dev_to_hw(
 		rc = -EFAULT;
 	}
 
+	cam_mem_put_cpu_buf((int32_t) cmd->packet_handle);
 	return rc;
 }
 
@@ -1502,6 +1506,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	if (dump_args->offset >= buf_len) {
 		CAM_WARN(CAM_CTXT, "dump buffer overshoot offset %zu len %zu",
 			dump_args->offset, buf_len);
+		cam_mem_put_cpu_buf(dump_args->buf_handle);
 		return -ENOSPC;
 	}
 
@@ -1531,6 +1536,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 		if (remain_len < min_len) {
 			CAM_WARN(CAM_CTXT, "dump buffer exhaust remain %zu min %u",
 				remain_len, min_len);
+			cam_mem_put_cpu_buf(dump_args->buf_handle);
 			return -ENOSPC;
 		}
 	}
@@ -1678,6 +1684,7 @@ static int cam_context_user_dump(struct cam_context *ctx,
 		}
 	}
 
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return 0;
 }
 
@@ -1758,7 +1765,7 @@ size_t cam_context_parse_config_cmd(struct cam_context *ctx, struct cam_config_d
 		CAM_ERR(CAM_CTXT, "invalid buff length: %zu or offset: %zu", len,
 			(size_t)cmd->offset);
 		rc = -EINVAL;
-		goto err;
+		goto put_cpu_buf;
 	}
 
 	*packet = (struct cam_packet *) ((uint8_t *)packet_addr + (uint32_t)cmd->offset);
@@ -1768,12 +1775,15 @@ size_t cam_context_parse_config_cmd(struct cam_context *ctx, struct cam_config_d
 		cmd->packet_handle, packet_addr, cmd->offset, len, (*packet)->header.request_id,
 		(*packet)->header.size, (*packet)->header.op_code);
 
+	cam_mem_put_cpu_buf((int32_t) cmd->packet_handle);
 	return (len - (size_t)cmd->offset);
 
+put_cpu_buf:
+	if (cmd)
+		cam_mem_put_cpu_buf((int32_t) cmd->packet_handle);
 err:
 	if (packet)
 		*packet = ERR_PTR(rc);
-
 	return 0;
 }
 
@@ -1831,6 +1841,7 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 		req->pf_data.packet_offset);
 	if (rc)
 		return;
+
 	if (packet && packet->num_io_configs) {
 		bytes_required = packet->num_io_configs * sizeof(struct cam_buf_io_cfg);
 		if (start_addr + bytes_written + bytes_required > end_addr)
@@ -1844,6 +1855,7 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 		req_md->num_io_cfg = packet->num_io_configs;
 	}
 
+	cam_packet_util_put_packet_addr(req->pf_data.packet_handle);
 end:
 	*bytes_updated = bytes_written;
 }

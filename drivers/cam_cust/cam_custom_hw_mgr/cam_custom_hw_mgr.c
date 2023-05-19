@@ -1248,6 +1248,12 @@ static int cam_custom_mgr_prepare_hw_update(void *hw_mgr_priv,
 		prepare->packet->cmd_buf_offset);
 	rc = cam_packet_util_get_cmd_mem_addr(
 			cmd_desc->mem_handle, &ptr, &len);
+	if (rc == -EINVAL) {
+		CAM_ERR(CAM_CUSTOM, "Failed to get CPU addr handle 0x%x",
+			cmd_desc->mem_handle);
+		return -EINVAL;
+	}
+
 	if (!rc) {
 		ptr += (cmd_desc->offset / 4);
 		custom_buf_type1 =
@@ -1262,6 +1268,7 @@ static int cam_custom_mgr_prepare_hw_update(void *hw_mgr_priv,
 	ctx->scratch_buffer_addr = 0x0;
 	prepare_hw_data->num_cfg = 0;
 	cam_custom_add_io_buffers(hw_mgr->img_iommu_hdl, prepare);
+	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
 	return 0;
 }
 

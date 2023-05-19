@@ -2434,6 +2434,8 @@ static void cam_cre_mgr_dump_pf_data(struct cam_cre_hw_mgr  *hw_mgr,
 
 	cam_packet_util_dump_patch_info(packet, hw_mgr->iommu_hdl,
 		hw_mgr->iommu_sec_hdl, pf_args);
+
+	cam_mem_put_cpu_buf(pf_cmd_args->pf_req_info->packet_handle);
 }
 
 static int cam_cre_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
