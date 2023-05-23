@@ -6633,7 +6633,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		CAM_ERR(CAM_ISP, "Prepare config packet failed in HW layer, ctx: %u, link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
 		rc = -EFAULT;
-		goto free_req;
+		goto free_req_and_buf_tracker_list;
 	}
 
 	req_isp->num_cfg = cfg.num_hw_update_entries;
@@ -6740,8 +6740,9 @@ put_ref:
 			CAM_ERR(CAM_CTXT, "Failed to put ref of fence %d, ctx_idx: %u, link: 0x%x",
 				req_isp->fence_map_out[i].sync_id, ctx->ctx_id, ctx->link_hdl);
 	}
-free_req:
+free_req_and_buf_tracker_list:
 	cam_smmu_buffer_tracker_putref(&req->buf_tracker);
+free_req:
 	spin_lock_bh(&ctx->lock);
 	list_add_tail(&req->list, &ctx->free_req_list);
 	spin_unlock_bh(&ctx->lock);

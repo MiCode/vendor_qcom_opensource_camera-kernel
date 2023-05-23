@@ -529,6 +529,7 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 		return -ENOMEM;
 	}
 
+	INIT_LIST_HEAD(&req->buf_tracker);
 	INIT_LIST_HEAD(&req->list);
 	req->ctx = ctx;
 	req->num_hw_update_entries  = 0;
@@ -573,8 +574,6 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 	cfg.buf_tracker = &req->buf_tracker;
 	memset(req->out_map_entries, 0, sizeof(struct cam_hw_fence_map_entry)
 		* ctx->max_out_map_entries);
-
-	INIT_LIST_HEAD(cfg.buf_tracker);
 
 	rc = ctx->hw_mgr_intf->hw_prepare_update(
 		ctx->hw_mgr_intf->hw_mgr_priv, &cfg);
