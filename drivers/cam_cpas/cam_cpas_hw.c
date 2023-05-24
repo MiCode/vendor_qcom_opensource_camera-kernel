@@ -2312,7 +2312,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 	struct cam_ahb_vote remove_ahb;
 	struct cam_axi_vote axi_vote = {0};
 	enum cam_vote_level applied_level = CAM_SVS_VOTE;
-	int rc, i = 0;
+	int rc, i = 0, err_val = 0;
 	struct cam_cpas_private_soc *soc_private = NULL;
 	bool invalid_start = true;
 	int count;
@@ -2516,10 +2516,10 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 remove_ahb_vote:
 	remove_ahb.type = CAM_VOTE_ABSOLUTE;
 	remove_ahb.vote.level = CAM_SUSPEND_VOTE;
-	rc = cam_cpas_util_apply_client_ahb_vote(cpas_hw, cpas_client,
+	err_val = cam_cpas_util_apply_client_ahb_vote(cpas_hw, cpas_client,
 		&remove_ahb, NULL);
-	if (rc)
-		CAM_ERR(CAM_CPAS, "Removing AHB vote failed, rc=%d", rc);
+	if (err_val)
+		CAM_ERR(CAM_CPAS, "Removing AHB vote failed, rc=%d", err_val);
 
 error:
 	mutex_unlock(&cpas_core->client_mutex[client_indx]);
