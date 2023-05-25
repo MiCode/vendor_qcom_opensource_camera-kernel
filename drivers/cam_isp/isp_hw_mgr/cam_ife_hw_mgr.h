@@ -327,6 +327,9 @@ struct cam_isp_comp_record_query {
  * @vfe_bus_comp_grp:       VFE composite group placeholder
  * @sfe_bus_comp_grp:       SFE composite group placeholder
  * @cdm_done_ts:            CDM callback done timestamp
+ * @is_hw_ctx_acq:          If acquire for ife ctx is having hw ctx acquired
+ * @acq_hw_ctxt_src_dst_map: Src to dst hw ctxt map for acquired pixel paths
+ *
  */
 struct cam_ife_hw_mgr_ctx {
 	struct list_head                          list;
@@ -392,6 +395,8 @@ struct cam_ife_hw_mgr_ctx {
 	struct cam_isp_context_comp_record        *vfe_bus_comp_grp;
 	struct cam_isp_context_comp_record        *sfe_bus_comp_grp;
 	struct timespec64                          cdm_done_ts;
+	bool                                       is_hw_ctx_acq;
+	uint32_t                                   acq_hw_ctxt_src_dst_map[CAM_ISP_MULTI_CTXT_MAX];
 };
 
 /**

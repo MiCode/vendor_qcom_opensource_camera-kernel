@@ -203,6 +203,9 @@ struct cam_vfe_bus_ver3_vfe_out_data {
 	uint32_t                        *mid;
 	uint32_t                         num_mid;
 	bool                             limiter_enabled;
+	bool                             mc_based;
+	bool                             cntxt_cfg_except;
+	uint32_t                         dst_hw_ctxt_id_mask;
 };
 
 struct cam_vfe_bus_ver3_priv {
@@ -1833,9 +1836,11 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 
 	out_acquire_args = &acq_args->vfe_out;
 
-	CAM_DBG(CAM_ISP, "VFE:%u Acquire out_type:0x%X",
+	CAM_DBG(CAM_ISP, "VFE:%u Acquire out_type:0x%X use_hw_ctxt:%s hw_ctx_id:0x%x",
 		ver3_bus_priv->common_data.core_index,
-		out_acquire_args->out_port_info->res_type);
+		out_acquire_args->out_port_info->res_type,
+		CAM_BOOL_TO_YESNO(out_acquire_args->use_hw_ctxt),
+		out_acquire_args->out_port_info->hw_context_id);
 
 	vfe_out_res_id = cam_vfe_bus_ver3_get_out_res_id_and_index(
 				ver3_bus_priv,
@@ -1852,15 +1857,30 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	}
 
 	rsrc_node = &ver3_bus_priv->vfe_out[outmap_index];
+	rsrc_data = rsrc_node->res_priv;
 	if (rsrc_node->res_state != CAM_ISP_RESOURCE_STATE_AVAILABLE) {
-		CAM_ERR(CAM_ISP,
-			"VFE:%u out_type:0x%X resource not available state:%d",
-			ver3_bus_priv->common_data.core_index,
-			vfe_out_res_id, rsrc_node->res_state);
-		return -EBUSY;
+		if ((rsrc_data->mc_based || rsrc_data->cntxt_cfg_except) &&
+			out_acquire_args->use_hw_ctxt &&
+			!(rsrc_data->dst_hw_ctxt_id_mask &
+			out_acquire_args->out_port_info->hw_context_id)) {
+			rsrc_data->dst_hw_ctxt_id_mask |=
+				out_acquire_args->out_port_info->hw_context_id;
+			out_acquire_args->rsrc_node = rsrc_node;
+			rc = 0;
+			goto end;
+		} else {
+			CAM_ERR(CAM_ISP,
+				"VFE:%u out_type:0x%X mc_cap:%s cntxt_except:%s resource not available state:%d dst_hw_ctxt_id_mask:0x%x req_ctxt_id:0x%x",
+				ver3_bus_priv->common_data.core_index,
+				vfe_out_res_id, CAM_BOOL_TO_YESNO(rsrc_data->mc_based),
+				CAM_BOOL_TO_YESNO(rsrc_data->cntxt_cfg_except),
+				rsrc_node->res_state, rsrc_data->dst_hw_ctxt_id_mask,
+				out_acquire_args->out_port_info->hw_context_id);
+			rc = -EBUSY;
+			goto end;
+		}
 	}
 
-	rsrc_data = rsrc_node->res_priv;
 	rsrc_data->common_data->event_cb = acq_args->event_cb;
 	rsrc_data->common_data->priv = acq_args->priv;
 	rsrc_data->common_data->disable_ubwc_comp =
@@ -1869,6 +1889,9 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	rsrc_data->bus_priv = ver3_bus_priv;
 	rsrc_data->limiter_enabled = false;
 	comp_acq_args.composite_mask = (1ULL << vfe_out_res_id);
+
+	if (out_acquire_args->use_hw_ctxt)
+		rsrc_data->dst_hw_ctxt_id_mask |= out_acquire_args->out_port_info->hw_context_id;
 
 	/* for some hw versions, buf done is not received from vfe but
 	 * from IP external to VFE. In such case, we get the controller
@@ -1968,6 +1991,7 @@ release_wm:
 		cam_vfe_bus_ver3_release_wm(ver3_bus_priv,
 			&rsrc_data->wm_res[i]);
 
+end:
 	return rc;
 }
 
@@ -2009,6 +2033,7 @@ static int cam_vfe_bus_ver3_release_vfe_out(void *bus_priv, void *release_args,
 
 	vfe_out->tasklet_info = NULL;
 	vfe_out->cdm_ops = NULL;
+	rsrc_data->dst_hw_ctxt_id_mask = 0;
 
 	secure_caps = cam_vfe_bus_ver3_can_be_secure(rsrc_data->out_type);
 	mutex_lock(&rsrc_data->common_data->bus_mutex);
@@ -2362,6 +2387,8 @@ static int cam_vfe_bus_ver3_init_vfe_out_resource(uint32_t  index,
 		ver3_hw_info->vfe_out_hw_info[index].max_height;
 	rsrc_data->secure_mode  = CAM_SECURE_MODE_NON_SECURE;
 	rsrc_data->num_wm       = ver3_hw_info->vfe_out_hw_info[index].num_wm;
+	rsrc_data->mc_based = ver3_hw_info->vfe_out_hw_info[index].mc_based;
+	rsrc_data->cntxt_cfg_except = ver3_hw_info->vfe_out_hw_info[index].cntxt_cfg_except;
 
 	rsrc_data->wm_res = kzalloc((sizeof(struct cam_isp_resource_node) *
 		rsrc_data->num_wm), GFP_KERNEL);

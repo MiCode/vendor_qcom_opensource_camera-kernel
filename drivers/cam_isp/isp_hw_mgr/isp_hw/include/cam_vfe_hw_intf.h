@@ -23,7 +23,7 @@
 #define VFE_VBIF_BASE_IDX             1
 #define VFE_BUS_BASE_IDX              1
 
-#define CAM_VFE_MAX_UBWC_PORTS        4
+#define CAM_VFE_MAX_UBWC_PORTS        12
 
 #define CAM_VFE_PERF_CNT_MAX          8
 
@@ -151,6 +151,8 @@ struct cam_vfe_hw_vfe_bus_rd_acquire_args {
  * @disable_ubwc_comp:       Disable UBWC compression
  * @use_wm_pack:             Use WM Packing
  * @comp_grp_id:             VFE bus comp group id
+ * @use_hw_ctxt:             Use HW context id info
+ *
  */
 struct cam_vfe_hw_vfe_out_acquire_args {
 	struct cam_isp_resource_node         *rsrc_node;
@@ -164,6 +166,7 @@ struct cam_vfe_hw_vfe_out_acquire_args {
 	bool                                  disable_ubwc_comp;
 	bool                                  use_wm_pack;
 	uint32_t                              comp_grp_id;
+	bool                                  use_hw_ctxt;
 };
 
 /*
@@ -175,6 +178,8 @@ struct cam_vfe_hw_vfe_out_acquire_args {
  *                           else CAM_ISP_HW_VFE_IN_MAX
  * @dual_hw_idx:             Slave core for this master core if dual vfe case
  * @is_dual:                 flag to indicate if dual vfe case
+ * @hw_ctxt_mask:            Mask to indicate destination hw contexts acquired corresponding to
+ *                           a particular CSID IPP path
  * @cdm_ops:                 CDM operations
  * @sync_mode:               In case of Dual VFE, this is Master or Slave.
  *                           (Default is Master in case of Single VFE)
@@ -188,6 +193,7 @@ struct cam_vfe_hw_vfe_in_acquire_args {
 	uint32_t                              res_id;
 	uint32_t                              dual_hw_idx;
 	uint32_t                              is_dual;
+	uint32_t                              hw_ctxt_mask;
 	void                                 *cdm_ops;
 	enum cam_isp_hw_sync_mode             sync_mode;
 	struct cam_isp_in_port_generic_info  *in_port;

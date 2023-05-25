@@ -97,6 +97,7 @@ struct cam_vfe_mux_ver4_data {
 	bool                               sfe_binned_epoch_cfg;
 	bool                               enable_sof_irq_debug;
 	bool                               handle_camif_irq;
+	uint32_t                           hw_ctxt_mask;
 };
 
 static inline int cam_vfe_top_ver4_get_hw_ctxt_from_irq_status(
@@ -805,6 +806,7 @@ int cam_vfe_top_ver4_reserve(void *device_priv,
 	struct cam_vfe_top_ver4_priv            *top_priv;
 	struct cam_vfe_acquire_args             *args;
 	struct cam_vfe_hw_vfe_in_acquire_args   *acquire_args;
+	struct cam_vfe_mux_ver4_data            *vfe_priv = NULL;
 	uint32_t i;
 	int rc = -EINVAL;
 
@@ -822,21 +824,43 @@ int cam_vfe_top_ver4_reserve(void *device_priv,
 
 
 	for (i = 0; i < top_priv->top_common.num_mux; i++) {
-		if (top_priv->top_common.mux_rsrc[i].res_id ==
-			acquire_args->res_id &&
-			top_priv->top_common.mux_rsrc[i].res_state ==
-			CAM_ISP_RESOURCE_STATE_AVAILABLE) {
+		if (top_priv->top_common.mux_rsrc[i].res_id == acquire_args->res_id) {
+			vfe_priv = (struct cam_vfe_mux_ver4_data *)
+				top_priv->top_common.mux_rsrc[i].res_priv;
 
-			if (acquire_args->res_id == CAM_ISP_HW_VFE_IN_CAMIF) {
-				rc = cam_vfe_top_acquire_resource(
-					&top_priv->top_common.mux_rsrc[i],
-					args);
-				if (rc)
+			if (top_priv->top_common.mux_rsrc[i].res_state !=
+				CAM_ISP_RESOURCE_STATE_AVAILABLE) {
+				if (acquire_args->res_id != CAM_ISP_HW_VFE_IN_CAMIF) {
+					CAM_ERR(CAM_ISP, "VFE:%d Duplicate acquire for camif",
+						top_priv->common_data.hw_intf->hw_idx);
+					rc = -EINVAL;
 					break;
+				}
+
+				if (!(vfe_priv->hw_ctxt_mask & acquire_args->hw_ctxt_mask)) {
+					CAM_DBG(CAM_ISP,
+						"VFE:%d Update hw ctxt mask: 0x%x for camif curr_mask_val: 0x%x",
+						top_priv->common_data.hw_intf->hw_idx,
+						acquire_args->hw_ctxt_mask,
+						vfe_priv->hw_ctxt_mask);
+					vfe_priv->hw_ctxt_mask |= acquire_args->hw_ctxt_mask;
+					acquire_args->rsrc_node = &top_priv->top_common.mux_rsrc[i];
+					rc = 0;
+				} else {
+					CAM_ERR(CAM_ISP,
+						"VFE:%d Duplicate hw ctxt mask: 0x%x for camif curr_mask_val: 0x%x",
+						top_priv->common_data.hw_intf->hw_idx,
+						acquire_args->hw_ctxt_mask,
+						vfe_priv->hw_ctxt_mask);
+					rc = -EINVAL;
+				}
+
+				break;
 			}
 
-			if (acquire_args->res_id >= CAM_ISP_HW_VFE_IN_RDI0 &&
-				acquire_args->res_id < CAM_ISP_HW_VFE_IN_MAX) {
+			if (((acquire_args->res_id == CAM_ISP_HW_VFE_IN_CAMIF) ||
+				(acquire_args->res_id >= CAM_ISP_HW_VFE_IN_RDI0)) &&
+				(acquire_args->res_id < CAM_ISP_HW_VFE_IN_MAX)) {
 				rc = cam_vfe_top_acquire_resource(
 					&top_priv->top_common.mux_rsrc[i],
 					args);
@@ -848,10 +872,10 @@ int cam_vfe_top_ver4_reserve(void *device_priv,
 				acquire_args->cdm_ops;
 			top_priv->top_common.mux_rsrc[i].tasklet_info =
 				args->tasklet;
+			vfe_priv->hw_ctxt_mask = acquire_args->hw_ctxt_mask;
 			top_priv->top_common.mux_rsrc[i].res_state =
 				CAM_ISP_RESOURCE_STATE_RESERVED;
-			acquire_args->rsrc_node =
-				&top_priv->top_common.mux_rsrc[i];
+			acquire_args->rsrc_node = &top_priv->top_common.mux_rsrc[i];
 
 			rc = 0;
 			break;
@@ -867,6 +891,7 @@ int cam_vfe_top_ver4_release(void *device_priv,
 {
 	struct cam_isp_resource_node            *mux_res;
 	struct cam_vfe_top_ver4_priv            *top_priv;
+	struct cam_vfe_mux_ver4_data            *vfe_priv = NULL;
 
 	if (!device_priv || !release_args) {
 		CAM_ERR(CAM_ISP, "Error, Invalid input arguments");
@@ -875,6 +900,7 @@ int cam_vfe_top_ver4_release(void *device_priv,
 
 	mux_res = (struct cam_isp_resource_node *)release_args;
 	top_priv = (struct cam_vfe_top_ver4_priv   *)device_priv;
+	vfe_priv = (struct cam_vfe_mux_ver4_data *) mux_res->res_priv;
 
 	CAM_DBG(CAM_ISP, "VFE:%u Resource in state %d",
 		top_priv->common_data.hw_intf->hw_idx, mux_res->res_state);
@@ -883,6 +909,8 @@ int cam_vfe_top_ver4_release(void *device_priv,
 			top_priv->common_data.hw_intf->hw_idx, mux_res->res_state);
 		return -EINVAL;
 	}
+
+	vfe_priv->hw_ctxt_mask = 0;
 	mux_res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 
 	return 0;

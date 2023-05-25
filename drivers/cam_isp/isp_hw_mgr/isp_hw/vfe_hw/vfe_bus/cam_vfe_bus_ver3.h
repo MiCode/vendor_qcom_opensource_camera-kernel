@@ -214,6 +214,7 @@ struct cam_vfe_bus_ver3_vfe_out_hw_info {
 	uint32_t                            mc_grp_shift;
 	uint8_t                            *name[PLANE_MAX];
 	bool                                mc_based;
+	bool                               cntxt_cfg_except;
 };
 
 /*

@@ -2075,6 +2075,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.num_mid       = 3,
 			.num_wm        = 2,
 			.line_based    = 1,
+			.cntxt_cfg_except = true,
 			.wm_idx        = {
 				7,
 				8,
@@ -2093,6 +2094,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.num_mid       = 2,
 			.num_wm        = 1,
 			.line_based    = 1,
+			.cntxt_cfg_except = true,
 			.wm_idx        = {
 				9,
 			},
@@ -2135,8 +2137,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			},
 		},
 		{
-			.vfe_out_type  =
-				CAM_VFE_BUS_VER3_VFE_OUT_STATS_TL_BG,
+			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_STATS_TL_BG,
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
