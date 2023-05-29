@@ -3428,6 +3428,7 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		rc = cam_tfe_top_init_config_update(core_info->top_priv, cmd_args,
 			arg_size);
 		break;
+	case CAM_ISP_HW_NOTIFY_OVERFLOW:
 	case CAM_ISP_HW_CMD_GET_BUF_UPDATE:
 	case CAM_ISP_HW_CMD_GET_HFR_UPDATE:
 	case CAM_ISP_HW_CMD_STRIPE_UPDATE:

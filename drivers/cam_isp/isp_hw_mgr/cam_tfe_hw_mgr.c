@@ -6194,31 +6194,113 @@ end:
 	return rc;
 }
 
+static int cam_tfe_hw_mgr_check_and_notify_overflow(
+	struct cam_isp_hw_event_info    *evt,
+	struct cam_tfe_hw_mgr_ctx       *hw_mgr_ctx,
+	bool                            *is_bus_overflow)
+{
+	int                             i;
+	struct cam_hw_intf             *hw_if = NULL;
+	struct cam_isp_hw_overflow_info overflow_info;
+
+	for (i = 0; i < hw_mgr_ctx->num_base; i++) {
+		if (hw_mgr_ctx->base[i].idx != evt->hw_idx)
+			continue;
+
+		hw_if = g_tfe_hw_mgr.tfe_devices[evt->hw_idx]->hw_intf;
+		if (!hw_if) {
+			CAM_ERR_RATE_LIMIT(CAM_ISP, "hw_intf is null");
+			return -EINVAL;
+		}
+
+		if (hw_if->hw_ops.process_cmd) {
+			overflow_info.res_id = evt->res_id;
+			hw_if->hw_ops.process_cmd(hw_if->hw_priv,
+				CAM_ISP_HW_NOTIFY_OVERFLOW,
+				&overflow_info,
+				sizeof(struct cam_isp_hw_overflow_info));
+
+			CAM_DBG(CAM_ISP,
+				"check and notify hw idx %d type %d bus overflow happened %d",
+				hw_mgr_ctx->base[i].idx, hw_mgr_ctx->base[i].hw_type,
+				overflow_info.is_bus_overflow);
+
+			if (overflow_info.is_bus_overflow)
+				*is_bus_overflow = true;
+		}
+	}
+
+	return 0;
+}
+
 static int cam_tfe_hw_mgr_handle_csid_event(
 	uint32_t                      err_type,
-	struct cam_isp_hw_event_info *event_info)
+	struct cam_isp_hw_event_info *event_info,
+	void                         *ctx)
 {
 	struct cam_isp_hw_error_event_data  error_event_data = {0};
 	struct cam_tfe_hw_event_recovery_data     recovery_data = {0};
+	bool                                is_bus_overflow = false;
+	struct cam_tfe_hw_mgr_ctx           *tfe_hw_mgr_ctx = ctx;
+
+	/* Default error types */
+	error_event_data.error_type = CAM_ISP_HW_ERROR_CSID_FATAL;
+	recovery_data.error_type = CAM_ISP_HW_ERROR_OVERFLOW;
 
 	/* this can be extended based on the types of error
 	 * received from CSID
 	 */
 	switch (err_type) {
+	case CAM_ISP_HW_ERROR_CSID_FRAME_SIZE:
 	case CAM_ISP_HW_ERROR_CSID_FATAL: {
 
-		if (!g_tfe_hw_mgr.debug_cfg.enable_csid_recovery)
-			break;
+		if (!g_tfe_hw_mgr.debug_cfg.enable_csid_recovery) {
+			CAM_ERR(CAM_ISP,
+				"CSID:%d err: %d not handled, csid_recovery_enable: %d",
+				event_info->hw_idx, err_type,
+				g_tfe_hw_mgr.debug_cfg.enable_csid_recovery);
+			return 0;
+		}
+		break;
+	}
+	case CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW: {
+		cam_tfe_hw_mgr_check_and_notify_overflow(event_info,
+			tfe_hw_mgr_ctx, &is_bus_overflow);
 
-		error_event_data.error_type = err_type;
-		cam_tfe_hw_mgr_find_affected_ctx(&error_event_data,
-			event_info->hw_idx,
-			&recovery_data);
+		if (is_bus_overflow) {
+			if (tfe_hw_mgr_ctx->try_recovery_cnt <
+				MAX_TFE_INTERNAL_RECOVERY_ATTEMPTS) {
+
+				error_event_data.try_internal_recovery = true;
+				if (!atomic_read(&tfe_hw_mgr_ctx->overflow_pending))
+					tfe_hw_mgr_ctx->try_recovery_cnt++;
+
+				if (!tfe_hw_mgr_ctx->recovery_req_id)
+					tfe_hw_mgr_ctx->recovery_req_id =
+						tfe_hw_mgr_ctx->applied_req_id;
+
+				error_event_data.error_type = err_type;
+			}
+
+			CAM_DBG(CAM_ISP,
+				"CSID[%u] error: %u current_recovery_cnt: %u  recovery_req: %llu",
+				event_info->hw_idx, err_type, tfe_hw_mgr_ctx->try_recovery_cnt,
+				tfe_hw_mgr_ctx->recovery_req_id);
+		}
 		break;
 	}
 	default:
-		break;
+		CAM_ERR(CAM_ISP, "CSID:%d, unahandled error: %d",
+			event_info->hw_idx, err_type);
+		return 0;
 	}
+
+	CAM_ERR(CAM_ISP, "CSID:[%u] error: %u on ctx: %u", event_info->hw_idx,
+		error_event_data.error_type, tfe_hw_mgr_ctx->ctx_index);
+
+	cam_tfe_hw_mgr_find_affected_ctx(&error_event_data, event_info->hw_idx,
+		&recovery_data);
+
 	return 0;
 }
 
@@ -6273,8 +6355,10 @@ static int cam_tfe_hw_mgr_handle_hw_err(
 	}
 
 	spin_lock(&g_tfe_hw_mgr.ctx_lock);
-	if (err_evt_info->err_type == CAM_ISP_HW_ERROR_CSID_FATAL) {
-		rc = cam_tfe_hw_mgr_handle_csid_event(err_evt_info->err_type, event_info);
+	/* CAM_ISP_RESOURCE_PIX_PATH denotes error event coming from CSID */
+	if (event_info->res_type == CAM_ISP_RESOURCE_PIX_PATH) {
+		rc = cam_tfe_hw_mgr_handle_csid_event(err_evt_info->err_type, event_info,
+			tfe_hw_mgr_ctx);
 		spin_unlock(&g_tfe_hw_mgr.ctx_lock);
 		return rc;
 	}
