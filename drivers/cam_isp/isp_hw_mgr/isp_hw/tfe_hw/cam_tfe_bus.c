@@ -2774,12 +2774,20 @@ int cam_tfe_bus_init(
 	struct cam_tfe_bus_priv    *bus_priv = NULL;
 	struct cam_tfe_bus         *tfe_bus_local;
 	struct cam_tfe_bus_hw_info *hw_info = bus_hw_info;
+	struct cam_tfe_soc_private       *soc_private = NULL;
 
 	if (!soc_info || !hw_intf || !bus_hw_info) {
 		CAM_ERR(CAM_ISP,
 			"Invalid params soc_info:%pK hw_intf:%pK hw_info%pK",
 			soc_info, hw_intf, bus_hw_info);
 		rc = -EINVAL;
+		goto end;
+	}
+
+	soc_private = soc_info->soc_private;
+	if (!soc_private) {
+		CAM_ERR(CAM_ISP, "Invalid soc_private");
+		rc = -ENODEV;
 		goto end;
 	}
 
@@ -2831,11 +2839,7 @@ int cam_tfe_bus_init(
 		bus_priv->bus_irq_error_mask[i] =
 			hw_info->bus_irq_error_mask[i];
 
-	if (strnstr(soc_info->compatible, "lite",
-		strlen(soc_info->compatible)) != NULL)
-		bus_priv->common_data.is_lite = true;
-	else
-		bus_priv->common_data.is_lite = false;
+	bus_priv->common_data.is_lite = soc_private->is_tfe_lite;
 
 	for (i = 0; i < CAM_TFE_BUS_RUP_GRP_MAX; i++)
 		bus_priv->common_data.rup_irq_enable[i] = false;
