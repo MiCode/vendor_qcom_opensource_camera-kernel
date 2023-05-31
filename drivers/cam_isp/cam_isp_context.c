@@ -477,11 +477,11 @@ static void __cam_isp_ctx_update_state_monitor_array(
 		req_id;
 
 	if (trigger_type == CAM_ISP_STATE_CHANGE_TRIGGER_CDM_DONE)
-		ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp =
+		ctx_isp->dbg_monitors.state_monitor[iterator].evt_time_stamp =
 			ctx->cdm_done_ts;
 	else
 		ktime_get_clocktai_ts64(
-			&ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp);
+			&ctx_isp->dbg_monitors.state_monitor[iterator].evt_time_stamp);
 }
 
 static int __cam_isp_ctx_update_frame_timing_record(
@@ -641,18 +641,18 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 	index = oldest_entry;
 
 	for (i = 0; i < num_entries; i++) {
-		time64_to_tm(ctx_isp->cam_isp_ctx_state_monitor[index].evt_time_stamp.tv_sec,
+		time64_to_tm(ctx_isp->dbg_monitors.state_monitor[index].evt_time_stamp.tv_sec,
 			0, &ts);
 		CAM_ERR(CAM_ISP,
 			"Idx[%d] time[%d-%d %d:%d:%d.%lld]:Substate[%s] Frame[%lld] Req[%llu] evt[%s]",
 			index, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
-			ctx_isp->cam_isp_ctx_state_monitor[index].evt_time_stamp.tv_nsec / 1000000,
+			ctx_isp->dbg_monitors.state_monitor[index].evt_time_stamp.tv_nsec / 1000000,
 			__cam_isp_ctx_substate_val_to_type(
-			ctx_isp->cam_isp_ctx_state_monitor[index].curr_state),
-			ctx_isp->cam_isp_ctx_state_monitor[index].frame_id,
-			ctx_isp->cam_isp_ctx_state_monitor[index].req_id,
+			ctx_isp->dbg_monitors.state_monitor[index].curr_state),
+			ctx_isp->dbg_monitors.state_monitor[index].frame_id,
+			ctx_isp->dbg_monitors.state_monitor[index].req_id,
 			__cam_isp_hw_evt_val_to_type(
-				ctx_isp->cam_isp_ctx_state_monitor[index].trigger));
+				ctx_isp->dbg_monitors.state_monitor[index].trigger));
 
 		index = (index + 1) % CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES;
 	}

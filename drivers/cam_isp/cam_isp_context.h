@@ -402,9 +402,6 @@ struct cam_isp_context {
 	uint32_t                         aeb_error_cnt;
 	uint32_t                         out_of_sync_cnt;
 	uint32_t                         congestion_cnt;
-	atomic64_t                       state_monitor_head;
-	struct cam_isp_context_state_monitor cam_isp_ctx_state_monitor[
-		CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES];
 	struct cam_isp_context_req_id_info    req_info;
 	struct cam_isp_context_debug_monitors dbg_monitors;
 	bool                                  rdi_only_context;
