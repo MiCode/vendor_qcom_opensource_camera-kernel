@@ -3742,7 +3742,7 @@ static int cam_cpas_configure_staling_cache(
 		staling_params.staling_mode = LLCC_STALING_MODE_CAPACITY;
 		break;
 	}
-	case LLCC_STALING_MODE_NOTIFY: {
+	case CAM_LLCC_STALING_MODE_NOTIFY: {
 		staling_params.staling_mode = LLCC_STALING_MODE_NOTIFY;
 		break;
 	}
