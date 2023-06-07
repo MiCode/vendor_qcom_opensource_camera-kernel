@@ -1751,8 +1751,9 @@ int cam_ois_driver_cmd(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 		if (o_ctrl->cam_ois_state != CAM_OIS_START) {
 			rc = -EINVAL;
 			CAM_WARN(CAM_OIS,
-			"Not in right state for stop : %d",
-			o_ctrl->cam_ois_state);
+				"Not in right state for stop : %d",
+				o_ctrl->cam_ois_state);
+			goto release_mutex;
 		}
 		o_ctrl->cam_ois_state = CAM_OIS_CONFIG;
 		break;
