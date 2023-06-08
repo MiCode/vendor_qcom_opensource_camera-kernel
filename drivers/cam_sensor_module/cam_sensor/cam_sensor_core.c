@@ -302,6 +302,8 @@ static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 
 	if ((csl_packet->header.op_code & 0xFFFFFF) !=
 		CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG &&
+		(csl_packet->header.op_code & 0xFFFFFF) !=
+		CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF &&
 		csl_packet->header.request_id <= s_ctrl->last_flush_req
 		&& s_ctrl->last_flush_req != 0) {
 		CAM_ERR(CAM_SENSOR,
@@ -333,8 +335,10 @@ static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		break;
 	}
 	case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMON: {
-		if (s_ctrl->streamon_count > 0)
-			goto end;
+		if (s_ctrl->streamon_count > 0) {
+			delete_request(&i2c_data->streamon_settings);
+			s_ctrl->streamon_count = 0;
+		}
 
 		s_ctrl->streamon_count = s_ctrl->streamon_count + 1;
 		i2c_reg_settings = &i2c_data->streamon_settings;
@@ -343,8 +347,10 @@ static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		break;
 	}
 	case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
-		if (s_ctrl->streamoff_count > 0)
-			goto end;
+		if (s_ctrl->streamoff_count > 0) {
+			delete_request(&i2c_data->streamoff_settings);
+			s_ctrl->streamoff_count = 0;
+		}
 
 		s_ctrl->streamoff_count = s_ctrl->streamoff_count + 1;
 		i2c_reg_settings = &i2c_data->streamoff_settings;
