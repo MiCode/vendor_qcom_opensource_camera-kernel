@@ -68,13 +68,14 @@
 #define CAM_ISP_TFE_PACKET_META_REG_DUMP_ON_ERROR     8
 
 /* ISP TFE Generic Cmd Buffer Blob types */
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_HFR_CONFIG          0
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_CLOCK_CONFIG        1
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_CONFIG_V2        2
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_CSID_CLOCK_CONFIG   3
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_INIT_CONFIG         4
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_LIMITER_CFG      16
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_DYNAMIC_MODE_SWITCH 15
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_HFR_CONFIG            0
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_CLOCK_CONFIG          1
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_CONFIG_V2          2
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_CSID_CLOCK_CONFIG     3
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_INIT_CONFIG           4
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_DYNAMIC_MODE_SWITCH   15
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_LIMITER_CFG        16
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_ALIGNMENT_OFFSET_INFO 17
 
 /* DSP mode */
 #define CAM_ISP_TFE_DSP_MODE_NONE                   0
@@ -527,6 +528,39 @@ struct cam_isp_tfe_out_rsrc_bw_limiter_config {
 	__u32                                       num_ports;
 	struct cam_isp_tfe_wm_bw_limiter_config     bw_limiter_config[1];
 };
+
+/**
+ * struct cam_isp_tfe_alignment_offset_config - ISP TFE buffer alignment config
+ *
+ * @resource_type:         Resourse type
+ * @x_offset:              Offset of the buffer from x-axies
+ * @y_offset:              Offset of the buffer from y-axies
+ * @width:                 Width of out resource
+ * @height:                Height of out resource
+ * @stride:                Stride of out resource
+ *
+ */
+struct cam_isp_tfe_alignment_offset_config {
+	__u32                       resource_type;
+	__u32                       x_offset;
+	__u32                       y_offset;
+	__u32                       width;
+	__u32                       height;
+	__u32                       stride;
+} __attribute__((packed));
+
+/**
+ * struct cam_isp_tfe_alignment_resource_info - ISP TFE Resource Alignment
+ *
+ * @version:                  Alignment api version
+ * @num_ports:                Number of ports
+ * @port_alignment_cfg:       Buffer alignment for each IO port
+ */
+struct cam_isp_tfe_alignment_resource_info {
+	__u32                                        version;
+	__u32                                        num_ports;
+	struct cam_isp_tfe_alignment_offset_config   port_alignment_cfg[1];
+} __attribute__((packed));
 
 #define CAM_TFE_ACQUIRE_COMMON_VER0         0x1000
 

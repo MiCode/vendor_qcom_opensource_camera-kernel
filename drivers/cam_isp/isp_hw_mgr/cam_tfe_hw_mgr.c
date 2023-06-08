@@ -40,7 +40,6 @@
 #define CAM_TFE_SAFE_ENABLE 1
 #define SMMU_SE_TFE 0
 
-
 static struct cam_tfe_hw_mgr g_tfe_hw_mgr;
 
 static int cam_tfe_hw_mgr_event_handler(
@@ -4091,6 +4090,56 @@ static int cam_tfe_mgr_release_hw(void *hw_mgr_priv,
 	return rc;
 }
 
+static int cam_isp_tfe_blob_buffer_alignment_update(
+	uint32_t                                      blob_type,
+	struct cam_isp_generic_blob_info             *blob_info,
+	struct cam_isp_tfe_alignment_resource_info   *alignment_info,
+	struct cam_hw_prepare_update_args            *prepare)
+{
+	struct cam_isp_tfe_alignment_offset_config   *alignment_port_cfg;
+	struct cam_isp_resource_node                 *res;
+	struct cam_isp_hw_get_cmd_update              cmd_update;
+	struct cam_tfe_hw_mgr_ctx                    *ctx = NULL;
+	struct cam_isp_hw_mgr_res                    *hw_mgr_res;
+	struct cam_hw_intf                           *hw_intf;
+	uint32_t                                      res_id_out, i;
+	int                                           rc = 0;
+
+	ctx = prepare->ctxt_to_hw_map;
+	for (i = 0; i < alignment_info->num_ports; i++) {
+		alignment_port_cfg = &alignment_info->port_alignment_cfg[i];
+		res_id_out = alignment_port_cfg->resource_type & 0xFF;
+
+		if (res_id_out >= CAM_TFE_HW_OUT_RES_MAX) {
+			CAM_ERR(CAM_ISP, "invalid out restype:%x ctx %d",
+				alignment_port_cfg->resource_type, ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		hw_mgr_res = &ctx->res_list_tfe_out[res_id_out];
+		res = hw_mgr_res->hw_res[i];
+		hw_intf = res->hw_intf;
+		if (hw_intf && hw_intf->hw_ops.process_cmd) {
+			cmd_update.res = res;
+			cmd_update.data = alignment_port_cfg;
+			cmd_update.cmd_type = CAM_ISP_HW_CMD_BUFFER_ALIGNMENT_UPDATE;
+			rc = hw_intf->hw_ops.process_cmd(
+				hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_BUFFER_ALIGNMENT_UPDATE,
+				&cmd_update,
+				sizeof(struct cam_isp_hw_get_cmd_update));
+			if (rc)
+				CAM_ERR(CAM_ISP, "Ctx %d Buffer alignment Update failed",
+					ctx->ctx_index);
+		} else {
+			CAM_ERR(CAM_ISP, "NULL hw_intf! ctx %d", ctx->ctx_index);
+		}
+
+	}
+
+	return rc;
+}
+
 static int cam_isp_tfe_blob_hfr_update(
 	uint32_t                                  blob_type,
 	struct cam_isp_generic_blob_info         *blob_info,
@@ -4772,6 +4821,50 @@ static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 			CAM_ERR(CAM_ISP,
 				"Init config failed for req: %llu rc: %d ctx %d",
 				prepare->packet->header.request_id, rc, tfe_mgr_ctx->ctx_index);
+	}
+		break;
+	case CAM_ISP_TFE_GENERIC_BLOB_TYPE_ALIGNMENT_OFFSET_INFO: {
+		struct cam_isp_tfe_alignment_resource_info   *alignment_info =
+			(struct cam_isp_tfe_alignment_resource_info *)blob_data;
+
+		if (tfe_mgr_ctx->is_dual) {
+			CAM_ERR(CAM_ISP, "Alignment blob can't be use in dual mode ctx %d",
+				tfe_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		if (blob_size < sizeof(struct cam_isp_tfe_alignment_resource_info)) {
+			CAM_ERR(CAM_ISP,
+				"Invalid alignment blob size %u expected %u ctx %d",
+				blob_size, sizeof(struct cam_isp_tfe_alignment_resource_info),
+				tfe_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		if (alignment_info->num_ports > CAM_ISP_TFE_OUT_RES_MAX) {
+			CAM_ERR(CAM_ISP, "Invalid num_ports %u in alignment config",
+				alignment_info->num_ports);
+			return -EINVAL;
+		}
+
+		if ((alignment_info->num_ports != 0) && (blob_size <
+			(sizeof(struct cam_isp_tfe_alignment_resource_info) +
+			(alignment_info->num_ports - 1) *
+			sizeof(struct cam_isp_tfe_alignment_offset_config)))) {
+			CAM_ERR(CAM_ISP, "Invalid blob size %u expected %lu",
+				blob_size,
+				sizeof(struct cam_isp_tfe_alignment_resource_info) +
+				(alignment_info->num_ports - 1) *
+				sizeof(struct cam_isp_tfe_alignment_offset_config));
+			return -EINVAL;
+		}
+
+		rc = cam_isp_tfe_blob_buffer_alignment_update(blob_type, blob_info,
+			alignment_info, prepare);
+		if (rc)
+			CAM_ERR(CAM_ISP,
+				"Alignment buffer update failed for req %lld rc %d ctx %d",
+				 prepare->packet->header.request_id, rc, tfe_mgr_ctx->ctx_index);
 	}
 		break;
 	default:
