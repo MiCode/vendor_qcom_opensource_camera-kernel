@@ -393,7 +393,7 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 }
 #elif KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
-	bool protect, int32_t offset)
+	bool protect, int32_t offset, bool __always_unused is_shutdown)
 {
 	int rc = 0;
 
@@ -426,7 +426,7 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 }
 #else
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
-	bool protect, int32_t offset)
+	bool protect, int32_t offset, bool __always_unused is_shutdown)
 {
 	int rc = 0;
 	struct scm_desc description = {
