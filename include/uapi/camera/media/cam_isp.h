@@ -137,6 +137,7 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG                28
 #define CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V3              29
 #define CAM_ISP_GENERIC_BLOB_TYPE_NFI_MODE_SWITCH           30
+#define CAM_ISP_GENERIC_BLOB_TYPE_IRQ_COMP_CFG              31
 #define CAM_ISP_GENERIC_BLOB_TYPE_VFE_OUT_CONFIG_V2         32
 
 #define CAM_ISP_VC_DT_CFG    4
@@ -223,6 +224,25 @@
  * to indicate if RCS to be enabled.
  */
 #define CAM_IFE_WM_RCS_EN                    BIT(1)
+
+/**
+ * struct cam_isp_irq_comp_cfg - CSID composite config for MC-based TFE
+ *        Contains information regarding active contexts in CSID CAMIF
+ *        and active contexts in write engine TFE
+ *
+ * @ipp_src_ctxt_mask : Active paths in CSID CAMIF
+ * @ipp_dst_comp_mask : Active paths in TFE
+ * @num_valid_params  : Number of valid params
+ * @valid_param_mask  : Valid param mask
+ * @params            : params
+ */
+struct cam_isp_irq_comp_cfg {
+	__u32   ipp_src_ctxt_mask;
+	__u32   ipp_dst_comp_mask;
+	__u32   num_valid_params;
+	__u32   valid_param_mask;
+	__u32   params[4];
+} __attribute__((packed));
 
 /**
  * struct cam_isp_drv_config - CSID config for DRV
