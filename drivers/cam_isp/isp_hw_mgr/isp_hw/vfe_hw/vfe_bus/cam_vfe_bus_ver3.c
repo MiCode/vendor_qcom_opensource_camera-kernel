@@ -2753,7 +2753,7 @@ static int cam_vfe_bus_ver3_handle_rup_irq(uint32_t     evt_id,
 	return (rc == IRQ_HANDLED) ? 0 : -EINVAL;
 }
 
-static int cam_vfe_bus_ver3_err_irq_top_half(uint32_t evt_id,
+static int cam_vfe_bus_ver3_handle_err_irq_top_half(uint32_t evt_id,
 	struct cam_irq_th_payload *th_payload)
 {
 	int i = 0, rc = 0;
@@ -2827,7 +2827,7 @@ static void cam_vfe_check_violations(
 			common_data = rsrc_data->common_data;
 			wm_name = rsrc_data->wm_res[j].res_name;
 
-			if (status & (1 << wm_data->index)) {
+			if (status & BIT(wm_data->index)) {
 				CAM_INFO(CAM_ISP, "VFE:%u, %s Violation",
 					bus_priv->common_data.core_index, error_type);
 				cam_vfe_bus_ver3_print_wm_info(wm_data,
@@ -2849,7 +2849,7 @@ static void cam_vfe_check_violations(
 	}
 }
 
-static int cam_vfe_bus_ver3_err_irq_bottom_half(
+static int cam_vfe_bus_ver3_handle_err_irq_bottom_half(
 	void *handler_priv, void *evt_payload_priv)
 {
 	struct cam_vfe_bus_irq_evt_payload *evt_payload = evt_payload_priv;
@@ -2857,9 +2857,10 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 	struct cam_vfe_bus_ver3_common_data *common_data;
 	struct cam_isp_hw_event_info evt_info;
 	struct cam_isp_hw_error_event_info err_evt_info;
-	uint32_t status = 0, image_size_violation = 0, ccif_violation = 0, constraint_violation = 0;
-	uint64_t out_port_id = 0;
 	struct cam_vfe_bus_irq_violation_type violation_type;
+	uint32_t status = 0, image_size_violation = 0, ccif_violation = 0, constraint_violation = 0;
+	uint64_t out_port_mask = 0;
+	int idx = -1;
 
 	if (!handler_priv || !evt_payload_priv)
 		return -EINVAL;
@@ -2890,14 +2891,14 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 			cam_vfe_bus_ver3_get_constraint_errors(bus_priv);
 		else {
 			cam_vfe_check_violations("Image Size", status, bus_priv,
-				&out_port_id, &violation_type);
+				&out_port_mask, &violation_type);
 		}
 	}
 
 	if (ccif_violation) {
 		status = evt_payload->ccif_violation_status;
 		cam_vfe_check_violations("CCIF", status, bus_priv,
-			&out_port_id, &violation_type);
+			&out_port_mask, &violation_type);
 	}
 
 	if (image_size_violation && violation_type.hwpd_violation) {
@@ -2909,15 +2910,34 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 
 	evt_info.hw_idx = common_data->core_index;
 	evt_info.res_type = CAM_ISP_RESOURCE_VFE_OUT;
-	evt_info.res_id = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
 	evt_info.hw_type = CAM_ISP_HW_TYPE_VFE;
 	err_evt_info.err_type = CAM_VFE_IRQ_STATUS_VIOLATION;
 	evt_info.event_data = (void *)&err_evt_info;
-	evt_info.out_port_id = out_port_id;
+	evt_info.out_port_id = out_port_mask;
 
-	if (common_data->event_cb)
+	if (!common_data->event_cb)
+		return 0;
+
+	if (!out_port_mask) {
+		/* No valid res_id found */
+		evt_info.res_id = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
 		common_data->event_cb(common_data->priv, CAM_ISP_HW_EVENT_ERROR,
 			(void *)&evt_info);
+		return 0;
+	}
+
+	while (out_port_mask) {
+		idx++;
+		if (!(out_port_mask & 0x1)) {
+			out_port_mask >>= 1;
+			continue;
+		}
+
+		evt_info.res_id = CAM_ISP_IFE_OUT_RES_BASE + idx;
+		common_data->event_cb(common_data->priv, CAM_ISP_HW_EVENT_ERROR,
+			(void *)&evt_info);
+		out_port_mask >>= 1;
+	}
 	return 0;
 }
 
@@ -3003,8 +3023,8 @@ static int cam_vfe_bus_ver3_subscribe_init_irq(
 			CAM_IRQ_PRIORITY_0,
 			bus_error_irq_mask,
 			bus_priv,
-			cam_vfe_bus_ver3_err_irq_top_half,
-			cam_vfe_bus_ver3_err_irq_bottom_half,
+			cam_vfe_bus_ver3_handle_err_irq_top_half,
+			cam_vfe_bus_ver3_handle_err_irq_bottom_half,
 			bus_priv->tasklet_info,
 			&tasklet_bh_api,
 			CAM_IRQ_EVT_GROUP_0);
