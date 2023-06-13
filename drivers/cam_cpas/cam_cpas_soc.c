@@ -1019,6 +1019,7 @@ end:
 	return rc;
 }
 
+#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
 static int cam_cpas_parse_domain_id_mapping(struct device_node *of_node,
 	struct cam_cpas_private_soc *soc_private)
 {
@@ -1103,6 +1104,7 @@ err:
 	soc_private->domain_id_info.domain_id_entries = NULL;
 	return rc;
 }
+#endif
 
 static int cam_cpas_get_domain_id_support_clks(struct device_node *of_node,
 	struct cam_hw_soc_info *soc_info, struct cam_cpas_private_soc *soc_private)
@@ -1195,10 +1197,17 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 
 	cam_cpas_get_hw_features(pdev, soc_private);
 
+#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
 	/* get domain id mapping info */
 	rc = cam_cpas_parse_domain_id_mapping(of_node, soc_private);
 	if (rc)
 		return rc;
+	/* check if the domain ID configuration is available in the DTSI */
+	if (soc_private->domain_id_info.domain_id_supported == false) {
+		CAM_ERR(CAM_CPAS, "Domain ID configuration is expected for this target");
+		return -EINVAL;
+	}
+#endif
 
 	soc_private->camnoc_axi_min_ib_bw = 0;
 	rc = of_property_read_u64(of_node,

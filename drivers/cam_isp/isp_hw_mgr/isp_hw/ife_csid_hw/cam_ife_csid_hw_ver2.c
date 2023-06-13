@@ -5333,7 +5333,7 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	 */
 	if ((csid_hw->sync_mode != CAM_ISP_HW_SYNC_SLAVE) &&
 		start_args->is_secure &&
-		cam_is_mink_api_available())
+		csid_hw->flags.domain_id_security)
 		cam_ife_csid_ver2_send_secure_info(start_args, csid_hw);
 
 	/*
