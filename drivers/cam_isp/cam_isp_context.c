@@ -5683,7 +5683,10 @@ static struct cam_ctx_ops
 	/* Bubble Applied */
 	{
 		.ioctl_ops = {},
-		.crm_ops = {},
+		.crm_ops = {
+			.notify_frame_skip =
+				__cam_isp_ctx_apply_default_req_settings,
+		},
 		.irq_ops = NULL,
 	},
 	/* HW ERROR */
