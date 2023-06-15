@@ -3533,7 +3533,7 @@ static int cam_cpas_dump_state_monitor_array_info(
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	struct cam_cpas_monitor         *entry;
-	uint32_t monitor_idx, camnoc_lvl_regs_num;
+	uint32_t monitor_idx;
 
 	state_head = atomic64_read(&cpas_core->monitor_head);
 	if (state_head == -1) {
@@ -3581,7 +3581,6 @@ static int cam_cpas_dump_state_monitor_array_info(
 
 		for (camnoc_idx = 0; camnoc_idx < cpas_core->num_valid_camnoc; camnoc_idx++) {
 			min_len += sizeof(uint64_t);
-			camnoc_lvl_regs_num = entry->num_camnoc_lvl_regs[camnoc_idx];
 			for (j = 0; j < entry->num_camnoc_lvl_regs[camnoc_idx]; j++)
 				min_len += sizeof(struct cam_common_hw_dump_header);
 		}

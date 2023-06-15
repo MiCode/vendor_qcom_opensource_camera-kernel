@@ -119,7 +119,7 @@ static int cam_sensor_module_parse_line(const char *p_line,
 	} else if (p_line[0] == 'w'  || p_line[0] == 'W') {
 		*is_read = false;
 
-		rc = sscanf(p_line+2, "%x,%x,%d,%d,%d,%d,%d",
+		rc = sscanf(p_line+2, "%x,%x,%u,%d,%d,%d,%d",
 			&reg_array->reg_addr,  &reg_array->reg_data, &reg_array->delay,
 			&reg_list->addr_type, &reg_list->data_type,
 			&device_type, &instance_number);

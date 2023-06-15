@@ -7590,6 +7590,7 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np, struct cam_icp_hw_mgr 
 			hw_mgr->hw_mgr_name, icp_hw_type);
 		rc = -EINVAL;
 		kfree(devices);
+		kfree(alloc_devices);
 		return rc;
 	}
 

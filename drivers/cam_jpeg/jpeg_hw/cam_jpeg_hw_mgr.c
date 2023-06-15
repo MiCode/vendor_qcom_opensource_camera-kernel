@@ -2011,6 +2011,9 @@ iodump:
 			hw_mgr->devices[dev_type][CAM_JPEG_MEM_BASE_INDEX]->hw_priv,
 			CAM_JPEG_CMD_DUMP_DEBUG_REGS,
 			NULL, 0);
+		if (rc)
+			CAM_ERR(CAM_JPEG, "Invalid process_cmd ops");
+
 	} else {
 		CAM_ERR(CAM_JPEG, "Invalid dev_type %d", dev_type);
 	}

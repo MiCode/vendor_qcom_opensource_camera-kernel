@@ -1799,7 +1799,6 @@ static void cam_mem_util_unmap(struct kref *kref)
 
 void cam_mem_put_cpu_buf(int32_t buf_handle)
 {
-	int rc = 0;
 	int idx;
 
 	if (!buf_handle) {
@@ -1815,14 +1814,12 @@ void cam_mem_put_cpu_buf(int32_t buf_handle)
 
 	if (!tbl.bufq[idx].active) {
 		CAM_ERR(CAM_MEM, "idx: %d not active", idx);
-		rc = -EPERM;
 		return;
 	}
 
 	if (buf_handle != tbl.bufq[idx].buf_handle) {
 		CAM_ERR(CAM_MEM, "idx: %d Invalid buf handle %d",
 				idx, buf_handle);
-		rc = -EINVAL;
 		return;
 	}
 

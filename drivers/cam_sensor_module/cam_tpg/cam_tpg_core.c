@@ -522,8 +522,10 @@ static int cam_tpg_cmd_buf_parse(
 
 		rc = cam_tpg_validate_cmd_descriptor(cmd_desc,
 				&cmd_type, &cmd_addr);
-		if (rc < 0)
+		if (rc < 0) {
+			kfree(req);
 			goto end;
+		}
 
 		cmd_header = (struct tpg_command_header_t *)cmd_addr;
 
@@ -578,6 +580,7 @@ end:
 free_request:
 	/* free the request and return the failure */
 	tpg_hw_free_request(&tpg_dev->tpg_hw, req);
+	kfree(req);
 	return rc;
 }
 
