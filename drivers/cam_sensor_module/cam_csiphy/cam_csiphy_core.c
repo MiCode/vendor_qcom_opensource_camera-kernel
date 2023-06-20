@@ -751,7 +751,7 @@ static int __cam_csiphy_parse_lane_info_cmd_buf(
 		csiphy_dev->csiphy_info[index].mipi_flags =
 			(cam_cmd_csiphy_info->mipi_flags & SKEW_CAL_MASK);
 		csiphy_dev->csiphy_info[index].channel_type =
-			CAM_CSIPHY_DATARATE_STANDARD_CHANNEL;
+			CAM_CSIPHY_DATARATE_SHORT_CHANNEL;
 	}
 
 	/* Cannot support CPHY combo mode with One sensor setting
