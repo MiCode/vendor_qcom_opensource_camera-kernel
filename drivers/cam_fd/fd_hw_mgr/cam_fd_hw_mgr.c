@@ -597,7 +597,8 @@ static int cam_fd_mgr_util_prepare_io_buf_info(int32_t iommu_hdl,
 			if (need_io_map) {
 				rc = cam_mem_get_io_buf(
 					io_cfg[i].mem_handle[plane],
-					iommu_hdl, &io_addr[plane], &size, NULL);
+					iommu_hdl, &io_addr[plane], &size, NULL,
+					prepare->buf_tracker);
 				if (rc) {
 					CAM_ERR(CAM_FD,
 						"Failed to get io buf %u %u %u %d",
@@ -1774,7 +1775,7 @@ static int cam_fd_mgr_hw_prepare_update(void *hw_mgr_priv,
 		kmd_buf.size, kmd_buf.used_bytes);
 
 	/* We do not expect any patching, but just do it anyway */
-	rc = cam_packet_util_process_patches(prepare->packet,
+	rc = cam_packet_util_process_patches(prepare->packet, prepare->buf_tracker,
 		hw_mgr->device_iommu.non_secure, -1, false);
 	if (rc) {
 		CAM_ERR(CAM_FD, "Patch FD packet failed, rc=%d", rc);

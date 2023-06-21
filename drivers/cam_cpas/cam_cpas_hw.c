@@ -17,6 +17,8 @@
 #include "cam_req_mgr_dev.h"
 #include "cam_smmu_api.h"
 #include "cam_compat.h"
+#include "cam_mem_mgr_api.h"
+#include "cam_req_mgr_interface.h"
 
 #define CAM_CPAS_LOG_BUF_LEN      512
 #define CAM_CPAS_APPLY_TYPE_START  1
@@ -3099,6 +3101,7 @@ static void cam_cpas_update_monitor_array(struct cam_hw_info *cpas_hw,
 	CAM_CPAS_INC_MONITOR_HEAD(&cpas_core->monitor_head, &iterator);
 
 	entry = &cpas_core->monitor_entries[iterator];
+	entry->cpas_hw = cpas_hw;
 
 	CAM_GET_TIMESTAMP(entry->timestamp);
 	strlcpy(entry->identifier_string, identifier_string,
@@ -3287,7 +3290,6 @@ static void cam_cpas_dump_monitor_array(
 		entry = &cpas_core->monitor_entries[index];
 		CAM_CONVERT_TIMESTAMP_FORMAT(entry->timestamp, hrs, min, sec, ms);
 		log_buf[0] = '\0';
-		len = 0;
 
 		CAM_INFO(CAM_CPAS,
 			"**** %llu:%llu:%llu.%llu : Index[%d] Identifier[%s][%d] camnoc=sw : %ld, hw clients [%ld %ld][%ld %ld][%ld %ld], ahb=%d",
@@ -3389,6 +3391,222 @@ static void cam_cpas_dump_monitor_array(
 
 		index = (index + 1) % CAM_CPAS_MONITOR_MAX_ENTRIES;
 	}
+}
+
+static void *cam_cpas_user_dump_state_monitor_array_info(
+	void *dump_struct, uint8_t *addr_ptr)
+{
+	uint64_t *addr;
+	struct cam_common_hw_dump_header *hdr;
+	struct cam_cpas_monitor *monitor = (struct cam_cpas_monitor *)dump_struct;
+	struct cam_cpas_axi_port_debug_info *axi_info = NULL;
+	struct cam_cpas_cesta_vcd_reg_debug_info *vcd_reg_debug_info = NULL;
+	struct cam_hw_info *cpas_hw = (struct cam_hw_info *) monitor->cpas_hw;
+	struct cam_cpas_private_soc *soc_private =
+		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
+	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
+	struct cam_cpas_tree_node *niu_node;
+	uint8_t *dst;
+	uint32_t num_vcds = CAM_CPAS_MAX_CESTA_VCD_NUM, camnoc_idx, i;
+
+	addr = (uint64_t *)addr_ptr;
+
+	*addr++ = monitor->timestamp.tv_sec;
+	*addr++ = monitor->timestamp.tv_nsec / NSEC_PER_USEC;
+
+	*addr++ = monitor->identifier_value;
+	*addr++ = monitor->applied_camnoc_clk.sw_client,
+	*addr++ = monitor->applied_camnoc_clk.hw_client[0].high,
+	*addr++ = monitor->applied_camnoc_clk.hw_client[0].low,
+	*addr++ = monitor->applied_camnoc_clk.hw_client[1].high,
+	*addr++ = monitor->applied_camnoc_clk.hw_client[1].low,
+	*addr++ = monitor->applied_camnoc_clk.hw_client[2].high,
+	*addr++ = monitor->applied_camnoc_clk.hw_client[2].low,
+	*addr++ = monitor->applied_ahb_level;
+	*addr++ = cpas_core->num_valid_camnoc;
+	*addr++ = soc_private->smart_qos_info->num_rt_wr_nius;
+	*addr++ = num_vcds;
+	*addr++ = cpas_core->num_axi_ports;
+
+	*addr++ = monitor->fe_ddr;
+	*addr++ = monitor->be_ddr;
+	*addr++ = monitor->fe_mnoc;
+	*addr++ = monitor->be_mnoc;
+	*addr++ = monitor->be_shub;
+
+	for (i = 0; i < cpas_core->num_axi_ports; i++) {
+		axi_info = &monitor->axi_info[i];
+		dst = (uint8_t *)addr;
+		hdr = (struct cam_common_hw_dump_header *)dst;
+
+		if (axi_info->applied_bw.vote_type == CAM_CPAS_VOTE_TYPE_DRV) {
+			scnprintf(hdr->tag, CAM_COMMON_HW_DUMP_TAG_MAX_LEN, "%s.%s.%s:",
+				axi_info->axi_port_name, "DRV",
+				CAM_BOOL_TO_YESNO(axi_info->is_drv_started));
+			addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
+			*addr++ = axi_info->applied_bw.drv_vote.high.ab;
+			*addr++ = axi_info->applied_bw.drv_vote.high.ib;
+			*addr++ = axi_info->applied_bw.drv_vote.low.ab;
+			*addr++ = axi_info->applied_bw.drv_vote.low.ib;
+		} else {
+			scnprintf(hdr->tag, CAM_COMMON_HW_DUMP_TAG_MAX_LEN, "%s.%s.%s:",
+				axi_info->axi_port_name, "HLOS",
+				CAM_BOOL_TO_YESNO(axi_info->is_drv_started));
+			addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
+			*addr++ = axi_info->applied_bw.hlos_vote.ab;
+			*addr++ = axi_info->applied_bw.hlos_vote.ib;
+		}
+	}
+
+	for (camnoc_idx = 0; camnoc_idx < cpas_core->num_valid_camnoc; camnoc_idx++) {
+		*addr++ = monitor->num_camnoc_lvl_regs[camnoc_idx];
+		for (i = 0; i < monitor->num_camnoc_lvl_regs[camnoc_idx]; i++) {
+			dst = (uint8_t *)addr;
+			hdr = (struct cam_common_hw_dump_header *)dst;
+			scnprintf(hdr->tag, CAM_COMMON_HW_DUMP_TAG_MAX_LEN, "%s:[%d %d].",
+				monitor->camnoc_port_name[camnoc_idx][i],
+				monitor->camnoc_fill_level[camnoc_idx][i] & 0x7FF,
+				(monitor->camnoc_fill_level[camnoc_idx][i] & 0x7F0000) >> 16);
+			addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
+		}
+	}
+
+	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
+		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
+		dst = (uint8_t *)addr;
+		hdr = (struct cam_common_hw_dump_header *)dst;
+		scnprintf(hdr->tag, CAM_COMMON_HW_DUMP_TAG_MAX_LEN, "%s:", niu_node->node_name);
+		addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
+		*addr++ = monitor->rt_wr_niu_pri_lut_high[i];
+		*addr++ = monitor->rt_wr_niu_pri_lut_low[i];
+	}
+
+	vcd_reg_debug_info = &monitor->vcd_reg_debug_info;
+
+	for (i = 0; i < num_vcds; i++) {
+		*addr++ = vcd_reg_debug_info->vcd_curr_lvl_debug_info[i].index;
+		*addr++ = vcd_reg_debug_info->vcd_curr_lvl_debug_info[i].reg_value;
+	}
+
+	return addr;
+}
+
+/**
+ * cam_cpas_dump_state_monitor_array_info()
+ *
+ * @brief     : dump the state monitor array info, dump from monitor_head
+ *              to save state information in time order.
+ * @cpas_hw   : hardware information
+ * @dump_info : dump payload
+ */
+static int cam_cpas_dump_state_monitor_array_info(
+	struct cam_hw_info *cpas_hw,
+	struct cam_req_mgr_dump_info *dump_info)
+{
+	int                             rc = 0;
+	int                             i, j;
+	struct cam_common_hw_dump_args  dump_args;
+	size_t                          buf_len;
+	size_t                          remain_len;
+	uint32_t                        min_len = 0, camnoc_idx;
+	uintptr_t                       cpu_addr;
+	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
+	int64_t                         state_head = 0;
+	uint32_t                        index, num_entries, oldest_entry;
+	struct cam_cpas_private_soc *soc_private =
+		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
+	struct cam_cpas_monitor         *entry;
+	uint32_t monitor_idx, camnoc_lvl_regs_num;
+
+	state_head = atomic64_read(&cpas_core->monitor_head);
+	if (state_head == -1) {
+		CAM_WARN(CAM_CPAS, "No valid entries in cpas monitor array");
+		return 0;
+	} else if (state_head < CAM_CPAS_MONITOR_MAX_ENTRIES) {
+		num_entries = state_head;
+		oldest_entry = 0;
+	} else {
+		num_entries = CAM_CPAS_MONITOR_MAX_ENTRIES;
+		div_u64_rem(state_head + 1,
+			CAM_CPAS_MONITOR_MAX_ENTRIES, &oldest_entry);
+	}
+
+	monitor_idx = index = oldest_entry;
+
+	rc = cam_mem_get_cpu_buf(dump_info->buf_handle, &cpu_addr, &buf_len);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Invalid handle %u rc %d",
+			dump_info->buf_handle, rc);
+		return rc;
+	}
+
+	if (buf_len <= dump_info->offset) {
+		CAM_WARN(CAM_CPAS, "Dump buffer overshoot len %zu offset %zu",
+			buf_len, dump_info->offset);
+		return -ENOSPC;
+	}
+
+	remain_len = buf_len - dump_info->offset;
+	for (i = 0; i < num_entries; i++) {
+		min_len += sizeof(struct cam_common_hw_dump_header) +
+			CAM_CPAS_DUMP_NUM_WORDS_COMM * sizeof(uint64_t);
+		entry = &cpas_core->monitor_entries[monitor_idx];
+		for (j = 0; j < cpas_core->num_axi_ports; j++) {
+			if (entry->axi_info[j].applied_bw.vote_type ==
+				CAM_CPAS_VOTE_TYPE_DRV) {
+				min_len += sizeof(struct cam_common_hw_dump_header) +
+					CAM_CPAS_DUMP_NUM_WORDS_VOTE_TYEP_DRV * sizeof(uint64_t);
+			} else {
+				min_len += sizeof(struct cam_common_hw_dump_header) +
+					CAM_CPAS_DUMP_NUM_WORDS_VOTE_TYEP_HLOS * sizeof(uint64_t);
+			}
+		}
+
+		for (camnoc_idx = 0; camnoc_idx < cpas_core->num_valid_camnoc; camnoc_idx++) {
+			min_len += sizeof(uint64_t);
+			camnoc_lvl_regs_num = entry->num_camnoc_lvl_regs[camnoc_idx];
+			for (j = 0; j < entry->num_camnoc_lvl_regs[camnoc_idx]; j++)
+				min_len += sizeof(struct cam_common_hw_dump_header);
+		}
+
+		for (j = 0; j < soc_private->smart_qos_info->num_rt_wr_nius; j++)
+			min_len += sizeof(struct cam_common_hw_dump_header) +
+				CAM_CPAS_DUMP_NUM_WORDS_RT_WR_NIUS * sizeof(uint64_t);
+
+		for (j = 0; j < CAM_CPAS_MAX_CESTA_VCD_NUM; j++)
+			min_len += CAM_CPAS_DUMP_NUM_WORDS_VCD_CURR_LVL * sizeof(uint64_t);
+
+		monitor_idx = (monitor_idx + 1) % CAM_CPAS_MONITOR_MAX_ENTRIES;
+	}
+
+	if (remain_len < min_len) {
+		CAM_WARN(CAM_CPAS, "Dump buffer exhaust remain %zu min %u",
+			remain_len, min_len);
+		return -ENOSPC;
+	}
+
+	dump_args.req_id = dump_info->req_id;
+	dump_args.cpu_addr = cpu_addr;
+	dump_args.buf_len = buf_len;
+	dump_args.offset = dump_info->offset;
+	dump_args.ctxt_to_hw_map = NULL;
+	for (i = 0; i < num_entries; i++) {
+		rc = cam_common_user_dump_helper(&dump_args,
+			cam_cpas_user_dump_state_monitor_array_info,
+			&cpas_core->monitor_entries[index],
+			sizeof(uint64_t), "CPAS_MONITOR.%d.%s:", index,
+			&cpas_core->monitor_entries[index].identifier_string);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Dump state info failed, rc: %d", rc);
+			return rc;
+		}
+
+		index = (index + 1) % CAM_CPAS_MONITOR_MAX_ENTRIES;
+	}
+
+	dump_info->offset = dump_args.offset;
+
+	return rc;
 }
 
 static int cam_cpas_log_event(struct cam_hw_info *cpas_hw,
@@ -4109,6 +4327,19 @@ static int cam_cpas_hw_process_cmd(void *hw_priv,
 
 		enable = (bool *)cmd_args;
 		rc = cam_cpas_hw_enable_domain_id_clks(hw_priv, *enable);
+		break;
+	}
+	case CAM_CPAS_HW_CMD_DUMP_STATE_MONITOR_INFO: {
+		struct cam_req_mgr_dump_info *info;
+
+		if (sizeof(struct cam_req_mgr_dump_info) != arg_size) {
+			CAM_ERR(CAM_CPAS, "cmd_type %d, size mismatch %d",
+				cmd_type, arg_size);
+			break;
+		}
+
+		info = (struct cam_req_mgr_dump_info *)cmd_args;
+		rc = cam_cpas_dump_state_monitor_array_info(hw_priv, info);
 		break;
 	}
 

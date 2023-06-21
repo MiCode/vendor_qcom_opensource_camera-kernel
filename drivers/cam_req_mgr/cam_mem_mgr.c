@@ -24,7 +24,6 @@
 #include "cam_trace.h"
 #include "cam_common_util.h"
 #include "cam_presil_hw_access.h"
-#include "cam_compat.h"
 
 #define CAM_MEM_SHARED_BUFFER_PAD_4K (4 * 1024)
 
@@ -362,7 +361,7 @@ static void cam_mem_put_slot(int32_t idx)
 static void cam_mem_mgr_update_iova_info_locked(
 	struct cam_mem_buf_hw_hdl_info *hw_vaddr_info_arr,
 	dma_addr_t vaddr, int32_t iommu_hdl, size_t len,
-	bool valid_mapping)
+	bool valid_mapping, struct kref *ref_count)
 {
 	int entry;
 	struct cam_mem_buf_hw_hdl_info *vaddr_entry;
@@ -378,11 +377,13 @@ static void cam_mem_mgr_update_iova_info_locked(
 	vaddr_entry->addr_updated = true;
 	vaddr_entry->valid_mapping = valid_mapping;
 	vaddr_entry->len = len;
+	vaddr_entry->ref_count = ref_count;
 }
 
 /* Utility to be invoked with bufq entry lock held */
 static int cam_mem_mgr_try_retrieving_hwva_locked(
-	int idx, int32_t mmu_handle, dma_addr_t *iova_ptr, size_t *len_ptr)
+	int idx, int32_t mmu_handle, dma_addr_t *iova_ptr, size_t *len_ptr,
+	struct list_head *buf_tracker)
 {
 	int rc = -EINVAL, entry;
 	struct cam_mem_buf_hw_hdl_info *hdl_info = NULL;
@@ -395,6 +396,10 @@ static int cam_mem_mgr_try_retrieving_hwva_locked(
 		if ((hdl_info->iommu_hdl == mmu_handle) && (hdl_info->addr_updated)) {
 			*iova_ptr = hdl_info->vaddr;
 			*len_ptr = hdl_info->len;
+			if (buf_tracker)
+				cam_smmu_add_buf_to_track_list(tbl.bufq[idx].fd,
+					tbl.bufq[idx].i_ino, &hdl_info->ref_count, buf_tracker,
+					GET_SMMU_TABLE_IDX(mmu_handle));
 			rc = 0;
 		}
 	}
@@ -403,10 +408,12 @@ static int cam_mem_mgr_try_retrieving_hwva_locked(
 }
 
 int cam_mem_get_io_buf(int32_t buf_handle, int32_t mmu_handle,
-	dma_addr_t *iova_ptr, size_t *len_ptr, uint32_t *flags)
+	dma_addr_t *iova_ptr, size_t *len_ptr, uint32_t *flags,
+	struct list_head *buf_tracker)
 {
 	int rc = 0, idx;
 	bool retrieved_iova = false;
+	struct kref *ref_count;
 
 	*len_ptr = 0;
 
@@ -435,18 +442,19 @@ int cam_mem_get_io_buf(int32_t buf_handle, int32_t mmu_handle,
 		*flags = tbl.bufq[idx].flags;
 
 	/* Try retrieving iova if saved previously */
-	rc = cam_mem_mgr_try_retrieving_hwva_locked(idx, mmu_handle, iova_ptr, len_ptr);
+	rc = cam_mem_mgr_try_retrieving_hwva_locked(idx, mmu_handle, iova_ptr, len_ptr,
+		buf_tracker);
 	if (!rc) {
 		retrieved_iova = true;
 		goto end;
 	}
 
 	if (CAM_MEM_MGR_IS_SECURE_HDL(buf_handle))
-		rc = cam_smmu_get_stage2_iova(mmu_handle, tbl.bufq[idx].fd,
-			tbl.bufq[idx].dma_buf, iova_ptr, len_ptr);
+		rc = cam_smmu_get_stage2_iova(mmu_handle, tbl.bufq[idx].fd, tbl.bufq[idx].dma_buf,
+			iova_ptr, len_ptr, buf_tracker, &ref_count);
 	else
 		rc = cam_smmu_get_iova(mmu_handle, tbl.bufq[idx].fd, tbl.bufq[idx].dma_buf,
-			iova_ptr, len_ptr);
+			iova_ptr, len_ptr, buf_tracker, &ref_count);
 
 	if (rc) {
 		CAM_ERR(CAM_MEM,
@@ -457,7 +465,7 @@ int cam_mem_get_io_buf(int32_t buf_handle, int32_t mmu_handle,
 
 	/* Save iova in bufq for future use */
 	cam_mem_mgr_update_iova_info_locked(tbl.bufq[idx].hdls_info,
-		*iova_ptr, mmu_handle, *len_ptr, false);
+		*iova_ptr, mmu_handle, *len_ptr, false, ref_count);
 
 end:
 	CAM_DBG(CAM_MEM,
@@ -1158,6 +1166,7 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 	int dir = cam_mem_util_get_dma_dir(flags);
 	bool dis_delayed_unmap = false;
 	dma_addr_t hw_vaddr;
+	struct kref *ref_count;
 
 	if (dir < 0) {
 		CAM_ERR(CAM_MEM, "fail to map DMA direction, dir=%d", dir);
@@ -1180,10 +1189,11 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 			region = CAM_SMMU_REGION_SHARED;
 
 		if (flags & CAM_MEM_FLAG_PROTECTED_MODE)
-			rc = cam_smmu_map_stage2_iova(mmu_hdls[i], fd, dmabuf, dir, &hw_vaddr, len);
+			rc = cam_smmu_map_stage2_iova(mmu_hdls[i], fd, dmabuf, dir, &hw_vaddr, len,
+				&ref_count);
 		else
 			rc = cam_smmu_map_user_iova(mmu_hdls[i], fd, dmabuf, dis_delayed_unmap, dir,
-				&hw_vaddr, len, region, is_internal);
+				&hw_vaddr, len, region, is_internal, &ref_count);
 		if (rc) {
 			CAM_ERR(CAM_MEM,
 					"Failed %s map to smmu, i=%d, fd=%d, dir=%d, mmu_hdl=%d, rc=%d",
@@ -1194,16 +1204,17 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 
 		/* cache hw va */
 		cam_mem_mgr_update_iova_info_locked(hw_vaddr_info_arr,
-			hw_vaddr, mmu_hdls[i], *len, true);
+			hw_vaddr, mmu_hdls[i], *len, true, ref_count);
 	}
 
 	return rc;
 multi_map_fail:
 	for (--i; i>= 0; i--) {
 		if (flags & CAM_MEM_FLAG_PROTECTED_MODE)
-			cam_smmu_unmap_stage2_iova(mmu_hdls[i], fd, dmabuf);
+			cam_smmu_unmap_stage2_iova(mmu_hdls[i], fd, dmabuf, false);
 		else
-			cam_smmu_unmap_user_iova(mmu_hdls[i], fd, dmabuf, CAM_SMMU_REGION_IO);
+			cam_smmu_unmap_user_iova(mmu_hdls[i], fd, dmabuf, CAM_SMMU_REGION_IO,
+				false);
 	}
 
 	/* reset any updated entries */
@@ -1497,7 +1508,7 @@ slot_fail:
 
 static int cam_mem_util_unmap_hw_va(int32_t idx,
 	enum cam_smmu_region_id region,
-	enum cam_smmu_mapping_client client)
+	enum cam_smmu_mapping_client client, bool force_unmap)
 {
 	int i, fd, num_hdls;
 	uint32_t flags;
@@ -1533,9 +1544,11 @@ static int cam_mem_util_unmap_hw_va(int32_t idx,
 		hdl_info = &tbl.bufq[idx].hdls_info[i];
 
 		if (flags & CAM_MEM_FLAG_PROTECTED_MODE)
-			rc = cam_smmu_unmap_stage2_iova(hdl_info->iommu_hdl, fd, dma_buf);
+			rc = cam_smmu_unmap_stage2_iova(hdl_info->iommu_hdl, fd, dma_buf,
+				force_unmap);
 		else if (client == CAM_SMMU_MAPPING_USER)
-			rc = cam_smmu_unmap_user_iova(hdl_info->iommu_hdl, fd, dma_buf, region);
+			rc = cam_smmu_unmap_user_iova(hdl_info->iommu_hdl, fd, dma_buf, region,
+				force_unmap);
 		else if (client == CAM_SMMU_MAPPING_KERNEL)
 			rc = cam_smmu_unmap_kernel_iova(hdl_info->iommu_hdl,
 				tbl.bufq[idx].dma_buf, region);
@@ -1576,7 +1589,7 @@ static void cam_mem_mgr_unmap_active_buf(int idx)
 	else if (tbl.bufq[idx].flags & CAM_MEM_FLAG_HW_READ_WRITE)
 		region = CAM_SMMU_REGION_IO;
 
-	cam_mem_util_unmap_hw_va(idx, region, CAM_SMMU_MAPPING_USER);
+	cam_mem_util_unmap_hw_va(idx, region, CAM_SMMU_MAPPING_USER, true);
 
 	if (tbl.bufq[idx].flags & CAM_MEM_FLAG_KMD_ACCESS)
 		cam_mem_util_unmap_cpu_va(tbl.bufq[idx].dma_buf,
@@ -1637,6 +1650,7 @@ void cam_mem_mgr_deinit(void)
 
 	atomic_set(&cam_mem_mgr_state, CAM_MEM_MGR_UNINITIALIZED);
 	cam_mem_mgr_cleanup_table();
+	cam_smmu_driver_deinit();
 	mutex_lock(&tbl.m_lock);
 	bitmap_zero(tbl.bitmap, tbl.bits);
 	kfree(tbl.bitmap);
@@ -1702,7 +1716,8 @@ static int cam_mem_util_unmap(int32_t idx,
 	if ((tbl.bufq[idx].flags & CAM_MEM_FLAG_HW_READ_WRITE) ||
 		(tbl.bufq[idx].flags & CAM_MEM_FLAG_HW_SHARED_ACCESS) ||
 		(tbl.bufq[idx].flags & CAM_MEM_FLAG_PROTECTED_MODE)) {
-		if (cam_mem_util_unmap_hw_va(idx, region, client))
+		rc = cam_mem_util_unmap_hw_va(idx, region, client, false);
+		if (rc)
 			CAM_ERR(CAM_MEM, "Failed, dmabuf=%pK",
 				tbl.bufq[idx].dma_buf);
 	}
@@ -1789,7 +1804,6 @@ int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,
 	uint32_t mem_handle;
 	int32_t idx;
 	int32_t smmu_hdl = 0;
-	int32_t num_hdl = 0;
 	unsigned long i_ino = 0;
 
 	enum cam_smmu_region_id region = CAM_SMMU_REGION_SHARED;
@@ -1861,7 +1875,6 @@ int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,
 	}
 
 	smmu_hdl = inp->smmu_hdl;
-	num_hdl = 1;
 
 	idx = cam_mem_get_slot();
 	if (idx < 0) {
@@ -1880,7 +1893,7 @@ int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,
 	tbl.bufq[idx].kmdvaddr = kvaddr;
 
 	cam_mem_mgr_update_iova_info_locked(tbl.bufq[idx].hdls_info,
-		iova, inp->smmu_hdl, inp->size, true);
+		iova, inp->smmu_hdl, inp->size, true, NULL);
 
 	tbl.bufq[idx].len = inp->size;
 	tbl.bufq[idx].num_hdls = 1;
@@ -1960,7 +1973,6 @@ int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,
 	uint32_t mem_handle;
 	int32_t idx;
 	int32_t smmu_hdl = 0;
-	int32_t num_hdl = 0;
 	uintptr_t kvaddr = 0;
 	unsigned long i_ino = 0;
 
@@ -2014,7 +2026,6 @@ int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,
 	}
 
 	smmu_hdl = inp->smmu_hdl;
-	num_hdl = 1;
 
 	idx = cam_mem_get_slot();
 	if (idx < 0) {
@@ -2033,7 +2044,7 @@ int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,
 	tbl.bufq[idx].kmdvaddr = kvaddr;
 
 	cam_mem_mgr_update_iova_info_locked(tbl.bufq[idx].hdls_info,
-		iova, inp->smmu_hdl, request_len, true);
+		iova, inp->smmu_hdl, request_len, true, NULL);
 
 	tbl.bufq[idx].len = request_len;
 	tbl.bufq[idx].num_hdls = 1;
@@ -2387,7 +2398,8 @@ int cam_mem_mgr_send_buffer_to_presil(int32_t iommu_hdl, int32_t buf_handle)
 		return -EINVAL;
 	}
 
-	rc = cam_mem_get_io_buf(buf_handle, iommu_hdl, &io_buf_addr, &io_buf_size, NULL);
+	rc = cam_mem_get_io_buf(buf_handle, iommu_hdl, &io_buf_addr, &io_buf_size,
+		NULL, NULL);
 	if (rc || NULL == (void *)io_buf_addr) {
 		CAM_DBG(CAM_PRESIL, "Invalid ioaddr : 0x%x, fd = %d,  dmabuf = %pK",
 			io_buf_addr, fd, dmabuf);
@@ -2468,7 +2480,8 @@ int cam_mem_mgr_retrieve_buffer_from_presil(int32_t buf_handle, uint32_t buf_siz
 
 
 	CAM_DBG(CAM_PRESIL, "buf handle 0x%0x ", buf_handle);
-	rc = cam_mem_get_io_buf(buf_handle, iommu_hdl, &io_buf_addr, &io_buf_size, NULL);
+	rc = cam_mem_get_io_buf(buf_handle, iommu_hdl, &io_buf_addr, &io_buf_size,
+		NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_PRESIL, "Unable to get IOVA for buffer buf_hdl: 0x%0x iommu_hdl: 0x%0x",
 			buf_handle, iommu_hdl);

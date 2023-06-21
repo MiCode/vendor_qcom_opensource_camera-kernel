@@ -2768,7 +2768,7 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 				cdm_cmd->cmd[i].bl_addr.mem_handle,
 				g_tfe_hw_mgr.mgr_common.cmd_iommu_hdl,
 				&ctx->last_submit_bl_cmd.cmd[i].hw_addr,
-				&ctx->last_submit_bl_cmd.cmd[i].len, NULL);
+				&ctx->last_submit_bl_cmd.cmd[i].len, NULL, NULL);
 		} else if (cdm_cmd->type == CAM_CDM_BL_CMD_TYPE_HW_IOVA) {
 			if (!cdm_cmd->cmd[i].bl_addr.hw_iova) {
 				CAM_ERR(CAM_CDM, "Submitted Hw bl hw_iova is invalid %d:%d",
@@ -4411,7 +4411,7 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 		return rc;
 
 	rc = cam_packet_util_process_patches(prepare->packet,
-		hw_mgr->mgr_common.cmd_iommu_hdl,
+		prepare->track_buf_list, hw_mgr->mgr_common.cmd_iommu_hdl,
 		hw_mgr->mgr_common.cmd_iommu_hdl_secure, false);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Patch ISP packet failed.");
@@ -4549,7 +4549,7 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 		/*Add reg update */
 		rc = cam_isp_add_reg_update(prepare, &ctx->res_list_tfe_in,
-			ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info);
+			ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info, false);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Add Reg_update cmd Failed i=%d, idx=%d, rc=%d",

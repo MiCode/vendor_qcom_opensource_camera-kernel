@@ -614,6 +614,7 @@ static struct cam_vfe_top_ver4_reg_offset_common vfe880_top_common_reg = {
 	.pdaf_input_cfg_0         = 0x00000130,
 	.pdaf_input_cfg_1         = 0x00000134,
 	.top_debug = vfe880_top_debug_reg,
+	.frame_timing_irq_reg_idx = CAM_IFE_IRQ_CAMIF_REG_STATUS1,
 };
 
 static struct cam_vfe_ver4_path_reg_data vfe880_pp_common_reg_data = {
@@ -913,11 +914,13 @@ static struct cam_irq_register_set vfe880_bus_irq_reg[2] = {
 		.mask_reg_offset   = 0x00000C18,
 		.clear_reg_offset  = 0x00000C20,
 		.status_reg_offset = 0x00000C28,
+		.set_reg_offset    = 0x00000C50,
 	},
 	{
 		.mask_reg_offset   = 0x00000C1C,
 		.clear_reg_offset  = 0x00000C24,
 		.status_reg_offset = 0x00000C2C,
+		.set_reg_offset    = 0x00000C54,
 	},
 };
 

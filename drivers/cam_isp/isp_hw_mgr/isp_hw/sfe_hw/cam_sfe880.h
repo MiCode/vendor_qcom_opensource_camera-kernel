@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SFE880_H_
@@ -724,6 +724,7 @@ static struct cam_irq_register_set sfe880_bus_rd_irq_reg[1] = {
 		.mask_reg_offset   = 0x00000404,
 		.clear_reg_offset  = 0x00000408,
 		.status_reg_offset = 0x00000410,
+		.set_reg_offset    = 0x00000418,
 	},
 };
 
@@ -1009,6 +1010,7 @@ static struct cam_irq_register_set sfe880_bus_wr_irq_reg[1] = {
 		.mask_reg_offset   = 0x00000818,
 		.clear_reg_offset  = 0x00000820,
 		.status_reg_offset = 0x00000828,
+		.set_reg_offset    = 0x00000850,
 	},
 };
 

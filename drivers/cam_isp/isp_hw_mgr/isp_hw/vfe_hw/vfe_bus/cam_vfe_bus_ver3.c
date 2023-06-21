@@ -71,6 +71,10 @@ enum cam_vfe_bus_ver3_packer_format {
 	PACKER_FMT_VER3_MAX,
 };
 
+struct cam_vfe_bus_irq_violation_type {
+	bool hwpd_violation;
+};
+
 struct cam_vfe_bus_ver3_comp_grp_acquire_args {
 	enum cam_vfe_bus_ver3_comp_grp_type  comp_grp_id;
 	uint64_t                             composite_mask;
@@ -85,6 +89,7 @@ struct cam_vfe_bus_ver3_common_data {
 	void                                       *buf_done_controller;
 	void                                       *priv;
 	struct cam_vfe_bus_ver3_reg_offset_common  *common_reg;
+	struct cam_cdm_utils_ops                   *cdm_util_ops;
 	uint32_t                                    io_buf_update[
 		MAX_REG_VAL_PAIR_SIZE];
 
@@ -193,12 +198,14 @@ struct cam_vfe_bus_ver3_vfe_out_data {
 	uint32_t                         format;
 	uint32_t                         max_width;
 	uint32_t                         max_height;
-	struct cam_cdm_utils_ops        *cdm_util_ops;
 	uint32_t                         secure_mode;
 	void                            *priv;
 	uint32_t                        *mid;
 	uint32_t                         num_mid;
 	bool                             limiter_enabled;
+	bool                             mc_based;
+	bool                             cntxt_cfg_except;
+	uint32_t                         dst_hw_ctxt_id_mask;
 };
 
 struct cam_vfe_bus_ver3_priv {
@@ -1829,9 +1836,11 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 
 	out_acquire_args = &acq_args->vfe_out;
 
-	CAM_DBG(CAM_ISP, "VFE:%u Acquire out_type:0x%X",
+	CAM_DBG(CAM_ISP, "VFE:%u Acquire out_type:0x%X use_hw_ctxt:%s hw_ctx_id:0x%x",
 		ver3_bus_priv->common_data.core_index,
-		out_acquire_args->out_port_info->res_type);
+		out_acquire_args->out_port_info->res_type,
+		CAM_BOOL_TO_YESNO(out_acquire_args->use_hw_ctxt),
+		out_acquire_args->out_port_info->hw_context_id);
 
 	vfe_out_res_id = cam_vfe_bus_ver3_get_out_res_id_and_index(
 				ver3_bus_priv,
@@ -1848,15 +1857,30 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	}
 
 	rsrc_node = &ver3_bus_priv->vfe_out[outmap_index];
+	rsrc_data = rsrc_node->res_priv;
 	if (rsrc_node->res_state != CAM_ISP_RESOURCE_STATE_AVAILABLE) {
-		CAM_ERR(CAM_ISP,
-			"VFE:%u out_type:0x%X resource not available state:%d",
-			ver3_bus_priv->common_data.core_index,
-			vfe_out_res_id, rsrc_node->res_state);
-		return -EBUSY;
+		if ((rsrc_data->mc_based || rsrc_data->cntxt_cfg_except) &&
+			out_acquire_args->use_hw_ctxt &&
+			!(rsrc_data->dst_hw_ctxt_id_mask &
+			out_acquire_args->out_port_info->hw_context_id)) {
+			rsrc_data->dst_hw_ctxt_id_mask |=
+				out_acquire_args->out_port_info->hw_context_id;
+			out_acquire_args->rsrc_node = rsrc_node;
+			rc = 0;
+			goto end;
+		} else {
+			CAM_ERR(CAM_ISP,
+				"VFE:%u out_type:0x%X mc_cap:%s cntxt_except:%s resource not available state:%d dst_hw_ctxt_id_mask:0x%x req_ctxt_id:0x%x",
+				ver3_bus_priv->common_data.core_index,
+				vfe_out_res_id, CAM_BOOL_TO_YESNO(rsrc_data->mc_based),
+				CAM_BOOL_TO_YESNO(rsrc_data->cntxt_cfg_except),
+				rsrc_node->res_state, rsrc_data->dst_hw_ctxt_id_mask,
+				out_acquire_args->out_port_info->hw_context_id);
+			rc = -EBUSY;
+			goto end;
+		}
 	}
 
-	rsrc_data = rsrc_node->res_priv;
 	rsrc_data->common_data->event_cb = acq_args->event_cb;
 	rsrc_data->common_data->priv = acq_args->priv;
 	rsrc_data->common_data->disable_ubwc_comp =
@@ -1865,6 +1889,9 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	rsrc_data->bus_priv = ver3_bus_priv;
 	rsrc_data->limiter_enabled = false;
 	comp_acq_args.composite_mask = (1ULL << vfe_out_res_id);
+
+	if (out_acquire_args->use_hw_ctxt)
+		rsrc_data->dst_hw_ctxt_id_mask |= out_acquire_args->out_port_info->hw_context_id;
 
 	/* for some hw versions, buf done is not received from vfe but
 	 * from IP external to VFE. In such case, we get the controller
@@ -1908,7 +1935,7 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	rsrc_node->res_id = out_acquire_args->out_port_info->res_type;
 	rsrc_node->tasklet_info = acq_args->tasklet;
 	rsrc_node->cdm_ops = out_acquire_args->cdm_ops;
-	rsrc_data->cdm_util_ops = out_acquire_args->cdm_ops;
+	rsrc_data->common_data->cdm_util_ops = out_acquire_args->cdm_ops;
 	rsrc_data->format = out_acquire_args->out_port_info->format;
 
 	if ((rsrc_data->out_type == CAM_VFE_BUS_VER3_VFE_OUT_FD) &&
@@ -1964,6 +1991,7 @@ release_wm:
 		cam_vfe_bus_ver3_release_wm(ver3_bus_priv,
 			&rsrc_data->wm_res[i]);
 
+end:
 	return rc;
 }
 
@@ -2005,7 +2033,7 @@ static int cam_vfe_bus_ver3_release_vfe_out(void *bus_priv, void *release_args,
 
 	vfe_out->tasklet_info = NULL;
 	vfe_out->cdm_ops = NULL;
-	rsrc_data->cdm_util_ops = NULL;
+	rsrc_data->dst_hw_ctxt_id_mask = 0;
 
 	secure_caps = cam_vfe_bus_ver3_can_be_secure(rsrc_data->out_type);
 	mutex_lock(&rsrc_data->common_data->bus_mutex);
@@ -2359,6 +2387,8 @@ static int cam_vfe_bus_ver3_init_vfe_out_resource(uint32_t  index,
 		ver3_hw_info->vfe_out_hw_info[index].max_height;
 	rsrc_data->secure_mode  = CAM_SECURE_MODE_NON_SECURE;
 	rsrc_data->num_wm       = ver3_hw_info->vfe_out_hw_info[index].num_wm;
+	rsrc_data->mc_based = ver3_hw_info->vfe_out_hw_info[index].mc_based;
+	rsrc_data->cntxt_cfg_except = ver3_hw_info->vfe_out_hw_info[index].cntxt_cfg_except;
 
 	rsrc_data->wm_res = kzalloc((sizeof(struct cam_isp_resource_node) *
 		rsrc_data->num_wm), GFP_KERNEL);
@@ -2446,7 +2476,7 @@ static void cam_vfe_bus_ver3_print_wm_info(
 	struct cam_vfe_bus_ver3_common_data  *common_data,
 	uint8_t *wm_name)
 {
-	uint32_t addr_status0, addr_status1, addr_status2, addr_status3;
+	uint32_t addr_status0, addr_status1, addr_status2, addr_status3, limiter;
 
 	addr_status0 = cam_io_r_mb(common_data->mem_base +
 		wm_data->hw_regs->addr_status_0);
@@ -2456,6 +2486,8 @@ static void cam_vfe_bus_ver3_print_wm_info(
 		wm_data->hw_regs->addr_status_2);
 	addr_status3 = cam_io_r_mb(common_data->mem_base +
 		wm_data->hw_regs->addr_status_3);
+	limiter = cam_io_r_mb(common_data->mem_base +
+		wm_data->hw_regs->bw_limiter_addr);
 
 	CAM_INFO(CAM_ISP,
 		"VFE:%u WM:%d wm_name:%s width:%u height:%u stride:%u x_init:%u en_cfg:%u acquired width:%u height:%u",
@@ -2467,13 +2499,9 @@ static void cam_vfe_bus_ver3_print_wm_info(
 		wm_data->acquired_width,
 		wm_data->acquired_height);
 	CAM_INFO(CAM_ISP,
-		"hw:%u WM:%d last consumed address:0x%x last frame addr:0x%x fifo cnt:0x%x current client address:0x%x",
-		common_data->hw_intf->hw_idx,
-		wm_data->index,
-		addr_status0,
-		addr_status1,
-		addr_status2,
-		addr_status3);
+		"VFE:%u WM:%u last consumed address:0x%x last frame addr:0x%x fifo cnt:0x%x current client address:0x%x limiter: 0x%x",
+		common_data->hw_intf->hw_idx, wm_data->index,
+		addr_status0, addr_status1, addr_status2, addr_status3, limiter);
 }
 
 static int cam_vfe_bus_ver3_print_dimensions(
@@ -2766,10 +2794,12 @@ static int cam_vfe_bus_ver3_err_irq_top_half(uint32_t evt_id,
 	return rc;
 }
 
-static void cam_vfe_print_violations(
+static void cam_vfe_check_violations(
 	char *error_type,
 	uint32_t status,
-	struct cam_vfe_bus_ver3_priv *bus_priv)
+	struct cam_vfe_bus_ver3_priv *bus_priv,
+	uint64_t *out_port,
+	struct cam_vfe_bus_irq_violation_type *violation_type)
 {
 	int i, j;
 	struct cam_isp_resource_node       *rsrc_node = NULL;
@@ -2802,6 +2832,18 @@ static void cam_vfe_print_violations(
 					bus_priv->common_data.core_index, error_type);
 				cam_vfe_bus_ver3_print_wm_info(wm_data,
 					common_data, wm_name);
+				*out_port |= BIT_ULL(rsrc_node->res_id & 0xFF);
+
+				/* check what type of violation it is*/
+				switch (wm_data->index) {
+				case 21:
+				case 22:
+					if (!strcmp(error_type, "Image Size"))
+						violation_type->hwpd_violation = true;
+					break;
+				default:
+					break;
+				}
 			}
 		}
 	}
@@ -2816,6 +2858,8 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 	struct cam_isp_hw_event_info evt_info;
 	struct cam_isp_hw_error_event_info err_evt_info;
 	uint32_t status = 0, image_size_violation = 0, ccif_violation = 0, constraint_violation = 0;
+	uint64_t out_port_id = 0;
+	struct cam_vfe_bus_irq_violation_type violation_type;
 
 	if (!handler_priv || !evt_payload_priv)
 		return -EINVAL;
@@ -2836,19 +2880,29 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 		bus_priv->common_data.core_index, evt_payload->image_size_violation_status,
 		evt_payload->ccif_violation_status);
 
+	memset(&evt_info, 0, sizeof(evt_info));
+	memset(&err_evt_info, 0, sizeof(err_evt_info));
+	memset(&violation_type, 0, sizeof(violation_type));
+
 	if (image_size_violation || constraint_violation) {
 		status = evt_payload->image_size_violation_status;
 		if (!status)
 			cam_vfe_bus_ver3_get_constraint_errors(bus_priv);
 		else {
-			cam_vfe_print_violations("Image Size", status,
-				bus_priv);
+			cam_vfe_check_violations("Image Size", status, bus_priv,
+				&out_port_id, &violation_type);
 		}
 	}
 
 	if (ccif_violation) {
 		status = evt_payload->ccif_violation_status;
-		cam_vfe_print_violations("CCIF", status, bus_priv);
+		cam_vfe_check_violations("CCIF", status, bus_priv,
+			&out_port_id, &violation_type);
+	}
+
+	if (image_size_violation && violation_type.hwpd_violation) {
+		err_evt_info.err_mask |= CAM_VFE_IRQ_ERR_MASK_HWPD_VIOLATION;
+		CAM_DBG(CAM_ISP, "HWPD image size violation");
 	}
 
 	cam_vfe_bus_ver3_put_evt_payload(common_data, &evt_payload);
@@ -2859,6 +2913,7 @@ static int cam_vfe_bus_ver3_err_irq_bottom_half(
 	evt_info.hw_type = CAM_ISP_HW_TYPE_VFE;
 	err_evt_info.err_type = CAM_VFE_IRQ_STATUS_VIOLATION;
 	evt_info.event_data = (void *)&err_evt_info;
+	evt_info.out_port_id = out_port_id;
 
 	if (common_data->event_cb)
 		common_data->event_cb(common_data->priv, CAM_ISP_HW_EVENT_ERROR,
@@ -3272,12 +3327,12 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_buf->res->res_priv;
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		return -EINVAL;
 	}
 
-	cdm_util_ops = vfe_out_data->cdm_util_ops;
+	cdm_util_ops = vfe_out_data->common_data->cdm_util_ops;
 	if ((update_buf->wm_update->num_buf != vfe_out_data->num_wm) &&
 		(!(update_buf->use_scratch_cfg))) {
 		CAM_ERR(CAM_ISP,
@@ -3558,12 +3613,12 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_hfr->res->res_priv;
 
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		return -EINVAL;
 	}
 
-	cdm_util_ops = vfe_out_data->cdm_util_ops;
+	cdm_util_ops = vfe_out_data->common_data->cdm_util_ops;
 	reg_val_pair = &vfe_out_data->common_data->io_buf_update[0];
 	hfr_cfg = (struct cam_isp_port_hfr_config *)update_hfr->data;
 
@@ -3683,7 +3738,7 @@ static int cam_vfe_bus_ver3_update_ubwc_config_v2(void *cmd_args)
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_ubwc->res->res_priv;
 
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		rc = -EINVAL;
 		goto end;
@@ -3865,7 +3920,7 @@ static int cam_vfe_bus_ver3_update_wm_config(
 	wm_config = (struct cam_isp_vfe_wm_config  *)
 		wm_config_update->data;
 
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops || !wm_config) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops || !wm_config) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		return -EINVAL;
 	}
@@ -3961,12 +4016,12 @@ static int cam_vfe_bus_update_bw_limiter(
 
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		wm_config_update->res->res_priv;
-	if (!vfe_out_data || !vfe_out_data->cdm_util_ops) {
+	if (!vfe_out_data || !vfe_out_data->common_data->cdm_util_ops) {
 		CAM_ERR(CAM_ISP, "Invalid data");
 		return -EINVAL;
 	}
 
-	cdm_util_ops = vfe_out_data->cdm_util_ops;
+	cdm_util_ops = vfe_out_data->common_data->cdm_util_ops;
 	reg_val_pair = &vfe_out_data->common_data->io_buf_update[0];
 	for (i = 0, j = 0; i < vfe_out_data->num_wm; i++) {
 		if (j >= (MAX_REG_VAL_PAIR_SIZE - (MAX_BUF_UPDATE_REG_NUM * 2))) {
@@ -4056,6 +4111,51 @@ add_reg_pair:
 	}
 
 	vfe_out_data->limiter_enabled = limiter_enabled;
+	return 0;
+}
+
+static int cam_vfe_bus_ver3_mc_ctxt_sel(
+	void *priv, void *cmd_args, uint32_t arg_size)
+
+{
+	struct cam_vfe_bus_ver3_priv              *bus_priv;
+	struct cam_isp_hw_get_cmd_update          *mc_config;
+	struct cam_cdm_utils_ops                  *cdm_util_ops = NULL;
+	struct cam_vfe_bus_ver3_reg_offset_common *common_reg;
+	uint32_t                                   reg_val[2], ctxt_id = 0;
+	uint32_t                                   size = 0;
+
+	if (!priv || !cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid args priv %x cmd_args %x",
+			priv, cmd_args);
+		return -EINVAL;
+	}
+
+	bus_priv = (struct cam_vfe_bus_ver3_priv  *)priv;
+	mc_config = (struct cam_isp_hw_get_cmd_update *)cmd_args;
+	ctxt_id  = *((uint32_t *)mc_config->data);
+
+	common_reg = bus_priv->common_data.common_reg;
+	reg_val[0] = common_reg->ctxt_sel;
+	reg_val[1] = ctxt_id << common_reg->mc_write_sel_shift;
+
+	cdm_util_ops = bus_priv->common_data.cdm_util_ops;
+	size = cdm_util_ops->cdm_required_size_reg_random(1);
+
+	/* cdm util returns dwords, need to convert to bytes */
+	if ((size * 4) > mc_config->cmd.size) {
+		CAM_ERR(CAM_ISP,
+			"Failed! Buf size:%d insufficient, expected size:%d",
+			mc_config->cmd.size, size);
+		return -ENOMEM;
+	}
+
+	cdm_util_ops->cdm_write_regrandom(
+		mc_config->cmd.cmd_buf_addr, 1, reg_val);
+
+	/* cdm util returns dwords, need to convert to bytes */
+	mc_config->cmd.used_bytes = size * 4;
+
 	return 0;
 }
 
@@ -4288,6 +4388,10 @@ static int cam_vfe_bus_ver3_process_cmd(
 	case CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG:
 		rc = cam_vfe_bus_update_bw_limiter(priv, cmd_args, arg_size);
 		break;
+	case CAM_ISP_HW_CMD_MC_CTXT_SEL:
+		rc = cam_vfe_bus_ver3_mc_ctxt_sel(priv, cmd_args, arg_size);
+		break;
+
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "VFE:%u Invalid camif process command:%d",
 			priv->hw_intf->hw_idx, cmd_type);

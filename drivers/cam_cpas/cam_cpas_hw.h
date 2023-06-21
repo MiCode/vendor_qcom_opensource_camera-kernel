@@ -60,6 +60,12 @@
 	CAM_CPAS_MONITOR_MAX_ENTRIES, (ret))
 #define CAM_CPAS_MAX_CESTA_VCD_NUM 9
 
+#define CAM_CPAS_DUMP_NUM_WORDS_COMM              20
+#define CAM_CPAS_DUMP_NUM_WORDS_VOTE_TYEP_DRV     4
+#define CAM_CPAS_DUMP_NUM_WORDS_VOTE_TYEP_HLOS    2
+#define CAM_CPAS_DUMP_NUM_WORDS_RT_WR_NIUS        2
+#define CAM_CPAS_DUMP_NUM_WORDS_VCD_CURR_LVL      2
+
 /**
  * enum cam_camnoc_domain_type - Enum for different camnoc domains
  * @CAM_CAMNOC_HW_COMBINED: refer to legacy camnoc info that combines RT/NRT HW
@@ -344,6 +350,7 @@ struct cam_cpas_monitor {
 	uint32_t            rt_wr_niu_pri_lut_low[CAM_CPAS_MAX_RT_WR_NIU_NODES];
 	uint32_t            rt_wr_niu_pri_lut_high[CAM_CPAS_MAX_RT_WR_NIU_NODES];
 	struct cam_cpas_cesta_vcd_reg_debug_info vcd_reg_debug_info;
+	struct cam_hw_info  *cpas_hw;
 };
 
 /**

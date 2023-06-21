@@ -548,6 +548,7 @@ static struct cam_vfe_top_ver4_reg_offset_common tfe980_top_common_reg = {
 	.bayer_debug_cfg          = 0x0000C1EC,
 	.num_top_debug_reg        = 35,
 	.top_debug = tfe980_top_debug_reg,
+	.frame_timing_irq_reg_idx = CAM_IFE_IRQ_CAMIF_REG_STATUS0,
 };
 
 static struct cam_vfe_ver4_path_reg_data tfe980_ipp_common_reg_data = {
@@ -559,6 +560,13 @@ static struct cam_vfe_ver4_path_reg_data tfe980_ipp_common_reg_data = {
 	.pdaf_violation_mask             = 0x2000000,
 	.enable_diagnostic_hw            = 0x1,
 	.top_debug_cfg_en                = 3,
+	.is_mc_path                      = true,
+	/* SOF and EOF mask combined for each context */
+	.frm_irq_hw_ctxt_mask = {
+		0x30,
+		0xC0,
+		0x300,
+	},
 };
 
 static struct cam_vfe_ver4_path_reg_data tfe980_pdlib_reg_data = {
@@ -2067,6 +2075,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.num_mid       = 3,
 			.num_wm        = 2,
 			.line_based    = 1,
+			.cntxt_cfg_except = true,
 			.wm_idx        = {
 				7,
 				8,
@@ -2085,6 +2094,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.num_mid       = 2,
 			.num_wm        = 1,
 			.line_based    = 1,
+			.cntxt_cfg_except = true,
 			.wm_idx        = {
 				9,
 			},
@@ -2127,8 +2137,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			},
 		},
 		{
-			.vfe_out_type  =
-				CAM_VFE_BUS_VER3_VFE_OUT_STATS_TL_BG,
+			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_STATS_TL_BG,
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,

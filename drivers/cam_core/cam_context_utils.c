@@ -207,6 +207,7 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 		CAM_DBG(CAM_CTXT, "[%s][%d] no output fence to signal",
 			ctx->dev_name, ctx->ctx_id);
 		list_del_init(&req->list);
+		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		list_add_tail(&req->list, &ctx->free_req_list);
 		req->ctx = NULL;
 		spin_unlock(&ctx->lock);
@@ -219,6 +220,9 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 	 */
 	list_del_init(&req->list);
 	spin_unlock(&ctx->lock);
+
+	cam_smmu_buffer_tracker_putref(&req->buf_tracker);
+
 	if (evt_id == CAM_CTX_EVT_ID_SUCCESS)
 		result = CAM_SYNC_STATE_SIGNALED_SUCCESS;
 	else  if (evt_id == CAM_CTX_EVT_ID_CANCEL)
@@ -313,6 +317,7 @@ static int cam_context_apply_req_to_hw(struct cam_ctx_request *req,
 
 	rc = ctx->hw_mgr_intf->hw_config(ctx->hw_mgr_intf->hw_mgr_priv, &cfg);
 	if (rc) {
+		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		spin_lock(&ctx->lock);
 		list_del_init(&req->list);
 		list_add_tail(&req->list, &ctx->free_req_list);
@@ -379,6 +384,7 @@ static void cam_context_sync_callback(int32_t sync_obj, int status, void *data)
 			req->flushed = 0;
 			req->ctx = NULL;
 			mutex_unlock(&ctx->sync_mutex);
+			cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 			spin_lock(&ctx->lock);
 			list_del_init(&req->list);
 			list_add_tail(&req->list, &ctx->free_req_list);
@@ -560,6 +566,11 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 	cfg.priv = req->req_priv;
 	cfg.num_in_map_entries = 0;
 	cfg.num_out_map_entries = 0;
+	cfg.buf_tracker = &req->buf_tracker;
+	memset(req->out_map_entries, 0, sizeof(struct cam_hw_fence_map_entry)
+		* ctx->max_out_map_entries);
+
+	INIT_LIST_HEAD(cfg.buf_tracker);
 
 	rc = ctx->hw_mgr_intf->hw_prepare_update(
 		ctx->hw_mgr_intf->hw_mgr_priv, &cfg);
@@ -570,6 +581,7 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 		rc = -EFAULT;
 		goto free_req;
 	}
+
 	req->num_hw_update_entries = cfg.num_hw_update_entries;
 	req->num_out_map_entries = cfg.num_out_map_entries;
 	req->num_in_map_entries = cfg.num_in_map_entries;
@@ -662,6 +674,7 @@ put_ref:
 				req->out_map_entries[i].sync_id);
 	}
 free_req:
+	cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 	spin_lock(&ctx->lock);
 	list_add_tail(&req->list, &ctx->free_req_list);
 	req->ctx = NULL;
@@ -835,6 +848,7 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 		list_del_init(&req->list);
 		req->flushed = 1;
 
+		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		flush_args.flush_req_pending[flush_args.num_req_pending++] =
 			req->req_priv;
 
@@ -934,6 +948,7 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 			struct cam_ctx_request, list);
 		list_del_init(&req->list);
 
+		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		for (i = 0; i < req->num_out_map_entries; i++) {
 			if (req->out_map_entries[i].sync_id != -1) {
 				rc = cam_sync_signal(
@@ -1072,6 +1087,8 @@ int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 		}
 
 		if (flush_args.num_req_pending || flush_args.num_req_active) {
+			cam_smmu_buffer_tracker_putref(&req->buf_tracker);
+
 			for (i = 0; i < req->num_out_map_entries; i++) {
 				sync_id =
 					req->out_map_entries[i].sync_id;

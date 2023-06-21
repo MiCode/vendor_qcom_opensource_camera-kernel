@@ -355,7 +355,7 @@ static int cam_ope_dump_hang_patches(struct cam_packet *packet,
 
 	for (i = 0; i < packet->num_patches; i++) {
 		rc = cam_mem_get_io_buf(patch_desc[i].src_buf_hdl,
-			iommu_hdl, &iova_addr, &src_buf_size, NULL);
+			iommu_hdl, &iova_addr, &src_buf_size, NULL, NULL);
 		if (rc < 0) {
 			CAM_ERR(CAM_UTIL,
 				"get src buf address failed for handle 0x%x",
@@ -381,7 +381,7 @@ static int cam_ope_dump_direct(struct ope_cmd_buf_info *cmd_buf_info,
 	int rc = 0;
 
 	rc = cam_mem_get_io_buf(cmd_buf_info->mem_handle,
-		ope_hw_mgr->iommu_hdl, &iova_addr, &size, NULL);
+		ope_hw_mgr->iommu_hdl, &iova_addr, &size, NULL, NULL);
 	if (rc < 0) {
 		CAM_ERR(CAM_UTIL, "get cmd buf addressfailed for handle 0x%x",
 			cmd_buf_info->mem_handle);
@@ -499,7 +499,7 @@ static int cam_ope_mgr_dump_frame_set(uintptr_t frame_process_addr,
 		for (i = 0; i < frame_process->frame_set[j].num_io_bufs; i++) {
 			io_buf = &frame_process->frame_set[j].io_buf[i];
 			rc = cam_mem_get_io_buf(io_buf->mem_handle[0],
-				ope_hw_mgr->iommu_hdl, &iova_addr, &size, NULL);
+				ope_hw_mgr->iommu_hdl, &iova_addr, &size, NULL, NULL);
 			if (rc) {
 				CAM_ERR(CAM_OPE, "get io buf fail 0x%x",
 					io_buf->mem_handle[0]);
@@ -573,7 +573,7 @@ static int cam_ope_dump_bls(struct cam_ope_request *ope_req,
 	cdm_cmd = ope_req->cdm_cmd;
 	for (i = 0; i < cdm_cmd->cmd_arrary_count; i++) {
 		rc = cam_mem_get_io_buf(cdm_cmd->cmd[i].bl_addr.mem_handle,
-				ope_hw_mgr->iommu_hdl, &iova_addr, &size, NULL);
+				ope_hw_mgr->iommu_hdl, &iova_addr, &size, NULL, NULL);
 		if (rc) {
 			CAM_ERR(CAM_OPE, "get io buf fail 0x%x",
 				cdm_cmd->cmd[i].bl_addr.mem_handle);
@@ -1918,7 +1918,8 @@ static void cam_ope_mgr_print_stripe_info(uint32_t batch,
 
 static int cam_ope_mgr_process_cmd_io_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 	struct cam_packet *packet, struct cam_ope_ctx *ctx_data,
-	uintptr_t frame_process_addr, size_t length, struct cam_ope_request *ope_request)
+	uintptr_t frame_process_addr, size_t length, struct cam_ope_request *ope_request
+	struct list_head *buf_tracker)
 {
 	int rc = 0;
 	int i, j, k, l;
@@ -2029,12 +2030,12 @@ static int cam_ope_mgr_process_cmd_io_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 					rc = cam_mem_get_io_buf(
 						in_io_buf->mem_handle[k],
 						hw_mgr->iommu_sec_hdl,
-						&iova_addr, &len, NULL);
+						&iova_addr, &len, NULL, buf_tracker);
 				else
 					rc = cam_mem_get_io_buf(
 						in_io_buf->mem_handle[k],
 						hw_mgr->iommu_hdl,
-						&iova_addr, &len, NULL);
+						&iova_addr, &len, NULL, buf_tracker);
 
 				if (rc) {
 					CAM_ERR(CAM_OPE, "get buf failed: %d",
@@ -2045,6 +2046,7 @@ static int cam_ope_mgr_process_cmd_io_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 					CAM_ERR(CAM_OPE, "Invalid length");
 					return -EINVAL;
 				}
+
 				iova_addr += in_io_buf->plane_offset[k];
 				CAM_DBG(CAM_OPE,
 					"E rsc %d stripes %d dir %d plane %d",
@@ -2095,7 +2097,8 @@ static int cam_ope_mgr_process_cmd_io_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 
 static int cam_ope_mgr_process_cmd_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 	struct cam_packet *packet, struct cam_ope_ctx *ctx_data,
-	uintptr_t frame_process_addr, size_t length, struct cam_ope_request *ope_request)
+	uintptr_t frame_process_addr, size_t length, struct cam_ope_request *ope_request
+	struct list_head *buf_tracker)
 {
 	int rc = 0;
 	int i, j;
@@ -2152,21 +2155,25 @@ static int cam_ope_mgr_process_cmd_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 			switch (cmd_buf->cmd_buf_scope) {
 			case OPE_CMD_BUF_SCOPE_FRAME: {
 				rc = cam_mem_get_io_buf(cmd_buf->mem_handle,
-					hw_mgr->iommu_hdl, &iova_addr, &len, NULL);
+					hw_mgr->iommu_hdl, &iova_addr, &len, NULL,
+						buf_tracker);
 				if (rc) {
 					CAM_ERR(CAM_OPE, "get cmd buffailed %x",
 						hw_mgr->iommu_hdl);
 					goto end;
 				}
+
 				iova_addr = iova_addr + cmd_buf->offset;
 
 				rc = cam_mem_get_io_buf(cmd_buf->mem_handle,
-					hw_mgr->iommu_cdm_hdl, &iova_cdm_addr, &len, NULL);
+					hw_mgr->iommu_cdm_hdl, &iova_cdm_addr, &len, NULL,
+					buf_tracker);
 				if (rc) {
 					CAM_ERR(CAM_OPE, "get cmd buffailed %x",
 						hw_mgr->iommu_hdl);
 					goto end;
 				}
+
 				iova_cdm_addr = iova_cdm_addr + cmd_buf->offset;
 
 				rc = cam_mem_get_cpu_buf(cmd_buf->mem_handle,
@@ -2261,7 +2268,8 @@ end:
 
 static int cam_ope_mgr_process_cmd_desc(struct cam_ope_hw_mgr *hw_mgr,
 	struct cam_packet *packet, struct cam_ope_ctx *ctx_data,
-	uintptr_t *ope_cmd_buf_addr, struct cam_ope_request *ope_request)
+	uintptr_t *ope_cmd_buf_addr, struct cam_ope_request *ope_request
+	struct list_head *buf_tracker)
 {
 	int rc = 0;
 	int i;
@@ -2305,14 +2313,14 @@ static int cam_ope_mgr_process_cmd_desc(struct cam_ope_hw_mgr *hw_mgr,
 	ope_request->request_id = packet->header.request_id;
 
 	rc = cam_ope_mgr_process_cmd_buf_req(hw_mgr, packet, ctx_data,
-		cpu_addr, len, ope_request);
+		cpu_addr, len, ope_request, buf_tracker);
 	if (rc) {
 		CAM_ERR(CAM_OPE, "Process OPE cmd request is failed: %d", rc);
 		goto end;
 	}
 
 	rc = cam_ope_mgr_process_cmd_io_buf_req(hw_mgr, packet, ctx_data,
-		cpu_addr, len, ope_request);
+		cpu_addr, len, ope_request, buf_tracker);
 	if (rc) {
 		CAM_ERR(CAM_OPE, "Process OPE cmd io request is failed: %d",
 			rc);
@@ -3251,8 +3259,8 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 		return -EINVAL;
 	}
 
-	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_cdm_hdl,
-		hw_mgr->iommu_sec_cdm_hdl, false);
+	rc = cam_packet_util_process_patches(packet, prepare_args->buf_tracker,
+		hw_mgr->iommu_cdm_hdl, hw_mgr->iommu_sec_cdm_hdl, false);
 	if (rc) {
 		mutex_unlock(&ctx_data->ctx_mutex);
 		CAM_ERR(CAM_OPE, "Patching failed: %d req_id: %d ctx: %d",
@@ -3291,7 +3299,7 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 	}
 
 	rc = cam_ope_mgr_process_cmd_desc(hw_mgr, packet,
-		ctx_data, &ope_cmd_buf_addr, ope_req);
+		ctx_data, &ope_cmd_buf_addr, ope_req, prepare_args->buf_tracker);
 	if (rc) {
 		CAM_ERR(CAM_OPE,
 			"cmd desc processing failed :%d ctx: %d req_id:%d",

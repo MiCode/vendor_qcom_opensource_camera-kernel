@@ -62,6 +62,15 @@
 /* Debug Buffer length*/
 #define CAM_ISP_CONTEXT_DBG_BUF_LEN 300
 
+/* Maximum entries in frame record */
+#define CAM_ISP_CTX_MAX_FRAME_RECORDS  5
+
+
+/*
+ * Congestion count threshold
+ */
+#define CAM_ISP_CONTEXT_CONGESTION_CNT_MAX 3
+
 /* forward declaration */
 struct cam_isp_context;
 
@@ -244,6 +253,56 @@ struct cam_isp_context_event_record {
 };
 
 /**
+ *
+ *
+ * struct cam_isp_context_frame_timing_record - Frame timing events
+ *
+ * @sof_ts:           SOF timestamp
+ * @eof_ts:           EOF ts
+ * @epoch_ts:         EPOCH ts
+ * @secondary_sof_ts: Secondary SOF ts
+ *
+ */
+struct cam_isp_context_frame_timing_record {
+	struct timespec64 sof_ts;
+	struct timespec64 eof_ts;
+	struct timespec64 epoch_ts;
+	struct timespec64 secondary_sof_ts;
+};
+
+
+/**
+ *
+ *
+ * struct cam_isp_context_debug_monitors - ISP context debug monitors
+ *
+ * @state_monitor_head:        State machine monitor head
+ * @state_monitor:             State machine monitor info
+ * @event_record_head:         Request Event monitor head
+ * @event_record:              Request event monitor info
+ * @frame_monitor_head:        Frame timing monitor head
+ * @frame_monitor:             Frame timing event monitor
+ *
+ */
+struct cam_isp_context_debug_monitors {
+	/* State machine monitoring */
+	atomic64_t                           state_monitor_head;
+	struct cam_isp_context_state_monitor state_monitor[
+		CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES];
+
+	/* Req event monitor */
+	atomic64_t                            event_record_head[
+		CAM_ISP_CTX_EVENT_MAX];
+	struct cam_isp_context_event_record   event_record[
+		CAM_ISP_CTX_EVENT_MAX][CAM_ISP_CTX_EVENT_RECORD_MAX_ENTRIES];
+
+	/* Frame timing monitor */
+	atomic64_t                            frame_monitor_head;
+	struct cam_isp_context_frame_timing_record frame_monitor[
+		CAM_ISP_CTX_MAX_FRAME_RECORDS];
+};
+
+/**
  * struct cam_isp_context   -  ISP context object
  *
  * @base:                      Common context object pointer
@@ -271,11 +330,11 @@ struct cam_isp_context_event_record {
  * @aeb_error_cnt:             Count number of times a specific AEB error scenario is
  *                             enountered
  * @out_of_sync_cnt:           Out of sync error count for AEB
+ * @congestion_cnt:            Count number of times congestion was encountered
+ *                             consecutively
  * @state_monitor_head:        Write index to the state monitoring array
  * @req_info                   Request id information about last buf done
- * @cam_isp_ctx_state_monitor: State monitoring array
- * @event_record_head:         Write index to the state monitoring array
- * @event_record:              Event record array
+ * @dbg_monitors:              Debug monitors for ISP context
  * @rdi_only_context:          Get context type information.
  *                             true, if context is rdi only context
  * @offline_context:           Indicate whether context is for offline IFE
@@ -313,6 +372,7 @@ struct cam_isp_context_event_record {
  *                             This is decided based on the max mode switch delay published
  *                             by other devices on the link as part of link setup
  * @mode_switch_en:            Indicates if mode switch is enabled
+ * @hw_idx:                    Hardware ID
  *
  */
 struct cam_isp_context {
@@ -341,14 +401,12 @@ struct cam_isp_context {
 	uint32_t                         bubble_frame_cnt;
 	uint32_t                         aeb_error_cnt;
 	uint32_t                         out_of_sync_cnt;
+	uint32_t                         congestion_cnt;
 	atomic64_t                       state_monitor_head;
 	struct cam_isp_context_state_monitor cam_isp_ctx_state_monitor[
 		CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES];
 	struct cam_isp_context_req_id_info    req_info;
-	atomic64_t                            event_record_head[
-		CAM_ISP_CTX_EVENT_MAX];
-	struct cam_isp_context_event_record   event_record[
-		CAM_ISP_CTX_EVENT_MAX][CAM_ISP_CTX_EVENT_RECORD_MAX_ENTRIES];
+	struct cam_isp_context_debug_monitors dbg_monitors;
 	bool                                  rdi_only_context;
 	bool                                  offline_context;
 	bool                                  vfps_aux_context;
@@ -380,6 +438,7 @@ struct cam_isp_context {
 	atomic_t                              mswitch_default_apply_delay_ref_cnt;
 	bool                                  handle_mswitch;
 	bool                                  mode_switch_en;
+	uint32_t                              hw_idx;
 };
 
 /**

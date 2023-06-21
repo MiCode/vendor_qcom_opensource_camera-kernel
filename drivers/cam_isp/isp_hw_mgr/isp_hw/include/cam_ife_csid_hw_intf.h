@@ -133,6 +133,8 @@ struct cam_isp_out_port_generic_info {
 	uint32_t                split_point;
 	uint32_t                secure_mode;
 	uint32_t                reserved;
+	uint32_t                wm_mode;
+	uint32_t                hw_context_id;
 };
 
 struct cam_isp_in_port_generic_info {
@@ -179,6 +181,8 @@ struct cam_isp_in_port_generic_info {
 	uint32_t                        sfe_in_path_type;
 	uint32_t                        sfe_ife_enable;
 	uint32_t                        epoch_factor;
+	uint32_t                        path_id;
+	uint32_t                        ipp_dst_hw_ctxt_mask;
 	bool                            secure_mode;
 	bool                            dynamic_sensor_switch_en;
 	bool                            can_use_lite;

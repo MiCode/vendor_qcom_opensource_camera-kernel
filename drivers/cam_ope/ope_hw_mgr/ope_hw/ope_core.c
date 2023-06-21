@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -547,7 +547,7 @@ static uint32_t *ope_create_frame_cmd_batch(struct cam_ope_hw_mgr *hw_mgr,
 
 		rc = cam_mem_get_io_buf(
 			frm_proc->cmd_buf[i][j].mem_handle,
-			hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL);
+			hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL, NULL);
 		if (rc) {
 			CAM_ERR(CAM_OPE, "get cmd buf failed %x",
 				hw_mgr->iommu_hdl);
@@ -704,7 +704,7 @@ static uint32_t *ope_create_frame_cmd(struct cam_ope_hw_mgr *hw_mgr,
 
 			rc = cam_mem_get_io_buf(
 				frm_proc->cmd_buf[i][j].mem_handle,
-				hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL);
+				hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL, NULL);
 			if (rc) {
 				CAM_ERR(CAM_OPE, "get cmd buf failed %x",
 					hw_mgr->iommu_hdl);
@@ -819,7 +819,7 @@ static uint32_t *ope_create_stripe_cmd(struct cam_ope_hw_mgr *hw_mgr,
 
 		CAM_DBG(CAM_OPE, "process stripe %d", stripe_idx);
 		rc = cam_mem_get_io_buf(frm_proc->cmd_buf[i][k].mem_handle,
-			hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL);
+			hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL, NULL);
 		if (rc) {
 			CAM_DBG(CAM_OPE, "get cmd buf fail %x",
 				hw_mgr->iommu_hdl);

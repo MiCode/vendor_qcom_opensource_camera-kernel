@@ -57,6 +57,7 @@ enum cam_ife_ctx_master_type {
  * @per_req_reg_dump:          Enable per request reg dump
  * @disable_ubwc_comp:         Disable UBWC compression
  * @disable_ife_mmu_prefetch:  Disable MMU prefetch for IFE bus WR
+ * @enable_ife_frame_irqs:     Enable Frame timing IRQs for IFE/MCTFE
  * @rx_capture_debug_set:      If rx capture debug is set by user
  * @disable_isp_drv:           Disable ISP DRV config
  * @enable_presil_reg_dump:    Enable per req regdump in presil
@@ -79,6 +80,7 @@ struct cam_ife_hw_mgr_debug {
 	bool           per_req_reg_dump;
 	bool           disable_ubwc_comp;
 	bool           disable_ife_mmu_prefetch;
+	bool           enable_ife_frame_irqs;
 	bool           rx_capture_debug_set;
 	bool           disable_isp_drv;
 	bool           enable_presil_reg_dump;
@@ -321,7 +323,13 @@ struct cam_isp_comp_record_query {
  * @try_recovery_cnt:       Retry count for overflow recovery
  * @recovery_req_id:        The request id on which overflow recovery happens
  * @drv_path_idle_en:       Path idle enable value for DRV
+ * @major_version:          Major version for acquire
+ * @vfe_bus_comp_grp:       VFE composite group placeholder
+ * @sfe_bus_comp_grp:       SFE composite group placeholder
  * @cdm_done_ts:            CDM callback done timestamp
+ * @is_hw_ctx_acq:          If acquire for ife ctx is having hw ctx acquired
+ * @acq_hw_ctxt_src_dst_map: Src to dst hw ctxt map for acquired pixel paths
+ *
  */
 struct cam_ife_hw_mgr_ctx {
 	struct list_head                          list;
@@ -383,9 +391,12 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                   try_recovery_cnt;
 	uint64_t                                   recovery_req_id;
 	uint32_t                                   drv_path_idle_en;
+	uint32_t                                   major_version;
 	struct cam_isp_context_comp_record        *vfe_bus_comp_grp;
 	struct cam_isp_context_comp_record        *sfe_bus_comp_grp;
 	struct timespec64                          cdm_done_ts;
+	bool                                       is_hw_ctx_acq;
+	uint32_t                                   acq_hw_ctxt_src_dst_map[CAM_ISP_MULTI_CTXT_MAX];
 };
 
 /**

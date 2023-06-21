@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -214,6 +214,7 @@ struct cam_vfe_bus_ver3_vfe_out_hw_info {
 	uint32_t                            mc_grp_shift;
 	uint8_t                            *name[PLANE_MAX];
 	bool                                mc_based;
+	bool                               cntxt_cfg_except;
 };
 
 /*

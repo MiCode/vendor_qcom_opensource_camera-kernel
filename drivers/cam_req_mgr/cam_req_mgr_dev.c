@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1088,6 +1088,8 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 	struct component_match *match_list = NULL;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = NULL;
+	uint32_t cam_bypass_driver = 0;
+	struct device_node *of_node = NULL;
 
 	for (i = 0; i < ARRAY_SIZE(cam_component_i2c_drivers); i++) {
 		while ((np = of_find_compatible_node(np, NULL,
@@ -1129,6 +1131,16 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 			"Unable to add master, probe failed rc: %d",
 			rc);
 		goto end;
+	}
+
+	of_node = dev->of_node;
+	rc = of_property_read_u32(of_node, "cam-bypass-driver",
+		&cam_bypass_driver);
+	if (!rc) {
+		cam_soc_util_set_bypass_drivers(cam_bypass_driver);
+	} else {
+		CAM_INFO(CAM_CRM, "bypass driver parameter not found");
+		rc = 0;
 	}
 
 end:

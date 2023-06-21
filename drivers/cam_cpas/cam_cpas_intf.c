@@ -22,6 +22,7 @@
 #include "cam_cpas_soc.h"
 #include "camera_main.h"
 #include <linux/soc/qcom/llcc-qcom.h>
+#include "cam_req_mgr_interface.h"
 
 #define CAM_CPAS_DEV_NAME    "cam-cpas"
 #define CAM_CPAS_INTF_INITIALIZED() (g_cpas_intf && g_cpas_intf->probe_done)
@@ -1000,6 +1001,26 @@ int cam_cpas_enable_clks_for_domain_id(bool enable)
 	return rc;
 }
 EXPORT_SYMBOL(cam_cpas_enable_clks_for_domain_id);
+
+int cam_cpas_dump_state_monitor_info(struct cam_req_mgr_dump_info *info)
+{
+	int rc = 0;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+
+	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
+		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
+			g_cpas_intf->hw_intf->hw_priv,
+			CAM_CPAS_HW_CMD_DUMP_STATE_MONITOR_INFO, info,
+			sizeof(*info));
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(cam_cpas_dump_state_monitor_info);
 
 int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 	struct cam_control *cmd)

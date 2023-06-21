@@ -66,26 +66,29 @@ enum cam_context_state {
  * @index:                 Index of request in the list
  * @flushed:               Request is flushed
  * @ctx:                   The context to which this request belongs
+ * @buf_tracker:           List of buffers we want to keep ref counts on
+ *                         used by the HW block for a particular req
  * @pf_data                page fault debug data
  *
  */
 struct cam_ctx_request {
-	struct list_head                  list;
-	uint32_t                          status;
-	uint64_t                          request_id;
-	void                             *req_priv;
-	struct cam_hw_update_entry       *hw_update_entries;
-	uint32_t                          num_hw_update_entries;
-	struct cam_hw_fence_map_entry    *in_map_entries;
-	uint32_t                          num_in_map_entries;
-	struct cam_hw_fence_map_entry    *out_map_entries;
-	uint32_t                          num_out_map_entries;
-	atomic_t                          num_in_acked;
-	uint32_t                          num_out_acked;
-	uint32_t                          index;
-	int                               flushed;
-	struct cam_context               *ctx;
-	struct cam_hw_mgr_pf_request_info pf_data;
+	struct list_head               list;
+	uint32_t                       status;
+	uint64_t                       request_id;
+	void                          *req_priv;
+	struct cam_hw_update_entry    *hw_update_entries;
+	uint32_t                       num_hw_update_entries;
+	struct cam_hw_fence_map_entry *in_map_entries;
+	uint32_t                       num_in_map_entries;
+	struct cam_hw_fence_map_entry *out_map_entries;
+	uint32_t                       num_out_map_entries;
+	atomic_t                       num_in_acked;
+	uint32_t                       num_out_acked;
+	uint32_t                       index;
+	int                            flushed;
+	struct cam_context            *ctx;
+	struct list_head               buf_tracker;
+	struct cam_hw_mgr_pf_request_info  pf_data;
 };
 
 /**
@@ -208,7 +211,7 @@ struct cam_ctx_ops {
  * @ctxt_to_hw_map:        Context to hardware mapping pointer
  * @hw_mgr_ctx_id:         Hw Mgr context id returned from hw mgr
  * @ctx_id_string:         Context id string constructed with dev type,
- *                         ctx id, hw mgr ctx id
+ *                         ctx id, hw mgr ctx id, hw id
  * @refcount:              Context object refcount
  * @node:                  The main node to which this context belongs
  * @sync_mutex:            mutex to sync with sync cb thread

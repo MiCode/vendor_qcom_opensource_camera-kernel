@@ -46,6 +46,7 @@ struct cam_presil_dmabuf_params {
  * @iommu_hdl:     IOMMU handle for the given bank
  * @vaddr:         IOVA of the buffer
  * @len:           cached length for a given handle
+ * @ref_count:     ref count for buffer
  * @addr_updated:  Indicates if entry is updated only for addr caching
  * @valid_mapping: Indicates if entry is indeed a valid mapping for this buf
  *
@@ -54,6 +55,7 @@ struct cam_mem_buf_hw_hdl_info {
 	int32_t iommu_hdl;
 	dma_addr_t vaddr;
 	size_t len;
+	struct kref *ref_count;
 
 	bool addr_updated;
 	bool valid_mapping;

@@ -105,6 +105,7 @@ static struct cam_vfe_top_ver4_reg_offset_common vfe68x_top_common_reg = {
 	.top_debug_cfg            = 0x00001074,
 	.num_top_debug_reg        = CAM_VFE_68X_NUM_DBG_REG,
 	.top_debug                = vfe68x_top_debug_reg,
+	.frame_timing_irq_reg_idx = CAM_IFE_IRQ_CAMIF_REG_STATUS1,
 };
 
 static struct cam_vfe_ver4_path_reg_data vfe68x_ipp_reg_data =

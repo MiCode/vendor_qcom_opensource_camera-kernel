@@ -39,11 +39,13 @@
 #define ICP_QHDR_RX_TYPE_MASK                   0x00FF0000
 #define ICP_QHDR_PRI_TYPE_MASK                  0x0000FF00
 #define ICP_QHDR_Q_ID_MASK                      0x000000FF
+#define ICP_QTBL_SIZE_IN_BYTES                  sizeof(struct hfi_qtbl)
 
 #define ICP_CMD_Q_SIZE_IN_BYTES                 8192
 #define ICP_MSG_Q_SIZE_IN_BYTES                 8192
 #define ICP_DBG_Q_SIZE_IN_BYTES                 102400
 #define ICP_MSG_SFR_SIZE_IN_BYTES               4096
+#define ICP_SEC_HEAP_SIZE_IN_BYTES              1048576
 
 #define ICP_HFI_QTBL_HOSTID1                    0x01000000
 #define ICP_HFI_QTBL_STATUS_ENABLED             0x00000001
@@ -274,15 +276,17 @@ struct hfi_qtbl {
  * @smem_size: Shared memory size
  * @uncachedheap_size: uncached heap size
  * @msgpacket_buf: message buffer
- * @hfi_state: State machine for hfi
  * @cmd_q_lock: Lock for command queue
- * @cmd_q_state: State of command queue
- * @mutex msg_q_lock: Lock for message queue
- * @msg_q_state: State of message queue
+ * @msg_q_lock: Lock for message queue
+ * @dbg_q_lock: Lock for debug queue
+ * @hfi_state: State machine for hfi
  * @priv: device private data
  * @dbg_lvl: debug level set to FW
  * @fw_version: firmware version
  * @client_name: hfi client's name
+ * @cmd_q_state: State of command queue
+ * @msg_q_state: State of message queue
+ * @dbg_q_state: State of debug queue
  */
 struct hfi_info {
 	struct hfi_mem_info map;
@@ -290,15 +294,17 @@ struct hfi_info {
 	uint32_t smem_size;
 	uint32_t uncachedheap_size;
 	uint32_t msgpacket_buf[ICP_HFI_MAX_MSG_SIZE_IN_WORDS];
-	uint8_t hfi_state;
 	struct mutex cmd_q_lock;
-	bool cmd_q_state;
 	struct mutex msg_q_lock;
-	bool msg_q_state;
+	struct mutex dbg_q_lock;
+	uint8_t hfi_state;
 	void *priv;
 	u64 dbg_lvl;
 	uint32_t fw_version;
 	char client_name[HFI_CLIENT_NAME_LEN];
+	bool cmd_q_state;
+	bool msg_q_state;
+	bool dbg_q_state;
 };
 
 #endif /* _CAM_HFI_REG_H_ */

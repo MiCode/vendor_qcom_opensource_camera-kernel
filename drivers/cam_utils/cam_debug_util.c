@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -24,6 +24,9 @@ module_param(debug_priority, uint, 0644);
 
 uint debug_drv;
 module_param(debug_drv, uint, 0644);
+
+uint debug_bypass_drivers;
+module_param(debug_bypass_drivers, uint, 0644);
 
 struct camera_debug_settings cam_debug;
 
@@ -259,10 +262,11 @@ void cam_print_to_buffer(char *buf, const size_t buf_size, size_t *len, unsigned
 	va_end(args);
 }
 
-static void __cam_print_log(int type, const char *fmt, va_list args)
+static void __cam_print_log(int type, const char *fmt, ...)
 {
-	va_list args1, args2;
+	va_list args1, args2, args;
 
+	va_start(args, fmt);
 	va_copy(args1, args);
 	va_copy(args2, args1);
 	if ((type & CAM_PRINT_LOG) && (debug_type != 1))
@@ -273,16 +277,24 @@ static void __cam_print_log(int type, const char *fmt, va_list args)
 	}
 	va_end(args2);
 	va_end(args1);
+	va_end(args);
 }
 
-void cam_print_log(int type, const char *fmt, ...)
+void cam_print_log(int type, int module, int tag, const char *func,
+	int line, const char *fmt, ...)
 {
+	char buf[CAM_LOG_BUF_LEN] = {0,};
+	int len = 0;
+
 	va_list args;
 
 	if (!type)
 		return;
 
 	va_start(args, fmt);
-	__cam_print_log(type, fmt, args);
+	len = vscnprintf(buf, CAM_LOG_BUF_LEN, fmt, args);
+	__cam_print_log(type, __CAM_LOG_FMT,
+		CAM_LOG_TAG_NAME(tag), CAM_DBG_MOD_NAME(module), func,
+		line, buf);
 	va_end(args);
 }
