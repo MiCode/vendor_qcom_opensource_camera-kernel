@@ -66,6 +66,8 @@
 #define CAM_ISP_TFE_PACKET_META_REG_DUMP_PER_REQUEST  6
 #define CAM_ISP_TFE_PACKET_META_REG_DUMP_ON_FLUSH     7
 #define CAM_ISP_TFE_PACKET_META_REG_DUMP_ON_ERROR     8
+#define CAM_ISP_TFE_PACKET_META_GENERIC_BLOB_LEFT     9
+#define CAM_ISP_TFE_PACKET_META_GENERIC_BLOB_RIGHT    10
 
 /* ISP TFE Generic Cmd Buffer Blob types */
 #define CAM_ISP_TFE_GENERIC_BLOB_TYPE_HFR_CONFIG            0
@@ -76,6 +78,7 @@
 #define CAM_ISP_TFE_GENERIC_BLOB_TYPE_DYNAMIC_MODE_SWITCH   15
 #define CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_LIMITER_CFG        16
 #define CAM_ISP_TFE_GENERIC_BLOB_TYPE_ALIGNMENT_OFFSET_INFO 17
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_UPDATE_OUT_RES        18
 
 /* DSP mode */
 #define CAM_ISP_TFE_DSP_MODE_NONE                   0
@@ -561,6 +564,35 @@ struct cam_isp_tfe_alignment_resource_info {
 	__u32                                        num_ports;
 	struct cam_isp_tfe_alignment_offset_config   port_alignment_cfg[1];
 } __attribute__((packed));
+
+/**
+ * struct cam_isp_tfe_wm_dimension_config - ISP TFE res Dimension config
+ *
+ * @res_id      : Resource id
+ * @mode        : Mode of out resource
+ * @height      : Out resource height
+ * @width       : Out resource width
+ *
+ */
+struct cam_isp_tfe_wm_dimension_config {
+	__u32                    res_id;
+	__u32                    mode;
+	__u32                    height;
+	__u32                    width;
+};
+
+/**
+ * struct cam_isp_tfe_out_resource_config - ISP TFE out config
+ *
+ * @num_ports             : Num of out res
+ * @reserved              : Reserved field
+ * @dimention_config      : Out resource dimension config
+ */
+struct cam_isp_tfe_out_resource_config {
+	__u32                                       num_ports;
+	__u32                                       reserved;
+	struct cam_isp_tfe_wm_dimension_config      dimension_config[1];
+};
 
 #define CAM_TFE_ACQUIRE_COMMON_VER0         0x1000
 
