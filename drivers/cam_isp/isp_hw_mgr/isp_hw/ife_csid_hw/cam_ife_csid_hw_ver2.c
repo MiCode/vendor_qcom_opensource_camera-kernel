@@ -1700,7 +1700,7 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(
 	}
 
 	if (!(csid_hw->debug_info.debug_val &
-		    CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
+		CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
 		csid_reg->cmn_reg->early_eof_supported) {
 		if ((cfg1 & BIT(path_reg->early_eof_en_shift_val)) &&
 			!(cfg1 & BIT(path_reg->crop_v_en_shift_val))) {
@@ -1729,7 +1729,7 @@ static void cam_ife_csid_ver2_print_debug_reg_status(
 
 	soc_info = &csid_hw->hw_info->soc_info;
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-		    csid_hw->core_info->csid_reg;
+		csid_hw->core_info->csid_reg;
 
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 
@@ -1953,7 +1953,7 @@ void cam_ife_csid_ver2_print_format_measure_info(
 	void *csid, void *resource)
 {
 	struct cam_ife_csid_ver2_hw       *csid_hw = csid;
-        struct cam_isp_resource_node      *res = resource;
+	struct cam_isp_resource_node      *res = resource;
 	struct cam_ife_csid_ver2_reg_info *csid_reg = csid_hw->core_info->csid_reg;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg =
 		csid_reg->path_reg[res->res_id];
