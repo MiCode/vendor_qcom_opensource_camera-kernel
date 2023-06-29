@@ -903,31 +903,38 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 	}
 	mutex_unlock(&ctx->sync_mutex);
 
-	INIT_LIST_HEAD(&temp_list);
-	spin_lock(&ctx->lock);
-	list_splice_init(&ctx->active_req_list, &temp_list);
-	spin_unlock(&ctx->lock);
-
 	if (ctx->hw_mgr_intf->hw_flush) {
 		num_entries = 0;
-		list_for_each(list, &temp_list) {
+
+		/*
+		 * Hold the ctx lock till the active requests are populated for
+		 * flush, allocate memory in atomic context. We want to ensure the
+		 * allocated memory is sufficient for the requests in the active list.
+		 * The active list should not be reinitialized since it is possible that
+		 * any buf done's from HW is serviced before the flush
+		 * makes it to the HW layer
+		 */
+		spin_lock(&ctx->lock);
+		list_for_each(list, &ctx->active_req_list)
 			num_entries++;
-		}
+
 		if (num_entries) {
 			flush_args.flush_req_active =
-				kcalloc(num_entries, sizeof(void *), GFP_KERNEL);
+				kcalloc(num_entries, sizeof(void *), GFP_ATOMIC);
 			if (!flush_args.flush_req_active) {
+				spin_unlock(&ctx->lock);
 				CAM_ERR(CAM_CTXT, "[%s][%d] : Flush array memory alloc fail",
 					ctx->dev_name, ctx->ctx_id);
 				rc = -ENOMEM;
 				goto end;
 			}
 
-			list_for_each_entry(req, &temp_list, list) {
+			list_for_each_entry(req, &ctx->active_req_list, list) {
 				flush_args.flush_req_active[flush_args.num_req_active++] =
 					req->req_priv;
 			}
 		}
+		spin_unlock(&ctx->lock);
 
 		if (flush_args.num_req_pending || flush_args.num_req_active) {
 			flush_args.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
@@ -936,6 +943,11 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 				ctx->hw_mgr_intf->hw_mgr_priv, &flush_args);
 		}
 	}
+
+	INIT_LIST_HEAD(&temp_list);
+	spin_lock(&ctx->lock);
+	list_splice_init(&ctx->active_req_list, &temp_list);
+	spin_unlock(&ctx->lock);
 
 	if (cam_debug_ctx_req_list & ctx->dev_id)
 		CAM_INFO(CAM_CTXT,
@@ -970,10 +982,10 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 			}
 		}
 
+		req->ctx = NULL;
 		spin_lock(&ctx->lock);
 		list_add_tail(&req->list, &ctx->free_req_list);
 		spin_unlock(&ctx->lock);
-		req->ctx = NULL;
 
 		if (cam_debug_ctx_req_list & ctx->dev_id)
 			CAM_INFO(CAM_CTXT,
