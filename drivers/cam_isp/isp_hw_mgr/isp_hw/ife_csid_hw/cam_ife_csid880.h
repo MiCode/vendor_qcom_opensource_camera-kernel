@@ -1358,6 +1358,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.ipp_irq_mask_all                        = 0x7FFF,
 	.rdi_irq_mask_all                        = 0x7FFF,
 	.ppp_irq_mask_all                        = 0xFFFF,
+	.sync_reset_ctrl_testbus_val             = 0x1000C101,
 	.top_err_irq_mask = {
 		0x180002,
 	},

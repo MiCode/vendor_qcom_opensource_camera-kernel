@@ -686,6 +686,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t epoch_factor;
 	uint32_t decode_format_payload_only;
 	uint32_t capabilities;
+	uint32_t sync_reset_ctrl_testbus_val;
 };
 
 /**

@@ -5432,6 +5432,10 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	if (csid_hw->debug_info.test_bus_val) {
 		cam_ife_csid_ver2_testbus_config(csid_hw, csid_hw->debug_info.test_bus_val);
 		csid_hw->debug_info.test_bus_enabled = true;
+	} else {
+		cam_ife_csid_ver2_testbus_config(csid_hw,
+			csid_reg->cmn_reg->sync_reset_ctrl_testbus_val);
+		csid_hw->debug_info.test_bus_enabled = true;
 	}
 
 	/* Check for global resume */
