@@ -458,4 +458,7 @@ int cam_cpas_util_reg_read(struct cam_hw_info *cpas_hw,
 
 int cam_cpas_util_client_cleanup(struct cam_hw_info *cpas_hw);
 
+int cam_cpas_util_vote_default_ahb_axi(struct cam_hw_info *cpas_hw,
+	int enable);
+
 #endif /* _CAM_CPAS_HW_H_ */

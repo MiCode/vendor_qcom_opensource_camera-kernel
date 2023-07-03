@@ -277,4 +277,18 @@ struct cam_axi_per_path_bw_vote {
 	__u64                      ddr_ib_bw;
 };
 
+#define CAM_CPAS_CUSTOM_CMD_FD_PORT_CFG 0
+
+/**
+ * struct cam_cpas_fd_port_config : CPAS custom cmd struct for updating FD
+ *                                  port config
+ *
+ * @is_secure                Security mode of the FD port
+ * @reserved                 Reserved for alignment
+ */
+struct cam_cpas_fd_port_config {
+	__u32 is_secure;
+	__u32 reserved;
+};
+
 #endif /* __UAPI_CAM_CPAS_H__ */
