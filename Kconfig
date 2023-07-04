@@ -21,7 +21,13 @@ config SPECTRA_JPEG
 	  camera jpeg module will be functional.
 	  This module interact with jpeg HW for
 	  snapshot processing.
-
+config SPECTRA_CRE
+	bool "enable camera jpeg module"
+	help
+	  This is enabling camera CRE module.
+	  camera cre module will be functional.
+	  This module interact with cre HW for
+	  format conversion.
 config SPECTRA_SENSOR
 	bool "enable camera sensor module"
 	help

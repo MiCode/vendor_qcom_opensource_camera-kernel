@@ -1,18 +1,17 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#ifndef CAM_CRE_HW_100_H
-#define CAM_CRE_HW_100_H
+#ifndef CAM_CRE_HW_110_H
+#define CAM_CRE_HW_110_H
 
 #include "cre_hw.h"
 
 #define CRE_BUS_RD_TYPE            0x1
 #define CRE_BUS_WR_TYPE            0x2
 
-static struct cam_cre_top_reg cre100_top_reg = {
+static struct cam_cre_top_reg cre110_top_reg = {
 	.hw_version            =  0x000,
 	.hw_cap                =  0x004,
 	.debug_0               =  0x080,
@@ -31,8 +30,8 @@ static struct cam_cre_top_reg cre100_top_reg = {
 	.top_spare             =  0x1FC,
 };
 
-struct cam_cre_top_reg_val cre100_top_reg_value = {
-	.hw_version = 0x10000000,
+struct cam_cre_top_reg_val cre110_top_reg_value = {
+	.hw_version = 0x10010000,
 	.hw_cap = 0x4000,
 	.irq_mask = 0xf,
 	.irq_clear = 0xf,
@@ -47,7 +46,7 @@ struct cam_cre_top_reg_val cre100_top_reg_value = {
 	.hw_reset_cmd = 0x1,
 };
 
-struct cam_cre_bus_rd_reg cre100_bus_rd_reg = {
+struct cam_cre_bus_rd_reg cre110_bus_rd_reg = {
 	.hw_version     = 0x00,
 	.irq_mask       = 0x04,
 	.irq_clear      = 0x08,
@@ -60,6 +59,8 @@ struct cam_cre_bus_rd_reg cre100_bus_rd_reg = {
 	.iso_cfg        = 0x24,
 	.iso_seed       = 0x28,
 	.test_bus_ctrl  = 0x2C,
+	.cons_violation = 0x30,
+	.ccif_violation = 0x34,
 	.num_clients    = 1,
 	.rd_clients[0]  = {
 		.core_cfg               = 0x50,
@@ -73,18 +74,18 @@ struct cam_cre_bus_rd_reg cre100_bus_rd_reg = {
 		.misr_cfg_0             = 0x84,
 		.misr_cfg_1             = 0x88,
 		.misr_rd_val            = 0x8C,
-		.debug_status_cfg       = 0x90,
-		.debug_status_0         = 0x94,
-		.debug_status_1         = 0x98,
-		.read_buff_cfg          = 0xA0,
-		.addr_cfg               = 0xA4,
-		.spare                  = 0x30,
-		.cons_violation         = 0x34,
+		.system_cache_cfg       = 0x90,
+		.read_buff_cfg          = 0x94,
+		.addr_cfg               = 0x98,
+		.debug_status_cfg       = 0xA4,
+		.debug_status_0         = 0xA8,
+		.debug_status_1         = 0xAC,
+		.spare                  = 0x38,
 	},
 };
 
-struct cam_cre_bus_wr_reg_val cre100_bus_wr_reg_value = {
-	.hw_version                   = 0x30000000,
+struct cam_cre_bus_wr_reg_val cre110_bus_wr_reg_value = {
+	.hw_version                   = 0x40000000,
 	.cgc_override                 = 0x1,
 	.irq_mask_0                   = 0xd0000101,
 	.irq_set_0                    = 0xd0000101,
@@ -132,18 +133,19 @@ struct cam_cre_bus_wr_reg_val cre100_bus_wr_reg_value = {
 		.bw_limit_en              = 0x1,
 		.bw_limit_en_mask         = 0x1,
 		.bw_limit_counter_mask    = 0x1fe,
-	        .client_buf_done          = 0x1,
+		.client_buf_done          = 0x1,
 		.output_port_id           = CAM_CRE_OUTPUT_IMAGE,
 		.wm_port_id               = 0,
 	},
 };
 
-struct cam_cre_bus_rd_reg_val cre100_bus_rd_reg_value = {
-	.hw_version              = 0x30000000,
-	.irq_mask                = 0x1, /* INFO_CONS_VIOLATION */
+struct cam_cre_bus_rd_reg_val cre110_bus_rd_reg_value = {
+	.hw_version              = 0x40000000,
+	.irq_mask                = 0x80000001,
 	.rd_buf_done             = 0x4,
 	.rup_done                = 0x2,
 	.cons_violation          = 0x1,
+	.ccif_violation          = 0x80000000,
 	.irq_cmd_set             = 0x10,
 	.irq_cmd_clear           = 0x1,
 	.static_prg              = 0x8,
@@ -184,7 +186,7 @@ struct cam_cre_bus_rd_reg_val cre100_bus_rd_reg_value = {
 	},
 };
 
-struct cam_cre_bus_wr_reg cre100_bus_wr_reg = {
+struct cam_cre_bus_wr_reg cre110_bus_wr_reg = {
 	.hw_version                   = 0x00,
 	.cgc_override                 = 0x08,
 	.irq_mask_0                   = 0x18,
@@ -194,7 +196,6 @@ struct cam_cre_bus_wr_reg cre100_bus_wr_reg = {
 	.irq_status_0                 = 0x28,
 	.irq_status_1                 = 0x2C,
 	.irq_cmd                      = 0x30,
-	.frame_header_cfg_0           = 0x0,
 	.local_frame_header_cfg_0     = 0x4C,
 	.irq_set_0                    = 0x50,
 	.irq_set_1                    = 0x54,
@@ -223,19 +224,20 @@ struct cam_cre_bus_wr_reg cre100_bus_wr_reg = {
 		.img_cfg_2            = 0x214,
 		.packer_cfg           = 0x218,
 		.bw_limit             = 0x21C,
+		.system_cache_cfg     = 0x268,
 		.addr_cfg             = 0x270,
-		.debug_status_cfg     = 0x284,
-		.debug_status_0       = 0x288,
-		.debug_status_1       = 0x28C,
+		.debug_status_cfg     = 0x288,
+		.debug_status_0       = 0x28c,
+		.debug_status_1       = 0x290,
 	},
 };
 
-static struct cam_cre_hw cre_hw_100 = {
-	.top_reg_offset    = &cre100_top_reg,
-	.top_reg_val       = &cre100_top_reg_value,
-	.bus_wr_reg_offset = &cre100_bus_wr_reg,
-	.bus_wr_reg_val    = &cre100_bus_wr_reg_value,
-	.bus_rd_reg_offset = &cre100_bus_rd_reg,
-	.bus_rd_reg_val    = &cre100_bus_rd_reg_value,
+static struct cam_cre_hw cre_hw_110 = {
+	.top_reg_offset    = &cre110_top_reg,
+	.top_reg_val       = &cre110_top_reg_value,
+	.bus_wr_reg_offset = &cre110_bus_wr_reg,
+	.bus_wr_reg_val    = &cre110_bus_wr_reg_value,
+	.bus_rd_reg_offset = &cre110_bus_rd_reg,
+	.bus_rd_reg_val    = &cre110_bus_rd_reg_value,
 };
-#endif // CAM_CRE_HW_100_H
+#endif // CAM_CRE_HW_110_H

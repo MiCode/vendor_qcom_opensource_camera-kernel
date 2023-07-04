@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/delay.h>
 #include "cam_io_util.h"
@@ -22,6 +23,70 @@ static struct cre_bus_wr *wr_info;
 		cre_reg_buf->num_wr_reg_set++; \
 	} while (0)
 
+static uint32_t cam_cre_bus_wr_format_idx(uint32_t format)
+{
+	uint32_t format_idx = 0;
+
+	switch(format) {
+	case CAM_FORMAT_PLAIN128:
+		format_idx = 0x0;
+		break;
+	case CAM_FORMAT_PLAIN8:
+		format_idx = 0x1;
+		break;
+	case CAM_FORMAT_PLAIN8_SWAP:
+		format_idx = 0x2;
+		break;
+	case CAM_FORMAT_PLAIN8_10:
+		format_idx = 0x3;
+		break;
+	case CAM_FORMAT_PLAIN8_10_SWAP:
+		format_idx = 0x4;
+		break;
+	case CAM_FORMAT_PLAIN16_10:
+		format_idx = 0x5;
+		break;
+	case CAM_FORMAT_PLAIN16_12:
+		format_idx = 0x6;
+		break;
+	case CAM_FORMAT_PLAIN16_14:
+		format_idx = 0x7;
+		break;
+	case CAM_FORMAT_PLAIN16_16:
+		format_idx = 0x8;
+		break;
+	case CAM_FORMAT_PLAIN32:
+		format_idx = 0x9;
+		break;
+	case CAM_FORMAT_PLAIN64:
+		format_idx = 0xA;
+		break;
+	case CAM_FORMAT_PD10:
+		format_idx = 0xB;
+		break;
+	case CAM_FORMAT_MIPI_RAW_10:
+		format_idx = 0xC;
+		break;
+	case CAM_FORMAT_MIPI_RAW_12:
+		format_idx = 0xD;
+		break;
+	case CAM_FORMAT_MIPI_RAW_14:
+		format_idx = 0xE;
+		break;
+	case CAM_FORMAT_MIPI_RAW_20:
+		format_idx = 0xF;
+		break;
+	case CAM_FORMAT_PLAIN32_20:
+		format_idx = 0x10;
+		break;
+	default:
+		CAM_WARN(CAM_CRE, "Invalid format %d", format);
+		break;
+	}
+
+	return format_idx;
+}
+
 static int cam_cre_translate_write_format(struct plane_info p_info,
 	struct cam_cre_bus_wr_client_reg_val *wr_client_reg_val)
 {
@@ -36,12 +101,7 @@ static int cam_cre_translate_write_format(struct plane_info p_info,
 	wr_client_reg_val->height    = p_info.height;
 	wr_client_reg_val->alignment = p_info.alignment;
 
-	/*
-	 * Update packer format to zero irrespective of output format
-	 * This is as per the recomendation from CRE HW team for CRE 1.0
-	 * This logic has to be updated for CRE 1.1
-	 */
-	wr_client_reg_val->format = 0;
+	wr_client_reg_val->format = p_info.format;
 
 	return 0;
 }
@@ -101,6 +161,7 @@ static int cam_cre_bus_wr_update(struct cam_cre_hw *cam_cre_hw_info,
 	int rc, k, out_port_idx;
 	uint32_t req_idx;
 	uint32_t val = 0;
+	uint32_t format_idx = 0;
 	uint32_t iova_base, iova_offset;
 	struct cam_hw_prepare_update_args *prepare_args;
 	struct cam_cre_ctx *ctx_data;
@@ -204,12 +265,13 @@ static int cam_cre_bus_wr_update(struct cam_cre_hw *cam_cre_hw_info,
 			wr_client_reg_val->stride);
 
 		val = 0;
-		val |= ((wr_client_reg_val->format &
-			wr_client_reg_val->format_mask) <<
+		format_idx = cam_cre_bus_wr_format_idx(wr_client_reg_val->format);
+		val |= ((format_idx & wr_client_reg_val->format_mask) <<
 			wr_client_reg_val->format_shift);
-		val |= ((wr_client_reg_val->alignment &
-			wr_client_reg_val->alignment_mask) <<
-			wr_client_reg_val->alignment_shift);
+
+		/* Update alignment as LSB by default*/
+		val |= (0x1 << wr_client_reg_val->alignment_shift);
+
 		/* pack cfg : Format and alignment */
 		update_cre_reg_set(cre_reg_buf,
 			wr_reg->offset + wr_reg_client->packer_cfg,
