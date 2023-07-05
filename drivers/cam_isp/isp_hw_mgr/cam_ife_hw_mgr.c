@@ -1520,14 +1520,14 @@ static void cam_ife_hw_mgr_dump_acquire_resources(
 	}
 
 	/* Iterate over IFE OUT resources */
-	for (i = 0; i < max_ife_out_res; i++) {
+	for (i = 0; i < hwr_mgr_ctx->num_acq_vfe_out; i++) {
 		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX; j++) {
 			hw_mgr_res = &hwr_mgr_ctx->res_list_ife_out[i];
 			hw_res = hw_mgr_res->hw_res[j];
 			if (hw_res && hw_res->hw_intf)
 				CAM_INFO(CAM_ISP,
 					"IFE out split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
-					i, hwr_mgr_ctx->ctx_index,
+					j, hwr_mgr_ctx->ctx_index,
 					hw_res->hw_intf->hw_idx,
 					hw_res->res_name,
 					hw_res->res_type,
@@ -1538,14 +1538,14 @@ static void cam_ife_hw_mgr_dump_acquire_resources(
 	}
 
 	/* Iterate over SFE OUT resources */
-	for (i = 0; i < max_sfe_out_res; i++) {
+	for (i = 0; i < hwr_mgr_ctx->num_acq_sfe_out; i++) {
 		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX; j++) {
 			hw_mgr_res = &hwr_mgr_ctx->res_list_sfe_out[i];
 			hw_res = hw_mgr_res->hw_res[j];
 			if (hw_res && hw_res->hw_intf)
 				CAM_INFO(CAM_ISP,
 					"SFE out split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
-					i, hwr_mgr_ctx->ctx_index,
+					j, hwr_mgr_ctx->ctx_index,
 					hw_res->hw_intf->hw_idx,
 					hw_res->res_name,
 					hw_res->res_type,
