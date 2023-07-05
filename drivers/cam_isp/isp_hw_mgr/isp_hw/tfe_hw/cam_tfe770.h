@@ -137,8 +137,8 @@ static struct cam_tfe_camif_reg_data tfe770_camif_reg_data = {
 	.epoch1_irq_mask              = 0x00000008,
 	.eof_irq_mask                 = 0x00000002,
 	.reg_update_irq_mask          = 0x00000001,
-	.error_irq_mask0              = 0x00010100,
-	.error_irq_mask2              = 0x00000023,
+	.error_irq_mask0              = 0x00210100,
+	.error_irq_mask2              = 0x00000223,
 	.subscribe_irq_mask           = {
 		0x00000000,
 		0x00000007,
@@ -1427,9 +1427,9 @@ struct cam_tfe_hw_info cam_tfe770 = {
 		0x00000000,
 	},
 	.error_irq_mask = {
-		0x001F1F00,
+		0x003F1F00,
 		0x00000000,
-		0x000000FF,
+		0x000002FF,
 	},
 	.bus_reg_irq_mask = {
 		0x00000002,

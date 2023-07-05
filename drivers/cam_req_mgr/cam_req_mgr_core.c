@@ -1197,7 +1197,6 @@ static void cam_req_mgr_reconfigure_link(struct cam_req_mgr_core_link *link,
 		if (dev->dev_info.trigger_on && !dev->dev_info.is_shdr_master) {
 			dev->is_active = is_active;
 			tbl = dev->pd_tbl;
-
 			if (is_active) {
 				tbl->dev_mask |= (1 << dev->dev_bit);
 			} else {
@@ -1379,7 +1378,7 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 	/* For regular send requests */
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-		if (dev && dev->is_active) {
+		if (dev) {
 			pd = dev->dev_info.p_delay;
 			if (pd >= CAM_PIPELINE_DELAY_MAX) {
 				CAM_WARN(CAM_CRM, "pd %d greater than max",
@@ -1390,10 +1389,15 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 			if (!(dev->dev_info.trigger & trigger))
 				continue;
 
+			idx = apply_data[pd].idx;
+			slot = &dev->pd_tbl->slot[idx];
+
 			if (dev->dev_info.trigger_on && !dev->dev_info.is_shdr_master &&
-				dev->dev_info.mode_switch_req == apply_data[pd].req_id &&
-				link->wait_for_dual_trigger)
+				slot->ops.skip_isp_apply) {
+				CAM_DBG(CAM_CRM, "Skip slave switch req %d apply %lld",
+					dev->dev_info.mode_switch_req, apply_data[pd].req_id);
 				continue;
+			}
 
 			if (apply_data[pd].skip_idx ||
 				(apply_data[pd].req_id < 0)) {
@@ -1419,8 +1423,6 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 			apply_req.dev_hdl = dev->dev_hdl;
 			apply_req.request_id =
 				apply_data[pd].req_id;
-			idx = apply_data[pd].idx;
-			slot = &dev->pd_tbl->slot[idx];
 			apply_req.report_if_bubble =
 				in_q->slot[idx].recover;
 
@@ -1488,6 +1490,7 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 				else if (apply_req.dual_trigger_status ==
 					CAM_REQ_DUAL_TRIGGER_ONE_EXPOSURE)
 					link->wait_for_dual_trigger = false;
+
 				if (prev_dual_trigger_status != link->wait_for_dual_trigger)
 					cam_req_mgr_reconfigure_link(
 						link, dev, link->wait_for_dual_trigger);
@@ -3360,38 +3363,6 @@ end:
 	return rc;
 }
 
-static void cam_req_mgr_handle_exposure_change(
-	struct cam_req_mgr_core_link        *link,
-	struct cam_req_mgr_add_request      *add_req)
-{
-	int i = 0;
-	struct cam_req_mgr_connected_device *device = NULL;
-
-	if (add_req->num_exp == CAM_REQ_DUAL_TRIGGER_TWO_EXPOSURE &&
-		!link->wait_for_dual_trigger) {
-		for (i = 0; i < link->num_devs; i++) {
-			device = &link->l_dev[i];
-
-			if (!device->dev_info.trigger_on || device->dev_info.is_shdr_master)
-				continue;
-
-			device->is_active = true;
-			device->dev_info.mode_switch_req = 0;
-		}
-	} else if (add_req->num_exp == CAM_REQ_DUAL_TRIGGER_ONE_EXPOSURE &&
-		link->wait_for_dual_trigger) {
-
-		for (i = 0; i < link->num_devs; i++) {
-			device = &link->l_dev[i];
-
-			if (!device->dev_info.trigger_on || device->dev_info.is_shdr_master)
-				continue;
-
-			device->dev_info.mode_switch_req = add_req->req_id;
-		}
-	}
-}
-
 /**
  * cam_req_mgr_process_add_req()
  *
@@ -3409,6 +3380,7 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 	struct cam_req_mgr_add_request      *add_req = NULL;
 	struct cam_req_mgr_core_link        *link = NULL;
 	struct cam_req_mgr_connected_device *device = NULL;
+	struct cam_req_mgr_connected_device *dev_l = NULL;
 	struct cam_req_mgr_req_tbl          *tbl = NULL;
 	struct cam_req_mgr_tbl_slot         *slot = NULL;
 	struct crm_task_payload             *task_data = NULL;
@@ -3461,6 +3433,7 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 
 	link_slot = &link->req.in_q->slot[idx];
 	slot = &tbl->slot[idx];
+	slot->ops.skip_isp_apply = false;
 
 	if ((add_req->skip_at_sof & 0xFF) > slot->inject_delay_at_sof) {
 		slot->inject_delay_at_sof = (add_req->skip_at_sof & 0xFF);
@@ -3565,9 +3538,9 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 	slot->state = CRM_REQ_STATE_PENDING;
 	slot->req_ready_map |= BIT(device->dev_bit);
 
-	CAM_DBG(CAM_CRM, "idx %d dev_hdl %x req_id %lld pd %d ready_map %x",
+	CAM_DBG(CAM_CRM, "idx %d dev_hdl %x req_id %lld pd %d ready_map %x tbl mask %x",
 		idx, add_req->dev_hdl, add_req->req_id, tbl->pd,
-		slot->req_ready_map);
+		slot->req_ready_map, tbl->dev_mask);
 
 	trace_cam_req_mgr_add_req(link, idx, add_req, tbl, device);
 
@@ -3589,22 +3562,35 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 		return rc;
 	}
 
-	if (!device->is_active && !device->dev_info.is_shdr_master &&
-		!link->wait_for_dual_trigger) {
-		device->is_active = true;
-		if (slot->req_ready_map == tbl->dev_mask) {
-			CAM_DBG(CAM_REQ,
-				"link 0x%x idx %d req_id %lld pd %d SLOT READY",
-				link->link_hdl, idx, add_req->req_id, tbl->pd);
-			slot->state = CRM_REQ_STATE_READY;
+	if (device->dev_info.trigger_on &&
+		add_req->num_exp == CAM_REQ_DUAL_TRIGGER_ONE_EXPOSURE) {
+		for (i = 0; i < link->num_devs; i++) {
+			dev_l = &link->l_dev[i];
+			if (dev_l->dev_info.trigger_on && dev_l->dev_hdl != add_req->dev_hdl) {
+				slot->ops.skip_isp_apply = true;
+				slot->req_ready_map |= (1 << dev_l->dev_bit);
+				if (slot->req_ready_map == tbl->dev_mask) {
+					slot->state = CRM_REQ_STATE_READY;
+					CAM_DBG(CAM_REQ,
+						"SHDR link %x idx %d req_id %lld pd %d SLOT READY",
+						link->link_hdl, idx, add_req->req_id, tbl->pd);
+				}
+				break;
+			}
 		}
-
-		mutex_unlock(&link->req.lock);
-		goto end;
 	}
 
-	if (device->dev_info.is_shdr_master)
-		cam_req_mgr_handle_exposure_change(link, add_req);
+	if (device->dev_info.trigger_on &&
+		add_req->num_exp == CAM_REQ_DUAL_TRIGGER_TWO_EXPOSURE &&
+		!device->dev_info.is_shdr_master) {
+		tbl->dev_mask |= (1 << device->dev_bit);
+		if (slot->req_ready_map == tbl->dev_mask) {
+			slot->state = CRM_REQ_STATE_READY;
+			CAM_DBG(CAM_REQ,
+				"SHDR link 0x%x idx %d req_id %lld pd %d SLOT READY",
+				link->link_hdl, idx, add_req->req_id, tbl->pd);
+		}
+	}
 
 	mutex_unlock(&link->req.lock);
 end:
@@ -4070,6 +4056,8 @@ static int cam_req_mgr_cb_add_req(struct cam_req_mgr_add_request *add_req)
 	dev_req->trigger_eof = add_req->trigger_eof;
 	dev_req->skip_at_sof = add_req->skip_at_sof;
 	dev_req->skip_at_eof = add_req->skip_at_eof;
+	dev_req->num_exp = add_req->num_exp;
+
 	if (dev_req->trigger_eof) {
 		atomic_inc(&link->eof_event_cnt);
 		CAM_DBG(CAM_REQ, "Req_id: %llu, eof_event_cnt: %d",
@@ -4469,12 +4457,11 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 {
 	int                                     rc = 0, i = 0, num_devices = 0;
 	struct cam_req_mgr_core_dev_link_setup  link_data;
-	struct cam_req_mgr_connected_device    *dev, *master_dev = NULL, *tmp_dev;
+	struct cam_req_mgr_connected_device    *dev;
 	struct cam_req_mgr_req_tbl             *pd_tbl;
 	enum cam_pipeline_delay                 max_delay;
 	enum cam_modeswitch_delay               max_modeswitch;
 	uint32_t num_trigger_devices = 0;
-	int32_t master_dev_idx = -1;
 
 	if (link_info->version == VERSION_1) {
 		if (link_info->u.link_info_v1.num_devices >
@@ -4526,11 +4513,6 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 		dev->dev_info.dev_hdl = dev->dev_hdl;
 		rc = dev->ops->get_dev_info(&dev->dev_info);
 
-		if (dev->dev_info.is_shdr_master) {
-			master_dev = dev;
-			master_dev_idx = i;
-		}
-
 		trace_cam_req_mgr_connect_device(link, &dev->dev_info);
 		if (link_info->version == VERSION_1)
 			CAM_DBG(CAM_CRM,
@@ -4579,11 +4561,8 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 				max_modeswitch = dev->dev_info.m_delay;
 		}
 
-		if (dev->dev_info.trigger_on) {
+		if (dev->dev_info.trigger_on)
 			num_trigger_devices++;
-			if (dev->dev_info.is_shdr)
-				link->is_shdr = true;
-		}
 
 		dev->is_active = true;
 	}
@@ -4601,26 +4580,8 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 	link_data.crm_cb = &cam_req_mgr_ops;
 	link_data.max_delay = max_delay;
 	link_data.mode_switch_max_delay = max_modeswitch;
-	if (num_trigger_devices == CAM_REQ_MGR_MAX_TRIGGERS) {
+	if (num_trigger_devices == CAM_REQ_MGR_MAX_TRIGGERS)
 		link->dual_trigger = true;
-		link->wait_for_dual_trigger = true;
-	}
-
-	if (link->dual_trigger && master_dev) {
-		for (i = 0; i < num_devices; i++) {
-			dev = &link->l_dev[i];
-
-			if (dev->dev_info.trigger_on) {
-				if (dev->dev_hdl == master_dev->dev_hdl)
-					continue;
-				if (master_dev_idx < i) {
-					tmp_dev = master_dev;
-					master_dev = dev;
-					dev = tmp_dev;
-				}
-			}
-		}
-	}
 
 	num_trigger_devices = 0;
 	for (i = 0; i < num_devices; i++) {
@@ -5495,6 +5456,45 @@ end:
 	return rc;
 }
 
+int cam_req_mgr_rearrange_devs(
+	struct cam_req_mgr_core_link       *link)
+{
+	int i, rc = 0;
+	uint32_t  master_dev_idx = 0, slave_dev_idx = 0;
+	struct cam_req_mgr_connected_device    *dev, tmp_dev;
+
+	for (i = 0; i < link->num_devs; i++) {
+		dev = &link->l_dev[i];
+
+		if (!dev->dev_info.trigger_on)
+			continue;
+		rc = dev->ops->get_dev_info(&dev->dev_info);
+		if (rc) {
+			CAM_ERR(CAM_CRM, "Get dev info failed link %x dev %x",
+				link->link_hdl, dev->dev_hdl);
+			continue;
+		}
+
+		if (dev->dev_info.is_shdr_master)
+			master_dev_idx = i;
+		else
+			slave_dev_idx = i;
+	}
+
+	if (master_dev_idx < slave_dev_idx) {
+		tmp_dev = link->l_dev[master_dev_idx];
+		link->l_dev[master_dev_idx] = link->l_dev[slave_dev_idx];
+		link->l_dev[slave_dev_idx] = tmp_dev;
+	}
+
+	link->is_shdr = true;
+	link->wait_for_dual_trigger = true;
+	CAM_DBG(CAM_CRM, "link hdl %x wait for dual triger %d",
+		link->link_hdl, link->wait_for_dual_trigger);
+
+	return rc;
+}
+
 int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 {
 	int                                 rc = 0, i;
@@ -5547,6 +5547,9 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 					link->link_hdl);
 				rc = -EFAULT;
 			}
+
+			if (link->dual_trigger)
+				rc = cam_req_mgr_rearrange_devs(link);
 			/* Wait for the streaming of sync link */
 			link->initial_skip = true;
 			/* Pause the timer before sensor stream on */

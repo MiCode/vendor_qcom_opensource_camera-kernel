@@ -2231,6 +2231,7 @@ int cam_tfe_top_reserve(void *device_priv,
 	top_priv = (struct cam_tfe_top_priv   *)device_priv;
 	args = (struct cam_tfe_acquire_args *)reserve_args;
 	acquire_args = &args->tfe_in;
+	top_priv->last_mup_val = 0;
 
 	for (i = 0; i < CAM_TFE_TOP_IN_PORT_MAX; i++) {
 		CAM_DBG(CAM_ISP, "i :%d res_id:%d state:%d", i,

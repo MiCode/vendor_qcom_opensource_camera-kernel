@@ -244,11 +244,16 @@ struct cam_req_mgr_apply {
  * @num_dev         : Number of devices need to be applied at this trigger point
  * @dev_hdl         : Device handle who requested for special ops
  * @apply_at_eof    : Boolean Identifier for request to be applied at EOF
+ * @is_applied      : Flag to identify if request is already applied to device
+ *                    in previous frame
+ * @skip_isp_apply  : Flag to indicate skip apply req for ISP
  */
 struct crm_tbl_slot_special_ops {
 	uint32_t num_dev;
 	int32_t dev_hdl[MAX_DEV_FOR_SPECIAL_OPS];
 	bool apply_at_eof;
+	bool is_applied;
+	bool skip_isp_apply;
 };
 
 /**
