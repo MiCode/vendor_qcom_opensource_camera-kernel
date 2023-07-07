@@ -380,6 +380,11 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 	for (i = 0; i < soc_info->irq_count; i++)
 		irq_data[i] = csiphy_dev;
 
+	rc = cam_cpas_query_drv_enable(NULL, &soc_info->is_clk_drv_en);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY, "Failed to query DRV enable rc:%d", rc);
+		return rc;
+	}
 	rc = cam_soc_util_request_platform_resource(&csiphy_dev->soc_info,
 		cam_csiphy_irq, &(irq_data[0]));
 

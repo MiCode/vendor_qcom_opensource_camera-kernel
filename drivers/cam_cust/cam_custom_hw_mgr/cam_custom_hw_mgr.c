@@ -150,6 +150,16 @@ enum cam_isp_resource_type
 	}
 }
 
+static void cam_custom_mgr_count_functional_hws(uint32_t num_custom_functional)
+{
+	int i;
+
+	for (i = 0; i < CAM_CUSTOM_CSID_HW_MAX; i++) {
+		if (g_custom_hw_mgr.custom_hw[i])
+			num_custom_functional++;
+	}
+}
+
 static int cam_custom_hw_mgr_deinit_hw_res(
 	struct cam_custom_hw_mgr_res *hw_mgr_res)
 {
@@ -1248,6 +1258,12 @@ static int cam_custom_mgr_prepare_hw_update(void *hw_mgr_priv,
 		prepare->packet->cmd_buf_offset);
 	rc = cam_packet_util_get_cmd_mem_addr(
 			cmd_desc->mem_handle, &ptr, &len);
+	if (rc == -EINVAL) {
+		CAM_ERR(CAM_CUSTOM, "Failed to get CPU addr handle 0x%x",
+			cmd_desc->mem_handle);
+		return -EINVAL;
+	}
+
 	if (!rc) {
 		ptr += (cmd_desc->offset / 4);
 		custom_buf_type1 =
@@ -1262,6 +1278,7 @@ static int cam_custom_mgr_prepare_hw_update(void *hw_mgr_priv,
 	ctx->scratch_buffer_addr = 0x0;
 	prepare_hw_data->num_cfg = 0;
 	cam_custom_add_io_buffers(hw_mgr->img_iommu_hdl, prepare);
+	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
 	return 0;
 }
 
@@ -1460,6 +1477,7 @@ int cam_custom_hw_mgr_init(struct device_node *of_node,
 {
 	int rc = 0;
 	int i, j;
+	uint32_t num_custom_available, num_custom_functional = 0;
 
 	memset(&g_custom_hw_mgr, 0, sizeof(g_custom_hw_mgr));
 	mutex_init(&g_custom_hw_mgr.ctx_mutex);
@@ -1537,6 +1555,13 @@ int cam_custom_hw_mgr_init(struct device_node *of_node,
 
 	if (iommu_hdl)
 		*iommu_hdl = g_custom_hw_mgr.img_iommu_hdl;
+
+	cam_custom_get_num_hws(&num_custom_available);
+	cam_custom_mgr_count_functional_hws(&num_custom_functional);
+	rc = cam_cpas_prepare_subpart_info(CAM_CUSTOM_HW_IDX, num_custom_available,
+		num_custom_functional);
+	if (rc)
+		CAM_ERR(CAM_CUSTOM, "Failed to populate num_custom, rc: %d", rc);
 
 	CAM_DBG(CAM_CUSTOM, "HW manager initialized");
 	return 0;

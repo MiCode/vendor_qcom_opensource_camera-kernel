@@ -117,12 +117,13 @@ static uint64_t __cam_ife_csid_ver2_get_time_stamp(void __iomem *mem_base,
 	uint32_t timestamp0_addr, uint32_t timestamp1_addr,
 	bool ts_comb_vcdt_en, uint32_t ts_comb_vcdt_mask)
 {
-	uint64_t timestamp_val, time_hi, time_lo;
+	uint64_t timestamp_val, time_hi, time_lo, mask;
 
 	time_hi = cam_io_r_mb(mem_base + timestamp1_addr);
 	time_lo = cam_io_r_mb(mem_base + timestamp0_addr);
+	mask = (uint64_t)ts_comb_vcdt_mask;
 	if (ts_comb_vcdt_en)
-		time_lo &= ~ts_comb_vcdt_mask;
+		time_lo &= ~mask;
 
 	timestamp_val = (time_hi << 32) | time_lo;
 
@@ -5558,7 +5559,7 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 			res->res_name);
 	}
 	if (csid_hw->buf_done_irq_handle) {
-		rc = cam_irq_controller_unsubscribe_irq(
+		rc = cam_irq_controller_unsubscribe_irq_evt(
 			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 			csid_hw->buf_done_irq_handle);
 		csid_hw->buf_done_irq_handle = 0;
@@ -5569,21 +5570,21 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 	}
 
 	if (csid_hw->top_err_irq_handle[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0]) {
-		rc = cam_irq_controller_unsubscribe_irq(
+		rc = cam_irq_controller_unsubscribe_irq_evt(
 			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 			csid_hw->top_err_irq_handle[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0]);
 		csid_hw->top_err_irq_handle[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0] = 0;
 	}
 
 	if (csid_hw->top_mc_irq_handle) {
-		rc = cam_irq_controller_unsubscribe_irq(
+		rc = cam_irq_controller_unsubscribe_irq_evt(
 			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 			csid_hw->top_mc_irq_handle);
 		csid_hw->top_mc_irq_handle = 0;
 	}
 
 	if (csid_hw->debug_info.top_mask) {
-		cam_irq_controller_unsubscribe_irq(
+		cam_irq_controller_unsubscribe_irq_evt(
 			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 			csid_hw->top_info_irq_handle[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0]);
 		csid_hw->top_info_irq_handle[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0] = 0;
@@ -6626,6 +6627,56 @@ static int cam_ife_csid_ver2_drv_config(
 	return 0;
 }
 
+static int cam_ife_csid_ver2_irq_comp_cfg(
+	struct cam_ife_csid_ver2_hw *csid_hw, void *cmd_args, uint32_t arg_size)
+{
+	uint32_t                                    comp_cfg_mask = 0;
+	size_t                                      size = 0;
+	struct cam_isp_irq_comp_cfg                *comp_cfg;
+	const struct cam_ife_csid_ver2_mc_reg_info *reg_info = NULL;
+	struct cam_cdm_utils_ops                   *cdm_util_ops;
+	struct cam_isp_hw_get_cmd_update           *cdm_args = NULL;
+	uint32_t                                    reg_val_pair[2];
+
+	if (arg_size != sizeof(struct cam_isp_hw_get_cmd_update)) {
+		CAM_ERR(CAM_ISP, "CSID %u Invalid args size expected: %zu actual: %zu",
+			csid_hw->hw_intf->hw_idx, sizeof(struct cam_isp_hw_get_cmd_update),
+			arg_size);
+		return -EINVAL;
+	}
+
+	cdm_args = (struct cam_isp_hw_get_cmd_update *)cmd_args;
+	if (!cdm_args) {
+		CAM_ERR(CAM_ISP, "CSID:%u Error, Invalid args", csid_hw->hw_intf->hw_idx);
+		return -EINVAL;
+	}
+
+	comp_cfg = (struct cam_isp_irq_comp_cfg *)cdm_args->data;
+
+	reg_info = ((struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg)->ipp_mc_reg;
+
+	comp_cfg_mask = (comp_cfg->ipp_src_ctxt_mask << reg_info->ipp_src_ctxt_mask_shift) |
+		(comp_cfg->ipp_dst_comp_mask << reg_info->ipp_dst_ctxt_mask_shift);
+
+	cdm_util_ops = (struct cam_cdm_utils_ops *)cdm_args->res->cdm_ops;
+	size = cdm_util_ops->cdm_required_size_reg_random(1);
+
+	if ((size * 4) > cdm_args->cmd.size) {
+		CAM_ERR(CAM_ISP, "CSID:%u buf size:%d is not sufficient, expected: %d",
+			csid_hw->hw_intf->hw_idx, cdm_args->cmd.size, (size*4));
+		return -EINVAL;
+	}
+
+	reg_val_pair[0] = reg_info->irq_comp_cfg0_addr;
+	reg_val_pair[1] = comp_cfg_mask;
+	cdm_util_ops->cdm_write_regrandom(cdm_args->cmd.cmd_buf_addr,
+		1, reg_val_pair);
+	cdm_args->cmd.used_bytes = size * 4;
+
+	return 0;
+}
+
 static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 	uint32_t cmd_type, void *cmd_args, uint32_t arg_size)
 {
@@ -6724,6 +6775,9 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_CSID_DUMP_CROP_REG:
 		rc = cam_ife_csid_ver2_dump_crop_reg(hw_info, (uint32_t *)cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_IRQ_COMP_CFG:
+		rc = cam_ife_csid_ver2_irq_comp_cfg(csid_hw, cmd_args, arg_size);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%u unsupported cmd:%d",

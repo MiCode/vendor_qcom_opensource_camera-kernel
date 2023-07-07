@@ -477,11 +477,11 @@ static void __cam_isp_ctx_update_state_monitor_array(
 		req_id;
 
 	if (trigger_type == CAM_ISP_STATE_CHANGE_TRIGGER_CDM_DONE)
-		ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp =
+		ctx_isp->dbg_monitors.state_monitor[iterator].evt_time_stamp =
 			ctx->cdm_done_ts;
 	else
 		ktime_get_clocktai_ts64(
-			&ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp);
+			&ctx_isp->dbg_monitors.state_monitor[iterator].evt_time_stamp);
 }
 
 static int __cam_isp_ctx_update_frame_timing_record(
@@ -641,18 +641,18 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 	index = oldest_entry;
 
 	for (i = 0; i < num_entries; i++) {
-		time64_to_tm(ctx_isp->cam_isp_ctx_state_monitor[index].evt_time_stamp.tv_sec,
+		time64_to_tm(ctx_isp->dbg_monitors.state_monitor[index].evt_time_stamp.tv_sec,
 			0, &ts);
 		CAM_ERR(CAM_ISP,
 			"Idx[%d] time[%d-%d %d:%d:%d.%lld]:Substate[%s] Frame[%lld] Req[%llu] evt[%s]",
 			index, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
-			ctx_isp->cam_isp_ctx_state_monitor[index].evt_time_stamp.tv_nsec / 1000000,
+			ctx_isp->dbg_monitors.state_monitor[index].evt_time_stamp.tv_nsec / 1000000,
 			__cam_isp_ctx_substate_val_to_type(
-			ctx_isp->cam_isp_ctx_state_monitor[index].curr_state),
-			ctx_isp->cam_isp_ctx_state_monitor[index].frame_id,
-			ctx_isp->cam_isp_ctx_state_monitor[index].req_id,
+			ctx_isp->dbg_monitors.state_monitor[index].curr_state),
+			ctx_isp->dbg_monitors.state_monitor[index].frame_id,
+			ctx_isp->dbg_monitors.state_monitor[index].req_id,
 			__cam_isp_hw_evt_val_to_type(
-				ctx_isp->cam_isp_ctx_state_monitor[index].trigger));
+				ctx_isp->dbg_monitors.state_monitor[index].trigger));
 
 		index = (index + 1) % CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES;
 	}
@@ -966,6 +966,7 @@ static int cam_isp_ctx_dump_req(
 				CAM_ERR(CAM_ISP,
 					"Invalid offset exp %u actual %u",
 					req_isp->cfg[i].offset, (uint32_t)len);
+				cam_mem_put_cpu_buf(req_isp->cfg[i].handle);
 				return -EINVAL;
 			}
 			remain_len = len - req_isp->cfg[i].offset;
@@ -976,6 +977,7 @@ static int cam_isp_ctx_dump_req(
 					"Invalid len exp %u remain_len %u",
 					req_isp->cfg[i].len,
 					(uint32_t)remain_len);
+				cam_mem_put_cpu_buf(req_isp->cfg[i].handle);
 				return -EINVAL;
 			}
 
@@ -1001,6 +1003,7 @@ static int cam_isp_ctx_dump_req(
 					return rc;
 			} else
 				cam_cdm_util_dump_cmd_buf(buf_start, buf_end);
+			cam_mem_put_cpu_buf(req_isp->cfg[i].handle);
 		}
 	}
 	return rc;
@@ -5294,6 +5297,7 @@ hw_dump:
 		CAM_WARN(CAM_ISP,
 		    "Dump buffer overshoot len %zu offset %zu, ctx_idx: %u, link: 0x%x",
 		    buf_len, dump_info->offset, ctx->ctx_id, ctx->link_hdl);
+		cam_mem_put_cpu_buf(dump_info->buf_handle);
 		return -ENOSPC;
 	}
 
@@ -5306,6 +5310,7 @@ hw_dump:
 		CAM_WARN(CAM_ISP,
 		    "Dump buffer exhaust remain %zu min %u, ctx_idx: %u, link: 0x%x",
 		    remain_len, min_len, ctx->ctx_id, ctx->link_hdl);
+		cam_mem_put_cpu_buf(dump_info->buf_handle);
 		return -ENOSPC;
 	}
 
@@ -5411,10 +5416,12 @@ hw_dump:
 			&ife_dump_args);
 		dump_info->offset = ife_dump_args.offset;
 	}
+	cam_mem_put_cpu_buf(dump_info->buf_handle);
 	return rc;
 
 end:
 	spin_unlock_bh(&ctx->lock);
+	cam_mem_put_cpu_buf(dump_info->buf_handle);
 	return rc;
 }
 
@@ -5676,7 +5683,10 @@ static struct cam_ctx_ops
 	/* Bubble Applied */
 	{
 		.ioctl_ops = {},
-		.crm_ops = {},
+		.crm_ops = {
+			.notify_frame_skip =
+				__cam_isp_ctx_apply_default_req_settings,
+		},
 		.irq_ops = NULL,
 	},
 	/* HW ERROR */
@@ -6626,7 +6636,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		CAM_ERR(CAM_ISP, "Prepare config packet failed in HW layer, ctx: %u, link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
 		rc = -EFAULT;
-		goto free_req;
+		goto free_req_and_buf_tracker_list;
 	}
 
 	req_isp->num_cfg = cfg.num_hw_update_entries;
@@ -6733,8 +6743,9 @@ put_ref:
 			CAM_ERR(CAM_CTXT, "Failed to put ref of fence %d, ctx_idx: %u, link: 0x%x",
 				req_isp->fence_map_out[i].sync_id, ctx->ctx_id, ctx->link_hdl);
 	}
-free_req:
+free_req_and_buf_tracker_list:
 	cam_smmu_buffer_tracker_putref(&req->buf_tracker);
+free_req:
 	spin_lock_bh(&ctx->lock);
 	list_add_tail(&req->list, &ctx->free_req_list);
 	spin_unlock_bh(&ctx->lock);

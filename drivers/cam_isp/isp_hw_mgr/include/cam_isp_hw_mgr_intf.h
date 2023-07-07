@@ -16,19 +16,20 @@
 #include "cam_cpas_api.h"
 
 /* MAX IFE instance */
-#define CAM_IFE_HW_NUM_MAX       8
-#define CAM_SFE_HW_NUM_MAX       3
-#define CAM_IFE_RDI_NUM_MAX      4
-#define CAM_SFE_RDI_NUM_MAX      5
-#define CAM_SFE_FE_RDI_NUM_MAX   3
-#define CAM_ISP_BW_CONFIG_V1     1
-#define CAM_ISP_BW_CONFIG_V2     2
-#define CAM_ISP_BW_CONFIG_V3     2
-#define CAM_TFE_HW_NUM_MAX       3
-#define CAM_TFE_RDI_NUM_MAX      3
-#define CAM_IFE_SCRATCH_NUM_MAX  2
-#define CAM_IFE_BUS_COMP_NUM_MAX 18
-#define CAM_SFE_BUS_COMP_NUM_MAX 12
+#define CAM_IFE_HW_NUM_MAX               8
+#define CAM_SFE_HW_NUM_MAX               3
+#define CAM_IFE_RDI_NUM_MAX              4
+#define CAM_SFE_RDI_NUM_MAX              5
+#define CAM_SFE_FE_RDI_NUM_MAX           3
+#define CAM_ISP_BW_CONFIG_V1             1
+#define CAM_ISP_BW_CONFIG_V2             2
+#define CAM_ISP_BW_CONFIG_V3             2
+#define CAM_TFE_HW_NUM_MAX               3
+#define CAM_TFE_RDI_NUM_MAX              3
+#define CAM_IFE_SCRATCH_NUM_MAX          2
+#define CAM_IFE_BUS_COMP_NUM_MAX         18
+#define CAM_SFE_BUS_COMP_NUM_MAX         12
+#define CAM_TFE_BW_LIMITER_CONFIG_V1     1
 
 /* maximum context numbers for TFE */
 #define CAM_TFE_CTX_MAX      4
@@ -246,6 +247,8 @@ struct cam_isp_bw_clk_config_info {
  * @bw_clk_config:          BW and clock config info
  * @isp_drv_config:         DRV config info
  * @bw_config_valid:        Flag indicating if DRV config is valid for current request
+ * @isp_irq_comp_cfg:       IRQ comp configuration for MC-based TFEs
+ * @irq_comp_cfg_valid:     Flag indicating if IRQ comp cfg is valid for current request
  * @reg_dump_buf_desc:     cmd buffer descriptors for reg dump
  * @num_reg_dump_buf:      Count of descriptors in reg_dump_buf_desc
  * @packet:                CSL packet from user mode driver
@@ -263,6 +266,8 @@ struct cam_isp_prepare_hw_update_data {
 	struct cam_isp_bw_clk_config_info     bw_clk_config;
 	struct cam_isp_drv_config             isp_drv_config;
 	bool                                  drv_config_valid;
+	struct cam_isp_irq_comp_cfg           isp_irq_comp_cfg;
+	bool                                  irq_comp_cfg_valid;
 	struct cam_cmd_buf_desc               reg_dump_buf_desc[
 						CAM_REG_DUMP_MAX_BUF_ENTRIES];
 	uint32_t                              num_reg_dump_buf;

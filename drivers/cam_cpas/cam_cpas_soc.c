@@ -761,8 +761,6 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 	return 0;
 }
 
-
-
 int cam_cpas_get_hw_features(struct platform_device *pdev,
 	struct cam_cpas_private_soc *soc_private)
 {
@@ -780,8 +778,6 @@ int cam_cpas_get_hw_features(struct platform_device *pdev,
 	CAM_DBG(CAM_CPAS, "fuse info elements count %d", count);
 
 	if (count <= 0) {
-		CAM_INFO(CAM_CPAS, "No or invalid fuse entries count: %d",
-			count);
 		goto end;
 	} else if (count%5 != 0) {
 		CAM_INFO(CAM_CPAS, "fuse entries should be multiple of 5 %d",
@@ -1772,13 +1768,13 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		goto free_irq_data;
 	}
 
+	soc_info->is_clk_drv_en = soc_private->enable_cam_clk_drv;
+
 	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler, &(irq_data[0]));
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "failed in request_platform_resource, rc=%d", rc);
 		goto free_irq_data;
 	}
-
-	soc_info->is_clk_drv_en = soc_private->enable_cam_clk_drv;
 
 	rc = cam_soc_util_get_option_clk_by_name(soc_info, CAM_ICP_CLK_NAME,
 		&soc_private->icp_clk_index);

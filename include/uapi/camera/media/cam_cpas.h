@@ -99,6 +99,9 @@
 #define CAM_CPAS_NON_SECURE_DOMAIN  0
 #define CAM_CPAS_SECURE_DOMAIN      1
 
+/* sysfs entry of camera subparts info */
+#define CAM_SYSFS_SUBPARTS_INFO_FILENAME "subparts_info"
+
 /**
  * struct cam_cpas_fuse_value - CPAS fuse value
  *

@@ -95,7 +95,7 @@ static int cam_icp_dump_io_cfg(struct cam_icp_hw_ctx_data *ctx_data,
 			used = 0;
 		}
 	}
-
+	cam_mem_put_cpu_buf(buf_handle);
 	return rc;
 }
 
@@ -5507,9 +5507,12 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 				cmd_desc[i].length)) {
 				CAM_ERR(CAM_ICP, "%s: Invalid offset or length",
 					ctx_data->ctx_id_string);
+				cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 				return -EINVAL;
 			}
 			cpu_addr = cpu_addr + cmd_desc[i].offset;
+
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 		}
 	}
 
@@ -6508,7 +6511,8 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	if (icp_dump_args.buf_len <= dump_args->offset) {
 		CAM_WARN(CAM_ICP, "[%s] dump buffer overshoot len %zu offset %zu",
 			hw_mgr->hw_mgr_name, icp_dump_args.buf_len, dump_args->offset);
-		return -ENOSPC;
+		rc = -ENOSPC;
+		goto put_cpu_buf;
 	}
 
 	remain_len = icp_dump_args.buf_len - dump_args->offset;
@@ -6518,7 +6522,8 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	if (remain_len < min_len) {
 		CAM_WARN(CAM_ICP, "[%s] dump buffer exhaust remain %zu min %u",
 			hw_mgr->hw_mgr_name, remain_len, min_len);
-		return -ENOSPC;
+		rc = -ENOSPC;
+		goto put_cpu_buf;
 	}
 
 	/* Dumping clock and bandwidth info */
@@ -6581,7 +6586,8 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	if (!icp_dev_intf) {
 		CAM_ERR(CAM_ICP, "[%s] ICP device interface is NULL",
 			hw_mgr->hw_mgr_name);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto put_cpu_buf;
 	}
 	rc = icp_dev_intf->hw_ops.process_cmd(
 		icp_dev_intf->hw_priv,
@@ -6590,6 +6596,9 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	CAM_DBG(CAM_ICP, "[%s] Offset before %zu after %zu",
 		hw_mgr->hw_mgr_name, dump_args->offset, icp_dump_args.offset);
 	dump_args->offset = icp_dump_args.offset;
+
+put_cpu_buf:
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }
 
@@ -7963,6 +7972,8 @@ static void cam_icp_mgr_dump_pf_data(struct cam_icp_hw_mgr *hw_mgr,
 
 	cam_packet_util_dump_patch_info(packet, hw_mgr->iommu_hdl,
 		hw_mgr->iommu_sec_hdl, pf_args);
+
+	cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 }
 
 static int cam_icp_mgr_cmd(void *hw_mgr_priv, void *cmd_args)

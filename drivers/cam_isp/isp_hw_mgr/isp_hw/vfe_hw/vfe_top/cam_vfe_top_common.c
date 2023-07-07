@@ -249,14 +249,11 @@ static struct cam_axi_vote *cam_vfe_top_delay_bw_reduction(
 	uint64_t max_bw = 0;
 
 	for (i = 0; i < CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ; i++) {
-		if (top_common->last_total_bw_vote[i] > max_bw) {
+		if (top_common->last_total_bw_vote[i] >= max_bw) {
 			vote_idx = i;
 			max_bw = top_common->last_total_bw_vote[i];
 		}
 	}
-
-	if (vote_idx < 0)
-		return NULL;
 
 	*to_be_applied_bw = max_bw;
 
@@ -363,17 +360,12 @@ static int cam_vfe_top_calc_axi_bw_vote(
 			CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ;
 	} else {
 		/*
-		 * Find max bw request in last few frames. This will the bw
+		 * Find max bw request in last few frames. This will be the bw
 		 * that we want to vote to CPAS now.
 		 */
-		final_bw_vote =
-			cam_vfe_top_delay_bw_reduction(top_common,
-				total_bw_new_vote);
-		if (!final_bw_vote) {
-			CAM_ERR(CAM_PERF, "to_be_applied_axi_vote is NULL");
-			rc = -EINVAL;
-			goto end;
-		}
+		final_bw_vote = cam_vfe_top_delay_bw_reduction(top_common, total_bw_new_vote);
+		if (*total_bw_new_vote == 0)
+			CAM_WARN(CAM_PERF, "to_be_applied_axi_vote is 0, req_id:%llu", request_id);
 	}
 
 	for (i = 0; i < final_bw_vote->num_paths; i++) {

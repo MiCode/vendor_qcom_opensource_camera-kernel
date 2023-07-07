@@ -27,6 +27,9 @@
 #define CAM_CPAS_MAX_SLOPE_FACTOR            100
 #define CAM_CPAS_MAX_STRESS_INDICATOR        100
 
+/* Number of camera (CAM_SS) instances */
+#define CAM_CPAS_CAMERA_INSTANCES            1
+
 #define CAM_CPAS_AXI_MIN_MNOC_AB_BW   (2048 * 1024)
 #define CAM_CPAS_AXI_MIN_MNOC_IB_BW   (2048 * 1024)
 #define CAM_CPAS_AXI_MIN_CAMNOC_AB_BW (2048 * 1024)
@@ -141,6 +144,17 @@ struct cam_cpas_axi_bw_info {
 		struct cam_cpas_bw_vote hlos_vote;
 		struct cam_cpas_drv_vote drv_vote;
 	};
+};
+
+/**
+ * struct cam_cpas_kobj_map: wrapper structure for base kobject
+ *                               and cam cpas private soc info
+ * @base_kobj: kernel object for camera sysfs
+ * @cpas_hw: pointer to cam_hw_info structure
+ */
+struct cam_cpas_kobj_map {
+	struct kobject base_kobj;
+	struct cam_hw_info *cpas_hw;
 };
 
 /**
@@ -372,6 +386,7 @@ struct cam_cpas_monitor {
  * @ahb_bus_client: AHB Bus client info
  * @axi_port: AXI port info for a specific axi index
  * @camnoc_axi_port: CAMNOC AXI port info for a specific camnoc axi index
+ * @cam_subpart_info: camera subparts fuse description
  * @internal_ops: CPAS HW internal ops
  * @work_queue: Work queue handle
  * @soc_access_count: atomic soc_access_count count
@@ -410,6 +425,7 @@ struct cam_cpas {
 	struct cam_cpas_bus_client ahb_bus_client;
 	struct cam_cpas_axi_port axi_port[CAM_CPAS_MAX_AXI_PORTS];
 	struct cam_cpas_axi_port camnoc_axi_port[CAM_CPAS_MAX_AXI_PORTS];
+	struct cam_cpas_subpart_info *cam_subpart_info;
 	struct cam_cpas_internal_ops internal_ops;
 	struct workqueue_struct *work_queue;
 	atomic_t soc_access_count;

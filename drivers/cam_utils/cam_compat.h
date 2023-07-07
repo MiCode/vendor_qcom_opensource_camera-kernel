@@ -113,4 +113,6 @@ unsigned long cam_update_dma_map_attributes(unsigned long attr);
 
 size_t cam_align_dma_buf_size(size_t len);
 
+int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam);
+
 #endif /* _CAM_COMPAT_H_ */

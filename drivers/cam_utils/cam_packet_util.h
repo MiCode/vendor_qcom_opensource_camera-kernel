@@ -44,6 +44,14 @@ typedef int (*cam_packet_generic_blob_handler)(void *user_data,
 int cam_packet_util_get_packet_addr(struct cam_packet **packet,
 	uint64_t packet_handle, uint32_t offset);
 
+
+/**
+ * @brief                  Put packet buffer address
+ *
+ * @packet_handle:         Buffer handle of the packet
+ */
+void cam_packet_util_put_packet_addr(uint64_t packet_handle);
+
 /**
  * cam_packet_util_get_cmd_mem_addr()
  *
