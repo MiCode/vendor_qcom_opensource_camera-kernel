@@ -3460,6 +3460,12 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		rc = -EINVAL;
 		break;
 	}
+
+	if (rc) {
+		CAM_ERR(CAM_ISP, "TFE: %d error with cmd type: %d",
+			core_info->core_index, cmd_type);
+	}
+
 	return rc;
 }
 
