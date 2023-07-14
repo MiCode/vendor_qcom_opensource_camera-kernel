@@ -8374,7 +8374,7 @@ static int cam_isp_blob_ubwc_update(
 				return rc;
 			}
 			if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
-				break;
+				continue;
 
 			rc = cam_isp_add_cmd_buf_update(
 				hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
@@ -8531,7 +8531,7 @@ static int cam_isp_blob_ubwc_update_v2(
 		}
 
 		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
-			goto end;
+			continue;
 
 		if ((kmd_buf_info->used_bytes
 			+ total_used_bytes) < kmd_buf_info->size) {
@@ -9063,7 +9063,7 @@ static int cam_isp_blob_sfe_update_fetch_core_cfg(
 		}
 
 		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
-			return 0;
+			continue;
 
 		res_id = hw_mgr_res->res_id;
 
@@ -9176,7 +9176,7 @@ static int cam_isp_blob_hfr_update(
 		}
 
 		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
-			return 0;
+			continue;
 
 		if ((kmd_buf_info->used_bytes
 			+ total_used_bytes) < kmd_buf_info->size) {
@@ -9902,7 +9902,7 @@ static int cam_isp_blob_vfe_out_update(
 		}
 
 		if (!isp_out_res->hw_res[blob_info->base_info->split_id])
-			return 0;
+			continue;
 
 		rc = cam_isp_add_cmd_buf_update(
 			isp_out_res->hw_res[blob_info->base_info->split_id], hw_intf,
@@ -10067,7 +10067,7 @@ static int cam_isp_blob_bw_limit_update(
 		}
 
 		if (!isp_out_res->hw_res[blob_info->base_info->split_id])
-			return 0;
+			continue;
 
 		rc = cam_isp_add_cmd_buf_update(
 			isp_out_res->hw_res[blob_info->base_info->split_id], hw_intf,
