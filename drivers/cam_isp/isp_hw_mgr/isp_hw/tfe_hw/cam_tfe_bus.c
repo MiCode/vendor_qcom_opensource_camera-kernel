@@ -2330,7 +2330,8 @@ static int cam_tfe_bus_update_wm(void *priv, void *cmd_args,
 		if ((wm_data->index < 7) || ((wm_data->index >= 7) &&
 			(wm_data->mode == CAM_ISP_TFE_WM_LINE_BASED_MODE)) ||
 			(wm_data->out_id == CAM_TFE_BUS_TFE_OUT_PDAF) ||
-			(wm_data->index >= 11 && wm_data->index <= 15)) {
+			(wm_data->index >= 11 && wm_data->index <= 15) ||
+			(wm_data->index >= 17)) {
 
 			CAM_TFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 				wm_data->hw_regs->image_cfg_2,
