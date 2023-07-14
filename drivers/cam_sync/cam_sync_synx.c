@@ -572,6 +572,7 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 			&g_cam_synx_obj_dev->dev_lock, g_cam_synx_obj_dev->monitor_data,
 			CAM_FENCE_OP_SIGNAL);
 
+	row->state = CAM_SYNX_OBJ_STATE_SIGNALED;
 	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 
 	if (deregister_cb) {
