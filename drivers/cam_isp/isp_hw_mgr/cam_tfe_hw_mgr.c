@@ -3718,7 +3718,7 @@ static int cam_isp_tfe_blob_hfr_update(
 		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
 			return 0;
 
-		hw_intf = hw_mgr->tfe_devices[base->idx]->hw_intf;
+		hw_intf = cam_tfe_hw_mgr_get_hw_intf(blob_info->base_info, ctx);
 		rc = cam_isp_add_cmd_buf_update(
 			hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
 			blob_type, CAM_ISP_HW_CMD_GET_HFR_UPDATE,
@@ -3898,6 +3898,7 @@ static int cam_isp_tfe_blob_bw_limit_update(
 	struct cam_kmd_buf_info               *kmd_buf_info;
 	struct cam_tfe_hw_mgr_ctx             *ctx = NULL;
 	struct cam_isp_hw_mgr_res             *hw_mgr_res;
+	struct cam_hw_intf                    *hw_intf = NULL;
 	uint32_t                               res_id_out, i;
 	uint32_t                               total_used_bytes = 0;
 	uint32_t                               kmd_buf_remain_size;
@@ -3943,10 +3944,12 @@ static int cam_isp_tfe_blob_bw_limit_update(
 
 		hw_mgr_res = &ctx->res_list_tfe_out[res_id_out];
 
+		hw_intf = cam_tfe_hw_mgr_get_hw_intf(blob_info->base_info, ctx);
 		rc = cam_isp_add_cmd_buf_update(
-			hw_mgr_res, blob_type,
+			hw_mgr_res->hw_res[blob_info->base_info->split_id],
+			hw_intf,
+			blob_type,
 			CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG,
-			blob_info->base_info->idx,
 			(void *)cmd_buf_addr,
 			kmd_buf_remain_size,
 			(void *)wm_bw_limit_cfg,
@@ -4135,7 +4138,6 @@ static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 	}
 		break;
 	case CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_CONFIG_V2: {
-		size_t bw_config_size = 0;
 		struct cam_isp_tfe_bw_config_v2    *bw_config =
 			(struct cam_isp_tfe_bw_config_v2 *)blob_data;
 		struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
@@ -4194,13 +4196,13 @@ static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 
 		for (i = 0; i < bw_config->num_paths; i++) {
 			path_vote = &prepare_hw_data->bw_clk_config.bw_config_v2.axi_path[i];
-			path_vote.usage_data = bw_config->axi_path[i].usage_data;
-			path_vote.transac_type = bw_config->axi_path[i].transac_type;
-			path_vote.path_data_type = bw_config->axi_path[i].path_data_type;
-			path_vote.vote_level = 0;
-			path_vote.camnoc_bw = bw_config->axi_path[i].camnoc_bw;
-			path_vote.mnoc_ab_bw = bw_config->axi_path[i].mnoc_ab_bw;
-			path_vote.mnoc_ib_bw = bw_config->axi_path[i].mnoc_ib_bw;
+			path_vote->usage_data = bw_config->axi_path[i].usage_data;
+			path_vote->transac_type = bw_config->axi_path[i].transac_type;
+			path_vote->path_data_type = bw_config->axi_path[i].path_data_type;
+			path_vote->vote_level = 0;
+			path_vote->camnoc_bw = bw_config->axi_path[i].camnoc_bw;
+			path_vote->mnoc_ab_bw = bw_config->axi_path[i].mnoc_ab_bw;
+			path_vote->mnoc_ib_bw = bw_config->axi_path[i].mnoc_ib_bw;
 		}
 
 		tfe_mgr_ctx->bw_config_version = CAM_ISP_BW_CONFIG_V2;
@@ -4569,7 +4571,7 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 		return rc;
 
 	rc = cam_packet_util_process_patches(prepare->packet,
-		prepare->track_buf_list, hw_mgr->mgr_common.cmd_iommu_hdl,
+		prepare->buf_tracker, hw_mgr->mgr_common.cmd_iommu_hdl,
 		hw_mgr->mgr_common.cmd_iommu_hdl_secure, false);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Patch ISP packet failed.");
@@ -4626,14 +4628,14 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 		io_buf_info.scratch_check_cfg = &check_for_scratch;
 		io_buf_info.prepare = prepare;
 		io_buf_info.kmd_buf_info = &prepare_hw_data->kmd_cmd_buff_info;
-		io_buf_info.res_list_ife_in_rd = NULL;
+		io_buf_info.res_list_in_rd = NULL;
 		io_buf_info.iommu_hdl = hw_mgr->mgr_common.img_iommu_hdl;
 		io_buf_info.sec_iommu_hdl = hw_mgr->mgr_common.img_iommu_hdl_secure;
 		io_buf_info.base = &ctx->base[i];
 		io_buf_info.fill_fence = fill_fence;
 		io_buf_info.out_base = CAM_ISP_TFE_OUT_RES_BASE;
 		io_buf_info.out_max = CAM_TFE_HW_OUT_RES_MAX;
-		io_buf_info.res_list_isp_out = ctx->res_list_ife_out;
+		io_buf_info.res_list_isp_out = ctx->res_list_tfe_out;
 		rc = cam_isp_add_io_buffers(&io_buf_info);
 
 		if (rc) {
@@ -4852,7 +4854,7 @@ static void cam_tfe_mgr_dump_pf_data(
 	struct cam_isp_hw_mgr_res           *hw_mgr_res;
 	struct cam_isp_hw_get_cmd_update     cmd_update;
 	struct cam_isp_hw_get_res_for_mid    get_res;
-	struct cam_packet                   *packet;
+	struct cam_packet                   *packet = NULL;
 	struct cam_hw_cmd_pf_args           *pf_cmd_args;
 	uint32_t  *resource_type;
 	uint32_t   hw_id;
@@ -4862,10 +4864,10 @@ static void cam_tfe_mgr_dump_pf_data(
 	ctx = (struct cam_tfe_hw_mgr_ctx *)hw_cmd_args->ctxt_to_hw_map;
 
 	pf_cmd_args = hw_cmd_args->u.pf_cmd_args;
-	rc = cam_packet_util_get_packet_addr(packet,
+	rc = cam_packet_util_get_packet_addr(&packet,
 		pf_cmd_args->pf_req_info->packet_handle, pf_cmd_args->pf_req_info->packet_offset);
 	if (rc)
-		return rc;
+		return;
 	ctx_found = &pf_cmd_args->pf_args->pf_context_info.ctx_found;
 	resource_type = &pf_cmd_args->pf_args->pf_context_info.resource_type;
 

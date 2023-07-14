@@ -504,6 +504,7 @@ static int cam_tfe_bus_get_wm_idx(
 			break;
 		case PLANE_C:
 			wm_idx = 14;
+			break;
 		default:
 			break;
 		}
