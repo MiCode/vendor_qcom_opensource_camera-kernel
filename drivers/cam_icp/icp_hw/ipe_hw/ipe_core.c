@@ -68,7 +68,7 @@ int cam_ipe_init_hw(void *device_priv,
 	}
 
 	cpas_vote.ahb_vote.type = CAM_VOTE_ABSOLUTE;
-	cpas_vote.ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+	cpas_vote.ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	cpas_vote.axi_vote.num_paths = 1;
 	cpas_vote.axi_vote.axi_path[0].path_data_type =
 		CAM_IPE_DEFAULT_AXI_PATH;

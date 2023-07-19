@@ -690,7 +690,7 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 			goto end;
 		}
 		break;
-	case CAM_PKT_NOP_OPCODE:
+	case CAM_ACTUATOR_PACKET_NOP_OPCODE:
 		if (a_ctrl->cam_act_state < CAM_ACTUATOR_CONFIG) {
 			CAM_WARN(CAM_ACTUATOR,
 				"Received NOP packets in invalid state: %d",

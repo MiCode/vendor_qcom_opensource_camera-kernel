@@ -1700,7 +1700,7 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(
 	}
 
 	if (!(csid_hw->debug_info.debug_val &
-		    CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
+		CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
 		csid_reg->cmn_reg->early_eof_supported) {
 		if ((cfg1 & BIT(path_reg->early_eof_en_shift_val)) &&
 			!(cfg1 & BIT(path_reg->crop_v_en_shift_val))) {
@@ -1729,7 +1729,7 @@ static void cam_ife_csid_ver2_print_debug_reg_status(
 
 	soc_info = &csid_hw->hw_info->soc_info;
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-		    csid_hw->core_info->csid_reg;
+		csid_hw->core_info->csid_reg;
 
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 
@@ -1953,7 +1953,7 @@ void cam_ife_csid_ver2_print_format_measure_info(
 	void *csid, void *resource)
 {
 	struct cam_ife_csid_ver2_hw       *csid_hw = csid;
-        struct cam_isp_resource_node      *res = resource;
+	struct cam_isp_resource_node      *res = resource;
 	struct cam_ife_csid_ver2_reg_info *csid_reg = csid_hw->core_info->csid_reg;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg =
 		csid_reg->path_reg[res->res_id];
@@ -4676,6 +4676,7 @@ static int cam_ife_csid_ver2_set_cesta_clk_rate(struct cam_ife_csid_ver2_hw *csi
 {
 	struct cam_hw_soc_info *soc_info = &csid_hw->hw_info->soc_info;
 	bool channel_switch = force_channel_switch;
+	uint32_t lowest_clk_lvl = soc_info->lowest_clk_level;
 	int rc = 0;
 
 	CAM_DBG(CAM_ISP, "CSID:%d clk_rate=%llu, channel_switch=%d, identifier=%s",
@@ -4684,12 +4685,12 @@ static int cam_ife_csid_ver2_set_cesta_clk_rate(struct cam_ife_csid_ver2_hw *csi
 	if (csid_hw->clk_rate) {
 		rc = cam_soc_util_set_src_clk_rate(soc_info, csid_hw->hw_intf->hw_idx,
 			csid_hw->clk_rate,
-			soc_info->clk_rate[CAM_LOWSVS_VOTE][soc_info->src_clk_idx]);
+			soc_info->clk_rate[lowest_clk_lvl][soc_info->src_clk_idx]);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Failed in setting cesta clk rates[high low]:[%ld %ld] client_idx:%d rc:%d",
 				csid_hw->clk_rate,
-				soc_info->clk_rate[CAM_LOWSVS_VOTE][soc_info->src_clk_idx],
+				soc_info->clk_rate[lowest_clk_lvl][soc_info->src_clk_idx],
 				csid_hw->hw_intf->hw_idx, rc);
 			return rc;
 		}
@@ -5333,7 +5334,7 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	 */
 	if ((csid_hw->sync_mode != CAM_ISP_HW_SYNC_SLAVE) &&
 		start_args->is_secure &&
-		cam_is_mink_api_available())
+		csid_hw->flags.domain_id_security)
 		cam_ife_csid_ver2_send_secure_info(start_args, csid_hw);
 
 	/*
@@ -5430,6 +5431,10 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 
 	if (csid_hw->debug_info.test_bus_val) {
 		cam_ife_csid_ver2_testbus_config(csid_hw, csid_hw->debug_info.test_bus_val);
+		csid_hw->debug_info.test_bus_enabled = true;
+	} else {
+		cam_ife_csid_ver2_testbus_config(csid_hw,
+			csid_reg->cmn_reg->sync_reset_ctrl_testbus_val);
 		csid_hw->debug_info.test_bus_enabled = true;
 	}
 
@@ -7100,7 +7105,7 @@ int cam_ife_csid_ver2_irq_line_test(void *hw_priv)
 
 	mem_base = csid_hw->hw_info->soc_info.reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 	csid_reg = csid_hw->core_info->csid_reg;
-	rc = cam_ife_csid_enable_soc_resources(soc_info, CAM_LOWSVS_VOTE);
+	rc = cam_ife_csid_enable_soc_resources(soc_info, soc_info->lowest_clk_level);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "CSID[%u] Enable soc failed", csid_hw->hw_intf->hw_idx);
 		return rc;

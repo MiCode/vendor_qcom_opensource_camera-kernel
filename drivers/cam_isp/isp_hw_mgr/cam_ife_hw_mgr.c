@@ -1227,7 +1227,6 @@ static int cam_ife_hw_mgr_init_hw(
 	struct cam_ife_hw_mgr_ctx *ctx)
 {
 	struct cam_isp_hw_mgr_res *hw_mgr_res;
-	struct cam_ife_hw_mgr          *hw_mgr;
 	int rc = 0, i;
 
 	/* INIT IFE SRC */
@@ -1303,17 +1302,6 @@ static int cam_ife_hw_mgr_init_hw(
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Can not INIT IFE CSID(id :%d), ctx_idx:%u",
 				 hw_mgr_res->res_id, ctx->ctx_index);
-			goto deinit;
-		}
-	}
-
-	hw_mgr = ctx->hw_mgr;
-
-	if (hw_mgr->csid_global_reset_en) {
-		rc = cam_ife_hw_mgr_reset_csid(ctx,
-			CAM_IFE_CSID_RESET_GLOBAL);
-		if (rc) {
-			CAM_ERR(CAM_ISP, "CSID reset failed, ctx_idx:%u", ctx->ctx_index);
 			goto deinit;
 		}
 	}
@@ -1532,14 +1520,14 @@ static void cam_ife_hw_mgr_dump_acquire_resources(
 	}
 
 	/* Iterate over IFE OUT resources */
-	for (i = 0; i < max_ife_out_res; i++) {
+	for (i = 0; i < hwr_mgr_ctx->num_acq_vfe_out; i++) {
 		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX; j++) {
 			hw_mgr_res = &hwr_mgr_ctx->res_list_ife_out[i];
 			hw_res = hw_mgr_res->hw_res[j];
 			if (hw_res && hw_res->hw_intf)
 				CAM_INFO(CAM_ISP,
 					"IFE out split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
-					i, hwr_mgr_ctx->ctx_index,
+					j, hwr_mgr_ctx->ctx_index,
 					hw_res->hw_intf->hw_idx,
 					hw_res->res_name,
 					hw_res->res_type,
@@ -1550,14 +1538,14 @@ static void cam_ife_hw_mgr_dump_acquire_resources(
 	}
 
 	/* Iterate over SFE OUT resources */
-	for (i = 0; i < max_sfe_out_res; i++) {
+	for (i = 0; i < hwr_mgr_ctx->num_acq_sfe_out; i++) {
 		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX; j++) {
 			hw_mgr_res = &hwr_mgr_ctx->res_list_sfe_out[i];
 			hw_res = hw_mgr_res->hw_res[j];
 			if (hw_res && hw_res->hw_intf)
 				CAM_INFO(CAM_ISP,
 					"SFE out split_id:%d ctx_idx:%u hw_idx:%u res:%s type:%d res_id:%d state:%s",
-					i, hwr_mgr_ctx->ctx_index,
+					j, hwr_mgr_ctx->ctx_index,
 					hw_res->hw_intf->hw_idx,
 					hw_res->res_name,
 					hw_res->res_type,

@@ -1735,9 +1735,11 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 			add_req.trigger_eof = true;
 			if (flash_data->opcode == CAMERA_SENSOR_FLASH_OP_OFF) {
 				add_req.skip_at_sof = 1;
-				add_req.skip_at_eof = 1;
-			} else
+				add_req.skip_at_eof = 0;
+			} else {
 				add_req.skip_at_sof = 1;
+				add_req.skip_at_eof = 0;
+			}
 		}
 
 		if (fctrl->bridge_intf.crm_cb &&

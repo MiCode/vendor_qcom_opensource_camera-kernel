@@ -93,10 +93,12 @@ static int cam_vfe_top_set_hw_clk_rate(struct cam_vfe_top_priv_common *top_commo
 	int rc = 0, clk_lvl = -1;
 	unsigned long cesta_clk_rate_high = 0, cesta_clk_rate_low = 0;
 	int cesta_client_idx = -1;
+	uint32_t lowest_clk_lvl;
 
 	soc_info = top_common->soc_info;
 	soc_private = (struct cam_vfe_soc_private *)soc_info->soc_private;
 
+	lowest_clk_lvl = soc_info->lowest_clk_level;
 	cesta_clk_rate_high = final_clk_rate;
 	cesta_clk_rate_low = final_clk_rate;
 
@@ -104,7 +106,7 @@ static int cam_vfe_top_set_hw_clk_rate(struct cam_vfe_top_priv_common *top_commo
 		cesta_client_idx = top_common->hw_idx;
 		if (is_drv_config_en)
 			cesta_clk_rate_low =
-				soc_info->clk_rate[CAM_LOWSVS_VOTE][soc_info->src_clk_idx];
+				soc_info->clk_rate[lowest_clk_lvl][soc_info->src_clk_idx];
 		else
 			cesta_clk_rate_low = final_clk_rate;
 	}

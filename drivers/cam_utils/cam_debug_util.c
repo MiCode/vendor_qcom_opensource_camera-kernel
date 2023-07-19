@@ -284,15 +284,13 @@ void cam_print_log(int type, int module, int tag, const char *func,
 	int line, const char *fmt, ...)
 {
 	char buf[CAM_LOG_BUF_LEN] = {0,};
-	int len = 0;
-
 	va_list args;
 
 	if (!type)
 		return;
 
 	va_start(args, fmt);
-	len = vscnprintf(buf, CAM_LOG_BUF_LEN, fmt, args);
+	vscnprintf(buf, CAM_LOG_BUF_LEN, fmt, args);
 	__cam_print_log(type, __CAM_LOG_FMT,
 		CAM_LOG_TAG_NAME(tag), CAM_DBG_MOD_NAME(module), func,
 		line, buf);

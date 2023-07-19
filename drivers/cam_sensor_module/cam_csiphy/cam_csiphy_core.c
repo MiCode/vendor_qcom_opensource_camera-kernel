@@ -116,7 +116,7 @@ static int cam_csiphy_cpas_ops(
 
 	if (start) {
 		ahb_vote.type = CAM_VOTE_ABSOLUTE;
-		ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+		ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 		axi_vote.num_paths = 1;
 		axi_vote.axi_path[0].path_data_type =
 			CAM_AXI_PATH_DATA_ALL;
@@ -487,10 +487,8 @@ static int cam_csiphy_update_secure_info(struct csiphy_device *csiphy_dev, int32
 	uint32_t cpas_version;
 	int rc;
 
-	if (cam_is_mink_api_available()) {
-		CAM_DBG(CAM_CSIPHY, "Using MINK API for CSIPHY [%u], skipping legacy update",
-			csiphy_dev->soc_info.index);
-
+	if (csiphy_dev->domain_id_security) {
+		CAM_DBG(CAM_CSIPHY, "Target supports domain ID security, skipping legacy update");
 		return 0;
 	}
 
@@ -751,7 +749,7 @@ static int __cam_csiphy_parse_lane_info_cmd_buf(
 		csiphy_dev->csiphy_info[index].mipi_flags =
 			(cam_cmd_csiphy_info->mipi_flags & SKEW_CAL_MASK);
 		csiphy_dev->csiphy_info[index].channel_type =
-			CAM_CSIPHY_DATARATE_STANDARD_CHANNEL;
+			CAM_CSIPHY_DATARATE_SHORT_CHANNEL;
 	}
 
 	/* Cannot support CPHY combo mode with One sensor setting
@@ -1314,14 +1312,18 @@ static int cam_csiphy_program_secure_mode(struct csiphy_device *csiphy_dev,
 		}
 
 		rc = cam_cpas_enable_clks_for_domain_id(true);
-		if (rc)
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "Failed to enable the Domain ID clocks");
 			return rc;
+		}
 	}
 
 	rc = cam_csiphy_notify_secure_mode(csiphy_dev, protect, offset, is_shutdown);
 
 	if (csiphy_dev->domain_id_security) {
-		cam_cpas_enable_clks_for_domain_id(false);
+		if (cam_cpas_enable_clks_for_domain_id(false))
+			CAM_ERR(CAM_CSIPHY, "Failed to disable the Domain ID clocks");
+
 		if (!protect)
 			csiphy_dev->csiphy_info[offset].secure_info_updated = false;
 	}
@@ -2521,7 +2523,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 			if (soc_info->is_clk_drv_en && param->use_hw_client_voting) {
 				if (param->is_drv_config_en)
-					clk_vote_level_low = CAM_LOWSVS_VOTE;
+					clk_vote_level_low = soc_info->lowest_clk_level;
 
 				rc = cam_soc_util_set_clk_rate_level(&csiphy_dev->soc_info,
 					param->conn_csid_idx, clk_vote_level_high,

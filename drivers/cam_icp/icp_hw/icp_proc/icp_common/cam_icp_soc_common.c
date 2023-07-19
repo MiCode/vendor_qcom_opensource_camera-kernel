@@ -237,7 +237,7 @@ int cam_icp_soc_resources_enable(struct cam_hw_soc_info *soc_info)
 	int rc = 0;
 
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		CAM_SVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to enable soc resources rc=%d", rc);
 

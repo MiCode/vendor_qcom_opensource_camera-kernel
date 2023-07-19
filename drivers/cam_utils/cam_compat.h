@@ -44,7 +44,7 @@
 MODULE_IMPORT_NS(DMA_BUF);
 #endif
 
-#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
 #include <linux/smcinvoke.h>
 #include <linux/IClientEnv.h>
 #include <linux/ITrustedCameraDriver.h>

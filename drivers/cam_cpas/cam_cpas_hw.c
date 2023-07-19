@@ -523,7 +523,7 @@ static int cam_cpas_util_vote_default_ahb_axi(struct cam_hw_info *cpas_hw,
 	uint64_t applied_ab_bw = 0, applied_ib_bw = 0;
 
 	rc = cam_cpas_util_vote_bus_client_level(&cpas_core->ahb_bus_client,
-		(enable == true) ? CAM_SVS_VOTE : CAM_SUSPEND_VOTE);
+		(enable == true) ? CAM_LOWSVS_D1_VOTE : CAM_SUSPEND_VOTE);
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "Failed in AHB vote, enable=%d, rc=%d",
 			enable, rc);
@@ -2118,7 +2118,7 @@ static int cam_cpas_util_get_ahb_level(struct cam_hw_info *cpas_hw,
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	struct dev_pm_opp *opp;
 	unsigned int corner;
-	enum cam_vote_level level = CAM_SVS_VOTE;
+	enum cam_vote_level level = CAM_LOWSVS_D1_VOTE;
 	unsigned long corner_freq = freq;
 	int i;
 
@@ -2245,7 +2245,7 @@ static int cam_cpas_hw_update_ahb_vote(struct cam_hw_info *cpas_hw,
 		CAM_DBG(CAM_CPAS, "0 ahb vote from client %d",
 			client_handle);
 		ahb_vote.type = CAM_VOTE_ABSOLUTE;
-		ahb_vote.vote.level = CAM_SVS_VOTE;
+		ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	}
 
 	if (!CAM_CPAS_CLIENT_VALID(client_indx))
@@ -2329,7 +2329,7 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 	struct cam_ahb_vote *ahb_vote;
 	struct cam_ahb_vote remove_ahb;
 	struct cam_axi_vote axi_vote = {0};
-	enum cam_vote_level applied_level = CAM_SVS_VOTE;
+	enum cam_vote_level applied_level = CAM_LOWSVS_D1_VOTE;
 	int rc, i = 0, err_val = 0;
 	struct cam_cpas_private_soc *soc_private = NULL;
 	bool invalid_start = true;
@@ -3533,7 +3533,7 @@ static int cam_cpas_dump_state_monitor_array_info(
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	struct cam_cpas_monitor         *entry;
-	uint32_t monitor_idx, camnoc_lvl_regs_num;
+	uint32_t monitor_idx;
 
 	state_head = atomic64_read(&cpas_core->monitor_head);
 	if (state_head == -1) {
@@ -3581,7 +3581,6 @@ static int cam_cpas_dump_state_monitor_array_info(
 
 		for (camnoc_idx = 0; camnoc_idx < cpas_core->num_valid_camnoc; camnoc_idx++) {
 			min_len += sizeof(uint64_t);
-			camnoc_lvl_regs_num = entry->num_camnoc_lvl_regs[camnoc_idx];
 			for (j = 0; j < entry->num_camnoc_lvl_regs[camnoc_idx]; j++)
 				min_len += sizeof(struct cam_common_hw_dump_header);
 		}
@@ -4697,7 +4696,8 @@ int cam_cpas_hw_probe(struct platform_device *pdev,
 	if (rc)
 		goto axi_cleanup;
 
-	rc = cam_cpas_soc_enable_resources(&cpas_hw->soc_info, CAM_SVS_VOTE);
+	rc = cam_cpas_soc_enable_resources(&cpas_hw->soc_info,
+		cpas_hw->soc_info.lowest_clk_level);
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "failed in soc_enable_resources, rc=%d", rc);
 		goto remove_default_vote;

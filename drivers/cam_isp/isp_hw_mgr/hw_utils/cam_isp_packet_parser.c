@@ -88,10 +88,8 @@ int cam_isp_add_change_base(
 	struct cam_isp_hw_mgr_res       *hw_mgr_res;
 	struct cam_isp_resource_node    *res;
 	struct cam_isp_hw_get_cmd_update get_base;
-	struct cam_hw_update_entry      *hw_entry;
 	uint32_t                         num_ent, i;
 
-	hw_entry = prepare->hw_update_entries;
 	num_ent = prepare->num_hw_update_entries;
 
 	/* Max one hw entries required for each base */
@@ -1117,7 +1115,6 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 	uint32_t                            i;
 	uint32_t                            curr_used_bytes = 0;
 	uint32_t                            bytes_updated = 0;
-	uint32_t                            curr_offset = 0;
 	struct cam_isp_resource_node       *res = NULL;
 	int                                 ctxt_id = 0;
 	uint8_t                             num_ports[CAM_ISP_MULTI_CTXT_MAX] = {0};
@@ -1129,7 +1126,6 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 			&io_info->prepare->packet->payload +
 			io_info->prepare->packet->io_configs_offset);
 	curr_used_bytes = io_info->kmd_buf_info->used_bytes;
-	curr_offset = io_info->kmd_buf_info->offset;
 
 	/* Max one hw entries required for each base */
 	if (io_info->prepare->num_hw_update_entries + 1 >=

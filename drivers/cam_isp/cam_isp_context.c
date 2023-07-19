@@ -803,7 +803,7 @@ static int __cam_isp_ctx_notify_trigger_util(
 
 	rc = ctx->ctx_crm_intf->notify_trigger(&notify);
 	if (rc)
-		CAM_ERR(CAM_ISP,
+		CAM_ERR_RATE_LIMIT(CAM_ISP,
 			"Failed to notify CRM %s on frame: %llu ctx: %u link: 0x%x last_buf_done_req: %lld rc: %d",
 			__cam_isp_ctx_crm_trigger_point_to_string(trigger_type),
 			ctx_isp->frame_id, ctx->ctx_id, ctx->link_hdl,
@@ -2087,7 +2087,8 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 	bool defer_buf_done)
 {
 	int rc = 0;
-	int i, j;
+	int i, j, k, def_idx;
+	bool duplicate_defer_buf_done = false;
 	struct cam_isp_ctx_req *req_isp;
 	struct cam_context *ctx = ctx_isp->base;
 	const char *handle_type;
@@ -2198,6 +2199,32 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 
 		if (defer_buf_done) {
 			uint32_t deferred_indx = req_isp->num_deferred_acks;
+			duplicate_defer_buf_done = false;
+
+			for (k = 0; k < req_isp->num_deferred_acks; k++) {
+				def_idx = req_isp->deferred_fence_map_index[k];
+				if (def_idx == j) {
+					CAM_WARN(CAM_ISP,
+						"duplicate deferred ack for ctx[%u] link[0x%x] req %lld res 0x%x sync_id 0x%x",
+						ctx->ctx_id, ctx->link_hdl,
+						req->request_id,
+						req_isp->fence_map_out[j].resource_handle,
+						req_isp->fence_map_out[j].sync_id);
+					duplicate_defer_buf_done = true;
+					break;
+				}
+			}
+
+			if (duplicate_defer_buf_done)
+				continue;
+
+			if (req_isp->num_deferred_acks == req_isp->num_fence_map_out) {
+				CAM_WARN(CAM_ISP,
+					"WARNING: req_id %lld num_deferred_acks %d > map_out %d, ctx_idx:%u link[0x%x]",
+					req->request_id, req_isp->num_deferred_acks,
+					req_isp->num_fence_map_out, ctx->ctx_id, ctx->link_hdl);
+				continue;
+			}
 
 			/*
 			 * If we are handling this BUF_DONE event for a request
@@ -3683,7 +3710,7 @@ static int __cam_isp_ctx_validate_for_req_reapply_util(
 	struct cam_isp_ctx_req *req_isp = NULL;
 	struct cam_context *ctx = ctx_isp->base;
 
-	if (!in_interrupt())
+	if (in_task())
 		spin_lock_bh(&ctx->lock);
 
 	/* Check for req in active/wait lists */
@@ -3744,7 +3771,7 @@ static int __cam_isp_ctx_validate_for_req_reapply_util(
 	}
 
 end:
-	if (!in_interrupt())
+	if (in_task())
 		spin_unlock_bh(&ctx->lock);
 	return rc;
 }

@@ -15,6 +15,7 @@
 #define CAM_REQ_MGR_MAX_LINKED_DEV     16
 #define MAX_REQ_SLOTS                  48
 #define MAX_REQ_STATE_MONITOR_NUM      108
+#define MAX_DEV_FOR_SPECIAL_OPS        4
 
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT          1000
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT_DEFAULT  5000
@@ -30,6 +31,7 @@
 #define CRM_WORKQ_NUM_TASKS 60
 
 #define MAX_SYNC_COUNT 65535
+
 
 /* Default frame rate is 30 */
 #define DEFAULT_FRAME_DURATION 33333333
@@ -59,16 +61,6 @@
 /* Number of headers in dumping req state info function*/
 #define CAM_CRM_DUMP_EVENT_NUM_HEADERS  2
 
-
-/**
- * enum crm_req_eof_trigger_type
- * @codes: to identify which type of eof trigger for next slot
- */
-enum crm_req_eof_trigger_type {
-	CAM_REQ_EOF_TRIGGER_NONE,
-	CAM_REQ_EOF_TRIGGER_NOT_APPLY,
-	CAM_REQ_EOF_TRIGGER_APPLIED,
-};
 
 /**
  * enum crm_workq_task_type
@@ -248,21 +240,21 @@ struct cam_req_mgr_apply {
 
 /**
  * struct crm_tbl_slot_special_ops
+ * @num_dev         : Number of devices need to be applied at this trigger point
  * @dev_hdl         : Device handle who requested for special ops
  * @apply_at_eof    : Boolean Identifier for request to be applied at EOF
- * @is_applied      : Flag to identify if request is already applied to device
- *                    in previous frame
  */
 struct crm_tbl_slot_special_ops {
-	int32_t dev_hdl;
+	uint32_t num_dev;
+	int32_t dev_hdl[MAX_DEV_FOR_SPECIAL_OPS];
 	bool apply_at_eof;
-	bool is_applied;
 };
 
 /**
  * struct cam_req_mgr_tbl_slot
  * @idx                 : slot index
  * @req_ready_map       : mask tracking which all devices have request ready
+ * @req_apply_map       : mask tracking which all devices have request applied
  * @state               : state machine for life cycle of a slot
  * @inject_delay_at_sof : insert extra bubbling for flash type of use cases
  * @inject_delay_at_eof : insert extra bubbling for flash type of use cases
@@ -275,6 +267,7 @@ struct crm_tbl_slot_special_ops {
 struct cam_req_mgr_tbl_slot {
 	int32_t                                idx;
 	uint32_t                               req_ready_map;
+	uint32_t                               req_apply_map;
 	enum crm_req_state                     state;
 	uint32_t                               inject_delay_at_sof;
 	uint32_t                               inject_delay_at_eof;

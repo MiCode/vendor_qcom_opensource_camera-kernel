@@ -318,15 +318,7 @@ void cam_free_clear(const void * ptr)
 }
 #endif
 
-bool cam_is_mink_api_available(void)
-{
-#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
-	return true;
-#else
-	return false;
-#endif
-}
-#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 	bool protect, int32_t offset, bool is_shutdown)
 {

@@ -172,7 +172,7 @@ static int cam_icp_v2_cpas_start(struct cam_icp_v2_core_info *core_info)
 	struct cam_icp_cpas_vote vote;
 
 	vote.ahb_vote.type = CAM_VOTE_ABSOLUTE;
-	vote.ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+	vote.ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	vote.axi_vote.num_paths = 1;
 
 	vote.axi_vote.axi_path[0].path_data_type = CAM_ICP_DEFAULT_AXI_PATH;

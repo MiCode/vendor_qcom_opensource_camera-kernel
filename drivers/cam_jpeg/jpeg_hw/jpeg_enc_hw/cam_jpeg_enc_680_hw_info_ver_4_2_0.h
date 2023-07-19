@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_JPEG_ENC_680_HW_INFO_TITAN170_H
@@ -57,6 +58,16 @@ static struct cam_jpeg_enc_device_hw_info cam_jpeg_enc_680_hw_info = {
 		.core_cfg = 0xc,
 		.misr_cfg = 0x2B4,
 		.misr_rd0 = 0x2B8,
+	},
+	.debug_reg_offset = {
+		.top_offset = 0x0,
+		.top_range = 0x24,
+		.we_offset = 0xC0,
+		.we_range = 0x31,
+		.scale_offset = 0x26C,
+		.scale_range = 0x35,
+		.perf_offset = 0xFEC,
+		.perf_range = 0x5,
 	},
 	.reg_val = {
 		.int_clr_clearall = 0xFFFFFFFF,

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_JPEG_DMA_CORE_H
@@ -64,9 +64,21 @@ struct cam_jpeg_dma_camnoc_misr_reg_val {
 	uint32_t misc_ctl_stop;
 };
 
+struct cam_jpeg_dma_debug_regs_offset {
+	uint32_t top_offset;
+	uint32_t top_range;
+	uint32_t we_offset;
+	uint32_t we_range;
+	uint32_t we_qos_offset;
+	uint32_t we_qos_range;
+	uint32_t perf_offset;
+	uint32_t perf_range;
+};
+
 struct cam_jpeg_dma_device_hw_info {
 	struct cam_jpeg_dma_reg_offsets reg_offset;
 	struct cam_jpeg_dma_regval reg_val;
+	struct cam_jpeg_dma_debug_regs_offset debug_reg_offset;
 	struct cam_jpeg_dma_int_status int_status;
 	struct cam_jpeg_dma_camnoc_misr_reg_offset camnoc_misr_reg_offset;
 	struct cam_jpeg_dma_camnoc_misr_reg_val camnoc_misr_reg_val;

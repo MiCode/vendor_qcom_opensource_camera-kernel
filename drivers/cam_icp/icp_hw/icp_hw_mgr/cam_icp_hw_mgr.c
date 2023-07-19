@@ -613,7 +613,7 @@ static int cam_icp_remove_ctx_bw(struct cam_icp_hw_mgr *hw_mgr,
 				clk_info->axi_path[path_index].mnoc_ab_bw;
 
 			CAM_DBG(CAM_PERF,
-				"%s: Removing ctx bw from path_type: %s, transac_type: %s, camnoc_bw = %lld mnoc_ab_bw = %lld, mnoc_ib_bw = %lld, device: %s",
+				"%s: Removing ctx bw from path_type: %s, transac_type: %s, camnoc_bw = %lld mnoc_ab_bw = %lld, mnoc_ib_bw = %lld",
 				ctx_data->ctx_id_string,
 				cam_cpas_axi_util_path_type_to_string(
 				ctx_data->clk_info.axi_path[i].path_data_type),
@@ -621,12 +621,10 @@ static int cam_icp_remove_ctx_bw(struct cam_icp_hw_mgr *hw_mgr,
 				ctx_data->clk_info.axi_path[i].transac_type),
 				ctx_data->clk_info.axi_path[i].camnoc_bw,
 				ctx_data->clk_info.axi_path[i].mnoc_ab_bw,
-				ctx_data->clk_info.axi_path[i].mnoc_ib_bw,
-				cam_icp_dev_type_to_name(
-				ctx_data->icp_dev_acquire_info->dev_type));
+				ctx_data->clk_info.axi_path[i].mnoc_ib_bw);
 
 			CAM_DBG(CAM_PERF,
-				"%s: Final HW bw for path_type: %s, transac_type: %s, camnoc_bw = %lld mnoc_ab_bw = %lld, mnoc_ib_bw = %lld, device: %s",
+				"%s: Final HW bw for path_type: %s, transac_type: %s, camnoc_bw = %lld mnoc_ab_bw = %lld, mnoc_ib_bw = %lld",
 				ctx_data->ctx_id_string,
 				cam_cpas_axi_util_path_type_to_string(
 				clk_info->axi_path[i].path_data_type),
@@ -634,9 +632,7 @@ static int cam_icp_remove_ctx_bw(struct cam_icp_hw_mgr *hw_mgr,
 				clk_info->axi_path[i].transac_type),
 				clk_info->axi_path[i].camnoc_bw,
 				clk_info->axi_path[i].mnoc_ab_bw,
-				clk_info->axi_path[i].mnoc_ib_bw,
-				cam_icp_dev_type_to_name(
-				ctx_data->icp_dev_acquire_info->dev_type));
+				clk_info->axi_path[i].mnoc_ib_bw);
 		}
 
 		memset(&ctx_data->clk_info.axi_path[0], 0,
@@ -671,7 +667,7 @@ static int cam_icp_remove_ctx_bw(struct cam_icp_hw_mgr *hw_mgr,
 	if (total_ab_bw == 0) {
 		/* If no more contexts are active, reduce AHB vote to minimum */
 		clk_update.ahb_vote.type = CAM_VOTE_ABSOLUTE;
-		clk_update.ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+		clk_update.ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 		clk_update.ahb_vote_valid = true;
 	} else {
 		clk_update.ahb_vote_valid = false;
@@ -1272,10 +1268,8 @@ static bool cam_icp_update_bw_v2(struct cam_icp_hw_mgr *hw_mgr,
 		hw_mgr_clk_info->axi_path[path_index].mnoc_ib_bw +=
 			ctx_data->clk_info.axi_path[i].mnoc_ib_bw;
 		CAM_DBG(CAM_PERF,
-			"%s: Consolidate Path Vote : Dev[%s] i[%d] path_idx[%d] : [%s %s] [%lld %lld]",
+			"%s: Consolidate Path Vote: i[%d] path_idx[%d] : [%s %s] [%lld %lld]",
 			ctx_data->ctx_id_string,
-			cam_icp_dev_type_to_name(
-			ctx_data->icp_dev_acquire_info->dev_type),
 			i, path_index,
 			cam_cpas_axi_util_trans_type_to_string(
 			hw_mgr_clk_info->axi_path[path_index].transac_type),
@@ -1449,7 +1443,7 @@ static bool cam_icp_check_bw_update(struct cam_icp_hw_mgr *hw_mgr,
 
 		for (i = 0; i < dev_clk_info->num_paths; i++) {
 			CAM_DBG(CAM_PERF,
-				"%s: Final path_type: %s, transac_type: %s, camnoc_bw = %lld mnoc_ab_bw = %lld, mnoc_ib_bw = %lld, device: %s",
+				"%s: Final path_type: %s, transac_type: %s, camnoc_bw = %lld mnoc_ab_bw = %lld, mnoc_ib_bw = %lld",
 				ctx_data->ctx_id_string,
 				cam_cpas_axi_util_path_type_to_string(
 				dev_clk_info->axi_path[i].path_data_type),
@@ -1457,9 +1451,7 @@ static bool cam_icp_check_bw_update(struct cam_icp_hw_mgr *hw_mgr,
 				dev_clk_info->axi_path[i].transac_type),
 				dev_clk_info->axi_path[i].camnoc_bw,
 				dev_clk_info->axi_path[i].mnoc_ab_bw,
-				dev_clk_info->axi_path[i].mnoc_ib_bw,
-				cam_icp_dev_type_to_name(
-				ctx_data->icp_dev_acquire_info->dev_type));
+				dev_clk_info->axi_path[i].mnoc_ib_bw);
 		}
 	} else {
 		CAM_ERR(CAM_PERF, "%s: Invalid bw config version: %d",
@@ -1480,23 +1472,20 @@ static int cam_icp_update_clk_rate(struct cam_icp_hw_mgr *hw_mgr,
 	char tmp_buff[64];
 
 	dev_clk_info = &ctx_data->device_info->clk_info;
-	scnprintf(tmp_buff, sizeof(tmp_buff), "%s Before %s clk update rate=%u",
+	scnprintf(tmp_buff, sizeof(tmp_buff), "%s Before clk update rate=%u",
 		ctx_data->ctx_id_string,
-		cam_icp_dev_type_to_name(ctx_data->icp_dev_acquire_info->dev_type),
 		dev_clk_info->prev_clk);
 	cam_cpas_notify_event(tmp_buff, dev_clk_info->prev_clk);
 
 	curr_clk_rate = dev_clk_info->curr_clk;
 	dev_clk_info->prev_clk = curr_clk_rate;
-	scnprintf(tmp_buff, sizeof(tmp_buff), "%s After %s clk update rate=%u",
+	scnprintf(tmp_buff, sizeof(tmp_buff), "%s After clk update rate=%u",
 		ctx_data->ctx_id_string,
-		cam_icp_dev_type_to_name(ctx_data->icp_dev_acquire_info->dev_type),
 		curr_clk_rate);
 	cam_cpas_notify_event(tmp_buff, curr_clk_rate);
 
-	CAM_DBG(CAM_PERF, "%s: clk_rate %u for dev_type %d",
-		ctx_data->ctx_id_string, curr_clk_rate,
-		ctx_data->icp_dev_acquire_info->dev_type);
+	CAM_DBG(CAM_PERF, "%s: clk_rate %u",
+		ctx_data->ctx_id_string, curr_clk_rate);
 
 	clk_upd_cmd.curr_clk_rate = curr_clk_rate;
 	clk_upd_cmd.dev_pc_enable = hw_mgr->dev_pc_flag;
@@ -2375,9 +2364,8 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 	}
 
 	CAM_DBG(CAM_REQ,
-		"%s: request_id :%lld dev_type: %d",
-		ctx_data->ctx_id_string, request_id,
-		ctx_data->icp_dev_acquire_info->dev_type);
+		"%s: request_id: %lld",
+		ctx_data->ctx_id_string, request_id);
 
 	cam_icp_device_timer_reset(hw_mgr, ctx_data->device_info);
 
@@ -2396,16 +2384,15 @@ static int cam_icp_mgr_handle_frame_process(uint32_t *msg_ptr, int flag)
 	if (flag == ICP_FRAME_PROCESS_FAILURE) {
 		if (ioconfig_ack->err_type == CAMERAICP_EABORTED) {
 			CAM_WARN(CAM_ICP,
-				"%s: req %llu dev %d has been aborted[flushed]",
-				ctx_data->ctx_id_string, request_id,
-				ctx_data->icp_dev_acquire_info->dev_type);
+				"%s: req %llu has been aborted[flushed]",
+				ctx_data->ctx_id_string, request_id);
 			event_id = CAM_CTX_EVT_ID_CANCEL;
 		} else {
 			CAM_ERR(CAM_ICP,
-				"%s: Done with error: %u err_type= [%s] dev %d for req %llu",
+				"%s: Done with error: %u err_type= [%s] for req %llu",
 				ctx_data->ctx_id_string, ioconfig_ack->err_type,
 				cam_icp_error_handle_id_to_type(ioconfig_ack->err_type),
-				ctx_data->icp_dev_acquire_info->dev_type, request_id);
+				request_id);
 			event_id = CAM_CTX_EVT_ID_ERROR;
 		}
 		buf_data.evt_param = cam_icp_handle_err_type_to_evt_param(ioconfig_ack->err_type);
@@ -5297,9 +5284,8 @@ static int cam_icp_mgr_config_hw(void *hw_mgr_priv, void *config_hw_args)
 	if (rc)
 		goto config_err;
 
-	CAM_DBG(CAM_REQ, "%s: req_id = %lld for dev: %s queued to FW",
-		ctx_data->ctx_id_string, req_id,
-		cam_icp_dev_type_to_name(ctx_data->icp_dev_acquire_info->dev_type));
+	CAM_DBG(CAM_REQ, "%s: req_id = %lld queued to FW",
+		ctx_data->ctx_id_string, req_id);
 	mutex_unlock(&ctx_data->ctx_mutex);
 	mutex_unlock(&hw_mgr->hw_mgr_mutex);
 
@@ -7035,8 +7021,8 @@ static int cam_icp_get_acquire_info(struct cam_icp_hw_mgr *hw_mgr,
 
 	if (icp_dev_acquire_info.dev_type < CAM_ICP_RES_TYPE_BPS ||
 		icp_dev_acquire_info.dev_type > CAM_ICP_RES_TYPE_OFE_SEMI_RT) {
-		CAM_ERR(CAM_ICP, "%s Invalid device type: %d",
-			icp_dev_acquire_info.dev_type);
+		CAM_ERR(CAM_ICP, "%s Invalid device type",
+			ctx_data->ctx_id_string);
 		return -EFAULT;
 	}
 
@@ -7056,9 +7042,8 @@ static int cam_icp_get_acquire_info(struct cam_icp_hw_mgr *hw_mgr,
 		return -EFAULT;
 	}
 
-	CAM_DBG(CAM_ICP, "%s: %x %x %x %x %x %x %x",
+	CAM_DBG(CAM_ICP, "%s: %x %x %x %x %x %x",
 		ctx_data->ctx_id_string,
-		ctx_data->icp_dev_acquire_info->dev_type,
 		ctx_data->icp_dev_acquire_info->in_res.format,
 		ctx_data->icp_dev_acquire_info->in_res.width,
 		ctx_data->icp_dev_acquire_info->in_res.height,
@@ -7226,8 +7211,8 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	}
 
 	CAM_DBG(CAM_ICP,
-		"%s: created stream handle for dev_type %u",
-		ctx_data->ctx_id_string, icp_dev_acquire_info->dev_type);
+		"%s: created stream handle",
+		ctx_data->ctx_id_string);
 
 	cmd_mem_region.num_regions = 1;
 	cmd_mem_region.map_info_array[0].mem_handle =
@@ -7325,8 +7310,8 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	hw_mgr->ctxt_cnt++;
 	mutex_unlock(&hw_mgr->hw_mgr_mutex);
 
-	CAM_DBG(CAM_ICP, "%s: Acquire Done for dev type %d",
-		ctx_data->ctx_id_string, ctx_data->icp_dev_acquire_info->dev_type);
+	CAM_DBG(CAM_ICP, "%s: Acquire Done",
+		ctx_data->ctx_id_string);
 
 	CAM_TRACE(CAM_ICP,
 		"%s: Acquired, in_res : format=%d, widht=%d, height=%d, fps=%d",
@@ -7605,6 +7590,7 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np, struct cam_icp_hw_mgr 
 			hw_mgr->hw_mgr_name, icp_hw_type);
 		rc = -EINVAL;
 		kfree(devices);
+		kfree(alloc_devices);
 		return rc;
 	}
 

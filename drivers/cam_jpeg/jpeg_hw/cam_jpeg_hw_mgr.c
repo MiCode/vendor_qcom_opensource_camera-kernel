@@ -2003,6 +2003,20 @@ iodump:
 	cam_packet_util_dump_io_bufs(packet, hw_mgr->iommu_hdl, hw_mgr->iommu_sec_hdl,
 		pf_args, hw_pid_support);
 	cam_packet_util_put_packet_addr(pf_req_info->packet_handle);
+
+	/* Dump JPEG registers for debug purpose */
+	if (dev_type == CAM_JPEG_RES_TYPE_DMA ||
+		dev_type == CAM_JPEG_RES_TYPE_ENC) {
+		rc = hw_mgr->devices[dev_type][CAM_JPEG_MEM_BASE_INDEX]->hw_ops.process_cmd(
+			hw_mgr->devices[dev_type][CAM_JPEG_MEM_BASE_INDEX]->hw_priv,
+			CAM_JPEG_CMD_DUMP_DEBUG_REGS,
+			NULL, 0);
+		if (rc)
+			CAM_ERR(CAM_JPEG, "Invalid process_cmd ops");
+
+	} else {
+		CAM_ERR(CAM_JPEG, "Invalid dev_type %d", dev_type);
+	}
 }
 
 static int cam_jpeg_mgr_cmd(void *hw_mgr_priv, void *cmd_args)

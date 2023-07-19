@@ -358,6 +358,25 @@ static void cam_mem_put_slot(int32_t idx)
 	mutex_unlock(&tbl.m_lock);
 }
 
+static bool cam_mem_mgr_is_iova_info_updated_locked(
+	struct cam_mem_buf_hw_hdl_info *hw_vaddr_info_arr,
+	int32_t iommu_hdl)
+{
+	int entry;
+	struct cam_mem_buf_hw_hdl_info *vaddr_entry;
+
+	/* validate hdl for entry idx */
+	if (!cam_mem_mgr_get_hwva_entry_idx(iommu_hdl, &entry))
+		return false;
+
+	vaddr_entry = &hw_vaddr_info_arr[entry];
+	if (vaddr_entry->valid_mapping &&
+		vaddr_entry->iommu_hdl == iommu_hdl)
+		return true;
+
+	return false;
+}
+
 static void cam_mem_mgr_update_iova_info_locked(
 	struct cam_mem_buf_hw_hdl_info *hw_vaddr_info_arr,
 	dma_addr_t vaddr, int32_t iommu_hdl, size_t len,
@@ -1174,6 +1193,7 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 	bool dis_delayed_unmap = false;
 	dma_addr_t hw_vaddr;
 	struct kref *ref_count;
+	struct cam_mem_buf_hw_hdl_info *hdl_info = NULL;
 
 	if (dir < 0) {
 		CAM_ERR(CAM_MEM, "fail to map DMA direction, dir=%d", dir);
@@ -1188,6 +1208,9 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 		fd, flags, dir, num_hdls);
 
 	for (i = 0; i < num_hdls; i++) {
+		if (cam_mem_mgr_is_iova_info_updated_locked(hw_vaddr_info_arr, mmu_hdls[i]))
+			continue;
+
 		/* If 36-bit enabled, check for ICP cmd buffers and map them within the shared region */
 		if (cam_smmu_is_expanded_memory() &&
 			cam_smmu_supports_shared_region(mmu_hdls[i]) &&
@@ -1216,14 +1239,19 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 
 	return rc;
 multi_map_fail:
-	for (--i; i>= 0; i--) {
-		if (flags & CAM_MEM_FLAG_PROTECTED_MODE)
-			cam_smmu_unmap_stage2_iova(mmu_hdls[i], fd, dmabuf, false);
-		else
-			cam_smmu_unmap_user_iova(mmu_hdls[i], fd, dmabuf, CAM_SMMU_REGION_IO,
-				false);
-	}
+	for (i = 0; i < tbl.max_hdls_supported; i++) {
+		if (!hw_vaddr_info_arr[i].valid_mapping)
+			continue;
 
+		hdl_info = &hw_vaddr_info_arr[i];
+
+		if (flags & CAM_MEM_FLAG_PROTECTED_MODE)
+			cam_smmu_unmap_stage2_iova(hdl_info->iommu_hdl, fd, dmabuf,
+				false);
+		else
+			cam_smmu_unmap_user_iova(hdl_info->iommu_hdl, fd, dmabuf,
+				CAM_SMMU_REGION_IO, false);
+	}
 	/* reset any updated entries */
 	memset(hw_vaddr_info_arr, 0x0, tbl.max_hdls_info_size);
 	return rc;
@@ -1771,7 +1799,6 @@ static void cam_mem_util_unmap(struct kref *kref)
 
 void cam_mem_put_cpu_buf(int32_t buf_handle)
 {
-	int rc = 0;
 	int idx;
 
 	if (!buf_handle) {
@@ -1787,14 +1814,12 @@ void cam_mem_put_cpu_buf(int32_t buf_handle)
 
 	if (!tbl.bufq[idx].active) {
 		CAM_ERR(CAM_MEM, "idx: %d not active", idx);
-		rc = -EPERM;
 		return;
 	}
 
 	if (buf_handle != tbl.bufq[idx].buf_handle) {
 		CAM_ERR(CAM_MEM, "idx: %d Invalid buf handle %d",
 				idx, buf_handle);
-		rc = -EINVAL;
 		return;
 	}
 
