@@ -38,6 +38,9 @@ enum cam_ife_ctx_master_type {
 #define CAM_IFE_CTX_CFG_SW_SYNC_ON        BIT(1)
 #define CAM_IFE_CTX_CFG_DYNAMIC_SWITCH_ON BIT(2)
 
+/* Maximum set for irq injection*/
+#define MAX_INJECT_SET 10
+
 /**
  * struct cam_ife_hw_mgr_debug - contain the debug information
  *
@@ -455,6 +458,36 @@ struct cam_isp_sfe_cache_info {
 	bool     activated[CAM_ISP_EXPOSURE_MAX];
 };
 
+/*
+ * struct cam_isp_irq_inject_irq_desc: Structure to hold IRQ description
+ *
+ * @bitmask : Bitmask of the IRQ
+ * @desc    : String to describe the IRQ bit
+ */
+struct cam_isp_irq_inject_irq_desc {
+	uint32_t    bitmask;
+	char       *desc;
+};
+
+/*
+ * enum cam_isp_irq_inject_common_param_pos - Irq injection param
+ *
+ * HW_TYPE         : hw to inject IRQ
+ * HW_IDX          : index of the selected hw
+ * RES_ID          : register to set irq
+ * IRQ_MASK        : IRQ to be triggered
+ * INJECT_REQ      : req to trigger the IRQ
+ * INJECT_PARAM_MAX: max allowed num of injected param
+ */
+enum cam_isp_irq_inject_common_param_pos {
+	HW_TYPE,
+	HW_IDX,
+	REG_UNIT,
+	IRQ_MASK,
+	INJECT_REQ,
+	INJECT_PARAM_MAX
+};
+
 /**
  * struct cam_ife_hw_mgr - IFE HW Manager
  *
@@ -486,6 +519,7 @@ struct cam_isp_sfe_cache_info {
  * @sfe_cache_info         SFE Cache Info
  * @isp_device_type:       If device supports single-context(ife) or multi-
  *                         context(mc_tfe)
+ * @irq_inject_param       Param for isp irq injection
  */
 struct cam_ife_hw_mgr {
 	struct cam_isp_hw_mgr          mgr_common;
@@ -519,6 +553,8 @@ struct cam_ife_hw_mgr {
 	struct cam_isp_sys_cache_info    sys_cache_info[CAM_LLCC_MAX];
 	struct cam_isp_sfe_cache_info    sfe_cache_info[CAM_SFE_HW_NUM_MAX];
 	uint32_t                         isp_device_type;
+
+	struct cam_isp_irq_inject_param  irq_inject_param[MAX_INJECT_SET];
 };
 
 /**

@@ -88,6 +88,7 @@ struct cam_vfe_bus_ver3_common_data {
 	void                                       *vfe_irq_controller;
 	void                                       *buf_done_controller;
 	void                                       *priv;
+	struct cam_hw_soc_info                     *soc_info;
 	struct cam_vfe_bus_ver3_reg_offset_common  *common_reg;
 	struct cam_cdm_utils_ops                   *cdm_util_ops;
 	uint32_t                                    io_buf_update[
@@ -209,24 +210,25 @@ struct cam_vfe_bus_ver3_vfe_out_data {
 };
 
 struct cam_vfe_bus_ver3_priv {
-	struct cam_vfe_bus_ver3_common_data common_data;
-	uint32_t                            num_client;
-	uint32_t                            num_out;
-	uint32_t                            num_comp_grp;
-	uint32_t                            top_irq_shift;
+	struct cam_vfe_bus_ver3_common_data    common_data;
+	uint32_t                               num_client;
+	uint32_t                               num_out;
+	uint32_t                               num_comp_grp;
+	uint32_t                               top_irq_shift;
 
-	struct cam_isp_resource_node       *bus_client;
-	struct cam_isp_resource_node       *comp_grp;
-	struct cam_isp_resource_node       *vfe_out;
+	struct cam_isp_resource_node          *bus_client;
+	struct cam_isp_resource_node          *comp_grp;
+	struct cam_isp_resource_node          *vfe_out;
 	uint32_t  vfe_out_map_outtype[CAM_VFE_BUS_VER3_VFE_OUT_MAX];
 
-	int                                 bus_irq_handle;
-	int                                 rup_irq_handle;
-	int                                 error_irq_handle;
-	void                               *tasklet_info;
-	uint32_t                            max_out_res;
-	uint32_t                            num_cons_err;
-	struct cam_vfe_constraint_error_info      *constraint_error_list;
+	int                                    bus_irq_handle;
+	int                                    rup_irq_handle;
+	int                                    error_irq_handle;
+	void                                  *tasklet_info;
+	uint32_t                               max_out_res;
+	uint32_t                               num_cons_err;
+	struct cam_vfe_constraint_error_info  *constraint_error_list;
+	struct cam_vfe_bus_ver3_hw_info       *bus_hw_info;
 };
 
 static void cam_vfe_bus_ver3_unsubscribe_init_irq(
@@ -4179,6 +4181,95 @@ static int cam_vfe_bus_ver3_mc_ctxt_sel(
 	return 0;
 }
 
+static int cam_vfe_bus_ver3_irq_inject(
+	void *priv, void *cmd_args, uint32_t arg_size)
+{
+	struct cam_vfe_bus_ver3_priv      *bus_priv = NULL;
+	struct cam_hw_soc_info            *soc_info = NULL;
+	struct cam_vfe_bus_ver3_hw_info   *bus_hw_info = NULL;
+	struct cam_isp_irq_inject_param   *inject_params = NULL;
+	struct cam_irq_register_set       *inject_reg = NULL;
+
+	if (!cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid params");
+		return -EINVAL;
+	}
+
+	bus_priv = (struct cam_vfe_bus_ver3_priv  *)priv;
+	soc_info = bus_priv->common_data.soc_info;
+	bus_hw_info = (struct cam_vfe_bus_ver3_hw_info *)bus_priv->bus_hw_info;
+	inject_params = (struct cam_isp_irq_inject_param *)cmd_args;
+
+	if (inject_params->reg_unit ==
+		CAM_ISP_IFE_0_BUS_WR_INPUT_IF_IRQ_SET_0_REG)
+		inject_reg = &bus_hw_info->common_reg.irq_reg_info.irq_reg_set[0];
+	else if (inject_params->reg_unit ==
+		CAM_ISP_IFE_0_BUS_WR_INPUT_IF_IRQ_SET_1_REG)
+		inject_reg = &bus_hw_info->common_reg.irq_reg_info.irq_reg_set[1];
+	else
+		return -EINVAL;
+
+	if (!inject_reg) {
+		CAM_INFO(CAM_ISP, "Invalid inject_reg");
+		return -EINVAL;
+	}
+
+	cam_io_w_mb(inject_params->irq_mask,
+		soc_info->reg_map[VFE_CORE_BASE_IDX].mem_base +
+		inject_reg->set_reg_offset);
+	cam_io_w_mb(0x10, soc_info->reg_map[VFE_CORE_BASE_IDX].mem_base +
+		bus_hw_info->common_reg.irq_reg_info.global_irq_cmd_offset);
+	CAM_INFO(CAM_ISP, "Injected : irq_mask %#x set_reg_offset %#x",
+		inject_params->irq_mask, inject_reg->set_reg_offset);
+
+	return 0;
+}
+
+static int cam_vfe_bus_ver3_dump_irq_desc(
+	void *priv, void *cmd_args, uint32_t arg_size)
+{
+	int                                   i, offset = 0;
+	int                                   num_irq_desc = 0;
+	struct cam_vfe_bus_ver3_priv         *bus_priv = NULL;
+	struct cam_vfe_bus_ver3_hw_info      *bus_hw_info = NULL;
+	struct cam_isp_irq_inject_param      *inject_params = NULL;
+	struct cam_vfe_bus_ver3_err_irq_desc *err_irq_desc = NULL;
+
+	if (!cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid params");
+		return -EINVAL;
+	}
+
+	bus_priv = (struct cam_vfe_bus_ver3_priv *)priv;
+	bus_hw_info = (struct cam_vfe_bus_ver3_hw_info *)bus_priv->bus_hw_info;
+	inject_params = (struct cam_isp_irq_inject_param *)cmd_args;
+
+	if (inject_params->reg_unit ==
+			CAM_ISP_IFE_0_BUS_WR_INPUT_IF_IRQ_SET_0_REG) {
+		err_irq_desc = bus_hw_info->bus_err_desc_0;
+		num_irq_desc = bus_hw_info->num_bus_errors_0;
+	} else if (inject_params->reg_unit ==
+			CAM_ISP_IFE_0_BUS_WR_INPUT_IF_IRQ_SET_1_REG) {
+		err_irq_desc = bus_hw_info->bus_err_desc_1;
+		num_irq_desc = bus_hw_info->num_bus_errors_1;
+	} else
+		return -EINVAL;
+
+	offset += scnprintf(inject_params->line_buf + offset,
+		LINE_BUFFER_LEN - offset,
+		"Printing executable IRQ for hw_type: VFE reg_unit: %d\n",
+		inject_params->reg_unit);
+
+	for (i = 0; i < num_irq_desc; i++)
+		offset += scnprintf(inject_params->line_buf + offset,
+			LINE_BUFFER_LEN - offset, "%#12x : %s - %s\n",
+			err_irq_desc[i].bitmask,
+			err_irq_desc[i].err_name,
+			err_irq_desc[i].desc);
+
+	return 0;
+}
+
 static int cam_vfe_bus_ver3_start_hw(void *hw_priv,
 	void *start_hw_args, uint32_t arg_size)
 {
@@ -4412,6 +4503,12 @@ static int cam_vfe_bus_ver3_process_cmd(
 		rc = cam_vfe_bus_ver3_mc_ctxt_sel(priv, cmd_args, arg_size);
 		break;
 
+	case CAM_ISP_HW_CMD_IRQ_INJECTION:
+		rc = cam_vfe_bus_ver3_irq_inject(priv, cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION:
+		rc = cam_vfe_bus_ver3_dump_irq_desc(priv, cmd_args, arg_size);
+		break;
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "VFE:%u Invalid camif process command:%d",
 			priv->hw_intf->hw_idx, cmd_type);
@@ -4498,6 +4595,8 @@ int cam_vfe_bus_ver3_init(
 		ver3_hw_info->max_bw_counter_limit;
 	bus_priv->num_cons_err = ver3_hw_info->num_cons_err;
 	bus_priv->constraint_error_list = ver3_hw_info->constraint_error_list;
+	bus_priv->common_data.soc_info = soc_info;
+	bus_priv->bus_hw_info = ver3_hw_info;
 
 	if (bus_priv->num_out >= CAM_VFE_BUS_VER3_VFE_OUT_MAX) {
 		CAM_ERR(CAM_ISP, "VFE:%u number of vfe out:%d more than max value:%d ",

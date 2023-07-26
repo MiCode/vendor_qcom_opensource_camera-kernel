@@ -118,8 +118,6 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_780_rx_irq_desc[][32
 	},
 };
 
-
-
 static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_780_path_irq_desc[] = {
 	{
 		.bitmask = BIT(0),
@@ -283,6 +281,9 @@ static const struct cam_ife_csid_top_irq_desc cam_ife_csid_lite_780_top_irq_desc
 
 static const uint32_t cam_ife_csid_lite_780_num_top_irq_desc[] = {
 	ARRAY_SIZE(cam_ife_csid_lite_780_top_irq_desc[0]),
+};
+static const uint32_t cam_ife_csid_lite_780_num_rx_irq_desc[] = {
+	ARRAY_SIZE(cam_ife_csid_lite_780_rx_irq_desc[0]),
 };
 
 static struct cam_irq_register_set cam_ife_csid_lite_780_irq_reg_set[9] = {
@@ -1049,10 +1050,12 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_lite_780_reg_info = {
 	.path_reg[CAM_IFE_PIX_PATH_RES_RDI_2] = &cam_ife_csid_lite_780_rdi_2_reg_info,
 	.path_reg[CAM_IFE_PIX_PATH_RES_RDI_3] = &cam_ife_csid_lite_780_rdi_3_reg_info,
 	.need_top_cfg = 0,
+	.top_irq_desc       = &cam_ife_csid_lite_780_top_irq_desc,
 	.rx_irq_desc        = &cam_ife_csid_lite_780_rx_irq_desc,
 	.path_irq_desc      = cam_ife_csid_lite_780_path_irq_desc,
-	.top_irq_desc       = &cam_ife_csid_lite_780_top_irq_desc,
 	.num_top_err_irqs   = cam_ife_csid_lite_780_num_top_irq_desc,
+	.num_rx_err_irqs    = cam_ife_csid_lite_780_num_rx_irq_desc,
+	.num_path_err_irqs  = ARRAY_SIZE(cam_ife_csid_lite_780_path_irq_desc),
 	.num_top_regs       = 1,
 	.num_rx_regs        = 1,
 };
