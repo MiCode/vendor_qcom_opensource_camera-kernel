@@ -2915,7 +2915,6 @@ static int cam_vfe_bus_ver3_handle_err_irq_bottom_half(
 	evt_info.hw_type = CAM_ISP_HW_TYPE_VFE;
 	err_evt_info.err_type = CAM_VFE_IRQ_STATUS_VIOLATION;
 	evt_info.event_data = (void *)&err_evt_info;
-	evt_info.out_port_id = out_port_mask;
 
 	if (!common_data->event_cb)
 		return 0;

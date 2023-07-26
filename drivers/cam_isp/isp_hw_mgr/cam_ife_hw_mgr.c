@@ -4337,11 +4337,11 @@ static int cam_ife_mgr_check_and_update_fe(
 	return 0;
 }
 
-static int cam_ife_hw_mgr_convert_out_port_to_csid_path(uint64_t port_id)
+static int cam_ife_hw_mgr_convert_out_port_to_csid_path(uint32_t port_id)
 {
 	uint32_t path_id = CAM_IFE_PIX_PATH_RES_MAX;
 
-	if (port_id == max_ife_out_res)
+	if (port_id >= (CAM_ISP_IFE_OUT_RES_BASE + max_ife_out_res))
 		goto end;
 
 	path_id = cam_ife_hw_mgr_get_ife_csid_rdi_res_type(port_id);
@@ -14044,29 +14044,20 @@ static void cam_ife_hw_mgr_trigger_crop_reg_dump(
 	struct cam_hw_intf                      *hw_intf,
 	struct cam_isp_hw_event_info            *event_info)
 {
-	int rc = 0, path_id = 0, idx = -1;
+	int rc = 0, path_id = 0;
 
-	while (event_info->out_port_id) {
-		idx++;
-		if (!(event_info->out_port_id & 0x1)) {
-			event_info->out_port_id >>= 1;
-			continue;
-		}
+	path_id = cam_ife_hw_mgr_convert_out_port_to_csid_path(
+		event_info->res_id);
 
-		path_id = cam_ife_hw_mgr_convert_out_port_to_csid_path(
-				CAM_ISP_IFE_OUT_RES_BASE + idx);
-		if (hw_intf->hw_ops.process_cmd) {
-			rc = hw_intf->hw_ops.process_cmd(
-				hw_intf->hw_priv,
-				CAM_ISP_HW_CMD_CSID_DUMP_CROP_REG,
-				&path_id,
-				sizeof(path_id));
-			if (rc)
-				CAM_ERR(CAM_ISP, "CSID:%d Reg Dump failed for path=%u",
-					event_info->hw_idx, path_id);
-		}
-
-		event_info->out_port_id >>= 1;
+	if (hw_intf->hw_ops.process_cmd) {
+		rc = hw_intf->hw_ops.process_cmd(
+			hw_intf->hw_priv,
+			CAM_ISP_HW_CMD_CSID_DUMP_CROP_REG,
+			&path_id,
+			sizeof(path_id));
+		if (rc)
+			CAM_ERR(CAM_ISP, "CSID:%d Reg Dump failed for path=%u",
+				event_info->hw_idx, path_id);
 	}
 }
 
