@@ -6970,6 +6970,11 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 		ctx->last_cdm_done_req = 0;
 	}
 
+	if (cam_presil_mode_enabled()) {
+		CAM_INFO(CAM_ISP, "Presil Mode - Skipping CLK BW Update");
+		goto skip_bw_clk_update;
+	}
+
 	CAM_DBG(CAM_PERF,
 		"ctx_idx=%u, bw_config_version=%d config_valid[BW VFE_CLK SFE_CLK]:[%d %d %d]",
 		ctx->ctx_index, ctx->bw_config_version,
@@ -7045,6 +7050,8 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 		return rc;
 	}
 
+skip_bw_clk_update:
+
 	CAM_DBG(CAM_ISP,
 		"Enter ctx id:%u num_hw_upd_entries %d request id: %llu",
 		ctx->ctx_index, cfg->num_hw_update_entries, cfg->request_id);
@@ -7113,7 +7120,7 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 			return rc;
 		}
 
-		if (cfg->init_packet || hw_update_data->mup_en ||
+		if (cam_presil_mode_enabled() || cfg->init_packet || hw_update_data->mup_en ||
 			(ctx->ctx_config & CAM_IFE_CTX_CFG_SW_SYNC_ON)) {
 			rem_jiffies = cam_common_wait_for_completion_timeout(
 				&ctx->config_done_complete,
