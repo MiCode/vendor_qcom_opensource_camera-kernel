@@ -345,7 +345,7 @@ struct cam_signalable_info {
  *
  * @vdev            : Video device
  * @v4l2_dev        : V4L2 device
- * @sync_table      : Table of all sync objects
+ * @sync_table      : Table of all sync objects allocated when driver initializes
  * @row_spinlocks   : Spinlock array, one for each row in the table
  * @table_lock      : Mutex used to lock the table
  * @open_cnt        : Count of file open calls made on the sync driver
@@ -360,7 +360,7 @@ struct cam_signalable_info {
 struct sync_device {
 	struct video_device *vdev;
 	struct v4l2_device v4l2_dev;
-	struct sync_table_row sync_table[CAM_SYNC_MAX_OBJS];
+	struct sync_table_row *sync_table;
 	spinlock_t row_spinlocks[CAM_SYNC_MAX_OBJS];
 	struct mutex table_lock;
 	int open_cnt;
