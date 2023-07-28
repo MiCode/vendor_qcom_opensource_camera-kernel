@@ -14539,7 +14539,7 @@ static int cam_ife_hw_mgr_handle_sfe_hw_dump_info(
 	struct cam_isp_hw_mgr_res     *hw_mgr_res = NULL;
 	struct cam_isp_resource_node  *rsrc_node = NULL;
 	struct cam_hw_intf            *hw_intf;
-	uint32_t i, out_port_id;
+	uint32_t i, out_port;
 	int rc = 0;
 
 	/* SFE in rd resources */
@@ -14563,9 +14563,9 @@ static int cam_ife_hw_mgr_handle_sfe_hw_dump_info(
 
 	/* SFE out resources */
 	if (event_info->res_type == CAM_ISP_RESOURCE_SFE_OUT) {
-		out_port_id = event_info->res_id & 0xFF;
+		out_port = event_info->res_id & 0xFF;
 		hw_mgr_res =
-			&ife_hw_mgr_ctx->res_list_sfe_out[out_port_id];
+			&ife_hw_mgr_ctx->res_list_sfe_out[ife_hw_mgr_ctx->sfe_out_map[out_port]];
 		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
 			if (!hw_mgr_res->hw_res[i])
 				continue;
