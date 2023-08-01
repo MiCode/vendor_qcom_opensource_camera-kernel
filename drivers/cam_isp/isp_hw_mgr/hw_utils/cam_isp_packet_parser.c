@@ -911,7 +911,8 @@ static int cam_isp_add_io_buffers_util(
 
 		rc = cam_mem_get_io_buf(io_cfg->mem_handle[plane_id],
 			mmu_hdl, &io_addr[plane_id], &size, NULL,
-			(!plane_id) ? buf_info->prepare->buf_tracker : NULL);
+			(!plane_id && (io_cfg->direction == CAM_BUF_OUTPUT)) ?
+			buf_info->prepare->buf_tracker : NULL);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "no io addr for plane%d", plane_id);
 			rc = -ENOMEM;
