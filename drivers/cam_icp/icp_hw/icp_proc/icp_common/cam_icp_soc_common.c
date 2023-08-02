@@ -160,6 +160,16 @@ static int cam_icp_soc_get_hw_version(struct device_node *np,
 	return rc;
 }
 
+static void cam_icp_soc_get_fw_pas_id(struct device_node *np,
+	struct cam_icp_soc_info *icp_soc_info)
+{
+	if (of_property_read_u32(np, "fw-pas-id", &icp_soc_info->fw_pas_id)) {
+		CAM_WARN(CAM_ICP, "PAS_ID is not passed from DTSI and use default value: %d",
+			CAM_FW_PAS_ID_DEFAULT);
+		icp_soc_info->fw_pas_id = CAM_FW_PAS_ID_DEFAULT;
+	}
+}
+
 static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
 {
 	struct cam_icp_soc_info *icp_soc_info;
@@ -187,6 +197,8 @@ static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
 	}
 
 	cam_icp_soc_qos_get(np, icp_soc_info);
+
+	cam_icp_soc_get_fw_pas_id(np, icp_soc_info);
 
 	rc = cam_icp_soc_get_hw_version(np, icp_soc_info);
 	if (rc) {

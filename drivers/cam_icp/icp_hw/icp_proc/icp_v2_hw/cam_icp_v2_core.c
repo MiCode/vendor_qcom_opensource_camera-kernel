@@ -594,7 +594,8 @@ err:
 }
 
 #if IS_REACHABLE(CONFIG_QCOM_MDT_LOADER)
-static int __load_firmware(struct platform_device *pdev)
+static int __load_firmware(struct platform_device *pdev,
+	uint32_t fw_pas_id)
 {
 	const char *fw_name;
 	const struct firmware *firmware = NULL;
@@ -669,7 +670,7 @@ static int __load_firmware(struct platform_device *pdev)
 		goto out;
 	}
 
-	rc = qcom_mdt_load(&pdev->dev, firmware, firmware_name, CAM_FW_PAS_ID,
+	rc = qcom_mdt_load(&pdev->dev, firmware, firmware_name, fw_pas_id,
 			vaddr, res_start, res_size, NULL);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "failed to load firmware rc=%d", rc);
@@ -690,6 +691,7 @@ static int cam_icp_v2_boot(struct cam_hw_info *icp_v2_info,
 {
 	int rc;
 	struct cam_icp_v2_core_info *core_info = NULL;
+	struct cam_icp_soc_info     *soc_priv;
 
 	if (!IS_REACHABLE(CONFIG_QCOM_MDT_LOADER))
 		return -EOPNOTSUPP;
@@ -707,17 +709,19 @@ static int cam_icp_v2_boot(struct cam_hw_info *icp_v2_info,
 	}
 
 	core_info = (struct cam_icp_v2_core_info *)icp_v2_info->core_info;
+	soc_priv = (struct cam_icp_soc_info *)icp_v2_info->soc_info.soc_private;
+
 	prepare_boot(icp_v2_info, args);
 
 #if IS_REACHABLE(CONFIG_QCOM_MDT_LOADER)
-	rc = __load_firmware(icp_v2_info->soc_info.pdev);
+	rc = __load_firmware(icp_v2_info->soc_info.pdev, soc_priv->fw_pas_id);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "firmware loading failed rc=%d", rc);
 		goto err;
 	}
 #endif
 
-	rc = qcom_scm_pas_auth_and_reset(CAM_FW_PAS_ID);
+	rc = qcom_scm_pas_auth_and_reset(soc_priv->fw_pas_id);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "auth and reset failed rc=%d", rc);
 		goto err;
@@ -735,11 +739,13 @@ static int cam_icp_v2_shutdown(struct cam_hw_info *icp_v2_info)
 	int rc = 0;
 	struct cam_icp_v2_core_info *core_info =
 		(struct cam_icp_v2_core_info *)icp_v2_info->core_info;
+	struct cam_icp_soc_info *soc_priv =
+		(struct cam_icp_soc_info *)icp_v2_info->soc_info.soc_private;
 
 	prepare_shutdown(icp_v2_info);
 
 	if (core_info->use_sec_pil)
-		rc = qcom_scm_pas_shutdown(CAM_FW_PAS_ID);
+		rc = qcom_scm_pas_shutdown(soc_priv->fw_pas_id);
 	else {
 		int32_t sys_base_idx = core_info->reg_base_idx[ICP_V2_SYS_BASE];
 		void __iomem *base;
@@ -799,9 +805,11 @@ static int cam_icp_v2_core_control(struct cam_hw_info *icp_v2_info,
 	int rc = 0;
 	struct cam_icp_v2_core_info *core_info =
 		(struct cam_icp_v2_core_info *)icp_v2_info->core_info;
+	struct cam_icp_soc_info *soc_priv =
+		(struct cam_icp_soc_info *)icp_v2_info->soc_info.soc_private;
 
 	if (core_info->use_sec_pil) {
-		rc = qcom_scm_set_remote_state(state, CAM_FW_PAS_ID);
+		rc = qcom_scm_set_remote_state(state, soc_priv->fw_pas_id);
 		if (rc) {
 			CAM_ERR(CAM_ICP,
 				"remote state set to %s failed rc=%d",
