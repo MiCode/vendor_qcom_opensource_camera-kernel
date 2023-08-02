@@ -11464,7 +11464,6 @@ static int cam_csid_packet_generic_blob_handler(void *user_data,
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_IRQ_COMP_CFG: {
 		struct cam_isp_irq_comp_cfg *irq_comp_cfg;
-		struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
 
 		if (blob_size < sizeof(struct cam_isp_irq_comp_cfg)) {
 			CAM_ERR(CAM_ISP,
@@ -11473,8 +11472,6 @@ static int cam_csid_packet_generic_blob_handler(void *user_data,
 			return -EINVAL;
 		}
 
-		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
-			prepare->priv;
 		irq_comp_cfg = (struct cam_isp_irq_comp_cfg *)blob_data;
 		rc = cam_isp_blob_csid_irq_comp_cfg(ife_mgr_ctx, prepare,
 			blob_info, irq_comp_cfg, blob_type);
