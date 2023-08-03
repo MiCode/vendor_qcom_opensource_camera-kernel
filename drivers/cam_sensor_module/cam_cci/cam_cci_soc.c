@@ -6,6 +6,9 @@
 
 #include "cam_cci_dev.h"
 #include "cam_cci_core.h"
+#include "linux/interrupt.h"
+#include "uapi/linux/sched/types.h"
+#include "linux/sched/types.h"
 
 static int cam_cci_init_master(struct cci_device *cci_dev,
 	enum cci_i2c_master_t master)
@@ -392,6 +395,11 @@ int cam_cci_parse_dt_info(struct platform_device *pdev,
 	struct cam_hw_soc_info *soc_info =
 		&new_cci_dev->soc_info;
 	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
+	int32_t  num_irq = 0;
+	struct task_struct  *task = NULL;
+	struct irq_desc     *desc = NULL;
+	struct sched_param param = {0};
+
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc < 0) {
@@ -403,13 +411,51 @@ int cam_cci_parse_dt_info(struct platform_device *pdev,
 
 	for (i = 0; i < soc_info->irq_count; i++)
 		irq_data[i] = new_cci_dev;
-
+	/*
+	 * Bypass devm_request_irq() and induce
+	 * devm_request_threaded_irq() externally.
+	 */
+	num_irq = soc_info->irq_count;
+	soc_info->irq_count = 0;
 	rc = cam_soc_util_request_platform_resource(soc_info,
 		cam_cci_irq, &(irq_data[0]));
 	if (rc < 0) {
 		CAM_ERR(CAM_CCI, "requesting platform resources failed:%d", rc);
 		return -EINVAL;
 	}
+	soc_info->irq_count = num_irq;
+	for (i = 0; i < soc_info->irq_count; i++) {
+		rc = devm_request_threaded_irq(&pdev->dev,
+			soc_info->irq_num[i],
+			cam_cci_irq,
+			cam_cci_threaded_irq,
+			IRQF_TRIGGER_RISING,
+			soc_info->irq_name[i],
+			(void *)(irq_data[i]));
+		if (rc < 0) {
+			CAM_ERR(CAM_CCI, "Failed to reserve IRQ: %d", rc);
+			return -EINVAL;
+		}
+		disable_irq(soc_info->irq_num[i]);
+		desc = irq_to_desc(soc_info->irq_num[i]);
+		if (!desc) {
+			CAM_WARN(CAM_CCI,
+				"Unable to locate Descriptor for irq_num: %d",
+				soc_info->irq_num[i]);
+		} else {
+			task = desc->action->thread;
+			param.sched_priority = MAX_RT_PRIO - 1;
+			if (task) {
+				rc = sched_setscheduler(task, SCHED_FIFO, &param);
+				if (rc) {
+					CAM_ERR(CAM_CCI,
+						"non-fatal: Failed to set Scheduler Priority: %d",
+						rc);
+				}
+			}
+		}
+	}
+
 	new_cci_dev->v4l2_dev_str.pdev = pdev;
 	cam_cci_init_cci_params(new_cci_dev);
 	cam_cci_init_clk_params(new_cci_dev);

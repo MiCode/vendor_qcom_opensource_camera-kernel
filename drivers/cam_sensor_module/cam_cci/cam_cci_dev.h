@@ -55,6 +55,7 @@
 #define CCI_I2C_READ_MAX_RETRIES 3
 #define CCI_I2C_MAX_READ 20480
 #define CCI_I2C_MAX_WRITE 20480
+#define CCI_ENABLE_THRESHOLD_IRQ 1
 #define CCI_I2C_MAX_BYTE_COUNT 65535
 
 #define CAMX_CCI_DEV_NAME "cam-cci-driver"
@@ -146,6 +147,10 @@ struct cam_cci_master_info {
 	uint32_t th_irq_ref_cnt[NUM_QUEUES];
 	bool is_burst_enable[NUM_QUEUES];
 	uint32_t num_words_exec[NUM_QUEUES];
+	uint32_t *data_queue[NUM_QUEUES];
+	uint32_t num_words_in_data_queue[NUM_QUEUES];
+	int32_t data_queue_start_index[NUM_QUEUES];
+	int32_t half_queue_mark[NUM_QUEUES];
 };
 
 struct cam_cci_clk_params_t {
@@ -311,6 +316,7 @@ struct cci_write_async {
 };
 
 irqreturn_t cam_cci_irq(int irq_num, void *data);
+irqreturn_t cam_cci_threaded_irq(int irq_num, void *data);
 
 struct v4l2_subdev *cam_cci_get_subdev(int cci_dev_index);
 void cam_cci_dump_registers(struct cci_device *cci_dev,
