@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/build_bug.h>
@@ -61,7 +61,9 @@
 #include "cam_csid_ppi100.h"
 #include "camera_main.h"
 
+#ifndef CAMERA_COMPILE_BY
 #include "cam_generated_h"
+#endif
 
 char camera_banner[] = "Camera-Banner: (" CAMERA_COMPILE_BY "@"
 	CAMERA_COMPILE_HOST ") (" CAMERA_COMPILE_TIME ")";
