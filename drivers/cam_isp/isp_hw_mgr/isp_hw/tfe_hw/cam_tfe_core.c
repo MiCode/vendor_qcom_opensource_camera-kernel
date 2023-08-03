@@ -1543,6 +1543,10 @@ static int cam_tfe_top_get_reg_update(
 
 	if (in_res->res_id == CAM_ISP_HW_TFE_IN_CAMIF) {
 		camif_rsrc_data =  in_res->res_priv;
+		if (camif_rsrc_data->shdr_en && !camif_rsrc_data->is_shdr_master) {
+			CAM_DBG(CAM_ISP, "Skip reg update cmd for slave camif");
+			goto end;
+		}
 		reg_val_pair[0] = camif_rsrc_data->camif_reg->reg_update_cmd;
 		reg_val_pair[1] =
 			camif_rsrc_data->reg_data->reg_update_cmd_data;
