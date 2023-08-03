@@ -150,13 +150,13 @@ enum cam_isp_resource_type
 	}
 }
 
-static void cam_custom_mgr_count_functional_hws(uint32_t num_custom_functional)
+static void cam_custom_mgr_count_functional_hws(uint32_t *num_custom_functional)
 {
 	int i;
 
 	for (i = 0; i < CAM_CUSTOM_CSID_HW_MAX; i++) {
 		if (g_custom_hw_mgr.custom_hw[i])
-			num_custom_functional++;
+			(*num_custom_functional)++;
 	}
 }
 
