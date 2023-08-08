@@ -6142,6 +6142,12 @@ static int cam_ife_csid_ver2_set_dynamic_switch_config(
 	switch_update =
 		(struct cam_ife_csid_mode_switch_update_args *)cmd_args;
 
+	if (switch_update->mup_args.use_mup) {
+		csid_hw->rx_cfg.mup = switch_update->mup_args.mup_val;
+		CAM_DBG(CAM_ISP, "CSID[%u] MUP %u",
+			csid_hw->hw_intf->hw_idx, csid_hw->rx_cfg.mup);
+	}
+
 	/* Handle number of frames to initially drop based on num starting exposures */
 	if (switch_update->exp_update_args.reset_discard_cfg) {
 		struct cam_ife_csid_discard_frame_cfg_update *exp_update_args;
