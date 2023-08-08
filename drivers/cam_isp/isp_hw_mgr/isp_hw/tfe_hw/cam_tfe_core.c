@@ -1541,7 +1541,6 @@ static int cam_tfe_hw_dump(
 	uint32_t                           num_reg;
 	uint32_t                           lut_word_size, lut_size;
 	uint32_t                           lut_bank_sel, lut_dmi_reg;
-	uint32_t                           val;
 	void __iomem                      *reg_base;
 	void __iomem                      *mem_base;
 	uint32_t                          *addr, *start;

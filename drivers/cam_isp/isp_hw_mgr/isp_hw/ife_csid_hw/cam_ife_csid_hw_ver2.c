@@ -6535,6 +6535,160 @@ end:
 	return 0;
 }
 
+static int cam_ife_csid_ver2_dump_irq_desc(
+	struct cam_ife_csid_ver2_hw  *csid_hw, void *args)
+{
+	int                                     i, offset = 0;
+	struct cam_isp_irq_inject_param         *inject_params = NULL;
+	const struct cam_ife_csid_ver2_reg_info *csid_reg = NULL;
+
+	if (!args) {
+		CAM_ERR(CAM_ISP, "Invalid params");
+		return -EINVAL;
+	}
+
+	inject_params = (struct cam_isp_irq_inject_param *)args;
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
+
+	offset += scnprintf(inject_params->line_buf + offset,
+		LINE_BUFFER_LEN - offset,
+		"Printing executable IRQ for hw_type: CSID reg_unit: %d\n",
+		inject_params->reg_unit);
+
+	switch (inject_params->reg_unit) {
+	case CAM_ISP_CSID_TOP_REG:
+		for (i = 0; i < csid_reg->num_top_err_irqs[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0]; i++) {
+			if (!(*csid_reg->top_irq_desc)
+					[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0][i].bitmask)
+				break;
+
+			offset += scnprintf(inject_params->line_buf + offset,
+				LINE_BUFFER_LEN - offset, "%#12x : %s - %s\n",
+				(*csid_reg->top_irq_desc)
+					[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0][i].bitmask,
+				(*csid_reg->top_irq_desc)
+					[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0][i].err_name,
+				(*csid_reg->top_irq_desc)
+					[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0][i].desc);
+		}
+		break;
+	case CAM_ISP_CSID_RX_REG:
+		for (i = 0; i < csid_reg->num_rx_err_irqs[CAM_IFE_CSID_RX_IRQ_STATUS_REG0]; i++) {
+			if (!(*csid_reg->rx_irq_desc)
+					[CAM_IFE_CSID_RX_IRQ_STATUS_REG0][i].bitmask)
+				break;
+
+			offset += scnprintf(inject_params->line_buf + offset,
+				LINE_BUFFER_LEN - offset, "%#12x : %s\n",
+				(*csid_reg->rx_irq_desc)
+					[CAM_IFE_CSID_RX_IRQ_STATUS_REG0][i].bitmask,
+				(*csid_reg->rx_irq_desc)
+					[CAM_IFE_CSID_RX_IRQ_STATUS_REG0][i].desc);
+		}
+		break;
+	case CAM_ISP_CSID_PATH_IPP_REG:
+	case CAM_ISP_CSID_PATH_PPP_REG:
+	case CAM_ISP_CSID_PATH_RDI0_REG:
+	case CAM_ISP_CSID_PATH_RDI1_REG:
+	case CAM_ISP_CSID_PATH_RDI2_REG:
+	case CAM_ISP_CSID_PATH_RDI3_REG:
+	case CAM_ISP_CSID_PATH_RDI4_REG:
+		for (i = 0; i < csid_reg->num_path_err_irqs; i++)
+			offset += scnprintf(inject_params->line_buf + offset,
+				LINE_BUFFER_LEN - offset, "%#12x : %s\n",
+				csid_reg->path_irq_desc[i].bitmask,
+				csid_reg->path_irq_desc[i].desc);
+		break;
+	default:
+		offset += scnprintf(inject_params->line_buf + offset,
+			LINE_BUFFER_LEN - offset,
+			"No matched reg unit for injection\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int cam_ife_csid_ver2_irq_inject(
+	struct cam_ife_csid_ver2_hw  *csid_hw, void *args)
+{
+	uint32_t                                irq_set_addr = 0;
+	struct cam_hw_soc_info                  *soc_info;
+	struct cam_isp_irq_inject_param         *inject_params = NULL;
+	const struct cam_ife_csid_ver2_reg_info *csid_reg = NULL;
+	void __iomem *mem_base;
+
+	if (!args) {
+		CAM_ERR(CAM_ISP, "Invalid params");
+		return -EINVAL;
+	}
+
+	inject_params = (struct cam_isp_irq_inject_param *)args;
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
+	soc_info = &csid_hw->hw_info->soc_info;
+	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
+
+	switch (inject_params->reg_unit) {
+	case CAM_ISP_CSID_TOP_REG: {
+		irq_set_addr =
+			csid_reg->cmn_reg->top_irq_set_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0];
+		break;
+	}
+	case CAM_ISP_CSID_RX_REG: {
+		irq_set_addr =
+			csid_reg->csi2_reg->irq_set_addr[CAM_IFE_CSID_RX_IRQ_STATUS_REG0];
+		break;
+	}
+	case CAM_ISP_CSID_PATH_IPP_REG: {
+		irq_set_addr =
+			csid_reg->path_reg[CAM_IFE_PIX_PATH_RES_IPP]->irq_set_addr;
+		break;
+	}
+	case CAM_ISP_CSID_PATH_PPP_REG: {
+		irq_set_addr =
+			csid_reg->path_reg[CAM_IFE_PIX_PATH_RES_PPP]->irq_set_addr;
+		break;
+	}
+	case CAM_ISP_CSID_PATH_RDI0_REG: {
+		irq_set_addr =
+			csid_reg->path_reg[CAM_IFE_PIX_PATH_RES_RDI_0]->irq_set_addr;
+		break;
+	}
+	case CAM_ISP_CSID_PATH_RDI1_REG: {
+		irq_set_addr =
+			csid_reg->path_reg[CAM_IFE_PIX_PATH_RES_RDI_1]->irq_set_addr;
+		break;
+	}
+	case CAM_ISP_CSID_PATH_RDI2_REG: {
+		irq_set_addr =
+			csid_reg->path_reg[CAM_IFE_PIX_PATH_RES_RDI_2]->irq_set_addr;
+		break;
+	}
+	case CAM_ISP_CSID_PATH_RDI3_REG: {
+		irq_set_addr =
+			csid_reg->path_reg[CAM_IFE_PIX_PATH_RES_RDI_3]->irq_set_addr;
+		break;
+	}
+	case CAM_ISP_CSID_PATH_RDI4_REG: {
+		irq_set_addr =
+			csid_reg->path_reg[CAM_IFE_PIX_PATH_RES_RDI_4]->irq_set_addr;
+		break;
+	}
+	default:
+		CAM_INFO(CAM_ISP, "No matched reg unit for injection");
+		return -EINVAL;
+	}
+
+	cam_io_w_mb(inject_params->irq_mask, mem_base + irq_set_addr);
+	cam_io_w_mb(0x10, mem_base + csid_reg->cmn_reg->irq_cmd_addr);
+	CAM_INFO(CAM_ISP, "Injected : irq_mask %#x set_reg_offset %#x",
+		inject_params->irq_mask, irq_set_addr);
+
+	return 0;
+}
+
 static int cam_ife_csid_ver2_reset_out_of_sync_cnt(
 	struct cam_ife_csid_ver2_hw  *csid_hw, void *args)
 {
@@ -6783,6 +6937,12 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_IRQ_COMP_CFG:
 		rc = cam_ife_csid_ver2_irq_comp_cfg(csid_hw, cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_IRQ_INJECTION:
+		rc = cam_ife_csid_ver2_irq_inject(csid_hw, cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION:
+		rc = cam_ife_csid_ver2_dump_irq_desc(csid_hw, cmd_args);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%u unsupported cmd:%d",

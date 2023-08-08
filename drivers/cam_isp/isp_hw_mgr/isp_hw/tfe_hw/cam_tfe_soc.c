@@ -174,8 +174,8 @@ int cam_tfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 		goto end;
 	}
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDXs, true,
-		soc_info->lowest_clk_level, true);
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+		CAM_LOWSVS_VOTE, true);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Error! enable platform failed rc=%d", rc);
 		goto stop_cpas;

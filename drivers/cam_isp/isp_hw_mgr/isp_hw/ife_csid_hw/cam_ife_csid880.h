@@ -132,6 +132,10 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_880_rx_irq_desc[][32] = {
 	},
 };
 
+static const uint32_t cam_ife_csid_880_num_rx_irq_desc[] = {
+	ARRAY_SIZE(cam_ife_csid_880_rx_irq_desc[0]),
+};
+
 static const struct cam_ife_csid_irq_desc cam_ife_csid_880_path_irq_desc[] = {
 	{
 		.bitmask = BIT(0),
@@ -1496,10 +1500,12 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_880_reg_info = {
 	},
 	.need_top_cfg = 0x1,
 	.csid_cust_node_map = {0x1, 0x0, 0x2},
+	.top_irq_desc       = &cam_ife_csid_880_top_irq_desc,
 	.rx_irq_desc        = &cam_ife_csid_880_rx_irq_desc,
 	.path_irq_desc      = cam_ife_csid_880_path_irq_desc,
-	.top_irq_desc       = &cam_ife_csid_880_top_irq_desc,
 	.num_top_err_irqs   = cam_ife_csid_880_num_top_irq_desc,
+	.num_rx_err_irqs    = cam_ife_csid_880_num_rx_irq_desc,
+	.num_path_err_irqs  = ARRAY_SIZE(cam_ife_csid_880_path_irq_desc),
 	.num_top_regs       = 1,
 	.num_rx_regs        = 1,
 };

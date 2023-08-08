@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SFE_BUS_RD_H_
@@ -29,6 +29,17 @@ enum cam_sfe_bus_rd_type {
 	CAM_SFE_BUS_RD_RDI1,
 	CAM_SFE_BUS_RD_RDI2,
 	CAM_SFE_BUS_RD_MAX,
+};
+
+/*
+ * struct cam_sfe_bus_rd_err_irq_desc:
+ *
+ * @Brief:        Bus rd error irq description
+ */
+struct cam_sfe_bus_rd_err_irq_desc {
+	uint32_t  bitmask;
+	char     *err_name;
+	char     *desc;
 };
 
 /*
@@ -133,6 +144,8 @@ struct cam_sfe_bus_rd_hw_info {
 	uint32_t num_bus_rd_resc;
 	struct cam_sfe_bus_rd_info
 		sfe_bus_rd_info[CAM_SFE_BUS_RD_MAX];
+	uint32_t num_bus_rd_errors;
+	struct cam_sfe_bus_rd_err_irq_desc *bus_rd_err_desc;
 	uint32_t top_irq_shift;
 	uint32_t latency_buf_allocation;
 	uint32_t sys_cache_default_val;

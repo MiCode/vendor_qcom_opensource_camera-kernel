@@ -486,6 +486,7 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	struct cam_hw_info                *vfe_hw = hw_priv;
 	struct cam_hw_soc_info            *soc_info = NULL;
 	struct cam_vfe_hw_core_info       *core_info = NULL;
+	struct cam_vfe_hw_info            *hw_info = NULL;
 	int rc = 0;
 
 	if (!hw_priv) {
@@ -495,6 +496,7 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 
 	soc_info = &vfe_hw->soc_info;
 	core_info = (struct cam_vfe_hw_core_info *)vfe_hw->core_info;
+	hw_info = core_info->vfe_hw_info;
 
 	switch (cmd_type) {
 	case CAM_ISP_HW_CMD_GET_CHANGE_BASE:
@@ -535,6 +537,8 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_BUF_UPDATE:
 	case CAM_ISP_HW_USER_DUMP:
 	case CAM_ISP_HW_CMD_MC_CTXT_SEL:
+	case CAM_ISP_HW_CMD_IRQ_INJECTION:
+	case CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION:
 		rc = core_info->vfe_bus->hw_ops.process_cmd(
 			core_info->vfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);

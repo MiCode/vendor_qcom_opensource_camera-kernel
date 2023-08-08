@@ -733,11 +733,12 @@ struct cam_ife_csid_ver2_reg_info {
 		    CAM_IFE_CSID_HW_NUM_MAX];
 	const int                                         input_core_sel[
 		    CAM_IFE_CSID_HW_NUM_MAX][CAM_IFE_CSID_INPUT_CORE_SEL_MAX];
+	const struct cam_ife_csid_top_irq_desc           (*top_irq_desc)[][32];
 	const struct cam_ife_csid_irq_desc               (*rx_irq_desc)[][32];
 	const struct cam_ife_csid_irq_desc               *path_irq_desc;
-	const struct cam_ife_csid_top_irq_desc           (*top_irq_desc)[][32];
 	const uint32_t                                   *num_top_err_irqs;
 	const uint32_t                                   *num_rx_err_irqs;
+	const uint32_t                                    num_path_err_irqs;
 	const uint32_t                                    num_top_regs;
 	const uint32_t                                    num_rx_regs;
 };
