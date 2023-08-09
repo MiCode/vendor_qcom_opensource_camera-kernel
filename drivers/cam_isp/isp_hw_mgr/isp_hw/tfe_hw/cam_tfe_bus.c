@@ -787,7 +787,7 @@ static int cam_tfe_bus_acquire_wm(
 			break;
 		case CAM_FORMAT_PD10:
 			rsrc_data->pack_fmt = 0x0;
-			rsrc_data->width /= 4;
+			rsrc_data->width = DIV_ROUND_UP(rsrc_data->width, 4);
 			rsrc_data->height /= 2;
 			break;
 		case CAM_FORMAT_NV21:
