@@ -57,6 +57,9 @@ static void *cam_tfe_hw_mgr_get_hw_intf(
 	return hw_mgr->tfe_devices[base->idx]->hw_intf;
 }
 
+static int cam_tfe_mgr_cmd_get_sof_timestamp(struct cam_tfe_hw_mgr_ctx *tfe_ctx,
+	uint64_t *time_stamp, uint64_t *boot_time_stamp, uint64_t *prev_time_stamp);
+
 static int cam_tfe_mgr_regspace_data_cb(uint32_t reg_base_type,
 	void *hw_mgr_ctx, struct cam_hw_soc_info **soc_info_ptr,
 	uint32_t *reg_base_idx)
@@ -5055,9 +5058,15 @@ static int cam_tfe_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 				sizeof(struct cam_tfe_hw_comp_record) *
 				CAM_TFE_BUS_COMP_NUM_MAX);
 			break;
+		case CAM_ISP_HW_MGR_GET_SOF_TS:
+			rc = cam_tfe_mgr_cmd_get_sof_timestamp(ctx,
+				&isp_hw_cmd_args->u.sof_ts.curr,
+				&isp_hw_cmd_args->u.sof_ts.boot,
+				&isp_hw_cmd_args->u.sof_ts.prev);
+			break;
 		default:
-			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x",
-				hw_cmd_args->cmd_type);
+			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x, ISP HW mgr cmd:0x%x",
+				hw_cmd_args->cmd_type, isp_hw_cmd_args->cmd_type);
 			rc = -EINVAL;
 			break;
 		}
@@ -5109,7 +5118,8 @@ static int cam_tfe_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 static int cam_tfe_mgr_cmd_get_sof_timestamp(
 	struct cam_tfe_hw_mgr_ctx            *tfe_ctx,
 	uint64_t                             *time_stamp,
-	uint64_t                             *boot_time_stamp)
+	uint64_t                             *boot_time_stamp,
+	uint64_t                             *prev_time_stamp)
 {
 	int                                        rc = -EINVAL;
 	uint32_t                                   i;
@@ -5142,6 +5152,7 @@ static int cam_tfe_mgr_cmd_get_sof_timestamp(
 
 			csid_get_time.node_res =
 				hw_mgr_res->hw_res[i];
+			csid_get_time.get_prev_timestamp = (prev_time_stamp != NULL);
 			rc = hw_intf->hw_ops.process_cmd(
 				hw_intf->hw_priv,
 				CAM_TFE_CSID_CMD_GET_TIME_STAMP,
@@ -5153,6 +5164,9 @@ static int cam_tfe_mgr_cmd_get_sof_timestamp(
 					csid_get_time.time_stamp_val;
 				*boot_time_stamp =
 					csid_get_time.boot_timestamp;
+				if (prev_time_stamp)
+					*prev_time_stamp =
+						csid_get_time.prev_time_stamp_val;
 				break;
 			}
 		}
@@ -5670,7 +5684,7 @@ static int cam_tfe_hw_mgr_handle_hw_sof(
 	case CAM_ISP_HW_TFE_IN_CAMIF:
 		cam_tfe_mgr_cmd_get_sof_timestamp(tfe_hw_mgr_ctx,
 			&sof_done_event_data.timestamp,
-			&sof_done_event_data.boot_time);
+			&sof_done_event_data.boot_time, NULL);
 
 		if (atomic_read(&tfe_hw_mgr_ctx->overflow_pending))
 			break;
@@ -5687,7 +5701,7 @@ static int cam_tfe_hw_mgr_handle_hw_sof(
 			break;
 		cam_tfe_mgr_cmd_get_sof_timestamp(tfe_hw_mgr_ctx,
 			&sof_done_event_data.timestamp,
-			&sof_done_event_data.boot_time);
+			&sof_done_event_data.boot_time, NULL);
 		if (atomic_read(&tfe_hw_mgr_ctx->overflow_pending))
 			break;
 		tfe_hw_irq_sof_cb(tfe_hw_mgr_ctx->common.cb_priv,
