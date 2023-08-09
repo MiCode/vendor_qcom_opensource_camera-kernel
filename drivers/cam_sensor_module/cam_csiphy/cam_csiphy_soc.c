@@ -11,6 +11,7 @@
 #include "include/cam_csiphy_2_1_2_hwreg.h"
 #include "include/cam_csiphy_2_1_3_hwreg.h"
 #include "include/cam_csiphy_2_2_0_hwreg.h"
+#include "include/cam_csiphy_2_3_0_hwreg.h"
 
 /* Clock divide factor for CPHY spec v1.0 */
 #define CSIPHY_DIVISOR_16                    16
@@ -151,7 +152,7 @@ enum cam_vote_level get_clk_voting_dynamic(
 		do_div(phy_data_rate, CSIPHY_DIVISOR_8);
 	}
 
-	 /* round off to next integer */
+	/* round off to next integer */
 	phy_data_rate += 1;
 	csiphy_dev->current_data_rate = phy_data_rate;
 
@@ -331,10 +332,15 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 		csiphy_dev->hw_version = CSIPHY_VERSION_V220;
 		csiphy_dev->is_divisor_32_comp = true;
 		csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.3.0")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_3_0;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V230;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
 	} else {
 		CAM_ERR(CAM_CSIPHY, "invalid hw version : 0x%x",
 			csiphy_dev->hw_version);
-		rc =  -EINVAL;
+		rc = -EINVAL;
 		return rc;
 	}
 
