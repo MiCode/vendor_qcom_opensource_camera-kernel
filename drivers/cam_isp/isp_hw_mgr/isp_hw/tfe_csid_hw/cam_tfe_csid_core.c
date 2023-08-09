@@ -379,6 +379,13 @@ static int cam_tfe_csid_cid_get(struct cam_tfe_csid_hw *csid_hw,
 {
 	uint32_t  i = 0, j = 0;
 
+	if (num_valid_vc_dt == 0 || num_valid_vc_dt > CAM_ISP_TFE_VC_DT_CFG) {
+		CAM_ERR(CAM_ISP, "CSID:%d invalid num_valid_vc_dt: %d",
+			csid_hw->hw_intf->hw_idx, num_valid_vc_dt);
+		return -EINVAL;
+	}
+
+
 	/* Return already reserved CID if the VC/DT matches */
 	for (i = 0; i < CAM_TFE_CSID_CID_MAX; i++) {
 		if (csid_hw->cid_res[i].cnt >= 1) {
