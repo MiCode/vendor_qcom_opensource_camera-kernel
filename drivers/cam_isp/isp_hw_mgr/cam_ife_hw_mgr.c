@@ -6689,7 +6689,7 @@ static int cam_ife_hw_mgr_sfe_irq_inject_or_dump_desc(
 	struct cam_isp_irq_inject_param *params,
 	bool dump_irq_desc)
 {
-	int i, rc = 0, offset = 0;
+	int i, rc = 0;
 	char *line_buf = NULL;
 	struct cam_hw_intf *hw_intf = NULL;
 
@@ -6715,11 +6715,11 @@ static int cam_ife_hw_mgr_sfe_irq_inject_or_dump_desc(
 			CAM_ISP_HW_CMD_IRQ_INJECTION, params,
 			sizeof(struct cam_isp_irq_inject_param));
 		if (rc)
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"Injecting IRQ %x failed for SFE at req: %d\n",
 				params->irq_mask, params->req_id);
 		else
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"IRQ %#x injected for SFE at req: %d\n",
 				params->irq_mask, params->req_id);
 		break;
@@ -6740,7 +6740,7 @@ static int cam_ife_hw_mgr_vfe_irq_inject_or_dump_desc(
 	struct cam_isp_irq_inject_param *params,
 	bool dump_irq_desc)
 {
-	int i, rc = 0, offset = 0;
+	int i, rc = 0;
 	char *line_buf = NULL;
 	struct cam_hw_intf *hw_intf = NULL;
 
@@ -6766,11 +6766,11 @@ static int cam_ife_hw_mgr_vfe_irq_inject_or_dump_desc(
 			CAM_ISP_HW_CMD_IRQ_INJECTION, params,
 			sizeof(struct cam_isp_irq_inject_param));
 		if (rc)
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"Injecting IRQ %x failed for IFE at req: %d\n",
 				params->irq_mask, params->req_id);
 		else
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"IRQ %#x injected for IFE at req: %d\n",
 				params->irq_mask, params->req_id);
 		break;
@@ -6791,7 +6791,7 @@ static int cam_ife_hw_mgr_csid_irq_inject_or_dump_desc(
 	struct cam_isp_irq_inject_param *params,
 	bool dump_irq_desc)
 {
-	int i, rc = 0, offset = 0;
+	int i, rc = 0;
 	char *line_buf = NULL;
 	struct cam_hw_intf *hw_intf = NULL;
 
@@ -6817,11 +6817,11 @@ static int cam_ife_hw_mgr_csid_irq_inject_or_dump_desc(
 			CAM_ISP_HW_CMD_IRQ_INJECTION, params,
 			sizeof(struct cam_isp_irq_inject_param));
 		if (rc)
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"Injecting IRQ %x failed for CSID at req: %d\n",
 				params->irq_mask, params->req_id);
 		else
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"IRQ %#x injected for CSID at req: %d\n",
 				params->irq_mask, params->req_id);
 		break;
@@ -16011,7 +16011,8 @@ static int cam_isp_irq_inject_parse_common_params(
 		 rc = -EINVAL;
 	}
 
-	strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
+	if (offset <= LINE_BUFFER_LEN)
+		strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
 
 	kfree(line_buf);
 	return rc;
@@ -16037,7 +16038,7 @@ static int cam_isp_irq_inject_command_parser(
 		if (rc) {
 			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
 				"Parsed Command failed rc: %d\n", rc);
-			return rc;
+			goto end;
 		}
 
 		param_index++;
@@ -16050,13 +16051,17 @@ static int cam_isp_irq_inject_command_parser(
 		offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
 			"Insufficient parameters passed for total parameters: %u\n",
 			param_index);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
-	strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
+	if (offset <= LINE_BUFFER_LEN)
+		strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
 
+	rc = param_index;
+end:
 	kfree(line_buf);
-	return param_index;
+	return rc;
 }
 
 static ssize_t cam_isp_irq_injection_read(struct file *file,
@@ -16074,8 +16079,10 @@ static ssize_t cam_isp_irq_injection_read(struct file *file,
 
 	if (!(*ppos) && strlen(irq_inject_display_buf))
 		goto end;
-	else if ((*ppos) && (strlen(irq_inject_display_buf) == 0))
+	else if ((*ppos) && (strlen(irq_inject_display_buf) == 0)) {
+		kfree(line_buf);
 		return 0;
+	}
 
 	strlcat(irq_inject_display_buf, IRQ_INJECT_USAGE_STRING, IRQ_INJECT_DISPLAY_BUF_LEN);
 
@@ -16098,8 +16105,10 @@ static ssize_t cam_isp_irq_injection_read(struct file *file,
 	strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
 
 end:
-	if (clear_user(ubuf, size))
+	if (clear_user(ubuf, size)) {
+		kfree(line_buf);
 		return -EIO;
+	}
 	count = simple_read_from_buffer(ubuf, size, ppos, irq_inject_display_buf,
 		strlen(irq_inject_display_buf));
 
@@ -16125,8 +16134,10 @@ static ssize_t cam_isp_irq_injection_write(struct file *file,
 
 	memset(irq_inject_display_buf, '\0', IRQ_INJECT_DISPLAY_BUF_LEN);
 
-	if (copy_from_user(input_buf, ubuf, sizeof(input_buf)))
-		return -EFAULT;
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf))) {
+		rc = -EFAULT;
+		goto end;
+	}
 
 	msg = input_buf;
 
@@ -16157,10 +16168,13 @@ static ssize_t cam_isp_irq_injection_write(struct file *file,
 		break;
 	}
 
-	strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
+	if (offset <= LINE_BUFFER_LEN)
+		strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
 
+	rc = size;
+end:
 	kfree(line_buf);
-	return size;
+	return rc;
 }
 
 static const struct file_operations cam_isp_irq_injection = {

@@ -6601,7 +6601,7 @@ static int cam_ife_csid_ver2_dump_irq_desc(
 				csid_reg->path_irq_desc[i].desc);
 		break;
 	default:
-		offset += scnprintf(inject_params->line_buf + offset,
+		scnprintf(inject_params->line_buf + offset,
 			LINE_BUFFER_LEN - offset,
 			"No matched reg unit for injection\n");
 		return -EINVAL;
