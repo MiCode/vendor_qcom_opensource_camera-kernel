@@ -21,6 +21,7 @@
 #include <linux/of_fdt.h>
 
 #include "cam_io_util.h"
+#include "cam_debug_util.h"
 #include <media/cam_defs.h>
 
 #if IS_REACHABLE(CONFIG_MSM_MMRM)
@@ -666,6 +667,37 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 	uint32_t rgltr_min_volt, uint32_t rgltr_max_volt,
 	uint32_t rgltr_op_mode, uint32_t rgltr_delay);
 
+/**
+ * cam_soc_util_reg_addr_validation()
+ *
+ * @brief:              Camera SOC util for validating address to be accessed
+ *
+ * @soc_info:           Device soc information
+ * @base_index:         Index of register space in the HW block
+ * @offset:             Register offset
+ *
+ * @return:             0 or specific error code
+ */
+static inline int cam_soc_util_reg_addr_validation(
+	struct cam_hw_soc_info *soc_info,
+	uint32_t base_idx, uint32_t offset)
+{
+	if (offset > (uint32_t)soc_info->reg_map[base_idx].size) {
+		CAM_ERR(CAM_UTIL,
+			"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
+			offset,
+			(uint32_t)soc_info->reg_map[base_idx].size);
+		return -EINVAL;
+	}
+
+	if (offset % 4) {
+		CAM_ERR(CAM_UTIL, "Offset: 0x%X is not memory aligned",
+			offset);
+		return -EINVAL;
+	}
+
+	return 0;
+}
 
 /**
  * cam_soc_util_w()
@@ -674,7 +706,7 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
  *
  * @soc_info:           Device soc information
  * @base_index:         Index of register space in the HW block
- * @offset:             Offset of register to be read
+ * @offset:             Offset of register to be writen
  * @data:               Value to be written
  *
  * @return:             Success or Failure
@@ -682,8 +714,14 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 static inline int cam_soc_util_w(struct cam_hw_soc_info *soc_info,
 	uint32_t base_index, uint32_t offset, uint32_t data)
 {
-	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index))
+	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index)) {
+		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return -EINVAL;
+	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return -EINVAL;
+
 	return cam_io_w(data,
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -698,7 +736,7 @@ static inline int cam_soc_util_w(struct cam_hw_soc_info *soc_info,
  *
  * @soc_info:           Device soc information
  * @base_index:         Index of register space in the HW block
- * @offset:             Offset of register to be read
+ * @offset:             Offset of register to be writen
  * @data:               Value to be written
  *
  * @return:             Success or Failure
@@ -706,8 +744,14 @@ static inline int cam_soc_util_w(struct cam_hw_soc_info *soc_info,
 static inline int cam_soc_util_w_mb(struct cam_hw_soc_info *soc_info,
 	uint32_t base_index, uint32_t offset, uint32_t data)
 {
-	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index))
+	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index)) {
+		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return -EINVAL;
+	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return -EINVAL;
+
 	return cam_io_w_mb(data,
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -726,8 +770,14 @@ static inline int cam_soc_util_w_mb(struct cam_hw_soc_info *soc_info,
 static inline uint32_t cam_soc_util_r(struct cam_hw_soc_info *soc_info,
 	uint32_t base_index, uint32_t offset)
 {
-	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index))
+	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index)) {
+		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return 0;
+	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return 0;
+
 	return cam_io_r(
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -749,8 +799,14 @@ static inline uint32_t cam_soc_util_r(struct cam_hw_soc_info *soc_info,
 static inline uint32_t cam_soc_util_r_mb(struct cam_hw_soc_info *soc_info,
 	uint32_t base_index, uint32_t offset)
 {
-	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index))
+	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index)) {
+		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return 0;
+	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return 0;
+
 	return cam_io_r_mb(
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
