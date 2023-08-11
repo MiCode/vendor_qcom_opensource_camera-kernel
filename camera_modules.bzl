@@ -12,7 +12,7 @@ def _define_module(target, variant):
         deps.extend([
             "//vendor/qcom/opensource/synx-kernel:synx_headers",
             "//vendor/qcom/opensource/synx-kernel:{}_modules".format(tv),
-            "//vendor/qcom/opensource/securemsm-kernel:qseecom_kernel_headers",
+            "//vendor/qcom/opensource/securemsm-kernel:smcinvoke_kernel_headers",
             "//vendor/qcom/opensource/securemsm-kernel:smmu_proxy_headers",
             "//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv),
             "//vendor/qcom/opensource/securemsm-kernel:{}_smmu_proxy_dlkm".format(tv),
