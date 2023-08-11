@@ -22,14 +22,6 @@ config SPECTRA_JPEG
 	  This module interact with jpeg HW for
 	  snapshot processing.
 
-config SPECTRA_CUSTOM
-	bool "enable camera custom modele"
-	help
-	  This is enabling camera custom module.
-	  camera cusotm hw feature.
-	  Basicaly oem can use this flag to modify or
-	  customized kernel driver.
-
 config SPECTRA_SENSOR
 	bool "enable camera sensor modele"
 	help
