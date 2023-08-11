@@ -130,6 +130,24 @@ ddk_headers(
     ],
 )
 
+genrule(
+    name = "camera_banner_header",
+    srcs = [],
+    outs = ["cam_generated.h"],
+    cmd = """
+      {
+        printf '#define CAMERA_COMPILE_TIME "%s"\n' "$$(date)"
+        printf '#define CAMERA_COMPILE_BY "%s"\n' "$$(whoami)"
+        printf '#define CAMERA_COMPILE_HOST "%s"\n' "$$(uname -n)"
+      } > "$@"
+    """
+)
+
+ddk_headers(
+    name = "camera_banner",
+    hdrs = [":camera_banner_header"],
+)
+
 load(":camera_modules.bzl", "define_camera_module")
 
 define_camera_module()

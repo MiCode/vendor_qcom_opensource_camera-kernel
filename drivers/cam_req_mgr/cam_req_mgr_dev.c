@@ -11,8 +11,6 @@
 #include <linux/types.h>
 #include <linux/rwsem.h>
 
-#include <mm/slab.h>
-
 #include <media/v4l2-fh.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-event.h>
@@ -1004,14 +1002,12 @@ static int cam_req_mgr_component_master_bind(struct device *dev)
 	INIT_LIST_HEAD(&cam_req_mgr_ordered_sd_list);
 
 	if (g_cam_req_mgr_timer_cachep == NULL) {
-		g_cam_req_mgr_timer_cachep = kmem_cache_create("crm_timer",
-			sizeof(struct cam_req_mgr_timer), 64, 0x0, NULL);
+		g_cam_req_mgr_timer_cachep = KMEM_CACHE(cam_req_mgr_timer, 0x0);
 		if (!g_cam_req_mgr_timer_cachep)
 			CAM_ERR(CAM_CRM,
 				"Failed to create kmem_cache for crm_timer");
 		else
-			CAM_DBG(CAM_CRM, "Name : %s",
-				g_cam_req_mgr_timer_cachep->name);
+			CAM_DBG(CAM_CRM, "Name : cam_req_mgr_timer");
 	}
 
 	CAM_DBG(CAM_CRM, "All probes done, binding slave components");
