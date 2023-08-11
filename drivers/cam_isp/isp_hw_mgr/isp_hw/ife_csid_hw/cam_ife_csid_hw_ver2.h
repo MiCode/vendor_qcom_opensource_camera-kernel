@@ -120,6 +120,7 @@ struct cam_ife_csid_ver2_evt_payload {
 	struct list_head            list;
 	uint32_t                    irq_reg_val;
 	struct timespec64           timestamp;
+	uint64_t                    sof_ts_reg_val;
 	bool                        is_mc;
 };
 

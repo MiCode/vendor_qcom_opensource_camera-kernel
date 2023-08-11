@@ -84,16 +84,29 @@ struct cam_isp_apply_clk_bw_args {
 };
 
 /*
+ * struct cam_isp_sof_ts_data
+ *
+ * @boot_time           Raw monotonic boot time
+ * @sof_ts:             SOF reigster timestamp
+ */
+struct cam_isp_sof_ts_data {
+	struct timespec64     boot_time;
+	uint64_t              sof_ts;
+};
+
+/*
  * struct cam_isp_timestamp:
  *
  * @mono_time:          Monotonic boot time
  * @vt_time:            AV Timer time
  * @ticks:              Qtimer ticks
+ * @sof_ts:             SOF reigster timestamp
  */
 struct cam_isp_timestamp {
-	struct timespec64       mono_time;
-	struct timespec64       vt_time;
-	uint64_t                ticks;
+	struct timespec64                mono_time;
+	struct timespec64                vt_time;
+	uint64_t                         ticks;
+	uint64_t                         sof_ts;
 };
 
 /*
@@ -240,6 +253,7 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_IRQ_COMP_CFG,
 	CAM_ISP_HW_CMD_IRQ_INJECTION,
 	CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION,
+	CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR,
 	CAM_ISP_HW_CMD_MAX,
 };
 

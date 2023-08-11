@@ -375,17 +375,21 @@ struct cam_csid_reset_out_of_sync_count_args {
 /**
  * struct cam_csid_get_time_stamp_args-  time stamp capture arguments
  * @node_res            : resource to get the time stamp
+ * @raw_boot_time       : Pointer to raw boot ts captured from top-half, if available
  * @time_stamp_val      : captured time stamp
  * @boot_timestamp      : boot time stamp
- * @get_prev_timestamp  : flag to fetch previous captured time stamp from hardware
  * @prev_time_stamp_val : previous captured time stamp
+ * @get_prev_timestamp  : flag to fetch previous captured time stamp from hardware
+ * @get_curr_timestamp  : flag to skip CSID timestamp reg read if already read from top-half
  */
 struct cam_csid_get_time_stamp_args {
 	struct cam_isp_resource_node      *node_res;
+	struct timespec64                 *raw_boot_time;
 	uint64_t                           time_stamp_val;
 	uint64_t                           boot_timestamp;
-	bool                               get_prev_timestamp;
 	uint64_t                           prev_time_stamp_val;
+	bool                               get_prev_timestamp;
+	bool                               get_curr_timestamp;
 };
 
 /**
@@ -499,6 +503,22 @@ struct cam_ife_csid_discard_frame_cfg_update {
 	bool     reset_discard_cfg;
 };
 
+/*
+ * struct cam_ife_csid_ts_reg_addr:
+ *
+ * @curr0_ts_addr:      Reg addr of curr0_sof, input if set,
+ *                      output otherwise
+ * @curr1_ts_addr:      Reg addr of curr1_sof, input if set,
+ *                      output otherwise
+ * @res_id (input):     CSID path id, for get op
+ * @get:                If call is to get addr
+ */
+struct cam_ife_csid_ts_reg_addr {
+	void __iomem                     *curr0_ts_addr;
+	void __iomem                     *curr1_ts_addr;
+	uint32_t                          res_id;
+	bool                              get_addr;
+};
 
 /*
  * struct cam_ife_csid_mode_switch_update_args:

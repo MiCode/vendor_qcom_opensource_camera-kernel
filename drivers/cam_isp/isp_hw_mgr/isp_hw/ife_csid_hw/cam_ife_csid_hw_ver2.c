@@ -605,13 +605,16 @@ static int cam_ife_csid_ver2_path_top_half(
 	uint32_t                                   evt_id,
 	struct cam_irq_th_payload                 *th_payload)
 {
-	int32_t                                    rc;
-	struct cam_hw_info                        *hw_info;
-	struct cam_ife_csid_ver2_hw               *csid_hw = NULL;
-	struct cam_ife_csid_ver2_evt_payload      *evt_payload;
-	struct cam_isp_resource_node              *res;
-	const uint8_t                            **irq_reg_tag;
-	struct cam_ife_csid_ver2_path_cfg         *path_cfg;
+	int32_t                                       rc;
+	struct cam_hw_info                           *hw_info;
+	struct cam_ife_csid_ver2_hw                  *csid_hw = NULL;
+	struct cam_ife_csid_ver2_evt_payload         *evt_payload;
+	struct cam_isp_resource_node                 *res;
+	const uint8_t                                **irq_reg_tag;
+	struct cam_ife_csid_ver2_path_cfg            *path_cfg;
+	struct cam_ife_csid_ver2_reg_info            *csid_reg = NULL;
+	struct cam_hw_soc_info                       *soc_info;
+	const struct cam_ife_csid_ver2_path_reg_info *path_reg;
 
 	res  = th_payload->handler_priv;
 
@@ -623,6 +626,10 @@ static int cam_ife_csid_ver2_path_top_half(
 	hw_info = (struct cam_hw_info *)res->hw_intf->hw_priv;
 	csid_hw = (struct cam_ife_csid_ver2_hw *)hw_info->core_info;
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
+	path_reg = csid_reg->path_reg[res->res_id];
+	soc_info = &csid_hw->hw_info->soc_info;
 
 	rc  = cam_ife_csid_ver2_get_evt_payload(csid_hw, &evt_payload,
 			&csid_hw->path_free_payload_list,
@@ -643,6 +650,15 @@ static int cam_ife_csid_ver2_path_top_half(
 	}
 
 	evt_payload->irq_reg_val = th_payload->evt_status_arr[0];
+
+	if ((evt_payload->irq_reg_val & path_reg->sof_irq_mask)
+		&& path_cfg->handle_camif_irq) {
+		evt_payload->sof_ts_reg_val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+			path_reg->timestamp_curr1_sof_addr);
+		evt_payload->sof_ts_reg_val = (evt_payload->sof_ts_reg_val << 32) |
+			cam_io_r_mb(soc_info->reg_map[0].mem_base +
+			path_reg->timestamp_curr0_sof_addr);
+	}
 	ktime_get_boottime_ts64(&evt_payload->timestamp);
 	th_payload->evt_payload_priv = evt_payload;
 
@@ -2006,6 +2022,7 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	struct cam_isp_hw_event_info                  evt_info;
 	struct cam_hw_info                           *hw_info;
 	struct cam_ife_csid_ver2_path_cfg            *path_cfg;
+	struct cam_isp_sof_ts_data                    sof_and_boot_time;
 	uint32_t                                      irq_status_ipp;
 	uint32_t                                      err_mask;
 	uint32_t                                      err_type = 0;
@@ -2039,6 +2056,8 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	}
 
 	irq_status_ipp = payload->irq_reg_val;
+	sof_and_boot_time.boot_time = payload->timestamp;
+	sof_and_boot_time.sof_ts = payload->sof_ts_reg_val;
 
 	CAM_DBG(CAM_ISP, "CSID[%u] multi_ctxt_en %d IPP status:0x%x", csid_hw->hw_intf->hw_idx,
 		payload->is_mc, irq_status_ipp);
@@ -2053,6 +2072,7 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	evt_info.hw_idx   = csid_hw->hw_intf->hw_idx;
 	evt_info.res_type = CAM_ISP_RESOURCE_PIX_PATH;
 	evt_info.reg_val  = irq_status_ipp;
+	evt_info.event_data = &sof_and_boot_time;
 
 	if (!csid_hw->event_cb) {
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "CSID[%u] event cb not registered",
@@ -2231,6 +2251,7 @@ static int cam_ife_csid_ver2_rdi_bottom_half(
 	uint32_t                                      err_mask;
 	uint32_t                                      err_type = 0;
 	struct cam_isp_hw_event_info                  evt_info;
+	struct cam_isp_sof_ts_data                    sof_and_boot_time;
 	int                                           rc = 0;
 
 	if (!handler_priv || !evt_payload_priv) {
@@ -2254,8 +2275,12 @@ static int cam_ife_csid_ver2_rdi_bottom_half(
 		goto end;
 	}
 
+	sof_and_boot_time.boot_time = payload->timestamp;
+	sof_and_boot_time.sof_ts = payload->sof_ts_reg_val;
+
 	evt_info.hw_idx   = csid_hw->hw_intf->hw_idx;
 	evt_info.res_type = CAM_ISP_RESOURCE_PIX_PATH;
+	evt_info.event_data = &sof_and_boot_time;
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
 		csid_hw->core_info->csid_reg;
@@ -6020,15 +6045,27 @@ static int cam_ife_csid_ver2_get_time_stamp(
 			csid_reg->cmn_reg->ts_comb_vcdt_mask);
 	}
 
-	timestamp_args->time_stamp_val = __cam_ife_csid_ver2_get_time_stamp(
-		soc_info->reg_map[0].mem_base,
-		path_reg->timestamp_curr0_sof_addr,
-		path_reg->timestamp_curr1_sof_addr,
-		path_cfg->ts_comb_vcdt_en,
-		csid_reg->cmn_reg->ts_comb_vcdt_mask);
+	if (timestamp_args->get_curr_timestamp) {
+		timestamp_args->time_stamp_val = __cam_ife_csid_ver2_get_time_stamp(
+			soc_info->reg_map[0].mem_base,
+			path_reg->timestamp_curr0_sof_addr,
+			path_reg->timestamp_curr1_sof_addr,
+			path_cfg->ts_comb_vcdt_en,
+			csid_reg->cmn_reg->ts_comb_vcdt_mask);
+	} else {
+		if (path_cfg->ts_comb_vcdt_en)
+			timestamp_args->time_stamp_val &=
+				 ~(uint64_t)csid_reg->cmn_reg->ts_comb_vcdt_mask;
+		timestamp_args->time_stamp_val = mul_u64_u32_div(timestamp_args->time_stamp_val,
+			CAM_IFE_CSID_QTIMER_MUL_FACTOR,
+			CAM_IFE_CSID_QTIMER_DIV_FACTOR);
+	}
 
 	if (qtime_to_boottime == 0) {
-		ktime_get_boottime_ts64(&ts);
+		if (timestamp_args->raw_boot_time)
+			ts = *timestamp_args->raw_boot_time;
+		else
+			ktime_get_boottime_ts64(&ts);
 		qtime_to_boottime =
 			(uint64_t)((ts.tv_sec * 1000000000) +
 			ts.tv_nsec) - (int64_t)timestamp_args->time_stamp_val;
@@ -6836,6 +6873,35 @@ static int cam_ife_csid_ver2_irq_comp_cfg(
 	return 0;
 }
 
+static int cam_ife_csid_ver2_get_primary_sof_timer_reg_addr(
+	struct cam_ife_csid_ver2_hw *csid_hw,
+	struct cam_ife_csid_ts_reg_addr *sof_addr)
+{
+	struct cam_hw_soc_info                       *soc_info;
+	struct cam_isp_resource_node                 *csid_res;
+	struct cam_ife_csid_ver2_reg_info            *csid_reg;
+	const struct cam_ife_csid_ver2_path_reg_info *path_reg;
+
+	if (!csid_hw || sof_addr->res_id >= CAM_IFE_PIX_PATH_RES_MAX) {
+		CAM_ERR(CAM_ISP, "Invalid params, csid_hw is null: %s, , res_id: %u",
+			CAM_IS_NULL_TO_STR(csid_hw), sof_addr->res_id);
+		return -EINVAL;
+	}
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
+	csid_res = &csid_hw->path_res[sof_addr->res_id];
+	path_reg = csid_reg->path_reg[sof_addr->res_id];
+	soc_info = &csid_hw->hw_info->soc_info;
+
+	sof_addr->curr0_ts_addr = soc_info->reg_map[0].mem_base +
+		path_reg->timestamp_curr0_sof_addr;
+	sof_addr->curr1_ts_addr = soc_info->reg_map[0].mem_base +
+		path_reg->timestamp_curr1_sof_addr;
+
+	return 0;
+}
+
 static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 	uint32_t cmd_type, void *cmd_args, uint32_t arg_size)
 {
@@ -6943,6 +7009,18 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION:
 		rc = cam_ife_csid_ver2_dump_irq_desc(csid_hw, cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR: {
+		struct cam_ife_csid_ts_reg_addr  *sof_addr_args =
+			(struct cam_ife_csid_ts_reg_addr *)cmd_args;
+
+		if (!sof_addr_args->get_addr) {
+			CAM_ERR(CAM_ISP, "CSID does not support set of primary SOF ts addr");
+			rc = -EINVAL;
+		} else
+			rc = cam_ife_csid_ver2_get_primary_sof_timer_reg_addr(csid_hw,
+				sof_addr_args);
+	}
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%u unsupported cmd:%d",
