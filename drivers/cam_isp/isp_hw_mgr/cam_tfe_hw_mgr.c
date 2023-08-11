@@ -5334,6 +5334,7 @@ static void cam_tfe_mgr_dump_pf_data(
 	}
 
 	get_res.mid = pf_cmd_args->pf_args->pf_smmu_info->mid;
+	get_res.pid = pf_cmd_args->pf_args->pf_smmu_info->pid;
 	cmd_update.res = hw_mgr_res->hw_res[0];
 	cmd_update.cmd_type = CAM_ISP_HW_CMD_GET_RES_FOR_MID;
 	cmd_update.data = (void *) &get_res;
