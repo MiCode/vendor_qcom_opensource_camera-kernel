@@ -751,8 +751,11 @@ static long cam_private_ioctl(struct file *file, void *fh,
 
 		cmd.feature_mask = 0;
 
-		if (cam_mem_mgr_ubwc_p_heap_supported())
-			cmd.feature_mask |= CAM_REQ_MGR_MEM_UBWC_P_HEAP_SUPPORTED;
+		rc = cam_mem_mgr_check_for_supported_heaps(&cmd.feature_mask);
+		if (rc) {
+			CAM_ERR(CAM_CRM, "Failed to retrieve heap capability rc: %d", rc);
+			break;
+		}
 
 		if (copy_to_user(
 			u64_to_user_ptr(k_ioctl->handle),
