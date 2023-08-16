@@ -3631,9 +3631,18 @@ int cam_req_mgr_process_error(void *priv, void *data)
 			if ((in_q->slot[idx].bubble_times >= REQ_MAXIMUM_BUBBLE_TIMES) &&
 				!in_q->slot[idx].internal_recovered) {
 				link->try_for_internal_recovery = true;
-				/* Notify all devices in the link about the error */
+				/*
+				 * Notify all devices in the link about the error, need to pause
+				 * watch dog before internal recovery because the recover may
+				 * take a long time. if don't pause watch dog here, SOF freeze
+				 * may be triggered. After recovery, need to restart watch dog.
+				 */
+				crm_timer_reset(link->watchdog);
+				link->watchdog->pause_timer = true;
 				__cam_req_mgr_send_evt(err_info->req_id,
 					CAM_REQ_MGR_LINK_EVT_STALLED, CRM_KMD_ERR_FATAL, link);
+				crm_timer_reset(link->watchdog);
+				link->watchdog->pause_timer = false;
 				in_q->slot[idx].internal_recovered = true;
 				link->try_for_internal_recovery = false;
 			}
