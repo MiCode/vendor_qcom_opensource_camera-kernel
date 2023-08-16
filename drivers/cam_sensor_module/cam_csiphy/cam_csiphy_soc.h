@@ -36,6 +36,7 @@
 #define CSIPHY_VERSION_V212                       0x212
 #define CSIPHY_VERSION_V213                       0x213
 #define CSIPHY_VERSION_V220                       0x220
+#define CSIPHY_VERSION_V221                       0x221
 #define CSIPHY_VERSION_V230                       0x230
 
 /**
