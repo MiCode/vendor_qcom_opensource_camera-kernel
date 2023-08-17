@@ -3553,6 +3553,7 @@ int cam_req_mgr_process_error(void *priv, void *data)
 	struct cam_req_mgr_slot             *slot = NULL;
 	struct crm_task_payload             *task_data = NULL;
 	struct cam_req_mgr_state_monitor     state;
+	struct cam_req_mgr_req_tbl          *tbl;
 
 	if (!data || !priv) {
 		CAM_ERR(CAM_CRM, "input args NULL %pK %pK", data, priv);
@@ -3569,6 +3570,7 @@ int cam_req_mgr_process_error(void *priv, void *data)
 		err_info->error);
 
 	in_q = link->req.in_q;
+	tbl = link->req.l_tbl;
 
 	state.req_state = CAM_CRM_PROCESS_ERR;
 	state.req_id = err_info->req_id;
@@ -3608,6 +3610,13 @@ int cam_req_mgr_process_error(void *priv, void *data)
 			in_q->rd_idx = idx;
 			in_q->slot[idx].bubble_times++;
 			in_q->slot[idx].status = CRM_SLOT_STATUS_REQ_ADDED;
+
+			/* Reset request apply map for all pd tables */
+			while (tbl) {
+				tbl->slot[idx].req_apply_map = 0;
+				tbl = tbl->next;
+			}
+
 			if (link->sync_link[0]) {
 				in_q->slot[idx].sync_mode = 0;
 				__cam_req_mgr_inc_idx(&idx, 1,
@@ -3652,8 +3661,16 @@ int cam_req_mgr_process_error(void *priv, void *data)
 				CAM_DBG(CAM_CRM,
 					"Recovery on idx: %d reset slot [idx: %d status: %d]",
 					in_q->rd_idx, idx, in_q->slot[idx].status);
-				if (in_q->slot[idx].status == CRM_SLOT_STATUS_REQ_APPLIED)
+				if (in_q->slot[idx].status == CRM_SLOT_STATUS_REQ_APPLIED) {
 					in_q->slot[idx].status = CRM_SLOT_STATUS_REQ_ADDED;
+
+					tbl = link->req.l_tbl;
+					/* Reset request apply map for all pd tables */
+					while (tbl) {
+						tbl->slot[idx].req_apply_map = 0;
+						tbl = tbl->next;
+					}
+				}
 			}
 
 			spin_lock_bh(&link->link_state_spin_lock);

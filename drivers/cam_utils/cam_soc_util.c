@@ -3499,7 +3499,7 @@ static int cam_soc_util_dump_cont_reg_range(
 	struct cam_reg_range_read_desc *reg_read, uint32_t base_idx,
 	struct cam_reg_dump_out_buffer *dump_out_buf, uintptr_t cmd_buf_end)
 {
-	int         i = 0, rc = 0;
+	int         i = 0, rc = 0, val = 0;
 	uint32_t    write_idx = 0;
 
 	if (!soc_info || !dump_out_buf || !reg_read || !cmd_buf_end) {
@@ -3536,21 +3536,14 @@ static int cam_soc_util_dump_cont_reg_range(
 
 	write_idx = dump_out_buf->bytes_written / sizeof(uint32_t);
 	for (i = 0; i < reg_read->num_values; i++) {
-		if ((reg_read->offset + (i * sizeof(uint32_t))) >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				(reg_read->offset + (i * sizeof(uint32_t))),
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
-			goto end;
-		}
+		val = cam_soc_util_r(soc_info, base_idx,
+			(reg_read->offset + (i * sizeof(uint32_t))));
+		if (!val)
+			CAM_WARN(CAM_UTIL, "Possibly fails to read");
 
 		dump_out_buf->dump_data[write_idx++] = reg_read->offset +
 			(i * sizeof(uint32_t));
-		dump_out_buf->dump_data[write_idx++] =
-			cam_soc_util_r(soc_info, base_idx,
-			(reg_read->offset + (i * sizeof(uint32_t))));
+		dump_out_buf->dump_data[write_idx++] = val;
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
 
@@ -3563,7 +3556,7 @@ static int cam_soc_util_dump_dmi_reg_range(
 	struct cam_dmi_read_desc *dmi_read, uint32_t base_idx,
 	struct cam_reg_dump_out_buffer *dump_out_buf, uintptr_t cmd_buf_end)
 {
-	int        i = 0, rc = 0;
+	int        i = 0, rc = 0, val = 0;
 	uint32_t   write_idx = 0;
 
 	if (!soc_info || !dump_out_buf || !dmi_read || !cmd_buf_end) {
@@ -3618,19 +3611,14 @@ static int cam_soc_util_dump_dmi_reg_range(
 
 	write_idx = dump_out_buf->bytes_written / sizeof(uint32_t);
 	for (i = 0; i < dmi_read->num_pre_writes; i++) {
-		if (dmi_read->pre_read_config[i].offset >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				dmi_read->pre_read_config[i].offset,
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
+		rc = cam_soc_util_w_mb(soc_info, base_idx,
+			dmi_read->pre_read_config[i].offset,
+			dmi_read->pre_read_config[i].value);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Fails to write for pre_read_config");
 			goto end;
 		}
 
-		cam_soc_util_w_mb(soc_info, base_idx,
-			dmi_read->pre_read_config[i].offset,
-			dmi_read->pre_read_config[i].value);
 		dump_out_buf->dump_data[write_idx++] =
 			dmi_read->pre_read_config[i].offset;
 		dump_out_buf->dump_data[write_idx++] =
@@ -3638,39 +3626,26 @@ static int cam_soc_util_dump_dmi_reg_range(
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
 
-	if (dmi_read->dmi_data_read.offset >
-		(uint32_t)soc_info->reg_map[base_idx].size) {
-		CAM_ERR(CAM_UTIL,
-			"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-			dmi_read->dmi_data_read.offset,
-			(uint32_t)soc_info->reg_map[base_idx].size);
-		rc = -EINVAL;
-		goto end;
-	}
-
 	for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
+		val = cam_soc_util_r_mb(soc_info, base_idx,
+			dmi_read->dmi_data_read.offset);
+		if (!val)
+			CAM_WARN(CAM_UTIL, "Possibly fails to read for dmi_data_read");
+
 		dump_out_buf->dump_data[write_idx++] =
 			dmi_read->dmi_data_read.offset;
-		dump_out_buf->dump_data[write_idx++] =
-			cam_soc_util_r_mb(soc_info, base_idx,
-			dmi_read->dmi_data_read.offset);
+		dump_out_buf->dump_data[write_idx++] = val;
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
 
 	for (i = 0; i < dmi_read->num_post_writes; i++) {
-		if (dmi_read->post_read_config[i].offset >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				dmi_read->post_read_config[i].offset,
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
-			goto end;
-		}
-
-		cam_soc_util_w_mb(soc_info, base_idx,
+		rc = cam_soc_util_w_mb(soc_info, base_idx,
 			dmi_read->post_read_config[i].offset,
 			dmi_read->post_read_config[i].value);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Fails to write for post_read_config");
+			goto end;
+		}
 	}
 
 end:
@@ -3684,6 +3659,7 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 {
 	int                            i;
 	int                            rc;
+	int                            val = 0;
 	size_t                         buf_len = 0;
 	uint8_t                       *dst;
 	size_t                         remain_len;
@@ -3745,52 +3721,36 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 	*waddr = soc_info->index;
 	waddr++;
 	for (i = 0; i < dmi_read->num_pre_writes; i++) {
-		if (dmi_read->pre_read_config[i].offset >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				dmi_read->pre_read_config[i].offset,
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
+		rc = cam_soc_util_w_mb(soc_info, base_idx,
+			dmi_read->pre_read_config[i].offset,
+			dmi_read->pre_read_config[i].value);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Fails to write for pre_read_config");
 			goto end;
 		}
 
-		cam_soc_util_w_mb(soc_info, base_idx,
-			dmi_read->pre_read_config[i].offset,
-			dmi_read->pre_read_config[i].value);
 		*waddr++ = dmi_read->pre_read_config[i].offset;
 		*waddr++ = dmi_read->pre_read_config[i].value;
 	}
 
-	if (dmi_read->dmi_data_read.offset >
-		(uint32_t)soc_info->reg_map[base_idx].size) {
-		CAM_ERR(CAM_UTIL,
-			"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-			dmi_read->dmi_data_read.offset,
-			(uint32_t)soc_info->reg_map[base_idx].size);
-		rc = -EINVAL;
-		goto end;
-	}
-
 	for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
-		*waddr++ = dmi_read->dmi_data_read.offset;
-		*waddr++ = cam_soc_util_r_mb(soc_info, base_idx,
+		val = cam_soc_util_r_mb(soc_info, base_idx,
 			dmi_read->dmi_data_read.offset);
+		if (!val)
+			CAM_WARN(CAM_UTIL, "Possibly fails to read for dmi_data_read");
+
+		*waddr++ = dmi_read->dmi_data_read.offset;
+		*waddr++ = val;
 	}
 
 	for (i = 0; i < dmi_read->num_post_writes; i++) {
-		if (dmi_read->post_read_config[i].offset >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				dmi_read->post_read_config[i].offset,
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
-			goto end;
-		}
-		cam_soc_util_w_mb(soc_info, base_idx,
+		rc = cam_soc_util_w_mb(soc_info, base_idx,
 			dmi_read->post_read_config[i].offset,
 			dmi_read->post_read_config[i].value);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Fails to write for post_read_config");
+			goto end;
+		}
 	}
 	hdr->size = (waddr - start) * hdr->word_size;
 	dump_args->offset +=  hdr->size +
@@ -3808,7 +3768,7 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 	struct cam_hw_soc_dump_args *dump_args)
 {
 	int                            i;
-	int                            rc = 0;
+	int                            rc = 0, val = 0;
 	size_t                         buf_len;
 	uint8_t                       *dst;
 	size_t                         remain_len;
@@ -3859,19 +3819,13 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 	*waddr = soc_info->index;
 	waddr++;
 	for (i = 0; i < reg_read->num_values; i++) {
-		if ((reg_read->offset + (i * sizeof(uint32_t))) >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				(reg_read->offset + (i * sizeof(uint32_t))),
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
-			goto end;
-		}
+		val = cam_soc_util_r(soc_info, base_idx,
+			(reg_read->offset + (i * sizeof(uint32_t))));
+		if (!val)
+			CAM_WARN(CAM_UTIL, "Possibly fails to read");
 
 		waddr[0] = reg_read->offset + (i * sizeof(uint32_t));
-		waddr[1] = cam_soc_util_r(soc_info, base_idx,
-			(reg_read->offset + (i * sizeof(uint32_t))));
+		waddr[1] = val;
 		waddr += 2;
 	}
 	hdr->size = (waddr - start) * hdr->word_size;

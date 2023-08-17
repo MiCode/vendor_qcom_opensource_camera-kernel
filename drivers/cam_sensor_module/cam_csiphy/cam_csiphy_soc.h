@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSIPHY_SOC_H_
@@ -36,6 +36,7 @@
 #define CSIPHY_VERSION_V212                       0x212
 #define CSIPHY_VERSION_V213                       0x213
 #define CSIPHY_VERSION_V220                       0x220
+#define CSIPHY_VERSION_V230                       0x230
 
 /**
  * @csiphy_dev: CSIPhy device structure

@@ -224,11 +224,13 @@ int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd);
 int cam_mem_mgr_cpu_access_op(struct cam_mem_cpu_access_op *cmd);
 
 /**
- * @brief: Check whether ubwc-p heap is supported
+ * @brief: Provide all supported heap capabilities
  *
- * @return true if supported, false otherwise
+ * @heap_mask: Update mask for all supported heaps
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-bool cam_mem_mgr_ubwc_p_heap_supported(void);
+int cam_mem_mgr_check_for_supported_heaps(uint64_t *heap_mask);
 
 /**
  * @brief: Initializes the memory manager

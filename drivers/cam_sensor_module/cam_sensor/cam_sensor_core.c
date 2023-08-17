@@ -1161,7 +1161,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				s_ctrl->sensordata->slave_info.sensor_slave_addr,
 				s_ctrl->sensordata->slave_info.sensor_id);
 			cam_sensor_power_down(s_ctrl);
-			msleep(20);
 			goto free_power_settings;
 		}
 

@@ -60,6 +60,7 @@ struct cam_sfe_bus_rd_common_data {
 	void __iomem                               *mem_base;
 	struct cam_hw_intf                         *hw_intf;
 	struct cam_sfe_bus_rd_reg_offset_common    *common_reg;
+	struct cam_hw_soc_info                     *soc_info;
 	uint32_t                                    io_buf_update[
 		MAX_REG_VAL_PAIR_SIZE];
 	void                                       *bus_irq_controller;
@@ -1796,6 +1797,80 @@ end:
 	return 0;
 }
 
+static int cam_sfe_bus_rd_irq_inject(
+	void *priv, void *cmd_args, uint32_t arg_size)
+{
+	struct cam_sfe_bus_rd_priv          *bus_priv = NULL;
+	struct cam_hw_soc_info              *soc_info = NULL;
+	struct cam_sfe_bus_rd_hw_info       *bus_rd_hw_info = NULL;
+	struct cam_irq_controller_reg_info  *irq_reg_info = NULL;
+	struct cam_irq_register_set         *inject_reg = NULL;
+	struct cam_isp_irq_inject_param     *inject_params = NULL;
+
+	if (!cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid params");
+		return -EINVAL;
+	}
+
+	bus_priv = (struct cam_sfe_bus_rd_priv *)priv;
+	soc_info = bus_priv->common_data.soc_info;
+	bus_rd_hw_info = (struct cam_sfe_bus_rd_hw_info *)bus_priv->bus_rd_hw_info;
+	irq_reg_info = &bus_rd_hw_info->common_reg.irq_reg_info;
+	inject_reg = irq_reg_info->irq_reg_set;
+	inject_params = (struct cam_isp_irq_inject_param *)cmd_args;
+
+	if (!inject_reg) {
+		CAM_INFO(CAM_SFE, "Invalid inject_reg");
+		return -EINVAL;
+	}
+
+	if (inject_params->reg_unit ==
+		CAM_ISP_SFE_0_BUS_RD_INPUT_IF_IRQ_SET_REG) {
+		cam_io_w_mb(inject_params->irq_mask,
+			soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
+			inject_reg->set_reg_offset);
+		cam_io_w_mb(0x10, soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
+			irq_reg_info->global_irq_cmd_offset);
+		CAM_INFO(CAM_SFE, "Injected : irq_mask %#x set_reg_offset %#x",
+			inject_params->irq_mask, inject_reg->set_reg_offset);
+	}
+	return 0;
+}
+
+static int cam_sfe_bus_rd_dump_irq_desc(
+	void *priv, void *cmd_args, uint32_t arg_size)
+{
+	int                               i, offset = 0;
+	struct cam_sfe_bus_rd_priv       *bus_priv = NULL;
+	struct cam_sfe_bus_rd_hw_info    *bus_rd_hw_info = NULL;
+	struct cam_isp_irq_inject_param  *inject_params = NULL;
+
+	if (!cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid params");
+		return -EINVAL;
+	}
+
+	bus_priv = (struct cam_sfe_bus_rd_priv *)priv;
+	bus_rd_hw_info = (struct cam_sfe_bus_rd_hw_info *)bus_priv->bus_rd_hw_info;
+	inject_params = (struct cam_isp_irq_inject_param *)cmd_args;
+
+	if (inject_params->reg_unit ==
+			CAM_ISP_SFE_0_BUS_RD_INPUT_IF_IRQ_SET_REG) {
+		offset += scnprintf(inject_params->line_buf + offset,
+			LINE_BUFFER_LEN - offset,
+			"Printing executable IRQ for hw_type: SFE reg_unit: %d\n",
+			inject_params->reg_unit);
+
+		for (i = 0; i < bus_rd_hw_info->num_bus_rd_errors; i++)
+			offset += scnprintf(inject_params->line_buf + offset,
+				LINE_BUFFER_LEN - offset, "%#12x : %s - %s\n",
+				bus_rd_hw_info->bus_rd_err_desc[i].bitmask,
+				bus_rd_hw_info->bus_rd_err_desc[i].err_name,
+				bus_rd_hw_info->bus_rd_err_desc[i].desc);
+	}
+	return 0;
+}
+
 static int cam_sfe_bus_init_hw(void *hw_priv,
 	void *init_hw_args, uint32_t arg_size)
 {
@@ -1974,6 +2049,12 @@ static int cam_sfe_bus_rd_process_cmd(
 			(struct cam_sfe_bus_rd_priv  *)priv);
 		break;
 	}
+	case CAM_ISP_HW_CMD_IRQ_INJECTION:
+		rc = cam_sfe_bus_rd_irq_inject(priv, cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION:
+		rc = cam_sfe_bus_rd_dump_irq_desc(priv, cmd_args, arg_size);
+		break;
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_SFE,
 			"Invalid SFE BUS RD command type: %d",
@@ -2032,6 +2113,7 @@ int cam_sfe_bus_rd_init(
 	bus_priv->common_data.irq_err_mask      = bus_rd_hw_info->irq_err_mask;
 	bus_priv->common_data.cons_chk_en_avail =
 		bus_rd_hw_info->constraint_error_info->cons_chk_en_avail;
+	bus_priv->common_data.soc_info         = soc_info;
 	bus_priv->top_irq_shift                 = bus_rd_hw_info->top_irq_shift;
 	bus_priv->latency_buf_allocation        = bus_rd_hw_info->latency_buf_allocation;
 	bus_priv->sys_cache_default_cfg         = bus_rd_hw_info->sys_cache_default_val;

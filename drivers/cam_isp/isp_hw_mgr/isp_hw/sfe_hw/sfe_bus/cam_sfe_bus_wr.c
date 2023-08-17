@@ -94,6 +94,7 @@ struct cam_sfe_bus_wr_common_data {
 	uint32_t                                    sys_cache_default_cfg;
 	uint32_t                                    sfe_debug_cfg;
 	struct cam_sfe_bus_cache_dbg_cfg            cache_dbg_cfg;
+	struct cam_hw_soc_info                     *soc_info;
 };
 
 struct cam_sfe_wr_scratch_buf_info {
@@ -195,7 +196,8 @@ struct cam_sfe_bus_wr_priv {
 	int                                 error_irq_handle;
 	void                               *tasklet_info;
 	struct cam_sfe_bus_wr_constraint_error_info *constraint_error_info;
-	struct cam_sfe_bus_sfe_out_hw_info   *sfe_out_hw_info;
+	struct cam_sfe_bus_sfe_out_hw_info *sfe_out_hw_info;
+	struct cam_sfe_bus_wr_hw_info      *bus_wr_hw_info;
 };
 
 static int cam_sfe_bus_subscribe_error_irq(
@@ -3166,6 +3168,76 @@ end:
 	return 0;
 }
 
+static int cam_sfe_bus_wr_irq_inject(
+	void *priv, void *cmd_args, uint32_t arg_size)
+{
+	struct cam_sfe_bus_wr_priv          *bus_priv = NULL;
+	struct cam_hw_soc_info              *soc_info = NULL;
+	struct cam_sfe_bus_wr_hw_info       *bus_wr_hw_info = NULL;
+	struct cam_irq_controller_reg_info  *irq_reg_info = NULL;
+	struct cam_irq_register_set         *inject_reg = NULL;
+	struct cam_isp_irq_inject_param     *inject_params = NULL;
+
+	bus_priv = (struct cam_sfe_bus_wr_priv *)priv;
+	soc_info = bus_priv->common_data.soc_info;
+	bus_wr_hw_info = (struct cam_sfe_bus_wr_hw_info *)bus_priv->bus_wr_hw_info;
+	irq_reg_info = &bus_wr_hw_info->common_reg.irq_reg_info;
+	inject_reg = irq_reg_info->irq_reg_set;
+	inject_params = (struct cam_isp_irq_inject_param *)cmd_args;
+
+	if (!inject_params || !inject_reg) {
+		CAM_INFO(CAM_SFE, "Invalid inject_params or inject_reg");
+		return -EINVAL;
+	}
+
+	if (inject_params->reg_unit ==
+		CAM_ISP_SFE_0_BUS_WR_INPUT_IF_IRQ_SET_0_REG) {
+
+		cam_io_w_mb(inject_params->irq_mask,
+			soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
+			inject_reg->set_reg_offset);
+		cam_io_w_mb(0x10, soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base +
+			irq_reg_info->global_irq_cmd_offset);
+		CAM_INFO(CAM_SFE, "Injected : irq_mask %#x set_reg_offset %#x",
+			inject_params->irq_mask, inject_reg->set_reg_offset);
+	}
+	return 0;
+}
+
+static int cam_sfe_bus_wr_dump_irq_desc(
+	void *priv, void *cmd_args, uint32_t arg_size)
+{
+	int                                          i, offset = 0;
+	struct cam_sfe_bus_wr_priv                  *bus_priv = NULL;
+	struct cam_sfe_bus_wr_hw_info               *bus_wr_hw_info = NULL;
+	struct cam_isp_irq_inject_param             *inject_params = NULL;
+
+	if (!cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid params");
+		return -EINVAL;
+	}
+
+	bus_priv = (struct cam_sfe_bus_wr_priv *)priv;
+	bus_wr_hw_info = (struct cam_sfe_bus_wr_hw_info *)bus_priv->bus_wr_hw_info;
+	inject_params = (struct cam_isp_irq_inject_param *)cmd_args;
+
+	if (inject_params->reg_unit ==
+			CAM_ISP_SFE_0_BUS_WR_INPUT_IF_IRQ_SET_0_REG) {
+		offset += scnprintf(inject_params->line_buf + offset,
+			LINE_BUFFER_LEN - offset,
+			"Printing executable IRQ for hw_type: SFE reg_unit: %d\n",
+			inject_params->reg_unit);
+
+		for (i = 0; i < bus_wr_hw_info->num_bus_wr_errors; i++)
+			offset += scnprintf(inject_params->line_buf + offset,
+				LINE_BUFFER_LEN - offset, "%#12x : %s - %s\n",
+				bus_wr_hw_info->bus_wr_err_desc[i].bitmask,
+				bus_wr_hw_info->bus_wr_err_desc[i].err_name,
+				bus_wr_hw_info->bus_wr_err_desc[i].desc);
+	}
+	return 0;
+}
+
 static int cam_sfe_bus_wr_start_hw(void *hw_priv,
 	void *start_hw_args, uint32_t arg_size)
 {
@@ -3353,6 +3425,12 @@ static int cam_sfe_bus_wr_process_cmd(
 	case CAM_ISP_HW_CMD_GET_RES_FOR_MID:
 		rc = cam_sfe_bus_wr_get_res_for_mid(priv, cmd_args, arg_size);
 		break;
+	case CAM_ISP_HW_CMD_IRQ_INJECTION:
+		rc = cam_sfe_bus_wr_irq_inject(priv, cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION:
+		rc = cam_sfe_bus_wr_dump_irq_desc(priv, cmd_args, arg_size);
+		break;
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_SFE, "Invalid HW command type:%d",
 			cmd_type);
@@ -3400,27 +3478,29 @@ int cam_sfe_bus_wr_init(
 	}
 	sfe_bus_local->bus_priv = bus_priv;
 
-	bus_priv->num_client                       = hw_info->num_client;
-	bus_priv->num_out                          = hw_info->num_out;
-	bus_priv->max_out_res                      = hw_info->max_out_res;
-	bus_priv->num_comp_grp                     = hw_info->num_comp_grp;
-	bus_priv->top_irq_shift                    = hw_info->top_irq_shift;
-	bus_priv->common_data.num_sec_out          = 0;
-	bus_priv->common_data.secure_mode          = CAM_SECURE_MODE_NON_SECURE;
-	bus_priv->common_data.core_index           = soc_info->index;
-	bus_priv->common_data.mem_base             =
+	bus_priv->num_client                        = hw_info->num_client;
+	bus_priv->num_out                           = hw_info->num_out;
+	bus_priv->max_out_res                       = hw_info->max_out_res;
+	bus_priv->num_comp_grp                      = hw_info->num_comp_grp;
+	bus_priv->top_irq_shift                     = hw_info->top_irq_shift;
+	bus_priv->common_data.num_sec_out           = 0;
+	bus_priv->common_data.secure_mode           = CAM_SECURE_MODE_NON_SECURE;
+	bus_priv->common_data.core_index            = soc_info->index;
+	bus_priv->common_data.mem_base              =
 		CAM_SOC_GET_REG_MAP_START(soc_info, SFE_CORE_BASE_IDX);
-	bus_priv->common_data.hw_intf              = hw_intf;
-	bus_priv->common_data.common_reg           = &hw_info->common_reg;
-	bus_priv->common_data.line_done_cfg        = hw_info->line_done_cfg;
-	bus_priv->common_data.pack_align_shift     = hw_info->pack_align_shift;
-	bus_priv->common_data.max_bw_counter_limit = hw_info->max_bw_counter_limit;
-	bus_priv->common_data.err_irq_subscribe    = false;
-	bus_priv->common_data.sfe_irq_controller   = sfe_irq_controller;
-	bus_priv->common_data.irq_err_mask         = hw_info->irq_err_mask;
+	bus_priv->common_data.hw_intf               = hw_intf;
+	bus_priv->common_data.common_reg            = &hw_info->common_reg;
+	bus_priv->common_data.line_done_cfg         = hw_info->line_done_cfg;
+	bus_priv->common_data.pack_align_shift      = hw_info->pack_align_shift;
+	bus_priv->common_data.max_bw_counter_limit  = hw_info->max_bw_counter_limit;
+	bus_priv->common_data.err_irq_subscribe     = false;
+	bus_priv->common_data.sfe_irq_controller    = sfe_irq_controller;
+	bus_priv->common_data.irq_err_mask          = hw_info->irq_err_mask;
 	bus_priv->common_data.sys_cache_default_cfg = hw_info->sys_cache_default_val;
-	bus_priv->constraint_error_info            = hw_info->constraint_error_info;
-	bus_priv->sfe_out_hw_info                  = hw_info->sfe_out_hw_info;
+	bus_priv->common_data.soc_info             = soc_info;
+	bus_priv->constraint_error_info             = hw_info->constraint_error_info;
+	bus_priv->sfe_out_hw_info                   = hw_info->sfe_out_hw_info;
+	bus_priv->bus_wr_hw_info                    = hw_info;
 	rc = cam_cpas_get_cpas_hw_version(&bus_priv->common_data.hw_version);
 	if (rc) {
 		CAM_ERR(CAM_SFE, "Failed to get hw_version rc:%d", rc);

@@ -1541,7 +1541,6 @@ static int cam_tfe_hw_dump(
 	uint32_t                           num_reg;
 	uint32_t                           lut_word_size, lut_size;
 	uint32_t                           lut_bank_sel, lut_dmi_reg;
-	uint32_t                           val;
 	void __iomem                      *reg_base;
 	void __iomem                      *mem_base;
 	uint32_t                          *addr, *start;
@@ -2573,7 +2572,8 @@ int cam_tfe_init_hw(void *hw_priv, void *init_hw_args, uint32_t arg_size)
 	struct cam_tfe_hw_core_info       *core_info = NULL;
 	struct cam_tfe_top_priv           *top_priv;
 	void __iomem                      *mem_base;
-	int rc = 0;
+	int i, rc = 0;
+	unsigned long                      max_clk_rate = 0;
 	uint32_t                           reset_core_args =
 					CAM_TFE_HW_RESET_HW_AND_REG;
 
@@ -2596,9 +2596,14 @@ int cam_tfe_init_hw(void *hw_priv, void *init_hw_args, uint32_t arg_size)
 		return 0;
 	}
 	mutex_unlock(&tfe_hw->hw_mutex);
+	/* read clock value based on clock blob received */
+	for (i = 0; i < CAM_TFE_TOP_IN_PORT_MAX; i++) {
+		if (top_priv->req_clk_rate[i] > max_clk_rate)
+			max_clk_rate = top_priv->req_clk_rate[i];
+	}
 
 	/* Turn ON Regulators, Clocks and other SOC resources */
-	rc = cam_tfe_enable_soc_resources(soc_info);
+	rc = cam_tfe_enable_soc_resources(soc_info, max_clk_rate);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Enable SOC failed");
 		rc = -EFAULT;
@@ -2617,7 +2622,7 @@ int cam_tfe_init_hw(void *hw_priv, void *init_hw_args, uint32_t arg_size)
 		goto disable_soc;
 	}
 
-	top_priv->hw_clk_rate = 0;
+	top_priv->hw_clk_rate = max_clk_rate;
 	core_info->irq_err_config_cnt = 0;
 	core_info->irq_err_config = false;
 	rc = core_info->tfe_bus->hw_ops.init(core_info->tfe_bus->bus_priv,

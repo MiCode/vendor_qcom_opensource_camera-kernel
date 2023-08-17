@@ -23,13 +23,14 @@
 #define CAM_SFE_FE_RDI_NUM_MAX           3
 #define CAM_ISP_BW_CONFIG_V1             1
 #define CAM_ISP_BW_CONFIG_V2             2
-#define CAM_ISP_BW_CONFIG_V3             2
+#define CAM_ISP_BW_CONFIG_V3             3
 #define CAM_TFE_HW_NUM_MAX               3
 #define CAM_TFE_RDI_NUM_MAX              3
 #define CAM_IFE_SCRATCH_NUM_MAX          2
 #define CAM_IFE_BUS_COMP_NUM_MAX         18
 #define CAM_SFE_BUS_COMP_NUM_MAX         12
 #define CAM_TFE_BW_LIMITER_CONFIG_V1     1
+#define CAM_TFE_BUS_COMP_NUM_MAX         18
 
 /* maximum context numbers for TFE */
 #define CAM_TFE_CTX_MAX      4
@@ -282,8 +283,8 @@ struct cam_isp_prepare_hw_update_data {
 /**
  * struct cam_isp_hw_sof_event_data - Event payload for CAM_HW_EVENT_SOF
  *
- * @timestamp         : Time stamp for the sof event
- * @boot_time         : Boot time stamp for the sof event
+ * @timestamp           : Time stamp for the sof event
+ * @boot_time           : Boot time stamp for the sof event
  *
  */
 struct cam_isp_hw_sof_event_data {
@@ -408,10 +409,10 @@ struct cam_isp_hw_cmd_args {
 	uint32_t                          cmd_type;
 	void                             *cmd_data;
 	union {
-		uint32_t                      sof_irq_enable;
-		uint32_t                      ctx_type;
-		uint32_t                      packet_op_code;
-		uint64_t                      last_cdm_done;
+		uint32_t                         sof_irq_enable;
+		uint32_t                         ctx_type;
+		uint32_t                         packet_op_code;
+		uint64_t                         last_cdm_done;
 		struct {
 			uint64_t                      curr;
 			uint64_t                      prev;

@@ -13,6 +13,8 @@ LOCAL_PATH := $(call my-dir)
 # Path to DLKM make scripts
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
+LOCAL_MODULE_DDK_BUILD := true
+
 # List of board platforms for which MMRM driver API should be enabled
 MMRM_BOARDS := taro parrot kalama pineapple
 

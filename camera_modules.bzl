@@ -5,13 +5,14 @@ def _define_module(target, variant):
     tv = "{}_{}".format(target, variant)
     deps = [
         ":camera_headers",
+        ":camera_banner",
         "//msm-kernel:all_headers",
     ]
     if target == "pineapple":
         deps.extend([
             "//vendor/qcom/opensource/synx-kernel:synx_headers",
             "//vendor/qcom/opensource/synx-kernel:{}_modules".format(tv),
-            "//vendor/qcom/opensource/securemsm-kernel:securemsm_kernel_headers",
+            "//vendor/qcom/opensource/securemsm-kernel:smcinvoke_kernel_headers",
             "//vendor/qcom/opensource/securemsm-kernel:smmu_proxy_headers",
             "//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv),
             "//vendor/qcom/opensource/securemsm-kernel:{}_smmu_proxy_dlkm".format(tv),
@@ -215,6 +216,7 @@ def _define_module(target, variant):
                 ],
             },
         },
+        copts = ["-include", "$(location :camera_banner)"],
         deps = deps,
         kconfig = "Kconfig",
         defconfig = "{}_defconfig".format(tv),

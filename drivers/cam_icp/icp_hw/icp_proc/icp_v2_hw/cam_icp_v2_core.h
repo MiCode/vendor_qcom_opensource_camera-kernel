@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ICP_V2_CORE_H_
@@ -11,9 +11,6 @@
 #include "cam_icp_hw_intf.h"
 #include "hfi_intf.h"
 #include "cam_icp_v2_reg.h"
-
-#define UNSUPPORTED_PROC_PAS_ID   30
-#define CAM_FW_PAS_ID             33
 
 /* Domain ID masks */
 #define ICP_V2_DOMAIN_MASK_CFG_0 0x00FF00FF

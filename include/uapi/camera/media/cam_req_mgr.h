@@ -371,7 +371,11 @@ struct cam_req_mgr_link_properties {
 #define CAM_MEM_FLAG_EVA_NOPIXEL                (1<<15)
 #define CAM_MEM_FLAG_HW_AND_CDM_OR_SHARED       (1<<16)
 #define CAM_MEM_FLAG_UBWC_P_HEAP                (1<<17)
+/* Allocation forced to camera heap */
+#define CAM_MEM_FLAG_USE_CAMERA_HEAP_ONLY       (1<<18)
 
+/* Allocation forced to system heap */
+#define CAM_MEM_FLAG_USE_SYS_HEAP_ONLY          (1<<19)
 
 #define CAM_MEM_MMU_MAX_HANDLE                  16
 
@@ -434,6 +438,7 @@ struct cam_req_mgr_link_properties {
  * Feature mask returned in query_cap
  */
 #define CAM_REQ_MGR_MEM_UBWC_P_HEAP_SUPPORTED   BIT(0)
+#define CAM_REQ_MGR_MEM_CAMERA_HEAP_SUPPORTED   BIT(1)
 
 /**
  * struct cam_req_mgr_query_cap

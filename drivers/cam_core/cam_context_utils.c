@@ -387,7 +387,6 @@ static void cam_context_sync_callback(int32_t sync_obj, int status, void *data)
 			req->flushed = 0;
 			req->ctx = NULL;
 			mutex_unlock(&ctx->sync_mutex);
-			cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 			spin_lock(&ctx->lock);
 			list_del_init(&req->list);
 			list_add_tail(&req->list, &ctx->free_req_list);

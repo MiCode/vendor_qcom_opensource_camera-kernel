@@ -1795,11 +1795,12 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_980_reg_info = {
 	.path_reg[CAM_IFE_PIX_PATH_RES_RDI_4] = &cam_ife_csid_980_rdi_4_reg_info,
 	.ipp_mc_reg                           = &cam_ife_csid_980_ipp_mc_reg_info,
 	.need_top_cfg = 0x0,
+	.top_irq_desc        = &cam_ife_csid_980_top_irq_desc,
 	.rx_irq_desc         = &cam_ife_csid_980_rx_irq_desc,
 	.path_irq_desc       = cam_ife_csid_980_path_irq_desc,
-	.top_irq_desc        = &cam_ife_csid_980_top_irq_desc,
 	.num_top_err_irqs    = cam_ife_csid_980_num_top_irq_desc,
 	.num_rx_err_irqs     = cam_ife_csid_980_num_rx_irq_desc,
+	.num_path_err_irqs   = ARRAY_SIZE(cam_ife_csid_980_path_irq_desc),
 	.num_top_regs        = 1,
 	.num_rx_regs         = 1,
 };
