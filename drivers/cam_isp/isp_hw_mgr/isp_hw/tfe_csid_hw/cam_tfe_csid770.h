@@ -341,8 +341,8 @@ static struct cam_tfe_csid_common_reg_offset
 	.top_tfe2_fuse_reg                            = 0xFE8,
 	.format_measure_support                       = true,
 	.format_measure_height_shift_val              = 16,
-	.format_measure_height_mask_val               = 0xe,
-	.format_measure_width_mask_val                = 0x10,
+	.format_measure_height_mask_val               = 0xFFFF,
+	.format_measure_width_mask_val                = 0xFFFF,
 	.sync_clk                                     = true,
 };
 
