@@ -2941,11 +2941,13 @@ static int cam_ife_csid_hw_ver2_config_path_data(
 		path_cfg->start_pixel = reserve->in_port->left_start;
 		path_cfg->end_pixel = reserve->in_port->left_stop;
 		CAM_DBG(CAM_ISP,
-			"CSID:%u res:%d left width %d start: %d stop:%d",
+			"CSID:%u res:%d left width %d start: %d stop:%d start line :%d end line %d",
 			csid_hw->hw_intf->hw_idx, reserve->res_id,
 			reserve->in_port->left_width,
 			reserve->in_port->left_start,
-			reserve->in_port->left_stop);
+			reserve->in_port->left_stop,
+			path_cfg->start_line,
+			path_cfg->end_line);
 	}
 
 	switch (reserve->res_id) {
@@ -3114,8 +3116,9 @@ static int cam_ife_csid_ver_config_camif(
 		if (path_cfg->horizontal_bin || path_cfg->qcfa_bin)
 			path_cfg->epoch_cfg >>= 1;
 
-		CAM_DBG(CAM_ISP, "CSID[%u] res_id: %u epoch factor: 0x%x",
-			csid_hw->hw_intf->hw_idx, reserve->res_id, path_cfg->epoch_cfg);
+		CAM_DBG(CAM_ISP, "CSID[%u] res_id: %u epoch factor: 0x%x factor %u",
+			csid_hw->hw_intf->hw_idx, reserve->res_id, path_cfg->epoch_cfg,
+			csid_reg->cmn_reg->epoch_factor);
 		break;
 	default:
 		CAM_DBG(CAM_ISP, "CSID[%u] No CAMIF epoch update for res: %u",
@@ -4076,7 +4079,8 @@ static int cam_ife_csid_ver2_program_rdi_path(
 	if (res->is_rdi_primary_res) {
 		val |= path_reg->rup_irq_mask;
 		if (path_cfg->handle_camif_irq)
-			val |= path_reg->sof_irq_mask | path_reg->eof_irq_mask;
+			val |= path_reg->sof_irq_mask | path_reg->eof_irq_mask |
+				path_reg->epoch0_irq_mask;
 	}
 
 	/* Enable secondary events dictated by HW mgr for RDI paths */

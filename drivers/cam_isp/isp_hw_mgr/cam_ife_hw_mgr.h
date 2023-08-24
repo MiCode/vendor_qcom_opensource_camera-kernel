@@ -332,7 +332,7 @@ struct cam_isp_comp_record_query {
  * @cdm_done_ts:            CDM callback done timestamp
  * @is_hw_ctx_acq:          If acquire for ife ctx is having hw ctx acquired
  * @acq_hw_ctxt_src_dst_map: Src to dst hw ctxt map for acquired pixel paths
- *
+ * @pri_rdi_out_res:         Primary RDI res for RDI only cases
  */
 struct cam_ife_hw_mgr_ctx {
 	struct list_head                          list;
@@ -400,6 +400,7 @@ struct cam_ife_hw_mgr_ctx {
 	struct timespec64                          cdm_done_ts;
 	bool                                       is_hw_ctx_acq;
 	uint32_t                                   acq_hw_ctxt_src_dst_map[CAM_ISP_MULTI_CTXT_MAX];
+	uint32_t                                   pri_rdi_out_res;
 };
 
 /**

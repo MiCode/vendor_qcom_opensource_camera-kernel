@@ -432,6 +432,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.only_master_rup                              = 1,
 	.phy_sel_base_idx                             = 1,
 	.camif_irq_support                            = true,
+	.epoch_factor                                 = 50,
 };
 
 static struct cam_ife_csid_ver2_csi2_rx_reg_info

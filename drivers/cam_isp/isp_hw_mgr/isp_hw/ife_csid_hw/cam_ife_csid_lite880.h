@@ -489,6 +489,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.phy_sel_base_idx                             = 1,
 	.timestamp_enabled_in_cfg0                    = true,
 	.camif_irq_support                            = true,
+	.epoch_factor                                 = 50,
 };
 
 static struct cam_ife_csid_ver2_csi2_rx_reg_info
@@ -757,6 +758,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.eof_irq_mask                        = 0x8,
 		.rup_aup_mask                        = 0x100010,
 		.top_irq_mask                        = {0x100,},
+		.epoch0_shift_val                    = 16,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -850,6 +852,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.eof_irq_mask                        = 0x8,
 		.rup_aup_mask                        = 0x200020,
 		.top_irq_mask                        = {0x200,},
+		.epoch0_shift_val                    = 16,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -943,6 +946,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.eof_irq_mask                        = 0x8,
 		.rup_aup_mask                        = 0x400040,
 		.top_irq_mask                        = {0x400,},
+		.epoch0_shift_val                    = 16,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -1036,6 +1040,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.eof_irq_mask                        = 0x8,
 		.rup_aup_mask                        = 0x800080,
 		.top_irq_mask                        = {0x800,},
+		.epoch0_shift_val                    = 16,
 };
 
 static struct cam_ife_csid_ver2_reg_info cam_ife_csid_lite_880_reg_info = {
