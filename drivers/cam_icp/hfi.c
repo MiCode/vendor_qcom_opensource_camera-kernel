@@ -820,21 +820,8 @@ int cam_hfi_resume(int client_handle)
 		return -EINVAL;
 	}
 
-	if (cam_common_read_poll_timeout(icp_base +
-		HFI_REG_ICP_HOST_INIT_RESPONSE,
-		HFI_POLL_DELAY_US, HFI_POLL_TIMEOUT_US,
-		(uint32_t)UINT_MAX, ICP_INIT_RESP_SUCCESS, &status)) {
-		CAM_ERR(CAM_HFI, "[%s] response poll timed out: status=0x%08x hfi hdl: %d",
-			hfi->client_name, status, client_handle);
-		return -ETIMEDOUT;
-	}
-
-	hfi_irq_enable(hfi);
-
-	CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d fw version : [0x%x]",
-		hfi->client_name, client_handle, hfi->fw_version);
-
 	hfi_mem = &hfi->map;
+
 	cam_io_w_mb((uint32_t)hfi_mem->qtbl.iova, icp_base + HFI_REG_QTBL_PTR);
 	cam_io_w_mb((uint32_t)hfi_mem->sfr_buf.iova,
 		icp_base + HFI_REG_SFR_PTR);
@@ -870,6 +857,9 @@ int cam_hfi_resume(int client_handle)
 	cam_io_w_mb((uint32_t)hfi_mem->device_mem.len,
 		icp_base + HFI_REG_DEVICE_REGION_IOVA_SIZE);
 
+	cam_io_w_mb((uint32_t)ICP_INIT_REQUEST_SET,
+		icp_base + HFI_REG_HOST_ICP_INIT_REQUEST);
+
 	CAM_DBG(CAM_HFI, "IO1 : [0x%x 0x%x] IO2 [0x%x 0x%x]",
 		hfi_mem->io_mem.iova, hfi_mem->io_mem.len,
 		hfi_mem->io_mem2.iova, hfi_mem->io_mem2.len);
@@ -886,6 +876,20 @@ int cam_hfi_resume(int client_handle)
 		hfi_mem->qtbl.iova, hfi_mem->qtbl.len,
 		hfi_mem->sfr_buf.iova, hfi_mem->sfr_buf.len,
 		hfi_mem->device_mem.iova, hfi_mem->device_mem.len);
+
+	if (cam_common_read_poll_timeout(icp_base +
+		HFI_REG_ICP_HOST_INIT_RESPONSE,
+		HFI_POLL_DELAY_US, HFI_POLL_TIMEOUT_US,
+		(uint32_t)UINT_MAX, ICP_INIT_RESP_SUCCESS, &status)) {
+		CAM_ERR(CAM_HFI, "[%s] response poll timed out: status=0x%08x hfi hdl: %d",
+			hfi->client_name, status, client_handle);
+		return -ETIMEDOUT;
+	}
+
+	hfi_irq_enable(hfi);
+
+	CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d fw version : [0x%x]",
+		hfi->client_name, client_handle, hfi->fw_version);
 
 	return rc;
 }
