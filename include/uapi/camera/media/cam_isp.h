@@ -1211,17 +1211,17 @@ struct cam_isp_vfe_wm_config_v2 {
  * @version        : Version for this structure
  * @num_ports      : Number of ports
  * @reserved       : Reserved field
- * @wm_config      : VFE out config
  * @params         : Indicate params supported, to accommodate future changes
  * @param_mask     : Indicate params supported, to accommodate future changes
+ * @wm_config      : VFE out config
  */
 struct cam_isp_vfe_out_config_v2 {
 	__u32                           version;
 	__u32                           num_ports;
 	__u32                           reserved;
-	struct cam_isp_vfe_wm_config_v2 wm_config[1];
 	__u32                           param_mask;
 	__u32                           params[5];
+	struct cam_isp_vfe_wm_config_v2 wm_config[1];
 };
 
 /**
