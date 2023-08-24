@@ -1096,6 +1096,257 @@ int cam_vfe_top_ver4_write(void *device_priv,
 	return -EPERM;
 }
 
+static int cam_vfe_top_apply_fcg_update(
+	struct cam_vfe_top_ver4_priv    *top_priv,
+	struct cam_isp_hw_fcg_update    *fcg_update,
+	struct cam_cdm_utils_ops        *cdm_util_ops)
+{
+	struct cam_isp_fcg_config_internal             *fcg_config;
+	struct cam_isp_ch_ctx_fcg_config_internal      *fcg_ch_ctx;
+	struct cam_isp_predict_fcg_config_internal     *fcg_pr;
+	struct cam_vfe_top_ver4_hw_info                *hw_info;
+	struct cam_vfe_ver4_fcg_module_info            *fcg_module_info;
+	uint32_t                                        size, fcg_index_shift;
+	uint32_t                                       *reg_val_pair;
+	uint32_t                                        num_regval_pairs = 0;
+	int                                             rc = 0, i, j = 0;
+
+	if (!top_priv || (fcg_update->prediction_idx == 0)) {
+		CAM_ERR(CAM_ISP, "Invalid args");
+		return -EINVAL;
+	}
+
+	hw_info = top_priv->common_data.hw_info;
+	fcg_config = (struct cam_isp_fcg_config_internal *)fcg_update->data;
+	if (!hw_info || !fcg_config) {
+		CAM_ERR(CAM_ISP, "Invalid config params");
+		return -EINVAL;
+	}
+
+	fcg_module_info = hw_info->fcg_module_info;
+	if (!fcg_module_info) {
+		CAM_ERR(CAM_ISP, "Invalid FCG common data");
+		return -EINVAL;
+	}
+
+	reg_val_pair = kcalloc(fcg_module_info->max_reg_val_pair_size, sizeof(uint32_t),
+		GFP_KERNEL);
+	if (!reg_val_pair) {
+		CAM_ERR(CAM_ISP, "Failed allocating memory for reg val pair");
+		return -ENOMEM;
+	}
+
+	fcg_index_shift = fcg_module_info->fcg_index_shift;
+	for (i = 0, j = 0; i < fcg_config->num_ch_ctx; i++) {
+		if (j >= fcg_module_info->max_reg_val_pair_size) {
+			CAM_ERR(CAM_ISP, "reg_val_pair %d exceeds the array limit %u",
+				j, fcg_module_info->max_reg_val_pair_size);
+			rc = -ENOMEM;
+			goto kfree;
+		}
+
+		fcg_ch_ctx = &fcg_config->ch_ctx_fcg_configs[i];
+		if (!fcg_ch_ctx) {
+			CAM_ERR(CAM_ISP, "Failed in FCG channel/context dereference");
+			rc = -EINVAL;
+			goto kfree;
+		}
+
+		fcg_pr = &fcg_ch_ctx->predicted_fcg_configs[
+			fcg_update->prediction_idx - 1];
+
+		/* For VFE/MC_TFE, only PHASE should be enabled */
+		if (fcg_ch_ctx->fcg_enable_mask & CAM_ISP_FCG_ENABLE_PHASE) {
+			switch (fcg_ch_ctx->fcg_ch_ctx_id) {
+			/* Same value as CAM_ISP_FCG_MASK_CH0/1/2 to support both VFE and MC_TFE */
+			case CAM_ISP_MULTI_CTXT0_MASK:
+				if (hw_info->fcg_mc_supported) {
+					CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+						fcg_module_info->fcg_reg_ctxt_sel,
+						(fcg_module_info->fcg_reg_ctxt_mask &
+						(fcg_ch_ctx->fcg_ch_ctx_id <<
+						fcg_module_info->fcg_reg_ctxt_shift)));
+					CAM_DBG(CAM_ISP,
+						"Program FCG registers for MC_TFE, ch_ctx_id: 0x%x, sel_wr: 0x%x",
+						fcg_ch_ctx->fcg_ch_ctx_id,
+						(fcg_module_info->fcg_reg_ctxt_mask &
+						(fcg_ch_ctx->fcg_ch_ctx_id <<
+						fcg_module_info->fcg_reg_ctxt_shift)));
+				}
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					fcg_module_info->fcg_phase_index_cfg_0,
+					(fcg_pr->phase_index_r |
+					(fcg_pr->phase_index_g << fcg_index_shift)));
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					fcg_module_info->fcg_phase_index_cfg_1,
+					fcg_pr->phase_index_b);
+				CAM_DBG(CAM_ISP,
+					"Program FCG registers for IFE/MC_TFE, ch_ctx_id: 0x%x, phase_index_cfg_0: %u, phase_index_cfg_1: %u",
+					fcg_ch_ctx->fcg_ch_ctx_id,
+					(fcg_pr->phase_index_r |
+					(fcg_pr->phase_index_g << fcg_index_shift)),
+					fcg_pr->phase_index_b);
+				break;
+			case CAM_ISP_MULTI_CTXT1_MASK:
+			case CAM_ISP_MULTI_CTXT2_MASK:
+				if (!hw_info->fcg_mc_supported) {
+					CAM_ERR(CAM_ISP,
+						"No support for multi context for FCG on ch_ctx_id: 0x%x",
+						fcg_ch_ctx->fcg_ch_ctx_id);
+					rc = -EINVAL;
+					goto kfree;
+				}
+
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					fcg_module_info->fcg_reg_ctxt_sel,
+					(fcg_module_info->fcg_reg_ctxt_mask &
+					(fcg_ch_ctx->fcg_ch_ctx_id <<
+					fcg_module_info->fcg_reg_ctxt_shift)));
+				CAM_DBG(CAM_ISP,
+					"Program FCG registers for MC_TFE, ch_ctx_id: 0x%x, sel_wr: 0x%x",
+					fcg_ch_ctx->fcg_ch_ctx_id,
+					(fcg_module_info->fcg_reg_ctxt_mask &
+					(fcg_ch_ctx->fcg_ch_ctx_id <<
+					fcg_module_info->fcg_reg_ctxt_shift)));
+
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					fcg_module_info->fcg_phase_index_cfg_0,
+					(fcg_pr->phase_index_r |
+					(fcg_pr->phase_index_g << fcg_index_shift)));
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					fcg_module_info->fcg_phase_index_cfg_1,
+					fcg_pr->phase_index_b);
+				CAM_DBG(CAM_ISP,
+					"Program FCG registers for MC_TFE, ch_ctx_id: 0x%x, phase_index_cfg_0: %u, phase_index_cfg_1: %u",
+					fcg_ch_ctx->fcg_ch_ctx_id,
+					(fcg_pr->phase_index_r |
+					(fcg_pr->phase_index_g << fcg_index_shift)),
+					fcg_pr->phase_index_b);
+				break;
+			default:
+				CAM_ERR(CAM_ISP, "Unsupported ch_ctx_id: 0x%x",
+					fcg_ch_ctx->fcg_ch_ctx_id);
+				rc = -EINVAL;
+				goto kfree;
+			}
+		}
+	}
+
+	num_regval_pairs = j / 2;
+
+	if (num_regval_pairs) {
+		size = cdm_util_ops->cdm_required_size_reg_random(
+			num_regval_pairs);
+
+		if ((size * 4) != fcg_update->cmd_size) {
+			CAM_ERR(CAM_ISP,
+				"Failed! Buf size:%d is wrong, expected size: %d",
+				fcg_update->cmd_size, size * 4);
+			rc = -ENOMEM;
+			goto kfree;
+		}
+
+		cdm_util_ops->cdm_write_regrandom(
+			(uint32_t *)fcg_update->cmd_buf_addr,
+			num_regval_pairs, reg_val_pair);
+	} else {
+		CAM_WARN(CAM_ISP, "No reg val pairs");
+	}
+
+kfree:
+	kfree(reg_val_pair);
+	return rc;
+}
+
+static int cam_vfe_top_get_fcg_buf_size(
+	struct cam_vfe_top_ver4_priv    *top_priv,
+	struct cam_isp_hw_fcg_get_size  *fcg_get_size,
+	struct cam_cdm_utils_ops        *cdm_util_ops)
+{
+	struct cam_vfe_top_ver4_hw_info                *hw_info;
+	struct cam_vfe_ver4_fcg_module_info            *fcg_module_info;
+	uint32_t                                        num_types, num_reg_val;
+
+	if (!top_priv) {
+		CAM_ERR(CAM_ISP, "Invalid args");
+		return -EINVAL;
+	}
+
+	hw_info = top_priv->common_data.hw_info;
+	if (!hw_info) {
+		CAM_ERR(CAM_ISP, "Invalid config params");
+		return -EINVAL;
+	}
+
+	if (!hw_info->fcg_supported &&
+		!hw_info->fcg_mc_supported) {
+		fcg_get_size->fcg_supported = false;
+		CAM_DBG(CAM_ISP, "FCG is not supported by hardware");
+		return 0;
+	}
+
+	fcg_module_info = hw_info->fcg_module_info;
+	fcg_get_size->fcg_supported = true;
+	num_types = fcg_get_size->num_types;
+	if (num_types == 0) {
+		CAM_ERR(CAM_ISP, "Number of types(STATS/PHASE) requested is empty");
+		return -EINVAL;
+	}
+
+	num_reg_val = num_types * fcg_module_info->fcg_type_size;
+
+	/* Count for wr_sel register in MC_TFE */
+	if (hw_info->fcg_mc_supported)
+		num_reg_val += fcg_get_size->num_ctxs;
+
+	fcg_get_size->kmd_size =
+		cdm_util_ops->cdm_required_size_reg_random(num_reg_val);
+	return 0;
+}
+
+static int cam_vfe_top_fcg_config(
+	struct cam_vfe_top_ver4_priv    *top_priv,
+	void                            *cmd_args,
+	uint32_t                         arg_size)
+{
+	struct cam_isp_hw_fcg_cmd       *fcg_cmd;
+	struct cam_cdm_utils_ops        *cdm_util_ops;
+	int rc;
+
+	if (arg_size != sizeof(struct cam_isp_hw_fcg_cmd)) {
+		CAM_ERR(CAM_ISP, "Invalid cmd size, arg_size: %d, expected size: %d",
+			arg_size, sizeof(struct cam_isp_hw_fcg_cmd));
+		return -EINVAL;
+	}
+
+	fcg_cmd = (struct cam_isp_hw_fcg_cmd *) cmd_args;
+	if (!fcg_cmd || !fcg_cmd->res) {
+		CAM_ERR(CAM_ISP, "Invalid cmd args");
+		return -EINVAL;
+	}
+
+	cdm_util_ops =
+		(struct cam_cdm_utils_ops *)fcg_cmd->res->cdm_ops;
+	if (!cdm_util_ops) {
+		CAM_ERR(CAM_ISP, "Invalid CDM ops");
+		return -EINVAL;
+	}
+
+	if (fcg_cmd->get_size_flag) {
+		struct cam_isp_hw_fcg_get_size  *fcg_get_size;
+
+		fcg_get_size = &fcg_cmd->u.fcg_get_size;
+		rc = cam_vfe_top_get_fcg_buf_size(top_priv, fcg_get_size, cdm_util_ops);
+	} else {
+		struct cam_isp_hw_fcg_update    *fcg_update;
+
+		fcg_update = &fcg_cmd->u.fcg_update;
+		rc = cam_vfe_top_apply_fcg_update(top_priv, fcg_update, cdm_util_ops);
+	}
+
+	return rc;
+}
+
 int cam_vfe_top_ver4_process_cmd(void *device_priv, uint32_t cmd_type,
 	void *cmd_args, uint32_t arg_size)
 {
@@ -1206,6 +1457,9 @@ int cam_vfe_top_ver4_process_cmd(void *device_priv, uint32_t cmd_type,
 			rc = cam_vfe_top_ver4_set_primary_sof_timer_reg_addr(top_priv,
 				sof_addr_args);
 	}
+		break;
+	case CAM_ISP_HW_CMD_FCG_CONFIG:
+		rc = cam_vfe_top_fcg_config(top_priv, cmd_args, arg_size);
 		break;
 	default:
 		rc = -EINVAL;

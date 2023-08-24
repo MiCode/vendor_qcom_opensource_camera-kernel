@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SFE_TOP_H_
@@ -118,14 +118,30 @@ struct cam_sfe_top_common_reg_offset {
 	uint32_t top_debug[CAM_SFE_TOP_DBG_REG_MAX];
 };
 
+struct cam_sfe_fcg_module_info {
+	uint32_t fcg_index_shift;
+	uint32_t max_reg_val_pair_size;
+	uint32_t fcg_type_size;
+	uint32_t fcg_ch1_phase_index_cfg_0;
+	uint32_t fcg_ch1_phase_index_cfg_1;
+	uint32_t fcg_ch2_phase_index_cfg_0;
+	uint32_t fcg_ch2_phase_index_cfg_1;
+	uint32_t fcg_ch1_stats_phase_index_cfg_0;
+	uint32_t fcg_ch1_stats_phase_index_cfg_1;
+	uint32_t fcg_ch2_stats_phase_index_cfg_0;
+	uint32_t fcg_ch2_stats_phase_index_cfg_1;
+};
+
 struct cam_sfe_modules_common_reg_offset {
-	uint32_t demux_module_cfg;
-	uint32_t demux_xcfa_cfg;
-	uint32_t demux_hdr_cfg;
-	uint32_t demux_lcr_sel;
-	uint32_t hdrc_remo_mod_cfg;
-	uint32_t hdrc_remo_xcfa_bin_cfg;
-	uint32_t xcfa_hdrc_remo_out_mux_cfg;
+	uint32_t                                demux_module_cfg;
+	uint32_t                                demux_xcfa_cfg;
+	uint32_t                                demux_hdr_cfg;
+	uint32_t                                demux_lcr_sel;
+	uint32_t                                hdrc_remo_mod_cfg;
+	uint32_t                                hdrc_remo_xcfa_bin_cfg;
+	uint32_t                                xcfa_hdrc_remo_out_mux_cfg;
+	struct cam_sfe_fcg_module_info         *fcg_module_info;
+	bool                                    fcg_supported;
 };
 
 struct cam_sfe_top_common_reg_data {

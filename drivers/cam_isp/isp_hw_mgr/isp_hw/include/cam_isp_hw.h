@@ -190,6 +190,7 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_BW_UPDATE,
 	CAM_ISP_HW_CMD_BW_UPDATE_V2,
 	CAM_ISP_HW_CMD_BW_CONTROL,
+	CAM_ISP_HW_CMD_FCG_CONFIG,
 	CAM_ISP_HW_CMD_STOP_BUS_ERR_IRQ,
 	CAM_ISP_HW_CMD_GET_REG_DUMP,
 	CAM_ISP_HW_CMD_UBWC_UPDATE,
@@ -443,10 +444,65 @@ struct cam_isp_hw_get_res_for_mid {
 	uint32_t                       out_res_id;
 };
 
+/**
+ * struct cam_isp_hw_fcg_get_size:
+ *
+ * @Brief:            Get the size of KMD buf FCG config needs
+ *
+ * @num_types:        Num of types(STATS/PHASE) for each FCG config
+ * @num_ctxs:         Num of contexts for each FCG config in MC_TFE
+ * @kmd_size:         Size of KMD buffer that will be used for FCG
+ * @fcg_supported:    Indicate whether FCG is supported by the hardware
+ */
+struct cam_isp_hw_fcg_get_size {
+	uint32_t                                     num_types;
+	uint32_t                                     num_ctxs;
+	uint32_t                                     kmd_size;
+	bool                                         fcg_supported;
+};
+
+/**
+ * struct cam_isp_hw_fcg_update:
+ *
+ * @Brief:            Get FCG update and pass to lower level processing
+ *
+ * @cmd_addr:         Command buffer address that FCG configs are written into
+ * @cmd_size:         Size of the command
+ * @prediction_idx:   Indicate exact FCG predictions to be used
+ * @data:             Exact FCG configs
+ */
+struct cam_isp_hw_fcg_update {
+	uintptr_t                                    cmd_buf_addr;
+	uint32_t                                     cmd_size;
+	uint32_t                                     prediction_idx;
+	void                                        *data;
+};
+
+/**
+ * struct cam_isp_hw_fcg_cmd
+ *
+ * @Brief:            Union struct for fcg related cmd
+ *
+ * @res:              Resource node
+ * @cmd_type:         Command type
+ * @get_size_flag:    Indicate to get kmd size for FCG or apply FCG update
+ *                    True - Get the size of KMD buffer to carry reg/val pairs
+ *                    False - Apply FCG update and pass it to SFE/IFE/MC_TFE
+ */
+struct cam_isp_hw_fcg_cmd {
+	struct cam_isp_resource_node                *res;
+	enum cam_isp_hw_cmd_type                     cmd_type;
+	bool                                         get_size_flag;
+	union {
+		struct cam_isp_hw_fcg_update         fcg_update;
+		struct cam_isp_hw_fcg_get_size       fcg_get_size;
+	} u;
+};
+
 /*
  * struct cam_isp_hw_get_cmd_update:
  *
- * @Brief:          Get cmd buffer update for different CMD types
+ * @Brief:           Get cmd buffer update for different CMD types
  *
  * @res:             Resource node
  * @cmd_type:        Command type for which to get update

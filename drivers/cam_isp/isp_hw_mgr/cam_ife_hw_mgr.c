@@ -47,7 +47,6 @@
 #define MAX_PARAMS_FOR_IRQ_INJECT     5
 #define IRQ_INJECT_DISPLAY_BUF_LEN    4096
 
-
 typedef int (*cam_isp_irq_inject_cmd_parse_handler)(
 	struct cam_isp_irq_inject_param *irq_inject_param,
 	uint32_t param_index, char *token, bool *is_query);
@@ -6984,9 +6983,124 @@ static int cam_ife_hw_mgr_irq_injection(struct cam_ife_hw_mgr *hw_mgr,
 	return rc;
 }
 
+static int cam_isp_blob_fcg_update(
+	struct cam_isp_fcg_config_internal *fcg_config_internal,
+	uint32_t                            entry_idx,
+	uint32_t                            prediction_idx,
+	struct list_head                   *res_list_isp_src,
+	struct cam_hw_config_args          *cfg)
+{
+	struct cam_isp_resource_node                *res;
+	struct cam_isp_hw_mgr_res                   *hw_mgr_res;
+	struct cam_isp_hw_fcg_cmd                    fcg_cmd;
+	struct cam_hw_update_entry                  *hw_entry;
+	uint32_t                                     i;
+	int                                          rc = -EINVAL;
+
+	list_for_each_entry(hw_mgr_res, res_list_isp_src, list) {
+		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)
+			continue;
+
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			if (!hw_mgr_res->hw_res[i])
+				continue;
+
+			if (entry_idx >= cfg->num_hw_update_entries) {
+				CAM_ERR(CAM_ISP,
+					"Entry index %d exceed number of hw update entries %u, request id %llu",
+					entry_idx, cfg->num_hw_update_entries, cfg->request_id);
+				return -EINVAL;
+			}
+
+			hw_entry = &cfg->hw_update_entries[entry_idx];
+			res = hw_mgr_res->hw_res[i];
+
+			fcg_cmd.res = res;
+			fcg_cmd.cmd_type = CAM_ISP_HW_CMD_FCG_CONFIG;
+			fcg_cmd.get_size_flag = false;
+			fcg_cmd.u.fcg_update.cmd_size = hw_entry->len;
+			fcg_cmd.u.fcg_update.cmd_buf_addr = hw_entry->addr;
+			fcg_cmd.u.fcg_update.data = (void *)fcg_config_internal;
+
+			/* This prediction sent from userspace is insufficient */
+			if (prediction_idx > fcg_config_internal->num_predictions)
+				prediction_idx = fcg_config_internal->num_predictions;
+			fcg_cmd.u.fcg_update.prediction_idx = prediction_idx;
+
+			CAM_DBG(CAM_ISP,
+				"Replace FCG config with predicted ones, prediction idx: %d, request id: %llu",
+				prediction_idx, cfg->request_id);
+			rc = res->hw_intf->hw_ops.process_cmd(
+				res->hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_FCG_CONFIG,
+				&fcg_cmd, sizeof(struct cam_isp_hw_fcg_cmd));
+			if (rc) {
+				CAM_ERR(CAM_ISP,
+					"Failed in writing FCG values to the hw update entry, rc: %d, request id: %llu",
+					rc, cfg->request_id);
+				return rc;
+			}
+			return 0;
+		}
+	}
+
+	CAM_DBG(CAM_ISP,
+		"No matching ISP resources when filling FCG hw update entry, request id: %llu",
+		cfg->request_id);
+	return rc;
+}
+
+static inline int cam_ife_mgr_apply_fcg_update(
+	struct cam_ife_hw_mgr_ctx             *ctx,
+	struct cam_isp_prepare_hw_update_data *hw_update_data,
+	struct cam_hw_config_args             *cfg)
+{
+	int rc = 0;
+	struct cam_isp_fcg_config_internal *fcg_configs;
+
+	if (hw_update_data->fcg_info.ife_fcg_online &&
+		!hw_update_data->fcg_info.use_current_cfg) {
+		CAM_DBG(CAM_ISP, "Start writing IFE/MC_TFE FCG configs to kmd buffer on ctx: %d",
+			ctx->ctx_index);
+
+		fcg_configs = &hw_update_data->fcg_info.ife_fcg_config;
+		rc = cam_isp_blob_fcg_update(fcg_configs,
+			hw_update_data->fcg_info.ife_fcg_entry_idx,
+			hw_update_data->fcg_info.prediction_idx,
+			&ctx->res_list_ife_src, cfg);
+		if (rc) {
+			CAM_ERR(CAM_ISP,
+				"Failed in applying IFE/MC_TFE FCG configurations, ctx_idx: %u",
+				ctx->ctx_index);
+			return rc;
+		}
+	}
+
+	if (hw_update_data->fcg_info.sfe_fcg_online &&
+		!hw_update_data->fcg_info.use_current_cfg) {
+		CAM_DBG(CAM_ISP, "Start writing SFE FCG configs to kmd buffer on ctx: %d",
+			ctx->ctx_index);
+
+		fcg_configs = &hw_update_data->fcg_info.sfe_fcg_config;
+		rc = cam_isp_blob_fcg_update(fcg_configs,
+			hw_update_data->fcg_info.sfe_fcg_entry_idx,
+			hw_update_data->fcg_info.prediction_idx,
+			&ctx->res_list_sfe_src, cfg);
+		if (rc) {
+			CAM_ERR(CAM_ISP,
+				"Failed in applying SFE FCG configurations, ctx_idx: %u",
+				ctx->ctx_index);
+			return rc;
+		}
+	}
+
+	return rc;
+}
+
 /* entry function: config_hw */
-static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
-					void *config_hw_args)
+static int cam_ife_mgr_config_hw(
+	void *hw_mgr_priv,
+	void *config_hw_args)
 {
 	int rc, i, skip = 0;
 	struct cam_hw_config_args *cfg;
@@ -7163,6 +7277,11 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 	}
 
 skip_bw_clk_update:
+	rc = cam_ife_mgr_apply_fcg_update(ctx, hw_update_data, cfg);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed in updating FCG values", ctx->ctx_index);
+		return rc;
+	}
 
 	CAM_DBG(CAM_ISP,
 		"Enter ctx id:%u num_hw_upd_entries %d request id: %llu",
@@ -7196,6 +7315,30 @@ skip_bw_clk_update:
 				cmd->flags >= CAM_ISP_BL_MAX)
 				CAM_ERR(CAM_ISP, "Unexpected BL type %d, ctx_idx=%u",
 					cmd->flags, ctx->ctx_index);
+
+			if (hw_update_data->fcg_info.ife_fcg_online &&
+				(hw_update_data->fcg_info.ife_fcg_entry_idx == i)) {
+				CAM_DBG(CAM_ISP,
+					"IFE/MC_TFE FCG hw entry is detected, num_ent: %d, ctx_idx: %u, request id: %llu, use current cfg: %d",
+					i, ctx->ctx_index, cfg->request_id,
+					hw_update_data->fcg_info.use_current_cfg);
+				if (hw_update_data->fcg_info.use_current_cfg) {
+					skip++;
+					continue;
+				}
+			}
+
+			if (hw_update_data->fcg_info.sfe_fcg_online &&
+				(hw_update_data->fcg_info.sfe_fcg_entry_idx == i)) {
+				CAM_DBG(CAM_ISP,
+					"SFE FCG hw entry is detected, num_ent: %d, ctx_idx: %u, request id: %llu, use current cfg: %d",
+					i, ctx->ctx_index, cfg->request_id,
+					hw_update_data->fcg_info.use_current_cfg);
+				if (hw_update_data->fcg_info.use_current_cfg) {
+					skip++;
+					continue;
+				}
+			}
 
 			cdm_cmd->cmd[i - skip].bl_addr.mem_handle = cmd->handle;
 			cdm_cmd->cmd[i - skip].offset = cmd->offset;
@@ -10639,6 +10782,182 @@ static int cam_isp_validate_scratch_buffer_blob(
 	return 0;
 }
 
+static void cam_isp_copy_fcg_config(
+	struct cam_isp_fcg_config_internal    *fcg_args_internal,
+	struct cam_isp_generic_fcg_config     *fcg_args)
+{
+	struct cam_isp_ch_ctx_fcg_config_internal    *fcg_ch_ctx_internal;
+	struct cam_isp_ch_ctx_fcg_config             *fcg_ch_ctx;
+	struct cam_isp_predict_fcg_config_internal   *fcg_predict_internal;
+	struct cam_isp_predict_fcg_config            *fcg_predict;
+	uint32_t fcg_ch_ctx_size, num_types = 0;
+	int i, j;
+
+	/* Copy generic FCG config */
+	fcg_args_internal->num_ch_ctx = fcg_args->num_ch_ctx;
+	fcg_args_internal->num_predictions = fcg_args->num_predictions;
+	fcg_ch_ctx_size = sizeof(struct cam_isp_ch_ctx_fcg_config) +
+		(fcg_args->num_predictions - 1) *
+		sizeof(struct cam_isp_predict_fcg_config);
+
+	/* Copy channel/context FCG config */
+	for (i = 0; i < fcg_args->num_ch_ctx; i++) {
+		fcg_ch_ctx_internal = &fcg_args_internal->ch_ctx_fcg_configs[i];
+		fcg_ch_ctx = (struct cam_isp_ch_ctx_fcg_config *)
+			((void *)(fcg_args->ch_ctx_fcg_configs) +
+			i * fcg_ch_ctx_size);
+
+		fcg_ch_ctx_internal->fcg_ch_ctx_id =
+			fcg_ch_ctx->fcg_ch_ctx_id;
+		fcg_ch_ctx_internal->fcg_enable_mask =
+			fcg_ch_ctx->fcg_enable_mask;
+		if (fcg_ch_ctx->fcg_enable_mask & CAM_ISP_FCG_ENABLE_PHASE) {
+			for (j = 0; j < fcg_args->num_predictions; j++) {
+				fcg_predict_internal =
+					&fcg_ch_ctx_internal->predicted_fcg_configs[j];
+				fcg_predict = &fcg_ch_ctx->predicted_fcg_configs[j];
+
+				/* Copy 3 PHASE related values for R/G/B channel */
+				fcg_predict_internal->phase_index_b =
+					fcg_predict->phase_index_b;
+				fcg_predict_internal->phase_index_r =
+					fcg_predict->phase_index_r;
+				fcg_predict_internal->phase_index_g =
+					fcg_predict->phase_index_g;
+				CAM_DBG(CAM_ISP,
+					"Copy FCG PHASE config on ch 0x%x, prediction idx %d, phase_index_g: %u, phase_index_r: %u, phase_index_b: %u",
+					fcg_ch_ctx_internal->fcg_ch_ctx_id, j,
+					fcg_predict_internal->phase_index_g,
+					fcg_predict_internal->phase_index_r,
+					fcg_predict_internal->phase_index_b);
+			}
+			num_types += 1;
+		}
+		if (fcg_ch_ctx->fcg_enable_mask & CAM_ISP_FCG_ENABLE_STATS) {
+			for (j = 0; j < fcg_args->num_predictions; j++) {
+				fcg_predict_internal =
+					&fcg_ch_ctx_internal->predicted_fcg_configs[j];
+				fcg_predict = &fcg_ch_ctx->predicted_fcg_configs[j];
+
+				/* Copy 3 STATS related values for R/G/B channel */
+				fcg_predict_internal->stats_index_b =
+					fcg_predict->stats_index_b;
+				fcg_predict_internal->stats_index_r =
+					fcg_predict->stats_index_r;
+				fcg_predict_internal->stats_index_g =
+					fcg_predict->stats_index_g;
+				CAM_DBG(CAM_ISP,
+					"Copy FCG STATS config on ch 0x%x, prediction idx %d, stats_index_g: %u, stats_index_r: %u, stats_index_b: %u",
+					fcg_ch_ctx_internal->fcg_ch_ctx_id, j,
+					fcg_predict_internal->stats_index_g,
+					fcg_predict_internal->stats_index_r,
+					fcg_predict_internal->stats_index_b);
+			}
+			num_types += 1;
+		}
+	}
+	fcg_args_internal->num_types = num_types;
+	CAM_DBG(CAM_ISP,
+		"Inspect on copied FCG config, num_types: %u, num_ch_ctx: %u, num_predictions: %u",
+		num_types, fcg_args_internal->num_ch_ctx,
+		fcg_args_internal->num_predictions);
+}
+
+static int cam_isp_blob_fcg_config_prepare(
+	struct cam_isp_generic_fcg_config     *fcg_config_args,
+	struct cam_hw_prepare_update_args     *prepare,
+	enum cam_isp_hw_type                   hw_type)
+{
+	struct cam_ife_hw_mgr_ctx             *ctx = NULL;
+	struct cam_isp_prepare_hw_update_data *prepare_hw_data;
+	struct cam_isp_fcg_config_info        *fcg_info;
+	uint32_t                               fcg_size;
+	uint64_t                               request_id;
+
+	ctx = prepare->ctxt_to_hw_map;
+	request_id = prepare->packet->header.request_id;
+	prepare_hw_data = (struct cam_isp_prepare_hw_update_data *) prepare->priv;
+	fcg_info = &(prepare_hw_data->fcg_info);
+
+	if ((hw_type == CAM_ISP_HW_TYPE_SFE) &&
+		fcg_info->sfe_fcg_online) {
+		CAM_ERR(CAM_ISP,
+			"SFE FCG config is sent more than once, ctx_id: %u, request_id: %llu",
+			ctx->ctx_index, request_id);
+		return -EINVAL;
+	}
+
+	if ((hw_type == CAM_ISP_HW_TYPE_VFE) &&
+		fcg_info->ife_fcg_online) {
+		CAM_ERR(CAM_ISP,
+			"IFE/MC_TFE FCG config is sent more than once, ctx_id: %u, request_id: %llu",
+			ctx->ctx_index, request_id);
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_ISP,
+		"Start storing FCG config in req_isp on ctx_idx: %u, hw_type: %d, request_id: %llu",
+		ctx->ctx_index, hw_type, request_id);
+
+	fcg_size = sizeof(struct cam_isp_generic_fcg_config);
+	fcg_size += (fcg_config_args->num_ch_ctx - 1) *
+		sizeof(struct cam_isp_ch_ctx_fcg_config);
+	fcg_size += fcg_config_args->num_ch_ctx *
+		(fcg_config_args->num_predictions - 1) *
+		sizeof(struct cam_isp_predict_fcg_config);
+
+	if (fcg_size != fcg_config_args->size) {
+		CAM_ERR(CAM_ISP,
+			"Mismatched size between userspace provides and real comsumption %u - %u, ctx_idx: %u, request_id: %llu",
+			fcg_config_args->size, fcg_size,
+			ctx->ctx_index, request_id);
+		return -EINVAL;
+	}
+
+	switch (hw_type) {
+	case CAM_ISP_HW_TYPE_SFE:
+		fcg_info->sfe_fcg_online = true;
+		cam_isp_copy_fcg_config(&fcg_info->sfe_fcg_config,
+			fcg_config_args);
+		break;
+	case CAM_ISP_HW_TYPE_VFE:
+		fcg_info->ife_fcg_online = true;
+		cam_isp_copy_fcg_config(&fcg_info->ife_fcg_config,
+			fcg_config_args);
+		break;
+	default:
+		CAM_ERR(CAM_ISP,
+			"Failed in parsing FCG configuration for hw_type: %u, ctx_idx: %u, request_id: %llu",
+			hw_type, ctx->ctx_index, request_id);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int cam_isp_validate_fcg_configs(
+	struct cam_isp_generic_fcg_config *fcg_config_args,
+	uint32_t                           max_fcg_ch_ctx,
+	uint32_t                           max_fcg_predictions,
+	struct cam_ife_hw_mgr_ctx         *ife_mgr_ctx)
+{
+	if ((fcg_config_args->num_ch_ctx > max_fcg_ch_ctx) ||
+		(fcg_config_args->num_ch_ctx == 0)) {
+		CAM_ERR(CAM_ISP, "Invalid num of channels/contexts %u in FCG config, ctx_idx: %u",
+			fcg_config_args->num_ch_ctx, ife_mgr_ctx->ctx_index);
+		return -EINVAL;
+	}
+
+	if ((fcg_config_args->num_predictions > max_fcg_predictions) ||
+		(fcg_config_args->num_predictions == 0)) {
+		CAM_ERR(CAM_ISP, "Invalid num of predictions %u in FCG config, ctx_idx: %u",
+			fcg_config_args->num_predictions, ife_mgr_ctx->ctx_index);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int cam_isp_packet_generic_blob_handler(void *user_data,
 	uint32_t blob_type, uint32_t blob_size, uint8_t *blob_data)
 {
@@ -11266,12 +11585,46 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 				rc, ife_mgr_ctx->ctx_index);
 	}
 		break;
+	case CAM_ISP_GENERIC_BLOB_TYPE_IFE_FCG_CFG: {
+		struct cam_isp_generic_fcg_config *fcg_config_args;
+
+		if (blob_size <
+			sizeof(struct cam_isp_generic_fcg_config)) {
+			CAM_ERR(CAM_ISP, "Invalid blob size %u, fcg config size: %u, ctx_idx: %u",
+				blob_size,
+				sizeof(struct cam_isp_generic_fcg_config),
+				ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		fcg_config_args =
+			(struct cam_isp_generic_fcg_config *)blob_data;
+
+		rc = cam_isp_validate_fcg_configs(fcg_config_args,
+			CAM_ISP_IFE_MAX_FCG_CH_CTXS,
+			CAM_ISP_IFE_MAX_FCG_PREDICTIONS,
+			ife_mgr_ctx);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Failed in validating FCG configs, ctx_idx: %u",
+				ife_mgr_ctx->ctx_index);
+			return rc;
+		}
+
+		rc = cam_isp_blob_fcg_config_prepare(fcg_config_args,
+			prepare, CAM_ISP_HW_TYPE_VFE);
+		if (rc)
+			CAM_ERR(CAM_ISP,
+				"FCG configuration preparation failed, rc: %d, ctx_idx: %d",
+				rc, ife_mgr_ctx->ctx_index);
+	}
+		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_CLOCK_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_CORE_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_OUT_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_HFR_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_FE_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_EXP_ORDER_CFG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_FCG_CFG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_FPS_CONFIG:
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_IRQ_COMP_CFG:
@@ -11567,6 +11920,8 @@ static int cam_csid_packet_generic_blob_handler(void *user_data,
 	case CAM_ISP_GENERIC_BLOB_TYPE_INIT_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_RDI_LCR_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_FCG_CFG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_IFE_FCG_CFG:
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_IRQ_COMP_CFG: {
 		struct cam_isp_irq_comp_cfg *irq_comp_cfg;
@@ -11952,6 +12307,40 @@ static int cam_sfe_packet_generic_blob_handler(void *user_data,
 				rc, ife_mgr_ctx->ctx_index);
 	}
 		break;
+	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_FCG_CFG: {
+		struct cam_isp_generic_fcg_config *fcg_config_args;
+
+		if (blob_size <
+			sizeof(struct cam_isp_generic_fcg_config)) {
+			CAM_ERR(CAM_ISP, "Invalid blob size %u, fcg config size: %u, ctx_idx: %u",
+				blob_size,
+				sizeof(struct cam_isp_generic_fcg_config),
+				ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		fcg_config_args =
+			(struct cam_isp_generic_fcg_config *)blob_data;
+
+		rc = cam_isp_validate_fcg_configs(fcg_config_args,
+			CAM_ISP_SFE_MAX_FCG_CHANNELS,
+			CAM_ISP_SFE_MAX_FCG_PREDICTIONS,
+			ife_mgr_ctx);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Failed in validating FCG configs, ctx_idx: %u",
+				ife_mgr_ctx->ctx_index);
+			return rc;
+		}
+
+		rc = cam_isp_blob_fcg_config_prepare(fcg_config_args,
+			prepare, CAM_ISP_HW_TYPE_SFE);
+		if (rc)
+			CAM_ERR(CAM_ISP,
+				"FCG configuration preparation failed, rc: %d, ctx_idx: %d",
+				rc, ife_mgr_ctx->ctx_index);
+	}
+		break;
+	case CAM_ISP_GENERIC_BLOB_TYPE_IFE_FCG_CFG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_HFR_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_CLOCK_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG:
@@ -12547,6 +12936,84 @@ add_cmds:
 	return rc;
 }
 
+static int cam_ife_hw_mgr_add_fcg_update(
+	struct cam_hw_prepare_update_args       *prepare,
+	struct cam_kmd_buf_info                 *kmd_buf_info,
+	struct cam_isp_fcg_config_internal      *fcg_args_internal,
+	bool                                    *fcg_online,
+	uint32_t                                *fcg_entry_idx,
+	struct list_head                        *res_list_isp_src)
+{
+	uint32_t                                 fcg_kmd_size, num_ent, i;
+	struct cam_isp_hw_mgr_res               *hw_mgr_res;
+	struct cam_isp_resource_node            *res;
+	struct cam_isp_hw_fcg_cmd                fcg_cmd;
+	int                                      rc;
+
+	list_for_each_entry(hw_mgr_res, res_list_isp_src, list) {
+		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)
+			continue;
+
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			if (!hw_mgr_res->hw_res[i])
+				continue;
+
+			res = hw_mgr_res->hw_res[i];
+
+			fcg_cmd.res = res;
+			fcg_cmd.cmd_type = CAM_ISP_HW_CMD_FCG_CONFIG;
+			fcg_cmd.get_size_flag = true;
+			fcg_cmd.u.fcg_get_size.num_types = fcg_args_internal->num_types;
+			fcg_cmd.u.fcg_get_size.num_ctxs = fcg_args_internal->num_ch_ctx;
+			fcg_cmd.u.fcg_get_size.kmd_size = 0;
+
+			rc = res->hw_intf->hw_ops.process_cmd(
+				res->hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_FCG_CONFIG, &fcg_cmd,
+				sizeof(struct cam_isp_hw_fcg_cmd));
+			if (rc || (fcg_cmd.u.fcg_get_size.kmd_size == 0)) {
+				CAM_ERR(CAM_ISP,
+					"Failed in retrieving KMD buf size requirement, rc: %d",
+					rc);
+				return rc;
+			}
+		}
+		break;
+	}
+
+	if (!fcg_cmd.u.fcg_get_size.fcg_supported) {
+		*fcg_online = false;
+		CAM_WARN(CAM_ISP, "FCG is sent from userspace but not supported by the hardware");
+		return 0;
+	}
+
+	fcg_kmd_size = fcg_cmd.u.fcg_get_size.kmd_size * sizeof(uint32_t);
+	CAM_DBG(CAM_ISP, "KMD buf usage for FCG config is %u", fcg_kmd_size);
+
+	num_ent = prepare->num_hw_update_entries;
+	if (num_ent + 1 >= prepare->max_hw_update_entries) {
+		CAM_ERR(CAM_ISP, "Insufficient HW entries: %u, %u",
+			num_ent, prepare->max_hw_update_entries);
+		return -EINVAL;
+	}
+
+	if (fcg_kmd_size + kmd_buf_info->used_bytes >
+		kmd_buf_info->size) {
+		CAM_ERR(CAM_ISP, "Insufficient space in kmd buffer, used_bytes: %u, buf size: %u",
+			kmd_buf_info->used_bytes, kmd_buf_info->size);
+		return -ENOMEM;
+	}
+
+	*fcg_entry_idx = num_ent;
+	cam_ife_mgr_update_hw_entries_util(CAM_ISP_IQ_BL, fcg_kmd_size,
+		kmd_buf_info, prepare, false);
+
+	CAM_DBG(CAM_ISP, "FCG dummy entry, num_ent: %u, entry_size: %u",
+		num_ent, fcg_kmd_size);
+
+	return 0;
+}
+
 static int cam_ife_hw_mgr_update_cmd_buffer(
 	struct cam_ife_hw_mgr_ctx               *ctx,
 	struct cam_hw_prepare_update_args       *prepare,
@@ -12554,10 +13021,11 @@ static int cam_ife_hw_mgr_update_cmd_buffer(
 	struct cam_isp_cmd_buf_count            *cmd_buf_count,
 	uint32_t                                 base_idx)
 {
-	struct list_head                     *res_list = NULL;
-	struct cam_isp_change_base_args       change_base_info = {0};
-	int                                   rc = 0;
+	struct list_head                        *res_list = NULL;
+	struct cam_isp_change_base_args          change_base_info = {0};
+	int                                      rc = 0;
 	struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+	struct cam_isp_fcg_config_info          *fcg_info;
 
 	prepare_hw_data = (struct cam_isp_prepare_hw_update_data *)prepare->priv;
 
@@ -12596,7 +13064,14 @@ static int cam_ife_hw_mgr_update_cmd_buffer(
 			ctx->cdm_id, ctx->ctx_index);
 	}
 
-	if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_SFE)
+	CAM_DBG(CAM_ISP,
+		"Add cmdbuf, i=%d, split_id=%d, hw_type=%d ctx_idx: %u",
+		base_idx, ctx->base[base_idx].split_id,
+		ctx->base[base_idx].hw_type, ctx->ctx_index);
+
+	fcg_info = &(prepare_hw_data->fcg_info);
+
+	if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_SFE) {
 		rc = cam_sfe_add_command_buffers(
 			prepare, kmd_buf, &ctx->base[base_idx],
 			cam_sfe_packet_generic_blob_handler,
@@ -12605,7 +13080,22 @@ static int cam_ife_hw_mgr_update_cmd_buffer(
 			CAM_ISP_SFE_OUT_RES_BASE,
 			(CAM_ISP_SFE_OUT_RES_BASE +
 			max_sfe_out_res));
-	else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_VFE)
+		if (rc)
+			goto add_cmd_err;
+
+		/* No need to handle FCG entry if no valid fcg config from userspace */
+		if (!fcg_info->sfe_fcg_online)
+			goto end;
+
+		rc = cam_ife_hw_mgr_add_fcg_update(
+			prepare, kmd_buf,
+			&fcg_info->sfe_fcg_config,
+			&fcg_info->sfe_fcg_online,
+			&fcg_info->sfe_fcg_entry_idx,
+			res_list);
+		if (rc)
+			goto add_cmd_err;
+	} else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_VFE) {
 		rc = cam_isp_add_command_buffers(
 			prepare, kmd_buf, &ctx->base[base_idx],
 			cam_isp_packet_generic_blob_handler,
@@ -12614,21 +13104,37 @@ static int cam_ife_hw_mgr_update_cmd_buffer(
 			CAM_ISP_IFE_OUT_RES_BASE,
 			(CAM_ISP_IFE_OUT_RES_BASE +
 			max_ife_out_res));
-	else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_CSID)
+		if (rc)
+			goto add_cmd_err;
+
+		/* No need to handle FCG entry if no valid fcg config from userspace */
+		if (!fcg_info->ife_fcg_online)
+			goto end;
+
+		rc = cam_ife_hw_mgr_add_fcg_update(
+			prepare, kmd_buf,
+			&fcg_info->ife_fcg_config,
+			&fcg_info->ife_fcg_online,
+			&fcg_info->ife_fcg_entry_idx,
+			res_list);
+		if (rc)
+			goto add_cmd_err;
+	} else if (ctx->base[base_idx].hw_type == CAM_ISP_HW_TYPE_CSID) {
 		rc = cam_isp_add_csid_command_buffers(prepare,
 			kmd_buf, cam_csid_packet_generic_blob_handler,
 			&ctx->base[base_idx]);
+		if (rc)
+			goto add_cmd_err;
+	}
 
-	CAM_DBG(CAM_ISP,
-		"Add cmdbuf, i=%d, split_id=%d, hw_type=%d ctx_idx: %u",
-		base_idx, ctx->base[base_idx].split_id,
+	return rc;
+
+add_cmd_err:
+	CAM_ERR(CAM_ISP,
+		"Failed in add cmdbuf, i=%d, split_id=%d, rc=%d hw_type=%d ctx_idx: %u",
+		base_idx, ctx->base[base_idx].split_id, rc,
 		ctx->base[base_idx].hw_type, ctx->ctx_index);
-
-	if (rc)
-		CAM_ERR(CAM_ISP,
-			"Failed in add cmdbuf, i=%d, split_id=%d, rc=%d hw_type=%d ctx_idx: %u",
-			base_idx, ctx->base[base_idx].split_id, rc,
-			ctx->base[base_idx].hw_type, ctx->ctx_index);
+end:
 	return rc;
 }
 
