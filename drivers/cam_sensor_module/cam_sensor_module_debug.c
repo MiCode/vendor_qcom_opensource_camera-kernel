@@ -20,10 +20,10 @@
 #define NUM_OF_READ_PARAMS      5
 #define NUM_OF_WRITE_PARAMS     7
 #define USAGE_STRING   "Read format: r/R, reg_addr(hex), addr_type, "\
-			       "data_type, device_type, instance_id (ID pair)\n"\
-			       "Write format: w/W, reg_addr(hex), addr_type, "\
-			       "reg_value(hex), delay, addr_type, data_type, device_type, "\
-				   "instance_id (ID pair)\n"
+					"data_type, device_type, instance_id (ID pair)\n"\
+					"Write format: w/W, reg_addr(hex), reg_value(hex), "\
+					"delay, addr_type, data_type, device_type, "\
+					"instance_id (ID pair)\n"
 
 struct cam_sensor_i2c_devices {
 	struct cam_actuator_ctrl_t *actuator[MAX_CAMERAS];
