@@ -483,6 +483,7 @@ static struct cam_sfe_bus_rd_constraint_error_desc
 
 static struct cam_sfe_bus_rd_constraint_error_info sfe680_bus_rd_constraint_error_info = {
 	.constraint_error_list = sfe680_bus_rd_cons_error_desc,
+	.cons_chk_en_val       = 0xC,
 	.num_cons_err          = 8,
 };
 

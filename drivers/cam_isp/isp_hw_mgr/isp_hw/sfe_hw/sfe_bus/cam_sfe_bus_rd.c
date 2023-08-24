@@ -70,12 +70,13 @@ struct cam_sfe_bus_rd_common_data {
 	struct cam_sfe_bus_rd_irq_evt_payload       evt_payload[
 		CAM_SFE_BUS_RD_PAYLOAD_MAX];
 	cam_hw_mgr_event_cb_func                    event_cb;
-	bool                                        err_irq_subscribe;
 	uint32_t                                    sfe_debug_cfg;
 	uint32_t                                    irq_err_mask;
 
 	struct cam_sfe_bus_cache_dbg_cfg            cache_dbg_cfg;
+	uint32_t                                    cons_chk_en_val;
 	bool                                        cons_chk_en_avail;
+	bool                                        err_irq_subscribe;
 };
 
 struct cam_sfe_bus_rd_rm_resource_data {
@@ -551,7 +552,6 @@ static int cam_sfe_bus_start_rm(struct cam_isp_resource_node *rm_res)
 	uint32_t width_in_bytes = 0;
 	struct cam_sfe_bus_rd_rm_resource_data  *rm_data;
 	struct cam_sfe_bus_rd_common_data       *common_data;
-	const uint32_t enable_cons_violation = 11 << 2;
 	uint32_t core_cfg_mask;
 
 	rm_data = rm_res->res_priv;
@@ -581,7 +581,7 @@ static int cam_sfe_bus_start_rm(struct cam_isp_resource_node *rm_res)
 	}
 
 	/* Enable constraint error detection */
-	cam_io_w_mb(enable_cons_violation,
+	cam_io_w_mb(common_data->cons_chk_en_val,
 		common_data->mem_base + rm_data->hw_regs->debug_status_cfg);
 
 	rm_res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
@@ -2113,6 +2113,8 @@ int cam_sfe_bus_rd_init(
 	bus_priv->common_data.irq_err_mask      = bus_rd_hw_info->irq_err_mask;
 	bus_priv->common_data.cons_chk_en_avail =
 		bus_rd_hw_info->constraint_error_info->cons_chk_en_avail;
+	bus_priv->common_data.cons_chk_en_val =
+		bus_rd_hw_info->constraint_error_info->cons_chk_en_val;
 	bus_priv->common_data.soc_info         = soc_info;
 	bus_priv->top_irq_shift                 = bus_rd_hw_info->top_irq_shift;
 	bus_priv->latency_buf_allocation        = bus_rd_hw_info->latency_buf_allocation;

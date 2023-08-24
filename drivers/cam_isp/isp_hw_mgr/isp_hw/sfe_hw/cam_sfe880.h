@@ -779,6 +779,7 @@ static struct cam_sfe_bus_rd_constraint_error_desc
 static struct cam_sfe_bus_rd_constraint_error_info sfe880_bus_rd_constraint_error_info = {
 	.constraint_error_list = sfe880_bus_rd_cons_error_desc,
 	.num_cons_err          = 8,
+	.cons_chk_en_val       = 0xC,
 	.cons_chk_en_avail     = true,
 };
 
@@ -871,8 +872,8 @@ static struct cam_sfe_bus_rd_hw_info sfe880_bus_rd_hw_info = {
 			.max_height    = -1,
 		},
 	},
-	.num_bus_rd_errors     = ARRAY_SIZE(sfe880_bus_rd_irq_err_desc),
-	.bus_rd_err_desc       = sfe880_bus_rd_irq_err_desc,
+	.num_bus_rd_errors      = ARRAY_SIZE(sfe880_bus_rd_irq_err_desc),
+	.bus_rd_err_desc        = sfe880_bus_rd_irq_err_desc,
 	.top_irq_shift          = 0x1,
 	.latency_buf_allocation = 2048,
 	.sys_cache_default_val  = 0x20,

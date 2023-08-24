@@ -59,6 +59,7 @@ struct cam_sfe_bus_rd_constraint_error_desc {
  *
  * @constraint_error_list: Error description for various constraint errors.
  * @num_cons_err:          Number of constraint violation errors.
+ * @cons_chk_en_val:       Cons checker config value for debug select
  * @cons_chk_en_avail:     Indicate if there is an option to enable constraint checker
  *                         violation in core cfg reg for each client.
  */
@@ -66,6 +67,7 @@ struct cam_sfe_bus_rd_constraint_error_info {
 	struct cam_sfe_bus_rd_constraint_error_desc
 		*constraint_error_list;
 	uint32_t num_cons_err;
+	uint32_t cons_chk_en_val;
 	bool cons_chk_en_avail;
 };
 
