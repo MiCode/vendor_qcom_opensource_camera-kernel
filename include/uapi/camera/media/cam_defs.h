@@ -373,6 +373,60 @@ struct cam_ubwc_plane_cfg_v2 {
 	__u32                bandwidth_limit;
 	__u32                reserved[3];
 };
+
+/**
+ * struct cam_ubwc_plane_cfg_v3 - UBWC Plane configuration info
+ *
+ * @port_type:                  Port Type
+ * @meta_stride:                UBWC metadata stride
+ * @meta_size:                  UBWC metadata plane size
+ * @meta_offset:                UBWC metadata offset
+ * @packer_config:              UBWC packer config
+ * @mode_config:                UBWC mode config
+ * @static ctrl:                UBWC static ctrl
+ * @ctrl_2:                     UBWC ctrl 2
+ * @tile_config:                UBWC tile config
+ * @h_init:                     UBWC horizontal initial coordinate in pixels
+ * @v_init:                     UBWC vertical initial coordinate in lines
+ * @stats_ctrl_2:               UBWC stats control
+ * @lossy_threshold0            UBWC lossy threshold 0
+ * @lossy_threshold1            UBWC lossy threshold 1
+ * @lossy_var_offset            UBWC offset variance thrshold
+ * @bandwidth_limit:            BW counter limit
+ *                              BW limiter config skipped if value is 0xFFFF or more
+ *                              If skipped here, use generic BW limiter blob to
+ *                              configure the appropriate value.
+ * @hw_ctx_id_mask:             hw context id mask in case of multi context
+ *                              definitions for valid values defined in cam_isp.h
+ * @num_valid_params:           Number of valid params, to accommodate future changes
+ * @param_mask:                 Indicate params supported, to accommodate future changes
+ * @params:                     Indicate params supported, to accommodate future changes
+ */
+struct cam_ubwc_plane_cfg_v3 {
+	__u32                port_type;
+	__u32                meta_stride;
+	__u32                meta_size;
+	__u32                meta_offset;
+	__u32                packer_config;
+	__u32                mode_config_0;
+	__u32                mode_config_1;
+	__u32                tile_config;
+	__u32                h_init;
+	__u32                v_init;
+	__u32                static_ctrl;
+	__u32                ctrl_2;
+	__u32                stats_ctrl_2;
+	__u32                lossy_threshold_0;
+	__u32                lossy_threshold_1;
+	__u32                lossy_var_offset;
+	__u32                bandwidth_limit;
+	__u32                hw_ctx_id_mask;
+	__u32                num_valid_params;
+	__u32                param_mask;
+	__u32                params[6];
+
+};
+
 /**
  * struct cam_cmd_buf_desc - Command buffer descriptor
  *
@@ -760,6 +814,24 @@ struct cam_ubwc_config_v2 {
 	__u32   num_ports;
 	struct cam_ubwc_plane_cfg_v2
 	   ubwc_plane_cfg[1][CAM_PACKET_MAX_PLANES - 1];
+};
+
+/**
+ * struct cam_ubwc_config_v3 - UBWC Configuration Payload
+ *
+ * @api_version:         UBWC config api version
+ * @num_ports:           Number of ports to be configured, in case of MC,
+ *                       can have multiple entries for same out port
+ * @ubwc_plane_config:   Array of UBWC configurations per port
+ *                       Size [CAM_PACKET_MAX_PLANES - 1] per port
+ *                       as UBWC is supported on Y & C planes
+ *                       and therefore a max size of 2 planes
+ *
+ */
+struct cam_ubwc_config_v3 {
+	__u32   api_version;
+	__u32   num_ports;
+	struct cam_ubwc_plane_cfg_v3 ubwc_plane_cfg[1][CAM_PACKET_MAX_PLANES - 1];
 };
 
 /**
