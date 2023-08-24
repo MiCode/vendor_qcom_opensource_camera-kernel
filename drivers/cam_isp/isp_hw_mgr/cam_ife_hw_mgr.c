@@ -125,7 +125,8 @@ static int cam_ife_mgr_prog_default_settings(
 	bool is_streamon, struct cam_ife_hw_mgr_ctx *ctx);
 
 static int cam_ife_mgr_cmd_get_sof_timestamp(struct cam_ife_hw_mgr_ctx *ife_ctx,
-	uint64_t *time_stamp, uint64_t *boot_time_stamp, uint64_t *prev_time_stamp);
+	uint64_t *time_stamp, uint64_t *boot_time_stamp, uint64_t *prev_time_stamp,
+	struct timespec64 *boot_ts, bool get_curr_timestamp);
 
 static int cam_convert_rdi_out_res_id_to_src(int res_id);
 
@@ -1037,7 +1038,7 @@ static int cam_ife_mgr_csid_start_hw(
 
 			if ((primary_rdi_csid_res == hw_mgr_res->res_id) ||
 				(ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE &&
-				 isp_res->res_id == CAM_IFE_PIX_PATH_RES_RDI_0))
+				isp_res->res_id == CAM_IFE_PIX_PATH_RES_RDI_0))
 				primary_rdi_res = isp_res;
 
 			if (hw_mgr_res->res_id == CAM_IFE_PIX_PATH_RES_IPP)
@@ -2038,6 +2039,101 @@ static int cam_ife_mgr_process_base_info(
 	}
 
 	CAM_DBG(CAM_ISP, "ctx base num = %d, ctx_idx: %u", ctx->num_base, ctx->ctx_index);
+
+	return 0;
+}
+
+static int cam_ife_mgr_share_sof_qtimer_addr(struct cam_ife_hw_mgr_ctx *ctx)
+{
+	/**
+	 * The objective is to obtain the qtimer timestamp from
+	 * the CSID path that drives the state machine's interrupts
+	 * to ensure the events are aligned in time. IPP is selected
+	 * for pixel pipelines; for SFE fetch use cases,
+	 * RDI0 is specified; for RDI-only/ RDI-PD streams,
+	 * any active RDI starting from RDI0 is picked. If none of
+	 * the above criteria are met, the first CSID path acquired
+	 * is used to fetch the timestamp.
+	 */
+	struct cam_isp_hw_mgr_res              *hw_mgr_res;
+	struct cam_isp_hw_mgr_res              *csid_res;
+	struct cam_isp_hw_mgr_res              *ife_src_res;
+	struct cam_hw_intf                     *hw_intf;
+	struct cam_ife_csid_ts_reg_addr         sof_ts_addr;
+	uint32_t                                primary_rdi_csid_res;
+	uint32_t                                primary_rdi_out_res;
+	int rc, i;
+	bool res_rdi_context_set = false, is_found = false;
+
+	primary_rdi_csid_res = CAM_IFE_PIX_PATH_RES_MAX;
+	primary_rdi_out_res = g_ife_hw_mgr.isp_caps.max_vfe_out_res_type;
+
+	if (cam_isp_is_ctx_primary_rdi(ctx)) {
+		for (i = 0; i < ctx->num_acq_vfe_out && !res_rdi_context_set; i++) {
+			hw_mgr_res = &ctx->res_list_ife_out[i];
+			switch (hw_mgr_res->res_id) {
+			case CAM_ISP_IFE_OUT_RES_RDI_0:
+			case CAM_ISP_IFE_OUT_RES_RDI_1:
+			case CAM_ISP_IFE_OUT_RES_RDI_2:
+			case CAM_ISP_IFE_OUT_RES_RDI_3:
+				hw_mgr_res->hw_res[0]->is_rdi_primary_res = true;
+				res_rdi_context_set = true;
+				primary_rdi_out_res = hw_mgr_res->res_id;
+				break;
+			default:
+				break;
+			}
+		}
+		if (res_rdi_context_set)
+			primary_rdi_csid_res = cam_ife_hw_mgr_get_ife_csid_rdi_res_type(
+				primary_rdi_out_res);
+	}
+
+	list_for_each_entry(csid_res, &ctx->res_list_ife_csid, list) {
+		if (csid_res->res_type == CAM_ISP_RESOURCE_UNINT)
+			continue;
+
+		if (csid_res->res_id == CAM_IFE_PIX_PATH_RES_IPP ||
+			csid_res->res_id == primary_rdi_csid_res ||
+			(ctx->flags.is_fe_enabled &&
+			csid_res->res_id == CAM_IFE_PIX_PATH_RES_RDI_0)) {
+			is_found = true;
+			break;
+		}
+	}
+
+	if (!is_found)
+		csid_res = list_first_entry(&ctx->res_list_ife_csid,
+			struct cam_isp_hw_mgr_res, list);
+
+	ife_src_res = list_first_entry(&ctx->res_list_ife_src,
+		struct cam_isp_hw_mgr_res, list);
+
+	/* Left resource is always the master */
+	hw_intf = csid_res->hw_res[0]->hw_intf;
+	sof_ts_addr.res_id = csid_res->res_id;
+	sof_ts_addr.get_addr = true;
+	rc = hw_intf->hw_ops.process_cmd(hw_intf->hw_priv,
+		CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR,
+		&sof_ts_addr, sizeof(struct cam_ife_csid_ts_reg_addr));
+
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Get CSID[%u] SOF ts addr failed",
+			hw_intf->hw_idx);
+		return rc;
+	}
+
+	sof_ts_addr.get_addr = false;
+	hw_intf = ife_src_res->hw_res[0]->hw_intf;
+	rc = hw_intf->hw_ops.process_cmd(hw_intf->hw_priv,
+		CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR,
+		&sof_ts_addr, sizeof(struct cam_ife_csid_ts_reg_addr));
+	if (rc) {
+		CAM_ERR(CAM_ISP,
+			"Share SOF ts addr with IFE[%u] res id %u failed",
+			hw_intf->hw_idx, ife_src_res->res_id);
+		return rc;
+	}
 
 	return 0;
 }
@@ -5756,6 +5852,13 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 			goto free_res;
 	}
 
+	if (!ife_hw_mgr->csid_camif_irq_support || (ife_hw_mgr->csid_camif_irq_support &&
+		ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE)) {
+		rc = cam_ife_mgr_share_sof_qtimer_addr(ife_ctx);
+		if (rc)
+			goto free_res;
+	}
+
 	rc = cam_ife_mgr_allocate_cdm_cmd(
 		(ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE ? true : false),
 		&ife_ctx->cdm_cmd);
@@ -6689,7 +6792,7 @@ static int cam_ife_hw_mgr_sfe_irq_inject_or_dump_desc(
 	struct cam_isp_irq_inject_param *params,
 	bool dump_irq_desc)
 {
-	int i, rc = 0, offset = 0;
+	int i, rc = 0;
 	char *line_buf = NULL;
 	struct cam_hw_intf *hw_intf = NULL;
 
@@ -6715,11 +6818,11 @@ static int cam_ife_hw_mgr_sfe_irq_inject_or_dump_desc(
 			CAM_ISP_HW_CMD_IRQ_INJECTION, params,
 			sizeof(struct cam_isp_irq_inject_param));
 		if (rc)
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"Injecting IRQ %x failed for SFE at req: %d\n",
 				params->irq_mask, params->req_id);
 		else
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"IRQ %#x injected for SFE at req: %d\n",
 				params->irq_mask, params->req_id);
 		break;
@@ -6740,7 +6843,7 @@ static int cam_ife_hw_mgr_vfe_irq_inject_or_dump_desc(
 	struct cam_isp_irq_inject_param *params,
 	bool dump_irq_desc)
 {
-	int i, rc = 0, offset = 0;
+	int i, rc = 0;
 	char *line_buf = NULL;
 	struct cam_hw_intf *hw_intf = NULL;
 
@@ -6766,11 +6869,11 @@ static int cam_ife_hw_mgr_vfe_irq_inject_or_dump_desc(
 			CAM_ISP_HW_CMD_IRQ_INJECTION, params,
 			sizeof(struct cam_isp_irq_inject_param));
 		if (rc)
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"Injecting IRQ %x failed for IFE at req: %d\n",
 				params->irq_mask, params->req_id);
 		else
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"IRQ %#x injected for IFE at req: %d\n",
 				params->irq_mask, params->req_id);
 		break;
@@ -6791,7 +6894,7 @@ static int cam_ife_hw_mgr_csid_irq_inject_or_dump_desc(
 	struct cam_isp_irq_inject_param *params,
 	bool dump_irq_desc)
 {
-	int i, rc = 0, offset = 0;
+	int i, rc = 0;
 	char *line_buf = NULL;
 	struct cam_hw_intf *hw_intf = NULL;
 
@@ -6817,11 +6920,11 @@ static int cam_ife_hw_mgr_csid_irq_inject_or_dump_desc(
 			CAM_ISP_HW_CMD_IRQ_INJECTION, params,
 			sizeof(struct cam_isp_irq_inject_param));
 		if (rc)
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"Injecting IRQ %x failed for CSID at req: %d\n",
 				params->irq_mask, params->req_id);
 		else
-			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
+			scnprintf(line_buf, LINE_BUFFER_LEN,
 				"IRQ %#x injected for CSID at req: %d\n",
 				params->irq_mask, params->req_id);
 		break;
@@ -7967,7 +8070,7 @@ start_only:
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_src, list) {
 		if (primary_rdi_src_res == hw_mgr_res->res_id) {
 			hw_mgr_res->hw_res[0]->is_rdi_primary_res =
-				cam_isp_is_ctx_primary_rdi(ctx);
+			cam_isp_is_ctx_primary_rdi(ctx);
 		}
 
 		rc = cam_ife_hw_mgr_start_hw_res(hw_mgr_res, ctx);
@@ -13630,7 +13733,7 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 			rc = cam_ife_mgr_cmd_get_sof_timestamp(ctx,
 				&isp_hw_cmd_args->u.sof_ts.curr,
 				&isp_hw_cmd_args->u.sof_ts.boot,
-				&isp_hw_cmd_args->u.sof_ts.prev);
+				&isp_hw_cmd_args->u.sof_ts.prev, NULL, true);
 			break;
 		case CAM_ISP_HW_MGR_DUMP_STREAM_INFO:
 			rc = cam_common_user_dump_helper(
@@ -13867,7 +13970,9 @@ static int cam_ife_mgr_cmd_get_sof_timestamp(
 	struct cam_ife_hw_mgr_ctx            *ife_ctx,
 	uint64_t                             *time_stamp,
 	uint64_t                             *boot_time_stamp,
-	uint64_t                             *prev_time_stamp)
+	uint64_t                             *prev_time_stamp,
+	struct timespec64                    *raw_boot_ts,
+	bool                                  get_curr_timestamp)
 {
 	int                                   rc = -EINVAL;
 	uint32_t                              i;
@@ -13901,6 +14006,9 @@ static int cam_ife_mgr_cmd_get_sof_timestamp(
 			csid_get_time.node_res =
 				hw_mgr_res->hw_res[i];
 			csid_get_time.get_prev_timestamp = (prev_time_stamp != NULL);
+			csid_get_time.get_curr_timestamp = get_curr_timestamp;
+			csid_get_time.time_stamp_val = *time_stamp;
+			csid_get_time.raw_boot_time = raw_boot_ts;
 			rc = hw_intf->hw_ops.process_cmd(
 				hw_intf->hw_priv,
 				CAM_IFE_CSID_CMD_GET_TIME_STAMP,
@@ -14416,6 +14524,7 @@ static int cam_ife_hw_mgr_handle_csid_camif_sof(
 	cam_hw_event_cb_func ife_hw_irq_sof_cb     = ctx->common.event_cb;
 	struct cam_isp_hw_sof_event_data       sof_done_event_data = {0};
 	struct timespec64                      ts;
+	struct cam_isp_sof_ts_data            *sof_and_boot_time;
 
 	if (event_info->is_secondary_evt) {
 		struct cam_isp_hw_secondary_event_data sec_evt_data;
@@ -14454,10 +14563,21 @@ static int cam_ife_hw_mgr_handle_csid_camif_sof(
 				cam_ife_hw_mgr_get_offline_sof_timestamp(
 				&sof_done_event_data.timestamp,
 				&sof_done_event_data.boot_time);
-			else
+			else {
+				if (!event_info->event_data) {
+					CAM_ERR(CAM_ISP, "SOF timestamp data is null: %s",
+						CAM_IS_NULL_TO_STR(event_info->event_data));
+					break;
+				}
+				sof_and_boot_time =
+					(struct cam_isp_sof_ts_data *)event_info->event_data;
+				sof_done_event_data.timestamp =
+					sof_and_boot_time->sof_ts;
 				cam_ife_mgr_cmd_get_sof_timestamp(
-				ctx, &sof_done_event_data.timestamp,
-				&sof_done_event_data.boot_time, NULL);
+					ctx, &sof_done_event_data.timestamp,
+					&sof_done_event_data.boot_time, NULL,
+					&sof_and_boot_time->boot_time, false);
+			}
 		}
 
 		ife_hw_irq_sof_cb(ctx->common.cb_priv,
@@ -14859,6 +14979,7 @@ static int cam_ife_hw_mgr_handle_hw_sof(
 {
 	cam_hw_event_cb_func                  ife_hw_irq_sof_cb;
 	struct cam_isp_hw_sof_event_data      sof_done_event_data;
+	struct cam_isp_sof_ts_data           *sof_and_boot_time;
 	struct timespec64 ts;
 
 	memset(&sof_done_event_data, 0, sizeof(sof_done_event_data));
@@ -14883,11 +15004,20 @@ static int cam_ife_hw_mgr_handle_hw_sof(
 				cam_ife_hw_mgr_get_offline_sof_timestamp(
 				&sof_done_event_data.timestamp,
 				&sof_done_event_data.boot_time);
-			else
+			else {
+				if (!event_info->event_data) {
+					CAM_ERR(CAM_ISP, "SOF timestamp data is null: %s",
+						CAM_IS_NULL_TO_STR(event_info->event_data));
+					break;
+				}
+				sof_and_boot_time =
+					(struct cam_isp_sof_ts_data *)event_info->event_data;
+				sof_done_event_data.timestamp = sof_and_boot_time->sof_ts;
 				cam_ife_mgr_cmd_get_sof_timestamp(
-				ife_hw_mgr_ctx,
-				&sof_done_event_data.timestamp,
-				&sof_done_event_data.boot_time, NULL);
+					ife_hw_mgr_ctx, &sof_done_event_data.timestamp,
+					&sof_done_event_data.boot_time, NULL,
+					&sof_and_boot_time->boot_time, false);
+			}
 		}
 
 		cam_hw_mgr_reset_out_of_sync_cnt(ife_hw_mgr_ctx);
@@ -14907,9 +15037,18 @@ static int cam_ife_hw_mgr_handle_hw_sof(
 		if (!cam_isp_is_ctx_primary_rdi(ife_hw_mgr_ctx))
 			break;
 
-		cam_ife_mgr_cmd_get_sof_timestamp(ife_hw_mgr_ctx,
-			&sof_done_event_data.timestamp,
-			&sof_done_event_data.boot_time, NULL);
+		if (!event_info->event_data) {
+			CAM_ERR(CAM_ISP, "SOF timestamp data is null: %s",
+				CAM_IS_NULL_TO_STR(event_info->event_data));
+			break;
+		}
+		sof_and_boot_time =
+			(struct cam_isp_sof_ts_data *)event_info->event_data;
+		sof_done_event_data.timestamp = sof_and_boot_time->sof_ts;
+		cam_ife_mgr_cmd_get_sof_timestamp(
+			ife_hw_mgr_ctx, &sof_done_event_data.timestamp,
+			&sof_done_event_data.boot_time, NULL,
+			&sof_and_boot_time->boot_time, false);
 
 		cam_hw_mgr_reset_out_of_sync_cnt(ife_hw_mgr_ctx);
 
@@ -16011,7 +16150,8 @@ static int cam_isp_irq_inject_parse_common_params(
 		 rc = -EINVAL;
 	}
 
-	strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
+	if (offset <= LINE_BUFFER_LEN)
+		strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
 
 	kfree(line_buf);
 	return rc;
@@ -16037,7 +16177,7 @@ static int cam_isp_irq_inject_command_parser(
 		if (rc) {
 			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
 				"Parsed Command failed rc: %d\n", rc);
-			return rc;
+			goto end;
 		}
 
 		param_index++;
@@ -16050,13 +16190,17 @@ static int cam_isp_irq_inject_command_parser(
 		offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
 			"Insufficient parameters passed for total parameters: %u\n",
 			param_index);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
-	strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
+	if (offset <= LINE_BUFFER_LEN)
+		strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
 
+	rc = param_index;
+end:
 	kfree(line_buf);
-	return param_index;
+	return rc;
 }
 
 static ssize_t cam_isp_irq_injection_read(struct file *file,
@@ -16074,8 +16218,10 @@ static ssize_t cam_isp_irq_injection_read(struct file *file,
 
 	if (!(*ppos) && strlen(irq_inject_display_buf))
 		goto end;
-	else if ((*ppos) && (strlen(irq_inject_display_buf) == 0))
+	else if ((*ppos) && (strlen(irq_inject_display_buf) == 0)) {
+		kfree(line_buf);
 		return 0;
+	}
 
 	strlcat(irq_inject_display_buf, IRQ_INJECT_USAGE_STRING, IRQ_INJECT_DISPLAY_BUF_LEN);
 
@@ -16098,8 +16244,10 @@ static ssize_t cam_isp_irq_injection_read(struct file *file,
 	strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
 
 end:
-	if (clear_user(ubuf, size))
+	if (clear_user(ubuf, size)) {
+		kfree(line_buf);
 		return -EIO;
+	}
 	count = simple_read_from_buffer(ubuf, size, ppos, irq_inject_display_buf,
 		strlen(irq_inject_display_buf));
 
@@ -16125,8 +16273,10 @@ static ssize_t cam_isp_irq_injection_write(struct file *file,
 
 	memset(irq_inject_display_buf, '\0', IRQ_INJECT_DISPLAY_BUF_LEN);
 
-	if (copy_from_user(input_buf, ubuf, sizeof(input_buf)))
-		return -EFAULT;
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf))) {
+		rc = -EFAULT;
+		goto end;
+	}
 
 	msg = input_buf;
 
@@ -16157,10 +16307,13 @@ static ssize_t cam_isp_irq_injection_write(struct file *file,
 		break;
 	}
 
-	strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
+	if (offset <= LINE_BUFFER_LEN)
+		strlcat(irq_inject_display_buf, line_buf, IRQ_INJECT_DISPLAY_BUF_LEN);
 
+	rc = size;
+end:
 	kfree(line_buf);
-	return size;
+	return rc;
 }
 
 static const struct file_operations cam_isp_irq_injection = {

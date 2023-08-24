@@ -828,12 +828,21 @@ put_heaps:
 	return rc;
 }
 
-bool cam_mem_mgr_ubwc_p_heap_supported(void)
+int cam_mem_mgr_check_for_supported_heaps(uint64_t *heap_mask)
 {
-	if (tbl.ubwc_p_heap)
-		return true;
+	uint64_t heap_caps = 0;
 
-	return false;
+	if (!heap_mask)
+		return -EINVAL;
+
+	if (tbl.ubwc_p_heap)
+		heap_caps |= CAM_REQ_MGR_MEM_UBWC_P_HEAP_SUPPORTED;
+
+	if ((tbl.camera_heap) || (tbl.camera_uncached_heap))
+		heap_caps |= CAM_REQ_MGR_MEM_CAMERA_HEAP_SUPPORTED;
+
+	*heap_mask = heap_caps;
+	return 0;
 }
 
 static int cam_mem_util_get_dma_buf(size_t len,
@@ -843,8 +852,7 @@ static int cam_mem_util_get_dma_buf(size_t len,
 	unsigned long *i_ino)
 {
 	int rc = 0;
-	struct dma_heap *heap;
-	struct dma_heap *try_heap = NULL;
+	struct dma_heap *heap = NULL, *try_heap = NULL;
 	struct timespec64 ts1, ts2;
 	long microsec = 0;
 	bool use_cached_heap = false;
@@ -875,7 +883,7 @@ static int cam_mem_util_get_dma_buf(size_t len,
 			cam_flags, tbl.force_cache_allocs);
 	} else {
 		use_cached_heap = false;
-		if (!tbl.system_uncached_heap) {
+		if (!tbl.system_uncached_heap && !tbl.camera_uncached_heap) {
 			CAM_ERR(CAM_MEM,
 				"Using UNCACHED heap not supported, cam_flags=0x%x, force_cache_allocs=%d",
 				cam_flags, tbl.force_cache_allocs);
@@ -919,15 +927,29 @@ static int cam_mem_util_get_dma_buf(size_t len,
 		CAM_DBG(CAM_MEM, "Allocating from ubwc-p heap %pK, size=%d, flags=0x%x",
 			heap, len, cam_flags);
 	} else if (use_cached_heap) {
-		try_heap = tbl.camera_heap;
 
-		if (tbl.system_movable_heap && (alloc_type == CAM_MEMMGR_ALLOC_USER))
-			heap = tbl.system_movable_heap;
-		else
-			heap = tbl.system_heap;
+		/*
+		 * The default scheme is to try allocating from the camera heap
+		 * if available; if not, try for the system heap. Userland can also select
+		 * to pick a specific heap for allocation; this will deviate from the
+		 * default selection scheme.
+		 *
+		 */
+		if (!(cam_flags & CAM_MEM_FLAG_USE_SYS_HEAP_ONLY))
+			try_heap = tbl.camera_heap;
+
+		if (!(cam_flags & CAM_MEM_FLAG_USE_CAMERA_HEAP_ONLY)) {
+			if (tbl.system_movable_heap && (alloc_type == CAM_MEMMGR_ALLOC_USER))
+				heap = tbl.system_movable_heap;
+			else
+				heap = tbl.system_heap;
+		}
 	} else {
-		try_heap = tbl.camera_uncached_heap;
-		heap = tbl.system_uncached_heap;
+		if (!(cam_flags & CAM_MEM_FLAG_USE_SYS_HEAP_ONLY))
+			try_heap = tbl.camera_uncached_heap;
+
+		if (!(cam_flags & CAM_MEM_FLAG_USE_CAMERA_HEAP_ONLY))
+			heap = tbl.system_uncached_heap;
 	}
 
 	CAM_DBG(CAM_MEM, "Using heaps : try=%pK, heap=%pK", try_heap, heap);
@@ -936,7 +958,8 @@ static int cam_mem_util_get_dma_buf(size_t len,
 
 	if (!try_heap && !heap) {
 		CAM_ERR(CAM_MEM,
-			"No heap available for allocation, cant allocate");
+			"No heap available for allocation, can't allocate flag: 0x%x",
+			cam_flags);
 		return -EINVAL;
 	}
 

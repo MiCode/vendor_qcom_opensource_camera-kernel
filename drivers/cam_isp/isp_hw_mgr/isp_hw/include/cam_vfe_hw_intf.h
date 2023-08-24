@@ -9,7 +9,6 @@
 
 #include "cam_isp_hw.h"
 #include "cam_ife_csid_hw_intf.h"
-#include "cam_ife_csid_hw_intf.h"
 #include "cam_cpas_api.h"
 
 #define CAM_VFE_HW_NUM_MAX            8

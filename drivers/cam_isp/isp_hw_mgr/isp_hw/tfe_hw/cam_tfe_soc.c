@@ -144,12 +144,15 @@ int cam_tfe_deinit_soc_resources(struct cam_hw_soc_info *soc_info)
 	return rc;
 }
 
-int cam_tfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
+int cam_tfe_enable_soc_resources(
+	struct cam_hw_soc_info  *soc_info,
+	unsigned long           max_clk_rate)
 {
 	int                               rc = 0;
 	struct cam_tfe_soc_private       *soc_private;
 	struct cam_ahb_vote               ahb_vote;
 	struct cam_axi_vote               axi_vote = {0};
+	int32_t                           apply_level = CAM_LOWSVS_VOTE;
 
 	if (!soc_info) {
 		CAM_ERR(CAM_ISP, "Error! Invalid params");
@@ -174,8 +177,16 @@ int cam_tfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 		goto end;
 	}
 
+	if (max_clk_rate) {
+		rc = cam_soc_util_get_clk_level(soc_info, max_clk_rate, soc_info->src_clk_idx,
+			&apply_level);
+		if (rc)
+			CAM_ERR(CAM_ISP, "Error! getting clk level");
+	}
+
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		CAM_LOWSVS_VOTE, true);
+		apply_level, true);
+
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Error! enable platform failed rc=%d", rc);
 		goto stop_cpas;

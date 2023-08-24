@@ -283,8 +283,8 @@ struct cam_isp_prepare_hw_update_data {
 /**
  * struct cam_isp_hw_sof_event_data - Event payload for CAM_HW_EVENT_SOF
  *
- * @timestamp         : Time stamp for the sof event
- * @boot_time         : Boot time stamp for the sof event
+ * @timestamp           : Time stamp for the sof event
+ * @boot_time           : Boot time stamp for the sof event
  *
  */
 struct cam_isp_hw_sof_event_data {
@@ -409,10 +409,10 @@ struct cam_isp_hw_cmd_args {
 	uint32_t                          cmd_type;
 	void                             *cmd_data;
 	union {
-		uint32_t                      sof_irq_enable;
-		uint32_t                      ctx_type;
-		uint32_t                      packet_op_code;
-		uint64_t                      last_cdm_done;
+		uint32_t                         sof_irq_enable;
+		uint32_t                         ctx_type;
+		uint32_t                         packet_op_code;
+		uint64_t                         last_cdm_done;
 		struct {
 			uint64_t                      curr;
 			uint64_t                      prev;

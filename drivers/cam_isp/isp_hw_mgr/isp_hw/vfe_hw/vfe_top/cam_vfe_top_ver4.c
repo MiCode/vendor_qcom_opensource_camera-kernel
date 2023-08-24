@@ -33,14 +33,20 @@ struct cam_vfe_top_ver4_perf_counter_cfg {
 	bool     dump_counter;
 };
 
+struct cam_vfe_top_ver4_prim_sof_ts_reg_addr {
+	void __iomem  *curr0_ts_addr;
+	void __iomem  *curr1_ts_addr;
+};
+
 struct cam_vfe_top_ver4_priv {
-	struct cam_vfe_top_ver4_common_data      common_data;
-	struct cam_vfe_top_priv_common           top_common;
-	atomic_t                                 overflow_pending;
-	uint8_t                                  log_buf[CAM_VFE_LEN_LOG_BUF];
-	uint32_t                                 sof_cnt;
-	struct cam_vfe_top_ver4_perf_counter_cfg perf_counters[CAM_VFE_PERF_CNT_MAX];
-	bool                                     enable_ife_frame_irqs;
+	struct cam_vfe_top_ver4_common_data          common_data;
+	struct cam_vfe_top_priv_common               top_common;
+	atomic_t                                     overflow_pending;
+	uint8_t                                      log_buf[CAM_VFE_LEN_LOG_BUF];
+	uint32_t                                     sof_cnt;
+	struct cam_vfe_top_ver4_perf_counter_cfg     perf_counters[CAM_VFE_PERF_CNT_MAX];
+	struct cam_vfe_top_ver4_prim_sof_ts_reg_addr sof_ts_reg_addr;
+	bool                                         enable_ife_frame_irqs;
 };
 
 enum cam_vfe_top_ver4_fsm_state {
@@ -281,6 +287,34 @@ static int cam_vfe_top_fs_update(
 	if (cmd_update->node_res->process_cmd)
 		return cmd_update->node_res->process_cmd(cmd_update->node_res,
 			CAM_ISP_HW_CMD_FE_UPDATE_IN_RD, cmd_args, arg_size);
+
+	return 0;
+}
+
+static int cam_vfe_top_ver4_set_primary_sof_timer_reg_addr(
+	struct cam_vfe_top_ver4_priv *top_priv, void *cmd_args)
+{
+	struct cam_ife_csid_ts_reg_addr *sof_ts_addr_update_args;
+
+	if (!cmd_args) {
+		CAM_ERR(CAM_ISP, "Error, Invalid args");
+		return -EINVAL;
+	}
+
+	sof_ts_addr_update_args = (struct cam_ife_csid_ts_reg_addr *)cmd_args;
+
+	if (!sof_ts_addr_update_args->curr0_ts_addr ||
+		!sof_ts_addr_update_args->curr1_ts_addr) {
+		CAM_ERR(CAM_ISP, "Invalid SOF Qtimer address: curr0: 0x%pK, curr1: 0x%pK",
+		sof_ts_addr_update_args->curr0_ts_addr,
+		sof_ts_addr_update_args->curr1_ts_addr);
+		return -EINVAL;
+	}
+
+	top_priv->sof_ts_reg_addr.curr0_ts_addr =
+		sof_ts_addr_update_args->curr0_ts_addr;
+	top_priv->sof_ts_reg_addr.curr1_ts_addr =
+		sof_ts_addr_update_args->curr1_ts_addr;
 
 	return 0;
 }
@@ -910,6 +944,8 @@ int cam_vfe_top_ver4_release(void *device_priv,
 		return -EINVAL;
 	}
 
+	memset(&vfe_priv->top_priv->sof_ts_reg_addr, 0,
+		sizeof(vfe_priv->top_priv->sof_ts_reg_addr));
 	vfe_priv->hw_ctxt_mask = 0;
 	mux_res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 
@@ -1159,6 +1195,18 @@ int cam_vfe_top_ver4_process_cmd(void *device_priv, uint32_t cmd_type,
 		top_priv->enable_ife_frame_irqs = debug_cfg->enable_ife_frame_irqs;
 	}
 		break;
+	case CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR: {
+		struct cam_ife_csid_ts_reg_addr  *sof_addr_args =
+			(struct cam_ife_csid_ts_reg_addr *)cmd_args;
+
+		if (sof_addr_args->get_addr) {
+			CAM_ERR(CAM_ISP, "VFE does not support get of primary SOF ts addr");
+			rc = -EINVAL;
+		} else
+			rc = cam_vfe_top_ver4_set_primary_sof_timer_reg_addr(top_priv,
+				sof_addr_args);
+	}
+		break;
 	default:
 		rc = -EINVAL;
 		CAM_ERR(CAM_ISP, "VFE:%u Error, Invalid cmd:%d",
@@ -1250,6 +1298,14 @@ static int cam_vfe_handle_irq_top_half(uint32_t evt_id,
 
 	if (th_payload->evt_status_arr[vfe_priv->common_reg->frame_timing_irq_reg_idx]
 			& vfe_priv->reg_data->sof_irq_mask) {
+		if (vfe_priv->top_priv->sof_ts_reg_addr.curr0_ts_addr &&
+			vfe_priv->top_priv->sof_ts_reg_addr.curr1_ts_addr) {
+			evt_payload->ts.sof_ts =
+				cam_io_r_mb(vfe_priv->top_priv->sof_ts_reg_addr.curr1_ts_addr);
+			evt_payload->ts.sof_ts = (evt_payload->ts.sof_ts << 32) |
+				cam_io_r_mb(vfe_priv->top_priv->sof_ts_reg_addr.curr0_ts_addr);
+		}
+
 		trace_cam_log_event("SOF", "TOP_HALF",
 		th_payload->evt_status_arr[vfe_priv->common_reg->frame_timing_irq_reg_idx],
 		vfe_res->hw_intf->hw_idx);
@@ -1474,6 +1530,7 @@ static int cam_vfe_handle_irq_bottom_half(void *handler_priv,
 	struct cam_vfe_top_irq_evt_payload *payload;
 	struct cam_isp_hw_event_info evt_info;
 	struct cam_isp_hw_error_event_info err_evt_info;
+	struct cam_isp_sof_ts_data sof_and_boot_time;
 	uint32_t irq_status[CAM_IFE_IRQ_REGISTERS_MAX] = {0}, frame_timing_mask;
 	struct timespec64 ts;
 	int i = 0;
@@ -1500,11 +1557,15 @@ static int cam_vfe_handle_irq_bottom_half(void *handler_priv,
 	for (i = 0; i < CAM_IFE_IRQ_REGISTERS_MAX; i++)
 		irq_status[i] = payload->irq_reg_val[i];
 
+	sof_and_boot_time.boot_time = payload->ts.mono_time;
+	sof_and_boot_time.sof_ts = payload->ts.sof_ts;
+
 	evt_info.hw_idx   = vfe_res->hw_intf->hw_idx;
 	evt_info.hw_type  = CAM_ISP_HW_TYPE_VFE;
 	evt_info.res_id   = vfe_res->res_id;
 	evt_info.res_type = vfe_res->res_type;
 	evt_info.reg_val = 0;
+	evt_info.event_data = &sof_and_boot_time;
 
 	frame_timing_mask = vfe_priv->reg_data->sof_irq_mask |
 				vfe_priv->reg_data->epoch0_irq_mask |
