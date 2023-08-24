@@ -172,19 +172,23 @@ static int cam_hw_cdm_pause_core(struct cam_hw_info *cdm_hw, bool pause)
 	int rc = 0;
 	struct cam_cdm *core = (struct cam_cdm *)cdm_hw->core_info;
 	uint32_t val = 0x1, core_en_reg, cdm_status_reg;
+	bool pause_core_supported;
 
 	if (pause)
 		val |= 0x2;
 
-	if (core->offsets->cmn_reg->cdm_status) {
+	pause_core_supported = core->offsets->reg_data->capabilities &
+		CAM_CDM_CAP_PAUSE_CORE;
+
+	if (pause_core_supported) {
 		cam_cdm_read_hw_reg(cdm_hw,
 			core->offsets->cmn_reg->core_en, &core_en_reg);
 		cam_cdm_read_hw_reg(cdm_hw,
 			core->offsets->cmn_reg->cdm_status, &cdm_status_reg);
 
 		/* In both pause or resume, further action need not/cannot be taken */
-		if ((core_en_reg & CAM_CDM_PAUSE_CORE_ENABLE_MASK) &&
-			!(cdm_status_reg & CAM_CDM_PAUSE_CORE_DONE_MASK)) {
+		if ((core_en_reg & core->offsets->cmn_reg->pause_core_enable_mask) &&
+			!(cdm_status_reg & core->offsets->cmn_reg->pause_core_done_mask)) {
 			if (!pause)
 				CAM_ERR(CAM_CDM, "Pause core not done yet, can't resume core");
 			return -EAGAIN;
@@ -198,22 +202,20 @@ static int cam_hw_cdm_pause_core(struct cam_hw_info *cdm_hw, bool pause)
 			cdm_hw->soc_info.index);
 		rc = -EIO;
 	}
-	if (pause && core->offsets->cmn_reg->cdm_status) {
-		uint32_t us_wait_time = 0;
 
-		while (us_wait_time < CAM_CDM_PAUSE_CORE_US_TIMEOUT) {
-			cam_cdm_read_hw_reg(cdm_hw,
-				core->offsets->cmn_reg->cdm_status,
-				&cdm_status_reg);
-			if (cdm_status_reg & CAM_CDM_PAUSE_CORE_DONE_MASK) {
-				CAM_DBG(CAM_CDM, "Pause core time (us): %lu",
-					us_wait_time);
-				break;
-			}
-			us_wait_time += 100;
-			usleep_range(100, 110);
-		}
-		CAM_WARN(CAM_CDM, "Pause core operation not successful");
+	if (pause && pause_core_supported) {
+		if (cam_common_read_poll_timeout(
+			cdm_hw->soc_info.reg_map[CAM_HW_CDM_BASE_INDEX].mem_base +
+			core->offsets->cmn_reg->cdm_status, 0,
+			CAM_CDM_PAUSE_CORE_US_TIMEOUT,
+			core->offsets->cmn_reg->pause_core_done_mask,
+			core->offsets->cmn_reg->pause_core_done_mask,
+			&cdm_status_reg)) {
+			CAM_WARN(CAM_CDM,
+				"Pause core operation not successful: status=0x%08x",
+				cdm_status_reg);
+		} else
+			CAM_DBG(CAM_CDM, "Pause core CDM[%u] successful", core->index);
 	}
 
 	return rc;

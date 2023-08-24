@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CDM_H_
@@ -27,6 +27,8 @@
 #define CAM_CDM_INFLIGHT_WORKS            5
 #define CAM_CDM_HW_RESET_TIMEOUT          300
 #define CAM_CDM_PAUSE_CORE_US_TIMEOUT     10000
+
+#define CAM_CDM_CAP_PAUSE_CORE            BIT(0)
 
 /*
  * Macros to get prepare and get information
@@ -294,12 +296,14 @@ struct cam_cdm_comp_wait_status {
  * @num_bl_fifo_irq:        number of FIFO irqs in CDM
  * @num_bl_pending_req_reg: number of pending_requests register in CDM
  * @num_scratch_reg:        number of scratch registers in CDM
+ * @capabilities:           If some newer features are supported on target
  */
 struct cam_cdm_common_reg_data {
 	uint32_t num_bl_fifo;
 	uint32_t num_bl_fifo_irq;
 	uint32_t num_bl_pending_req_reg;
 	uint32_t num_scratch_reg;
+	uint32_t capabilities;
 };
 
 /**
@@ -352,6 +356,8 @@ struct cam_cdm_common_reg_data {
  *                       and invalid commands in FIFO
  * @spare:               spare register
  * @priority_group_bit_offset offset of priority group bits
+ * @pause_core_done_mask: Mask to test if pause core operation is done
+ * @pause_core_enable_mask: Mask to enable pause core operation
  *
  */
 struct cam_cdm_common_regs {
@@ -393,6 +399,8 @@ struct cam_cdm_common_regs {
 	const struct cam_cdm_icl_regs *icl_reg;
 	uint32_t spare;
 	uint32_t priority_group_bit_offset;
+	uint32_t pause_core_done_mask;
+	uint32_t pause_core_enable_mask;
 };
 
 /**

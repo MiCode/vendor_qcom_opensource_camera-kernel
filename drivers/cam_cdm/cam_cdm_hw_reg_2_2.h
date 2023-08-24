@@ -1,12 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_cdm.h"
-
-#define CAM_CDM_PAUSE_CORE_DONE_MASK    (0x1 << 1)
 
 struct cam_cdm_bl_pending_req_reg_params cdm_hw_2_2_bl_pending_req0 = {
 	.rb_offset = 0x6c,
@@ -230,6 +228,8 @@ static struct cam_cdm_common_regs cdm_hw_2_2_cmn_reg_offset = {
 	.icl_reg = &cdm_2_2_icl,
 	.spare = 0x3fc,
 	.priority_group_bit_offset = 20,
+	.pause_core_done_mask = 0x2,
+	.pause_core_enable_mask = 0x2,
 };
 
 static struct cam_cdm_common_reg_data cdm_hw_2_2_cmn_reg_data = {
@@ -237,6 +237,7 @@ static struct cam_cdm_common_reg_data cdm_hw_2_2_cmn_reg_data = {
 	.num_bl_fifo_irq = 0x4,
 	.num_bl_pending_req_reg = 0x2,
 	.num_scratch_reg = 0xc,
+	.capabilities = CAM_CDM_CAP_PAUSE_CORE,
 };
 
 struct cam_cdm_hw_reg_offset cam_cdm_2_2_reg_offset = {

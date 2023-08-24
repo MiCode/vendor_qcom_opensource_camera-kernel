@@ -24,7 +24,6 @@
 #define CAM_CDM_AHB_STOP_ON_ERROR BIT(8)
 #define CAM_CDM_ARB_SEL_RR        BIT(16)
 #define CAM_CDM_IMPLICIT_WAIT_EN  BIT(17)
-#define CAM_CDM_PAUSE_CORE_ENABLE_MASK  (0x1 << 1)
 
 extern struct cam_cdm_utils_ops CDM170_ops;
 
