@@ -238,6 +238,8 @@ int cam_vfe_probe(struct platform_device *pdev)
 		g_num_ife_lite_hws++;
 	else if (strnstr(compatible_name, "vfe", strlen(compatible_name)) != NULL)
 		g_num_ife_hws++;
+	else if (strnstr(compatible_name, "mc_tfe", strlen(compatible_name)) != NULL)
+		g_num_ife_hws++;
 	else
 		CAM_ERR(CAM_ISP, "Failed to increment number of IFEs/IFE-LITEs");
 
