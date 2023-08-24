@@ -521,12 +521,24 @@ struct cam_ife_csid_ts_reg_addr {
 };
 
 /*
+ * struct cam_ife_csid_mup_update_args:
+ *
+ * @mup_val:  MUP for odd or even vc
+ * @use_mup:  To indicate if CSID needs to consume this MUP
+ */
+struct cam_ife_csid_mup_update_args {
+	uint32_t mup_val;
+	bool use_mup;
+};
+
+/*
  * struct cam_ife_csid_mode_switch_update_args:
  *
  * @mup_args:         MUP related arguments
  * @exp_update_args:  Exposure update arguments
  */
 struct cam_ife_csid_mode_switch_update_args {
+	struct cam_ife_csid_mup_update_args mup_args;
 	struct cam_ife_csid_discard_frame_cfg_update exp_update_args;
 };
 
