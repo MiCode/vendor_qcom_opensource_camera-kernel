@@ -2687,6 +2687,7 @@ static int cam_convert_hw_idx_to_sfe_hw_num(int hw_idx)
 		switch (hw_idx) {
 		case 0: return CAM_ISP_SFE0_HW;
 		case 1: return CAM_ISP_SFE1_HW;
+		case 2: return CAM_ISP_SFE2_HW;
 		}
 	} else {
 		CAM_ERR(CAM_ISP, "SFE hw idx %d out-of-bounds max available %u",
