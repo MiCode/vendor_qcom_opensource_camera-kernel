@@ -88,6 +88,7 @@ static const char * const tpg_interleaving_format_string[] = {
 	"TPG_INTERLEAVING_FORMAT_LINE",
 	"TPG_INTERLEAVING_FORMAT_SHDR",
 	"TPG_INTERLEAVING_FORMAT_SparsePD",
+	"TPG_INTERLEAVING_FORMAT_SHDR_SparsePD",
 	"TPG_INTERLEAVING_FORMAT_MAX"
 };
 

@@ -19,6 +19,7 @@ enum tpg_hw_v_1_4_encode_fomat_t {
 #define  LINE_INTERLEAVE            0x1
 #define  SHDR_INTERLEAVE            0x2
 #define  SPARSE_PD_INTERLEAVE       0x3
+#define  SHDR_SPARSE_PD_INTERLEAVE  0x4
 #define  CFA_PATTERN_ROW_WIDTH      8
 #define  CFA_PATTERN_BITS_PER_INDEX 2
 #define  TIMEOUT_MULTIPLIER         1
@@ -39,7 +40,8 @@ static int get_tpg_vc_dt_pattern_id(
 		return SHDR_INTERLEAVE;
 	case TPG_INTERLEAVING_FORMAT_SPARSE_PD:
 		return SPARSE_PD_INTERLEAVE;
-
+	case TPG_INTERLEAVING_FORMAT_SHDR_SPARSE_PD:
+		return SHDR_SPARSE_PD_INTERLEAVE;
 	}
 	return FRAME_INTERLEAVE;
 }
