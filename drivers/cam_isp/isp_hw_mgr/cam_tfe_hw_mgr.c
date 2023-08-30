@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -16,6 +16,7 @@
 #include "cam_isp_hw.h"
 #include "cam_tfe_csid_hw_intf.h"
 #include "cam_tfe_hw_intf.h"
+#include "cam_tfe_soc.h"
 #include "cam_isp_packet_parser.h"
 #include "cam_tfe_hw_mgr.h"
 #include "cam_cdm_intf_api.h"
@@ -42,6 +43,8 @@
 
 
 static struct cam_tfe_hw_mgr g_tfe_hw_mgr;
+static uint32_t g_num_tfe_available, g_num_tfe_functional;
+static uint32_t g_num_tfe_lite_available, g_num_tfe_lite_functional;
 
 static int cam_tfe_hw_mgr_event_handler(
 	void                                *priv,
@@ -545,6 +548,32 @@ static void cam_tfe_hw_mgr_deinit_hw(
 	}
 
 	ctx->init_done = false;
+}
+
+static inline void cam_tfe_mgr_count_functional_tfe(void)
+{
+	int i;
+	struct cam_hw_info *tfe_hw;
+	struct cam_tfe_soc_private *soc_private;
+
+	g_num_tfe_functional = 0;
+	g_num_tfe_lite_functional = 0;
+
+	for (i = 0; i < CAM_TFE_HW_NUM_MAX; i++) {
+		if (g_tfe_hw_mgr.tfe_devices[i]) {
+			tfe_hw = (struct cam_hw_info *)
+				g_tfe_hw_mgr.tfe_devices[i]->hw_intf->hw_priv;
+			soc_private = tfe_hw->soc_info.soc_private;
+
+			if (soc_private->is_tfe_lite)
+				g_num_tfe_lite_functional++;
+			else
+				g_num_tfe_functional++;
+		}
+	}
+
+	CAM_DBG(CAM_ISP, "counted functional %u TFEs and %u TFE-LITEs", g_num_tfe_functional,
+		g_num_tfe_lite_functional);
 }
 
 static int cam_tfe_hw_mgr_init_hw(
@@ -6894,6 +6923,20 @@ int cam_tfe_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 		*iommu_hdl = g_tfe_hw_mgr.mgr_common.img_iommu_hdl;
 
 	cam_tfe_hw_mgr_debug_register();
+	cam_tfe_mgr_count_functional_tfe();
+
+	cam_tfe_get_num_tfe_hws(&g_num_tfe_available);
+	rc = cam_cpas_prepare_subpart_info(CAM_IFE_HW_IDX, g_num_tfe_available,
+		g_num_tfe_functional);
+	if (rc)
+		CAM_ERR(CAM_ISP, "Failed to populate num_ifes, rc: %d", rc);
+
+	cam_tfe_get_num_tfe_lite_hws(&g_num_tfe_lite_available);
+	rc = cam_cpas_prepare_subpart_info(CAM_IFE_LITE_HW_IDX, g_num_tfe_lite_available,
+		g_num_tfe_lite_functional);
+	if (rc)
+		CAM_ERR(CAM_ISP, "Failed to populate num_ife_lites, rc: %d", rc);
+
 	CAM_DBG(CAM_ISP, "Exit");
 
 	return 0;

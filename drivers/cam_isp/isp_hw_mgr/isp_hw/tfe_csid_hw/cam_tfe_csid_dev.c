@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -27,17 +27,22 @@ static int cam_tfe_csid_component_bind(struct device *dev,
 	struct cam_tfe_csid_hw         *csid_dev = NULL;
 	const struct of_device_id      *match_dev = NULL;
 	struct cam_tfe_csid_hw_info    *csid_hw_data = NULL;
-	uint32_t                        csid_dev_idx;
+	uint32_t                        csid_dev_idx = 0;
 	int                             rc = 0;
 	struct platform_device *pdev = to_platform_device(dev);
 
 	CAM_DBG(CAM_ISP, "probe called");
 
 	/* get tfe csid hw index */
-	of_property_read_u32(pdev->dev.of_node, "cell-index", &csid_dev_idx);
+	rc = of_property_read_u32(pdev->dev.of_node, "cell-index", &csid_dev_idx);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed to read cell-index of TFE CSID HW, rc: %d", rc);
+		goto err;
+	}
 
-	if (!cam_cpas_is_feature_supported(CAM_CPAS_ISP_LITE_FUSE, BIT(csid_dev_idx), NULL)) {
-		CAM_DBG(CAM_ISP, "CSID:%d is not supported", csid_dev_idx);
+	if (!cam_cpas_is_feature_supported(CAM_CPAS_ISP_FUSE, BIT(csid_dev_idx), NULL) ||
+		!cam_cpas_is_feature_supported(CAM_CPAS_ISP_LITE_FUSE, BIT(csid_dev_idx), NULL)) {
+		CAM_DBG(CAM_ISP, "CSID[%d] not supported based on fuse", csid_dev_idx);
 		goto err;
 	}
 
