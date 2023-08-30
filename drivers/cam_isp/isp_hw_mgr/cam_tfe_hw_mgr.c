@@ -4896,7 +4896,8 @@ static void cam_tfe_mgr_dump_pf_data(
 
 	pf_cmd_args = hw_cmd_args->u.pf_cmd_args;
 	rc = cam_packet_util_get_packet_addr(&packet,
-		pf_cmd_args->pf_req_info->packet_handle, pf_cmd_args->pf_req_info->packet_offset);
+		pf_cmd_args->pf_req_info->packet_handle,
+		pf_cmd_args->pf_req_info->packet_offset);
 	if (rc)
 		return;
 	ctx_found = &pf_cmd_args->pf_args->pf_context_info.ctx_found;
@@ -4925,6 +4926,7 @@ static void cam_tfe_mgr_dump_pf_data(
 		CAM_INFO(CAM_ISP,
 			"PID:%d  is not matching with any TFE HW PIDs ctx id:%d",
 			pf_cmd_args->pf_args->pf_smmu_info->pid,  ctx->ctx_index);
+		cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 		return;
 	}
 
@@ -4939,6 +4941,7 @@ static void cam_tfe_mgr_dump_pf_data(
 		CAM_INFO(CAM_ISP,
 			"This context does not cause pf:pid:%d hw id:%d ctx_id:%d",
 			pf_cmd_args->pf_args->pf_smmu_info->pid, hw_id, ctx->ctx_index);
+		cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 		return;
 	}
 
@@ -4946,7 +4949,6 @@ static void cam_tfe_mgr_dump_pf_data(
 		hw_mgr_res = &ctx->res_list_tfe_out[i];
 		if (!hw_mgr_res->hw_res[0])
 			continue;
-
 		break;
 	}
 
@@ -4954,6 +4956,7 @@ static void cam_tfe_mgr_dump_pf_data(
 		CAM_ERR(CAM_ISP,
 			"NO valid outport resources ctx id:%d req id:%lld",
 			ctx->ctx_index, packet->header.request_id);
+		cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 		return;
 	}
 
@@ -4967,11 +4970,11 @@ static void cam_tfe_mgr_dump_pf_data(
 		hw_mgr_res->hw_res[0]->hw_intf->hw_priv,
 		cmd_update.cmd_type, &cmd_update,
 		sizeof(struct cam_isp_hw_get_cmd_update));
-
 	if (rc) {
 		CAM_ERR(CAM_ISP,
 			"getting mid port resource id failed ctx id:%d req id:%lld",
 			ctx->ctx_index, packet->header.request_id);
+		cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 		return;
 	}
 	CAM_ERR(CAM_ISP,
