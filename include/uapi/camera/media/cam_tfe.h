@@ -70,15 +70,16 @@
 #define CAM_ISP_TFE_PACKET_META_GENERIC_BLOB_RIGHT    10
 
 /* ISP TFE Generic Cmd Buffer Blob types */
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_HFR_CONFIG            0
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_CLOCK_CONFIG          1
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_CONFIG_V2          2
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_CSID_CLOCK_CONFIG     3
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_INIT_CONFIG           4
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_DYNAMIC_MODE_SWITCH   15
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_LIMITER_CFG        16
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_ALIGNMENT_OFFSET_INFO 17
-#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_UPDATE_OUT_RES        18
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_HFR_CONFIG              0
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_CLOCK_CONFIG            1
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_CONFIG_V2            2
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_CSID_CLOCK_CONFIG       3
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_INIT_CONFIG             4
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_DYNAMIC_MODE_SWITCH     15
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_BW_LIMITER_CFG          16
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_ALIGNMENT_OFFSET_INFO   17
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_UPDATE_OUT_RES          18
+#define CAM_ISP_TFE_GENERIC_BLOB_TYPE_DISCARD_INITIAL_FRAMES  19
 
 /* DSP mode */
 #define CAM_ISP_TFE_DSP_MODE_NONE                   0
@@ -593,6 +594,22 @@ struct cam_isp_tfe_out_resource_config {
 	__u32                                       reserved;
 	struct cam_isp_tfe_wm_dimension_config      dimension_config[1];
 };
+
+/**
+ * struct cam_isp_tfe_discard_initial_frames - Discard init frames
+ *
+ *   Some sensors require discarding the initial frames
+ *   after the sensor is streamed on. The discard would be
+ *   applied on all paths [IPP/PPP/RDIx] for the given
+ *   pipeline.
+ *
+ * @version                 : Version field
+ * @num_frames              : Number of frames to be discarded
+ */
+struct cam_isp_tfe_discard_initial_frames {
+	__u32                    version;
+	__u32                    num_frames;
+} __attribute__((packed));
 
 #define CAM_TFE_ACQUIRE_COMMON_VER0         0x1000
 

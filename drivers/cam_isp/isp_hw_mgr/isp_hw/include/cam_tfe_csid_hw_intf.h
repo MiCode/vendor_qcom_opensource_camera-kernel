@@ -273,5 +273,15 @@ struct cam_tfe_csid_clock_update_args {
 	uint64_t                           clk_rate;
 };
 
+/*
+ * struct cam_tfe_csid_discard_init_frame_args:
+ *
+ * @num_frames: Num frames to discard
+ * @res: Node res for this path
+ */
+struct cam_tfe_csid_discard_init_frame_args {
+	uint32_t                          num_frames;
+	struct cam_isp_resource_node     *res;
+};
 
 #endif /* _CAM_TFE_CSID_HW_INTF_H_ */
