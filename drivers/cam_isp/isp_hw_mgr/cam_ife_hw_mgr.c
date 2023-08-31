@@ -14075,6 +14075,45 @@ static int cam_hw_mgr_reset_out_of_sync_cnt(
 	return rc;
 }
 
+static int cam_ife_mgr_cmd_get_last_consumed_addr(
+	struct cam_ife_hw_mgr_ctx         *ife_ctx,
+	struct cam_isp_hw_done_event_data *done)
+{
+	int                           i, rc = -EINVAL;
+	struct cam_isp_resource_node *res;
+	struct cam_isp_hw_mgr_res     *hw_mgr_res;
+	struct list_head              *res_list_isp_src;
+
+	if (done->hw_type == CAM_ISP_HW_TYPE_VFE)
+		res_list_isp_src = &ife_ctx->res_list_ife_src;
+	else if (done->hw_type == CAM_ISP_HW_TYPE_SFE)
+		res_list_isp_src = &ife_ctx->res_list_sfe_src;
+	else {
+		CAM_ERR(CAM_ISP, "invalid hw_type:%d", done->hw_type);
+		return rc;
+	}
+
+	list_for_each_entry(hw_mgr_res, res_list_isp_src, list) {
+		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)
+			continue;
+
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			if (!hw_mgr_res->hw_res[i])
+				continue;
+
+			res = hw_mgr_res->hw_res[i];
+			rc = res->hw_intf->hw_ops.process_cmd(
+				res->hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR,
+				done, sizeof(struct cam_isp_hw_done_event_data));
+
+			return rc;
+		}
+	}
+
+	return rc;
+}
+
 static void *cam_ife_mgr_user_dump_stream_info(
 	void *dump_struct, uint8_t *addr_ptr)
 {
@@ -14236,6 +14275,10 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 				memcpy(query_cmd->sfe_bus_comp_grp, ctx->sfe_bus_comp_grp,
 					sizeof(struct cam_isp_context_comp_record) *
 					CAM_SFE_BUS_COMP_NUM_MAX);
+			break;
+		case CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR:
+			rc = cam_ife_mgr_cmd_get_last_consumed_addr(ctx,
+				(struct cam_isp_hw_done_event_data *)(isp_hw_cmd_args->cmd_data));
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x, ctx_idx: %u",

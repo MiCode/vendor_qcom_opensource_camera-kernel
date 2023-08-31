@@ -2557,6 +2557,7 @@ static int cam_tfe_bus_process_cmd(void *priv,
 	uint32_t i, val;
 	bool *support_consumed_addr;
 	bool *pdaf_rdi2_mux_en;
+	struct cam_isp_hw_done_event_data *done;
 
 	if (!priv || !cmd_args) {
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "Invalid input arguments");
@@ -2607,6 +2608,12 @@ static int cam_tfe_bus_process_cmd(void *priv,
 		break;
 	case CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG:
 		rc = cam_tfe_bus_update_bw_limiter(priv, cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
+		bus_priv = (struct cam_tfe_bus_priv  *) priv;
+		done = (struct cam_isp_hw_done_event_data *) cmd_args;
+		done->last_consumed_addr = cam_tfe_bus_get_last_consumed_addr(
+			bus_priv, done->resource_handle);
 		break;
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "Invalid camif process command:%d",

@@ -4866,6 +4866,43 @@ static int cam_tfe_mgr_resume_hw(struct cam_tfe_hw_mgr_ctx *ctx)
 	return cam_tfe_mgr_bw_control(ctx, CAM_TFE_BW_CONTROL_INCLUDE);
 }
 
+static int cam_tfe_mgr_cmd_get_last_consumed_addr(
+	struct cam_tfe_hw_mgr_ctx         *ctx,
+	struct cam_isp_hw_done_event_data *done)
+{
+	int                           i, rc = -EINVAL;
+	uint32_t                      res_id_out;
+	struct cam_isp_resource_node *res;
+	struct cam_isp_hw_mgr_res     *hw_mgr_res;
+	struct list_head              *res_list_isp_src;
+
+	res_id_out = done->resource_handle & 0xFF;
+
+	if (res_id_out >= CAM_TFE_HW_OUT_RES_MAX) {
+		CAM_ERR(CAM_ISP, "Invalid out resource id :%x",
+			res_id);
+		return;
+	}
+
+	hw_mgr_res =
+		&ctx->res_list_tfe_out[res_id_out];
+
+	for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+		if (!hw_mgr_res->hw_res[i])
+			continue;
+
+		res = hw_mgr_res->hw_res[i];
+		rc = res->hw_intf->hw_ops.process_cmd(
+			res->hw_intf->hw_priv,
+			CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR,
+			done, sizeof(struct cam_isp_hw_done_event_data));
+
+		return rc;
+	}
+
+	return rc;
+}
+
 static int cam_tfe_mgr_sof_irq_debug(
 	struct cam_tfe_hw_mgr_ctx *ctx,
 	uint32_t sof_irq_enable)
@@ -5209,6 +5246,10 @@ static int cam_tfe_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 					(void *)(isp_hw_cmd_args->cmd_data),
 					cam_tfe_mgr_user_dump_stream_info, ctx,
 					sizeof(int32_t), "ISP_STREAM_INFO_FROM_TFE_HW_MGR:");
+			break;
+		case CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR:
+			rc = cam_tfe_mgr_cmd_get_last_consumed_addr(ctx,
+				(struct cam_isp_hw_done_event_data *)(isp_hw_cmd_args->cmd_data));
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x, ISP HW mgr cmd:0x%x",

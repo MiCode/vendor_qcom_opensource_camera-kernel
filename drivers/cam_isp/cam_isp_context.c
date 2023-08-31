@@ -1880,7 +1880,8 @@ static int __cam_isp_ctx_handle_buf_done_for_request(
 	struct cam_isp_hw_done_event_data *done_next_req)
 {
 	int rc = 0;
-	int i, j;
+	int i, j, k;
+	bool not_found = false;
 	struct cam_isp_ctx_req *req_isp;
 	struct cam_context *ctx = ctx_isp->base;
 	const char *handle_type;
@@ -1902,7 +1903,38 @@ static int __cam_isp_ctx_handle_buf_done_for_request(
 			break;
 	}
 
+	if (done->hw_type == CAM_ISP_HW_TYPE_SFE)
+		comp_grp = &ctx_isp->sfe_bus_comp_grp[done->comp_group_id];
+	else
+		comp_grp = &ctx_isp->vfe_bus_comp_grp[done->comp_group_id];
+
+	if (!comp_grp) {
+		CAM_ERR(CAM_ISP, "comp_grp is NULL");
+		rc = -EINVAL;
+		return rc;
+	}
+
 	if (i == req_isp->num_fence_map_out) {
+		for (j = 0; j < comp_grp->num_res; j++) {
+			not_found = false;
+			if (comp_grp->res_id[j] == done->resource_handle)
+				continue;
+
+			for (k = 0; k < req_isp->num_fence_map_out; k++)
+				if (comp_grp->res_id[j] ==
+					req_isp->fence_map_out[k].resource_handle)
+					break;
+
+			if ((k == req_isp->num_fence_map_out) && (j != comp_grp->num_res - 1))
+				continue;
+			else if (k != req_isp->num_fence_map_out)
+				break;
+			else
+				not_found = true;
+		}
+	}
+
+	if (not_found) {
 		/*
 		 * If not found in current request, it could be
 		 * belonging to next request, this can happen if
@@ -1920,17 +1952,6 @@ static int __cam_isp_ctx_handle_buf_done_for_request(
 		done_next_req->resource_handle = done->resource_handle;
 		done_next_req->comp_group_id = done->comp_group_id;
 		goto check_deferred;
-	}
-
-	if (done->hw_type == CAM_ISP_HW_TYPE_SFE)
-		comp_grp = &ctx_isp->sfe_bus_comp_grp[done->comp_group_id];
-	else
-		comp_grp = &ctx_isp->vfe_bus_comp_grp[done->comp_group_id];
-
-	if (!comp_grp) {
-		CAM_ERR(CAM_ISP, "comp_grp is NULL");
-		rc = -EINVAL;
-		return rc;
 	}
 
 	for (i = 0; i < comp_grp->num_res; i++) {
@@ -2177,6 +2198,7 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 {
 	int rc = 0;
 	int i, j, k, def_idx;
+	bool not_found = false;
 	bool duplicate_defer_buf_done = false;
 	struct cam_isp_ctx_req *req_isp;
 	struct cam_context *ctx = ctx_isp->base;
@@ -2184,6 +2206,8 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 	uint32_t cmp_addr = 0;
 	struct cam_isp_hw_done_event_data   unhandled_done = {0};
 	struct cam_isp_context_comp_record *comp_grp = NULL;
+	struct cam_hw_cmd_args   hw_cmd_args;
+	struct cam_isp_hw_cmd_args  isp_hw_cmd_args;
 
 	trace_cam_buf_done("ISP", ctx, req);
 
@@ -2207,26 +2231,6 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 		}
 	}
 
-	if (i == req_isp->num_fence_map_out) {
-		/*
-		 * If not found in current request, it could be
-		 * belonging to next request, this can happen if
-		 * IRQ delay happens. It is only valid when the
-		 * platform doesn't have last consumed address.
-		 */
-		CAM_WARN(CAM_ISP,
-			"BUF_DONE for res %s not found in Req %lld ",
-			__cam_isp_resource_handle_id_to_type(
-			ctx_isp->isp_device_type, done->resource_handle),
-			req->request_id);
-
-		unhandled_done.hw_type = done->hw_type;
-		unhandled_done.resource_handle = done->resource_handle;
-		unhandled_done.comp_group_id = done->comp_group_id;
-		unhandled_done.last_consumed_addr = done->last_consumed_addr;
-		goto check_deferred;
-	}
-
 	if (done->hw_type == CAM_ISP_HW_TYPE_SFE)
 		comp_grp = &ctx_isp->sfe_bus_comp_grp[done->comp_group_id];
 	else
@@ -2236,6 +2240,91 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 		CAM_ERR(CAM_ISP, "comp_grp is NULL");
 		rc = -EINVAL;
 		return rc;
+	}
+
+	if (i == req_isp->num_fence_map_out) {
+		not_found = true;
+		for (j = 0; j < comp_grp->num_res; j++) {
+			/* If the res is same with original res, we don't need to read again  */
+			if (comp_grp->res_id[j] == done->resource_handle)
+				continue;
+
+			/* Check if the res in the requested list */
+			for (k = 0; k < req_isp->num_fence_map_out; k++)
+				if (comp_grp->res_id[j] ==
+					req_isp->fence_map_out[k].resource_handle)
+					break;
+
+			/* If res_id[j] isn't in requested list, then try next res in the group */
+			if (k == req_isp->num_fence_map_out) {
+				if (j != comp_grp->num_res - 1)
+					continue;
+				else
+					break;
+			}
+
+			if (!verify_consumed_addr) {
+				not_found = false;
+				break;
+			}
+
+			/*
+			 * Find out the res from the requested list,
+			 * then we can get last consumed address from this port.
+			 */
+			done->resource_handle = comp_grp->res_id[j];
+			done->last_consumed_addr = 0;
+
+			hw_cmd_args.ctxt_to_hw_map = ctx_isp->hw_ctx;
+			hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+			isp_hw_cmd_args.cmd_type =
+				CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR;
+			isp_hw_cmd_args.cmd_data = done;
+			hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+			rc = ctx->hw_mgr_intf->hw_cmd(
+				ctx->hw_mgr_intf->hw_mgr_priv,
+				&hw_cmd_args);
+			if (rc) {
+				CAM_ERR(CAM_ISP, "HW command failed, ctx %u, link: 0x%x",
+					ctx->ctx_id, ctx->link_hdl);
+				return rc;
+			}
+
+			cmp_addr = cam_smmu_is_expanded_memory() ?
+				CAM_36BIT_INTF_GET_IOVA_BASE(
+				req_isp->fence_map_out[k].image_buf_addr[0]) :
+				req_isp->fence_map_out[k].image_buf_addr[0];
+			CAM_DBG(CAM_ISP, "Get res %s last_consumed_addr:0x%x cmp_addr:0x%x",
+				__cam_isp_resource_handle_id_to_type(
+				ctx_isp->isp_device_type, done->resource_handle),
+				done->last_consumed_addr, cmp_addr);
+			if (done->last_consumed_addr == cmp_addr) {
+				CAM_INFO(CAM_ISP, "found...");
+				not_found = false;
+				break;
+			}
+		}
+	}
+
+	if (not_found) {
+		/*
+		 * If not found in current request, it could be
+		 * belonging to next request, this can happen if
+		 * IRQ delay happens. It is only valid when the
+		 * platform doesn't have last consumed address.
+		 */
+		CAM_WARN(CAM_ISP,
+			"BUF_DONE for res %s last_consumed_addr:0x%x not found in Req %lld ",
+			__cam_isp_resource_handle_id_to_type(
+			ctx_isp->isp_device_type, done->resource_handle),
+			done->last_consumed_addr,
+			req->request_id);
+
+		unhandled_done.hw_type = done->hw_type;
+		unhandled_done.resource_handle = done->resource_handle;
+		unhandled_done.comp_group_id = done->comp_group_id;
+		unhandled_done.last_consumed_addr = done->last_consumed_addr;
+		goto check_deferred;
 	}
 
 	for (i = 0; i < comp_grp->num_res; i++) {
