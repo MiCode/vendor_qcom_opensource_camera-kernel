@@ -1472,7 +1472,8 @@ static int cam_tfe_csid_init_config_pxl_path(
 		}
 	}
 
-	if (csid_reg->cmn_reg->format_measure_support)
+	if ((csid_reg->cmn_reg->format_measure_support && res->res_id == CAM_TFE_CSID_PATH_RES_IPP)
+		|| (csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_HBI_VBI_INFO))
 		val |= (1 << pxl_reg->format_measure_en_shift_val);
 
 	val |= (1 << pxl_reg->pix_store_en_shift_val);
