@@ -880,21 +880,22 @@ static int cam_isp_add_io_buffers_util(
 	old_head_entry = list_first_entry_or_null(buf_info->prepare->buf_tracker,
 		struct cam_smmu_buffer_tracker, list);
 
+	secure_mode.cmd_type = secure_mode_cmd;
+	secure_mode.res = res;
+	secure_mode.data = (void *)&mode;
+	rc = res->hw_intf->hw_ops.process_cmd(
+		res->hw_intf->hw_priv, secure_mode_cmd,
+		&secure_mode, sizeof(struct cam_isp_hw_get_cmd_update));
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Get secure mode failed cmd_type %d res_id %d",
+			secure_mode_cmd, res->res_id);
+		return -EINVAL;
+	}
+
 	memset(io_addr, 0, sizeof(io_addr));
 	for (plane_id = 0; plane_id < CAM_PACKET_MAX_PLANES; plane_id++) {
 		if (!io_cfg->mem_handle[plane_id])
 			break;
-		secure_mode.cmd_type = secure_mode_cmd;
-		secure_mode.res = res;
-		secure_mode.data = (void *)&mode;
-		rc = res->hw_intf->hw_ops.process_cmd(
-			res->hw_intf->hw_priv, secure_mode_cmd,
-			&secure_mode, sizeof(struct cam_isp_hw_get_cmd_update));
-		if (rc) {
-			CAM_ERR(CAM_ISP, "Get secure mode failed cmd_type %d res_id %d",
-				secure_mode_cmd, res->res_id);
-			return -EINVAL;
-		}
 
 		is_buf_secure = cam_mem_is_secure_buf(io_cfg->mem_handle[plane_id]);
 
