@@ -8618,7 +8618,8 @@ static int cam_isp_blob_ubwc_update(
 				CAM_ERR(CAM_ISP,
 					"Invalid base %u type %u", blob_info->base_info->idx,
 					blob_info->base_info->hw_type);
-				return rc;
+				rc = -EINVAL;
+				goto end;
 			}
 			if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
 				continue;
@@ -8774,7 +8775,8 @@ static int cam_isp_blob_ubwc_update_v2(
 			CAM_ERR(CAM_ISP,
 				"Invalid base %u type %u", blob_info->base_info->idx,
 				blob_info->base_info->hw_type);
-			return rc;
+			rc = -EINVAL;
+			goto end;
 		}
 
 		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
@@ -9419,6 +9421,7 @@ static int cam_isp_blob_hfr_update(
 			CAM_ERR(CAM_ISP,
 				"Invalid base %u type %u", blob_info->base_info->idx,
 				blob_info->base_info->hw_type);
+			rc = -EINVAL;
 			return rc;
 		}
 
@@ -10154,6 +10157,7 @@ static int cam_isp_blob_vfe_out_update(
 			CAM_ERR(CAM_ISP,
 				"Invalid base %u type %u", blob_info->base_info->idx,
 				blob_info->base_info->hw_type);
+			rc = -EINVAL;
 			return rc;
 		}
 
@@ -10319,6 +10323,7 @@ static int cam_isp_blob_bw_limit_update(
 			CAM_ERR(CAM_ISP,
 				"Invalid base %u type %u", blob_info->base_info->idx,
 				blob_info->base_info->hw_type);
+			rc = -EINVAL;
 			return rc;
 		}
 
@@ -10390,6 +10395,7 @@ static int cam_isp_hw_mgr_add_cmd_buf_util(
 		CAM_ERR(CAM_ISP,
 		"Invalid base %u type %u", blob_info->base_info->idx,
 			blob_info->base_info->hw_type);
+		rc = -EINVAL;
 		return rc;
 	}
 
