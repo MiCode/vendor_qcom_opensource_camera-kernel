@@ -205,9 +205,15 @@ int32_t cam_sensor_handle_delay(
 		i2c_list =
 			list_entry(list_ptr, struct i2c_settings_list, list);
 		if (generic_op_code ==
-			CAMERA_SENSOR_WAIT_OP_HW_UCND)
-			i2c_list->i2c_settings.reg_setting[offset - 1].delay =
-				cmd_uncond_wait->delay;
+			CAMERA_SENSOR_WAIT_OP_HW_UCND) {
+			int32_t size = i2c_list->i2c_settings.size;
+
+			if (offset >= size)
+				i2c_list->i2c_settings.reg_setting[offset - size].delay =
+					cmd_uncond_wait->delay;
+			else
+				CAM_WARN(CAM_SENSOR_UTIL, "Setting size is bigger than offset.");
+		}
 		else
 			i2c_list->i2c_settings.delay = cmd_uncond_wait->delay;
 		(*cmd_buf) +=
