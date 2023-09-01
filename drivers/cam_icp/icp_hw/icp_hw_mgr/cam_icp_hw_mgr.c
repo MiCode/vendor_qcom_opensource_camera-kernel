@@ -6445,7 +6445,7 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	struct cam_icp_hw_mgr           *hw_mgr;
 	struct cam_hw_dump_args         *dump_args;
 	struct cam_icp_hw_ctx_data      *ctx_data;
-	struct cam_icp_dump_header      *hdr;
+	struct cam_icp_dump_header      *hdr, *inner_hdr;
 	struct cam_icp_hw_dump_args      icp_dump_args;
 	struct hfi_frame_process_info   *frm_process;
 	int                              frm_idx = -1;
@@ -6503,8 +6503,9 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 
 	remain_len = icp_dump_args.buf_len - dump_args->offset;
 	min_len = sizeof(struct cam_icp_dump_header) +
-			(CAM_ICP_DUMP_NUM_WORDS * sizeof(uint64_t));
-
+			(CAM_ICP_DUMP_NUM_WORDS_CLK * sizeof(uint64_t)) +
+			sizeof(struct cam_icp_dump_header) *
+			(hw_mgr->num_dev_info + ctx_data->clk_info.num_paths);
 	if (remain_len < min_len) {
 		CAM_WARN(CAM_ICP, "[%s] dump buffer exhaust remain %zu min %u",
 			hw_mgr->hw_mgr_name, remain_len, min_len);
@@ -6519,18 +6520,33 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	hdr->word_size = sizeof(uint64_t);
 	clk_addr = (uint64_t *)(dst + sizeof(struct cam_icp_dump_header));
 	clk_start = clk_addr;
+	*clk_addr++ = hw_mgr->num_dev_info;
+	*clk_addr++ = ctx_data->clk_info.num_paths;
+	dst = (uint8_t *)clk_addr;
 	for (i = 0; i < hw_mgr->num_dev_info; i++) {
-		*clk_addr++ = hw_mgr->dev_info[i].clk_info.prev_clk;
-		*clk_addr++ = hw_mgr->dev_info[i].clk_info.curr_clk;
+		inner_hdr = (struct cam_icp_dump_header *)dst;
+		scnprintf(inner_hdr->tag, CAM_ICP_DUMP_TAG_MAX_LEN,
+			"dev[%s] prev_clk = 0x%x  curr_clk = 0x%x:",
+			hw_mgr->dev_info[i].dev_name,
+			hw_mgr->dev_info[i].clk_info.prev_clk,
+			hw_mgr->dev_info[i].clk_info.curr_clk);
+		dst += sizeof(struct cam_icp_dump_header);
 	}
 	for (j = 0; j < ctx_data->clk_info.num_paths; j++) {
-		*clk_addr++ = ctx_data->clk_info.axi_path[j].camnoc_bw;
-		*clk_addr++ = ctx_data->clk_info.axi_path[j].mnoc_ab_bw;
-		*clk_addr++ = ctx_data->clk_info.axi_path[j].mnoc_ib_bw;
+		inner_hdr = (struct cam_icp_dump_header *)dst;
+		scnprintf(inner_hdr->tag, CAM_ICP_DUMP_TAG_MAX_LEN,
+			"camnoc_bw 0x%x  ab_bw = 0x%x  ib_bw = 0x%x:",
+			ctx_data->clk_info.axi_path[j].camnoc_bw,
+			ctx_data->clk_info.axi_path[j].mnoc_ab_bw,
+			ctx_data->clk_info.axi_path[j].mnoc_ib_bw);
+		dst += sizeof(struct cam_icp_dump_header);
 	}
-	hdr->size = hdr->word_size * (clk_addr - clk_start);
+	hdr->size = dst - (uint8_t *)clk_start;
 	dump_args->offset += (hdr->size + sizeof(struct cam_icp_dump_header));
 
+	remain_len = icp_dump_args.buf_len - dump_args->offset;
+	min_len = sizeof(struct cam_icp_dump_header) +
+			(CAM_ICP_DUMP_NUM_WORDS_MGR * sizeof(uint32_t));
 	/* Dumping hw mgr info */
 	dst = (uint8_t *)icp_dump_args.cpu_addr + dump_args->offset;
 	hdr = (struct cam_icp_dump_header *)dst;
@@ -6543,14 +6559,15 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	*mgr_addr++ = hw_mgr->icp_booted;
 	*mgr_addr++ = hw_mgr->icp_resumed;
 	*mgr_addr++ = hw_mgr->disable_ubwc_comp;
-	memcpy(mgr_addr, &hw_mgr->dev_info, sizeof(hw_mgr->dev_info));
-	mgr_addr += sizeof(hw_mgr->dev_info);
 	*mgr_addr++ = hw_mgr->icp_pc_flag;
 	*mgr_addr++ = hw_mgr->dev_pc_flag;
 	*mgr_addr++ = hw_mgr->icp_use_pil;
 	hdr->size = hdr->word_size * (mgr_addr - mgr_start);
 	dump_args->offset += (hdr->size + sizeof(struct cam_icp_dump_header));
 
+	remain_len = icp_dump_args.buf_len - dump_args->offset;
+	min_len = sizeof(struct cam_icp_dump_header) +
+			(CAM_ICP_DUMP_NUM_WORDS_REQ * sizeof(uint64_t));
 	/* Dumping time info */
 	dst = (uint8_t *)icp_dump_args.cpu_addr + dump_args->offset;
 	hdr = (struct cam_icp_dump_header *)dst;
