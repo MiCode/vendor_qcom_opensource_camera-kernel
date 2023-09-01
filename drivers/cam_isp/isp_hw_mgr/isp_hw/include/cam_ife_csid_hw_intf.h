@@ -38,7 +38,7 @@ enum cam_ife_csid_top_irq_regs {
  */
 enum cam_ife_csid_rx_irq_regs {
 	CAM_IFE_CSID_RX_IRQ_STATUS_REG0,
-	CAM_IFE_CSID_RX2_IRQ_STATUS_REG1,
+	CAM_IFE_CSID_RX_IRQ_STATUS_REG1,
 	CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX,
 };
 

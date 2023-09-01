@@ -825,6 +825,8 @@ static int cam_ife_hw_mgr_check_and_notify_overflow(
 
 	switch(evt->res_id) {
 	case  CAM_IFE_PIX_PATH_RES_IPP:
+	case  CAM_IFE_PIX_PATH_RES_IPP_1:
+	case  CAM_IFE_PIX_PATH_RES_IPP_2:
 		ife_res_id = CAM_ISP_HW_VFE_IN_CAMIF;
 		sfe_res_id = CAM_ISP_HW_SFE_IN_PIX;
 		break;

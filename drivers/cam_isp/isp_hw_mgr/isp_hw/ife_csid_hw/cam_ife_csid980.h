@@ -941,7 +941,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.drop_h_en_shift_val              = 10,
 		.format_measure_en_shift_val      = 4,
 		.timestamp_en_shift_val           = 6,
-		.overflow_ctrl_en                 = 1,
+		.overflow_ctrl_en                 = 0,
 		.overflow_ctrl_mode_val           = 0x8,
 		.min_hbi_shift_val                = 1,
 		.start_master_sel_shift_val       = 4,
@@ -1035,7 +1035,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 
 		/* configurations */
 		.resume_frame_boundary            = 1,
-		.overflow_ctrl_en                 = 1,
+		.overflow_ctrl_en                 = 0,
 		.capabilities                     = CAM_IFE_CSID_CAP_INPUT_LCR |
 							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
@@ -1154,7 +1154,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 
 		/* configurations */
 		.resume_frame_boundary            = 1,
-		.overflow_ctrl_en                 = 1,
+		.overflow_ctrl_en                 = 0,
 		.capabilities                     = CAM_IFE_CSID_CAP_INPUT_LCR |
 							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
@@ -1272,7 +1272,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 
 		/* configurations */
 		.resume_frame_boundary            = 1,
-		.overflow_ctrl_en                 = 1,
+		.overflow_ctrl_en                 = 0,
 		.capabilities                     = CAM_IFE_CSID_CAP_INPUT_LCR |
 							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
@@ -1387,7 +1387,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 
 		/* configurations */
 		.resume_frame_boundary            = 1,
-		.overflow_ctrl_en                 = 1,
+		.overflow_ctrl_en                 = 0,
 		.capabilities                     = CAM_IFE_CSID_CAP_INPUT_LCR |
 							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
@@ -1501,7 +1501,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 
 		/* configurations */
 		.resume_frame_boundary            = 1,
-		.overflow_ctrl_en                 = 1,
+		.overflow_ctrl_en                 = 0,
 		.capabilities                     = CAM_IFE_CSID_CAP_INPUT_LCR |
 							CAM_IFE_CSID_CAP_RDI_UNPACK_MSB |
 							CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI |
@@ -1660,7 +1660,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.minor_version                           = 8,
 	.version_incr                            = 0,
 	.num_rdis                                = 5,
-	.num_pix                                 = 1,
+	.num_pix                                 = 3,
 	.num_ppp                                 = 1,
 	.rst_done_shift_val                      = 1,
 	.path_en_shift_val                       = 31,
@@ -1726,7 +1726,9 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.decode_format_payload_only              = 0xF,
 	.timestamp_enabled_in_cfg0               = true,
 	.camif_irq_support                       = true,
-	.capabilities                            = CAM_IFE_CSID_CAP_SPLIT_RUP_AUP,
+	.capabilities                            = CAM_IFE_CSID_CAP_SPLIT_RUP_AUP |
+							CAM_IFE_CSID_CAP_SKIP_PATH_CFG1 |
+							CAM_IFE_CSID_CAP_SKIP_EPOCH_CFG,
 	.drv_rup_en_val_map = {
 		2, /*RDI0 */
 		3, /*RDI1 */
