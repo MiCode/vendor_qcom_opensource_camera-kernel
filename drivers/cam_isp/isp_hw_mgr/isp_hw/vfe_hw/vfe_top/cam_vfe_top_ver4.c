@@ -2308,7 +2308,7 @@ int cam_vfe_top_ver4_init(
 	void                                   *vfe_irq_controller,
 	struct cam_vfe_top                    **vfe_top_ptr)
 {
-	int i, j, rc = 0;
+	int i, j = 0, rc = 0;
 	struct cam_vfe_top_ver4_priv           *top_priv = NULL;
 	struct cam_vfe_top_ver4_hw_info        *hw_info = top_hw_info;
 	struct cam_vfe_top                     *vfe_top;
@@ -2340,8 +2340,7 @@ int cam_vfe_top_ver4_init(
 
 	top_priv->top_common.num_mux = hw_info->num_mux;
 
-	for (i = 0, j = 0; i < top_priv->top_common.num_mux &&
-		j < hw_info->num_rdi; i++) {
+	for (i = 0; i < top_priv->top_common.num_mux; i++) {
 		top_priv->top_common.mux_rsrc[i].res_type =
 			CAM_ISP_RESOURCE_VFE_IN;
 		top_priv->top_common.mux_rsrc[i].hw_intf = hw_intf;
@@ -2374,7 +2373,7 @@ int cam_vfe_top_ver4_init(
 			scnprintf(top_priv->top_common.mux_rsrc[i].res_name,
 				CAM_ISP_RES_NAME_LEN, "PDLIB");
 		} else if (hw_info->mux_type[i] ==
-			CAM_VFE_RDI_VER_1_0) {
+			CAM_VFE_RDI_VER_1_0 && j < hw_info->num_rdi) {
 			/* set the RDI resource id */
 			top_priv->top_common.mux_rsrc[i].res_id =
 				CAM_ISP_HW_VFE_IN_RDI0 + j;

@@ -6902,6 +6902,10 @@ static int cam_ife_csid_ver2_irq_comp_cfg(
 
 	reg_info = ((struct cam_ife_csid_ver2_reg_info *)
 			csid_hw->core_info->csid_reg)->ipp_mc_reg;
+	if (!reg_info) {
+		CAM_DBG(CAM_ISP, "No multi-context support in CSID[%u]", csid_hw->hw_intf->hw_idx);
+		return 0;
+	}
 
 	comp_cfg_mask = (comp_cfg->ipp_src_ctxt_mask << reg_info->ipp_src_ctxt_mask_shift) |
 		(comp_cfg->ipp_dst_comp_mask << reg_info->ipp_dst_ctxt_mask_shift);
