@@ -3578,13 +3578,30 @@ int cam_soc_util_reg_dump(struct cam_hw_soc_info *soc_info,
 	return 0;
 }
 
+static inline int cam_soc_util_reg_addr_validation(
+	uint32_t reg_map_size, uint32_t offset, char *reg_unit)
+{
+	if (!IS_ALIGNED(offset, 4)) {
+		CAM_ERR(CAM_UTIL, "Offset: 0x%X of %s is not memory aligned",
+			offset, reg_unit);
+		return -EINVAL;
+	} else if (offset > reg_map_size) {
+		CAM_ERR(CAM_UTIL,
+			"Reg offset: 0x%X of %s out of range, reg_map size: 0x%X",
+			offset, reg_unit, reg_map_size);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int cam_soc_util_dump_cont_reg_range(
 	struct cam_hw_soc_info *soc_info,
 	struct cam_reg_range_read_desc *reg_read, uint32_t base_idx,
 	struct cam_reg_dump_out_buffer *dump_out_buf, uintptr_t cmd_buf_end)
 {
-	int         i = 0, rc = 0, val = 0;
-	uint32_t    write_idx = 0;
+	int         i = 0, rc = 0;
+	uint32_t    write_idx = 0, reg_map_size;
 
 	if (!soc_info || !dump_out_buf || !reg_read || !cmd_buf_end) {
 		CAM_ERR(CAM_UTIL,
@@ -3619,15 +3636,19 @@ static int cam_soc_util_dump_cont_reg_range(
 	}
 
 	write_idx = dump_out_buf->bytes_written / sizeof(uint32_t);
+	reg_map_size = (uint32_t)soc_info->reg_map[base_idx].size;
 	for (i = 0; i < reg_read->num_values; i++) {
-		val = cam_soc_util_r(soc_info, base_idx,
-			(reg_read->offset + (i * sizeof(uint32_t))));
-		if (!val)
-			CAM_WARN(CAM_UTIL, "Possibly fails to read");
+		rc = cam_soc_util_reg_addr_validation(reg_map_size,
+			reg_read->offset + (i * sizeof(uint32_t)),
+			"cont_reg_range");
+		if (rc)
+			continue;
 
 		dump_out_buf->dump_data[write_idx++] = reg_read->offset +
 			(i * sizeof(uint32_t));
-		dump_out_buf->dump_data[write_idx++] = val;
+		dump_out_buf->dump_data[write_idx++] =
+			cam_soc_util_r(soc_info, base_idx,
+			(reg_read->offset + (i * sizeof(uint32_t))));
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
 
@@ -3640,8 +3661,8 @@ static int cam_soc_util_dump_dmi_reg_range(
 	struct cam_dmi_read_desc *dmi_read, uint32_t base_idx,
 	struct cam_reg_dump_out_buffer *dump_out_buf, uintptr_t cmd_buf_end)
 {
-	int        i = 0, rc = 0, val = 0;
-	uint32_t   write_idx = 0;
+	int        i = 0, rc = 0;
+	uint32_t   write_idx = 0, reg_map_size;
 
 	if (!soc_info || !dump_out_buf || !dmi_read || !cmd_buf_end) {
 		CAM_ERR(CAM_UTIL,
@@ -3694,15 +3715,17 @@ static int cam_soc_util_dump_dmi_reg_range(
 	}
 
 	write_idx = dump_out_buf->bytes_written / sizeof(uint32_t);
+	reg_map_size = (uint32_t)soc_info->reg_map[base_idx].size;
 	for (i = 0; i < dmi_read->num_pre_writes; i++) {
-		rc = cam_soc_util_w_mb(soc_info, base_idx,
+		rc = cam_soc_util_reg_addr_validation(reg_map_size,
+			dmi_read->pre_read_config[i].offset,
+			"pre_read_config");
+		if (rc)
+			continue;
+
+		cam_soc_util_w_mb(soc_info, base_idx,
 			dmi_read->pre_read_config[i].offset,
 			dmi_read->pre_read_config[i].value);
-		if (rc) {
-			CAM_ERR(CAM_UTIL, "Fails to write for pre_read_config");
-			goto end;
-		}
-
 		dump_out_buf->dump_data[write_idx++] =
 			dmi_read->pre_read_config[i].offset;
 		dump_out_buf->dump_data[write_idx++] =
@@ -3710,26 +3733,30 @@ static int cam_soc_util_dump_dmi_reg_range(
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
 
-	for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
-		val = cam_soc_util_r_mb(soc_info, base_idx,
-			dmi_read->dmi_data_read.offset);
-		if (!val)
-			CAM_WARN(CAM_UTIL, "Possibly fails to read for dmi_data_read");
-
-		dump_out_buf->dump_data[write_idx++] =
-			dmi_read->dmi_data_read.offset;
-		dump_out_buf->dump_data[write_idx++] = val;
-		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
+	rc = cam_soc_util_reg_addr_validation(reg_map_size,
+		dmi_read->dmi_data_read.offset,
+		"dmi_data_read");
+	if (!rc) {
+		for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
+			dump_out_buf->dump_data[write_idx++] =
+				dmi_read->dmi_data_read.offset;
+			dump_out_buf->dump_data[write_idx++] =
+				cam_soc_util_r_mb(soc_info, base_idx,
+				dmi_read->dmi_data_read.offset);
+			dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
+		}
 	}
 
 	for (i = 0; i < dmi_read->num_post_writes; i++) {
-		rc = cam_soc_util_w_mb(soc_info, base_idx,
+		rc = cam_soc_util_reg_addr_validation(reg_map_size,
+			dmi_read->post_read_config[i].offset,
+			"post_read_config");
+		if (rc)
+			continue;
+
+		cam_soc_util_w_mb(soc_info, base_idx,
 			dmi_read->post_read_config[i].offset,
 			dmi_read->post_read_config[i].value);
-		if (rc) {
-			CAM_ERR(CAM_UTIL, "Fails to write for post_read_config");
-			goto end;
-		}
 	}
 
 end:
@@ -3743,11 +3770,10 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 {
 	int                            i;
 	int                            rc;
-	int                            val = 0;
 	size_t                         buf_len = 0;
 	uint8_t                       *dst;
 	size_t                         remain_len;
-	uint32_t                       min_len;
+	uint32_t                       min_len, reg_map_size;
 	uint32_t                      *waddr, *start;
 	uintptr_t                      cpu_addr;
 	struct cam_hw_soc_dump_header *hdr;
@@ -3804,37 +3830,43 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 	hdr->word_size = sizeof(uint32_t);
 	*waddr = soc_info->index;
 	waddr++;
+
+	reg_map_size = (uint32_t)soc_info->reg_map[base_idx].size;
 	for (i = 0; i < dmi_read->num_pre_writes; i++) {
-		rc = cam_soc_util_w_mb(soc_info, base_idx,
+		rc = cam_soc_util_reg_addr_validation(reg_map_size,
+			dmi_read->pre_read_config[i].offset,
+			"pre_read_config");
+		if (rc)
+			continue;
+
+		cam_soc_util_w_mb(soc_info, base_idx,
 			dmi_read->pre_read_config[i].offset,
 			dmi_read->pre_read_config[i].value);
-		if (rc) {
-			CAM_ERR(CAM_UTIL, "Fails to write for pre_read_config");
-			goto end;
-		}
-
 		*waddr++ = dmi_read->pre_read_config[i].offset;
 		*waddr++ = dmi_read->pre_read_config[i].value;
 	}
 
-	for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
-		val = cam_soc_util_r_mb(soc_info, base_idx,
-			dmi_read->dmi_data_read.offset);
-		if (!val)
-			CAM_WARN(CAM_UTIL, "Possibly fails to read for dmi_data_read");
-
-		*waddr++ = dmi_read->dmi_data_read.offset;
-		*waddr++ = val;
+	rc = cam_soc_util_reg_addr_validation(reg_map_size,
+		dmi_read->dmi_data_read.offset,
+		"dmi_data_read");
+	if (!rc) {
+		for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
+			*waddr++ = dmi_read->dmi_data_read.offset;
+			*waddr++ = cam_soc_util_r_mb(soc_info, base_idx,
+				dmi_read->dmi_data_read.offset);
+		}
 	}
 
 	for (i = 0; i < dmi_read->num_post_writes; i++) {
-		rc = cam_soc_util_w_mb(soc_info, base_idx,
+		rc = cam_soc_util_reg_addr_validation(reg_map_size,
+			dmi_read->post_read_config[i].offset,
+			"post_read_config");
+		if (rc)
+			continue;
+
+		cam_soc_util_w_mb(soc_info, base_idx,
 			dmi_read->post_read_config[i].offset,
 			dmi_read->post_read_config[i].value);
-		if (rc) {
-			CAM_ERR(CAM_UTIL, "Fails to write for post_read_config");
-			goto end;
-		}
 	}
 	hdr->size = (waddr - start) * hdr->word_size;
 	dump_args->offset +=  hdr->size +
@@ -3852,11 +3884,11 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 	struct cam_hw_soc_dump_args *dump_args)
 {
 	int                            i;
-	int                            rc = 0, val = 0;
+	int                            rc = 0;
 	size_t                         buf_len;
 	uint8_t                       *dst;
 	size_t                         remain_len;
-	uint32_t                       min_len;
+	uint32_t                       min_len, reg_map_size;
 	uint32_t                      *waddr, *start;
 	uintptr_t                      cpu_addr;
 	struct cam_hw_soc_dump_header  *hdr;
@@ -3902,14 +3934,18 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 	hdr->word_size = sizeof(uint32_t);
 	*waddr = soc_info->index;
 	waddr++;
+
+	reg_map_size = (uint32_t)soc_info->reg_map[base_idx].size;
 	for (i = 0; i < reg_read->num_values; i++) {
-		val = cam_soc_util_r(soc_info, base_idx,
-			(reg_read->offset + (i * sizeof(uint32_t))));
-		if (!val)
-			CAM_WARN(CAM_UTIL, "Possibly fails to read");
+		rc = cam_soc_util_reg_addr_validation(reg_map_size,
+			reg_read->offset + (i * sizeof(uint32_t)),
+			"cont_reg_range_user_buf");
+		if (rc)
+			continue;
 
 		waddr[0] = reg_read->offset + (i * sizeof(uint32_t));
-		waddr[1] = val;
+		waddr[1] = cam_soc_util_r(soc_info, base_idx,
+			(reg_read->offset + (i * sizeof(uint32_t))));
 		waddr += 2;
 	}
 	hdr->size = (waddr - start) * hdr->word_size;
