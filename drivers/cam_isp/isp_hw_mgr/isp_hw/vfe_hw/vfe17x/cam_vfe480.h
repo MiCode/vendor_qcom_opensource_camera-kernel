@@ -484,6 +484,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000AC80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &vfe480_ubwc_regs_client_0,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_UBWC_NV12) |
+				BIT_ULL(CAM_FORMAT_UBWC_NV12_4R) | BIT_ULL(CAM_FORMAT_NV21) |
+				BIT_ULL(CAM_FORMAT_NV12) | BIT_ULL(CAM_FORMAT_Y_ONLY) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) | BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10),
 		},
 		/* BUS Client 1 FULL C */
 		{
@@ -513,6 +518,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000AD80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &vfe480_ubwc_regs_client_1,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_UBWC_NV12) |
+				BIT_ULL(CAM_FORMAT_UBWC_NV12_4R) | BIT_ULL(CAM_FORMAT_NV21) |
+				BIT_ULL(CAM_FORMAT_NV12) | BIT_ULL(CAM_FORMAT_Y_ONLY) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) | BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10),
 		},
 		/* BUS Client 2 DS4 */
 		{
@@ -539,6 +549,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000AE80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 3 DS16 */
 		{
@@ -565,6 +576,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000AF80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 4 DISP Y */
 		{
@@ -594,6 +606,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B080,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = &vfe480_ubwc_regs_client_4,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_UBWC_NV12) |
+				BIT_ULL(CAM_FORMAT_UBWC_NV12_4R) | BIT_ULL(CAM_FORMAT_NV21) |
+				BIT_ULL(CAM_FORMAT_NV12) | BIT_ULL(CAM_FORMAT_Y_ONLY) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) | BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10),
 		},
 		/* BUS Client 5 DISP C */
 		{
@@ -623,6 +640,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B180,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = &vfe480_ubwc_regs_client_5,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_UBWC_NV12) |
+				BIT_ULL(CAM_FORMAT_UBWC_NV12_4R) | BIT_ULL(CAM_FORMAT_NV21) |
+				BIT_ULL(CAM_FORMAT_NV12) | BIT_ULL(CAM_FORMAT_Y_ONLY) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) | BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10),
 		},
 		/* BUS Client 6 DISP DS4 */
 		{
@@ -649,6 +671,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B280,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 7 DISP DS16 */
 		{
@@ -675,6 +698,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B380,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 8 FD Y */
 		{
@@ -704,6 +728,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B480,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_UBWC_NV12) |
+				BIT_ULL(CAM_FORMAT_UBWC_NV12_4R) | BIT_ULL(CAM_FORMAT_NV21) |
+				BIT_ULL(CAM_FORMAT_NV12) | BIT_ULL(CAM_FORMAT_Y_ONLY) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) | BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10),
 		},
 		/* BUS Client 9 FD C */
 		{
@@ -730,6 +759,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B580,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_UBWC_NV12) |
+				BIT_ULL(CAM_FORMAT_UBWC_NV12_4R) | BIT_ULL(CAM_FORMAT_NV21) |
+				BIT_ULL(CAM_FORMAT_NV12) | BIT_ULL(CAM_FORMAT_Y_ONLY) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) | BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10),
 		},
 		/* BUS Client 10 PIXEL RAW */
 		{
@@ -759,6 +793,15 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B680,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_3,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_MIPI_RAW_6) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_8) | BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_12) | BIT_ULL(CAM_FORMAT_MIPI_RAW_14) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_16) | BIT_ULL(CAM_FORMAT_MIPI_RAW_20) |
+				BIT_ULL(CAM_FORMAT_PLAIN8) | BIT_ULL(CAM_FORMAT_PLAIN16_8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10) | BIT_ULL(CAM_FORMAT_PLAIN16_12) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_14) | BIT_ULL(CAM_FORMAT_PLAIN16_16) |
+				BIT_ULL(CAM_FORMAT_PLAIN32_20) | BIT_ULL(CAM_FORMAT_PLAIN64) |
+				BIT_ULL(CAM_FORMAT_PLAIN128),
 		},
 		/* BUS Client 11 CAMIF PD */
 		{
@@ -788,6 +831,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B780,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_4,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN16_8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10) | BIT_ULL(CAM_FORMAT_PLAIN16_12) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_14) | BIT_ULL(CAM_FORMAT_PLAIN16_16) |
+				BIT_ULL(CAM_FORMAT_PLAIN32_20) | BIT_ULL(CAM_FORMAT_PLAIN64) |
+				BIT_ULL(CAM_FORMAT_PLAIN128) | BIT_ULL(CAM_FORMAT_PLAIN8),
 		},
 		/* BUS Client 12 STATS HDR BE */
 		{
@@ -817,6 +865,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B880,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_5,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 13 STATS HDR BHIST */
 		{
@@ -846,6 +895,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000B980,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_5,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 14 STATS TINTLESS BG */
 		{
@@ -875,6 +925,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000BA80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_6,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 15 STATS AWB BG */
 		{
@@ -904,6 +955,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000BB80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_6,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 16 STATS BHIST */
 		{
@@ -933,6 +985,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000BC80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_7,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 17 STATS RS */
 		{
@@ -962,6 +1015,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000BD80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_7,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 18 STATS CS */
 		{
@@ -991,6 +1045,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000BE80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_7,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 19 STATS IHIST */
 		{
@@ -1020,6 +1075,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000BF80,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_7,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 20 STATS BF */
 		{
@@ -1049,6 +1105,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000C080,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_8,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 21 PDAF V2.0 */
 		{
@@ -1078,6 +1135,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000C180,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_9,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 22 LCR */
 		{
@@ -1107,6 +1165,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000C280,
 			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_10,
 			.ubwc_regs                = NULL,
+			.supported_formats        = 0xFFFFFFFFFFFFFFFF,
 		},
 		/* BUS Client 23 RDI0 */
 		{
@@ -1136,6 +1195,15 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000C380,
 			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_11,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_6) | BIT_ULL(CAM_FORMAT_MIPI_RAW_8) |
+				BIT_ULL(CAM_FORMAT_YUV422) | BIT_ULL(CAM_FORMAT_MIPI_RAW_12) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_14) | BIT_ULL(CAM_FORMAT_MIPI_RAW_16) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_20) | BIT_ULL(CAM_FORMAT_PLAIN128) |
+				BIT_ULL(CAM_FORMAT_PLAIN32_20) | BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10) | BIT_ULL(CAM_FORMAT_PLAIN16_12) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_14) | BIT_ULL(CAM_FORMAT_PLAIN16_16) |
+				BIT_ULL(CAM_FORMAT_PLAIN64) | BIT_ULL(CAM_FORMAT_YUV422_10),
 		},
 		/* BUS Client 24 RDI1 */
 		{
@@ -1165,6 +1233,15 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000C480,
 			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_12,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_6) | BIT_ULL(CAM_FORMAT_MIPI_RAW_8) |
+				BIT_ULL(CAM_FORMAT_YUV422) | BIT_ULL(CAM_FORMAT_MIPI_RAW_12) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_14) | BIT_ULL(CAM_FORMAT_MIPI_RAW_16) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_20) | BIT_ULL(CAM_FORMAT_PLAIN128) |
+				BIT_ULL(CAM_FORMAT_PLAIN32_20) | BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10) | BIT_ULL(CAM_FORMAT_PLAIN16_12) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_14) | BIT_ULL(CAM_FORMAT_PLAIN16_16) |
+				BIT_ULL(CAM_FORMAT_PLAIN64) | BIT_ULL(CAM_FORMAT_YUV422_10),
 		},
 		/* BUS Client 25 RDI2 */
 		{
@@ -1194,6 +1271,15 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.debug_status_1           = 0x0000C580,
 			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_13,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_6) | BIT_ULL(CAM_FORMAT_MIPI_RAW_8) |
+				BIT_ULL(CAM_FORMAT_YUV422) | BIT_ULL(CAM_FORMAT_MIPI_RAW_12) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_14) | BIT_ULL(CAM_FORMAT_MIPI_RAW_16) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_20) | BIT_ULL(CAM_FORMAT_PLAIN128) |
+				BIT_ULL(CAM_FORMAT_PLAIN32_20) | BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10) | BIT_ULL(CAM_FORMAT_PLAIN16_12) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_14) | BIT_ULL(CAM_FORMAT_PLAIN16_16) |
+				BIT_ULL(CAM_FORMAT_PLAIN64) | BIT_ULL(CAM_FORMAT_YUV422_10),
 		},
 	},
 	.num_out = 23,

@@ -230,7 +230,7 @@ static struct cam_vfe_top_ver4_wr_client_desc tfe980_wr_client_desc[] = {
 	},
 	{
 		.wm_id = 10,
-		.desc = "STATS_AEC_BG",
+		.desc = "STATS_AEC_BE",
 	},
 	{
 		.wm_id = 11,
@@ -1054,6 +1054,13 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x00000D1C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &tfe980_ubwc_regs_client_0,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_BAYER_UBWC_TP10)|
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_12) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN8) | BIT_ULL(CAM_FORMAT_PLAIN16_8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10) | BIT_ULL(CAM_FORMAT_PLAIN16_12) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_14) | BIT_ULL(CAM_FORMAT_PLAIN16_16),
 		},
 		/* BUS Client 1 DS4_Y */
 		{
@@ -1086,6 +1093,10 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x00000E1C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &tfe980_ubwc_regs_client_1,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_UBWC_TP10),
 		},
 		/* BUS Client 2 DS4_C */
 		{
@@ -1118,6 +1129,10 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x00000F1C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &tfe980_ubwc_regs_client_2,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_UBWC_TP10),
 		},
 		/* BUS Client 3 DS16_Y */
 		{
@@ -1150,6 +1165,10 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000101C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &tfe980_ubwc_regs_client_3,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_UBWC_TP10),
 		},
 		/* BUS Client 4 DS16_C */
 		{
@@ -1182,6 +1201,10 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000111C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &tfe980_ubwc_regs_client_4,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_UBWC_TP10),
 		},
 		/* BUS Client 5 DS2_Y */
 		{
@@ -1214,6 +1237,16 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000121C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &tfe980_ubwc_regs_client_5,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_8) | BIT_ULL(CAM_FORMAT_PLAIN16_10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_12) | BIT_ULL(CAM_FORMAT_PLAIN16_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_16) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_UBWC_TP10) |
+				BIT_ULL(CAM_FORMAT_BAYER_UBWC_TP10),
 		},
 		/* BUS Client 6 DS2_C */
 		{
@@ -1246,6 +1279,17 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000131C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &tfe980_ubwc_regs_client_6,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_8) | BIT_ULL(CAM_FORMAT_PLAIN16_10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_12) | BIT_ULL(CAM_FORMAT_PLAIN16_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_16) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_TP10) |
+				BIT_ULL(CAM_FORMAT_UBWC_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_TP10) |
+				BIT_ULL(CAM_FORMAT_GBR_UBWC_TP10) |
+				BIT_ULL(CAM_FORMAT_BAYER_UBWC_TP10),
+
 		},
 		/* BUS Client 7 FD_Y */
 		{
@@ -1278,6 +1322,9 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000141C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_NV21) |
+				BIT_ULL(CAM_FORMAT_NV12),
 		},
 		/* BUS Client 8 FD_C */
 		{
@@ -1310,6 +1357,9 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000151C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_NV21) |
+				BIT_ULL(CAM_FORMAT_NV12),
 		},
 		/* BUS Client 9 IR */
 		{
@@ -1342,8 +1392,15 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000161C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_8) | BIT_ULL(CAM_FORMAT_PLAIN16_10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_12) | BIT_ULL(CAM_FORMAT_PLAIN16_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_16) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_12) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_14),
 		},
-		/* BUS Client 10 STATS_AEC_BG */
+		/* BUS Client 10 STATS_AEC_BE */
 		{
 			.cfg                      = 0x00001700,
 			.image_addr               = 0x00001704,
@@ -1374,6 +1431,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000171C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 11 STATS_AEC_BHIST */
 		{
@@ -1406,8 +1464,9 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000181C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
-		/* BUS Client 12 STATS_TINTELESS_BG */
+		/* BUS Client 12 STATS_TINTLESS_BG */
 		{
 			.cfg                      = 0x00001900,
 			.image_addr               = 0x00001904,
@@ -1438,6 +1497,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000191C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 13 STATS_AWB_BG */
 		{
@@ -1470,6 +1530,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x00001A1C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 14 STATS_AWB_BFW */
 		{
@@ -1502,6 +1563,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x00001B1C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 15 STATS_AF_BHIST */
 		{
@@ -1534,8 +1596,9 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x00001C1C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
-		/* BUS Client 16 STATS_ALSC_BG */ /* Or ALSC_BHIST? */
+		/* BUS Client 16 STATS_ALSC_BG */
 		{
 			.cfg                      = 0x00001D00,
 			.image_addr               = 0x00001D04,
@@ -1566,6 +1629,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x00001D1C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 17 STATS_FLICKER_BAYERS */
 		{
@@ -1598,6 +1662,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x00001E1C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN32),
 		},
 		/* BUS Client 18 STATS_TMC_BHIST */
 		{
@@ -1630,8 +1695,9 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x00001F1C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
-		/* BUS Client 19 PDAF_0 */
+		/* BUS Client 19 PDAF_0 */ /* Note: PDAF_SAD == 2PD*/
 		{
 			.cfg                      = 0x00002000,
 			.image_addr               = 0x00002004,
@@ -1662,6 +1728,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000201C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_3,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 20 PDAF_1 */
 		{
@@ -1694,6 +1761,10 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000211C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_3,
 			.ubwc_regs                = &tfe980_ubwc_regs_client_20,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN16_8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_10) | BIT_ULL(CAM_FORMAT_PLAIN16_12) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_14) | BIT_ULL(CAM_FORMAT_PLAIN16_16) |
+				BIT_ULL(CAM_FORMAT_UBWC_P016),
 		},
 		/* BUS Client 21 PDAF_2 */
 		{
@@ -1726,6 +1797,10 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000221C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_3,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_8) | BIT_ULL(CAM_FORMAT_PLAIN16_10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_12) | BIT_ULL(CAM_FORMAT_PLAIN16_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_16),
 		},
 		/* BUS Client 22 PDAF_3 */
 		{
@@ -1758,6 +1833,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000231C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_4,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 23 RDI_0 */
 		{
@@ -1790,6 +1866,12 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000241C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_5,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_12) | BIT_ULL(CAM_FORMAT_MIPI_RAW_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN128) | BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_8) | BIT_ULL(CAM_FORMAT_PLAIN16_10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_12) | BIT_ULL(CAM_FORMAT_PLAIN16_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_16) | BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 24 RDI_1 */
 		{
@@ -1822,6 +1904,12 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000251C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_6,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_12) | BIT_ULL(CAM_FORMAT_MIPI_RAW_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN128) | BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_8) | BIT_ULL(CAM_FORMAT_PLAIN16_10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_12) | BIT_ULL(CAM_FORMAT_PLAIN16_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_16) | BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 25 RDI_2 */
 		{
@@ -1854,6 +1942,12 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000261C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_7,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_MIPI_RAW_10) |
+				BIT_ULL(CAM_FORMAT_MIPI_RAW_12) | BIT_ULL(CAM_FORMAT_MIPI_RAW_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN128) | BIT_ULL(CAM_FORMAT_PLAIN8) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_8) | BIT_ULL(CAM_FORMAT_PLAIN16_10) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_12) | BIT_ULL(CAM_FORMAT_PLAIN16_14) |
+				BIT_ULL(CAM_FORMAT_PLAIN16_16) | BIT_ULL(CAM_FORMAT_PLAIN64),
 		},
 		/* BUS Client 26 RDI_3 */
 		{
@@ -1886,6 +1980,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000271C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_8,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN128),
 		},
 		/* BUS Client 27 RDI_4 */
 		{
@@ -1918,6 +2013,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.bw_limiter_addr          = 0x0000281C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_9,
 			.ubwc_regs                = NULL,
+			.supported_formats        = BIT_ULL(CAM_FORMAT_PLAIN128),
 		},
 	},
 	.num_out = 24,
@@ -2037,7 +2133,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			},
 			.name          = {
 				"DS4_Y",
-				"DS4_UV"
+				"DS4_C"
 			},
 		},
 		{
@@ -2057,7 +2153,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			},
 			.name          = {
 				"DS16_Y",
-				"DS16_UV",
+				"DS16_C",
 			},
 		},
 		{
@@ -2076,7 +2172,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			},
 			.name          = {
 				"DS2_Y",
-				"DS2_UV",
+				"DS2_C",
 			},
 		},
 		{
@@ -2129,7 +2225,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 				10,
 			},
 			.name          = {
-				"STATS_AEC_BG",
+				"STATS_AEC_BE",
 			},
 		},
 		{
@@ -2324,7 +2420,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.mid           = tfe980_out_port_mid[23],
 			.num_mid       = 1,
 			.num_wm        = 1,
-			.mc_based      = true,
+			.mc_based      = false,
 			.mc_grp_shift  = 4,
 			.wm_idx        = {
 				22,
@@ -2472,7 +2568,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 		BIT(17), BIT(18), BIT(19), BIT(20),
 	},
 	.top_irq_shift         = 0,
-	.max_out_res           = CAM_ISP_IFE_OUT_RES_BASE + 42,
+	.max_out_res           = CAM_ISP_IFE_OUT_RES_BASE + 43,
 	.pack_align_shift      = 5,
 	.max_bw_counter_limit  = 0xFF,
 };

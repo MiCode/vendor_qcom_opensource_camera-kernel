@@ -309,6 +309,7 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 {
 	switch (out_type) {
 	case CAM_VFE_BUS_VER3_VFE_OUT_FULL:
+	case CAM_VFE_BUS_VER3_VFE_OUT_DS2:
 	case CAM_VFE_BUS_VER3_VFE_OUT_DS4:
 	case CAM_VFE_BUS_VER3_VFE_OUT_DS16:
 	case CAM_VFE_BUS_VER3_VFE_OUT_RAW_DUMP:
@@ -316,6 +317,7 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 	case CAM_VFE_BUS_VER3_VFE_OUT_RDI1:
 	case CAM_VFE_BUS_VER3_VFE_OUT_RDI2:
 	case CAM_VFE_BUS_VER3_VFE_OUT_RDI3:
+	case CAM_VFE_BUS_VER3_VFE_OUT_RDI4:
 	case CAM_VFE_BUS_VER3_VFE_OUT_FULL_DISP:
 	case CAM_VFE_BUS_VER3_VFE_OUT_DS4_DISP:
 	case CAM_VFE_BUS_VER3_VFE_OUT_DS16_DISP:
@@ -326,6 +328,7 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 	case CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_2PD:
 	case CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED:
 	case CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_RAW:
+	case CAM_VFE_BUS_VER3_VFE_OUT_IR:
 		return true;
 
 	case CAM_VFE_BUS_VER3_VFE_OUT_FD:
@@ -348,6 +351,9 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 	case CAM_VFE_BUS_VER3_VFE_OUT_LTM_STATS:
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_GTM_BHIST:
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_BG:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_TMC_BHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_AF_BHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_AEC_BHIST:
 	default:
 		return false;
 	}
@@ -466,6 +472,24 @@ static enum cam_vfe_bus_ver3_vfe_out_type
 	case CAM_ISP_IFE_OUT_RES_STATS_ALSC:
 		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_STATS_ALSC;
 		break;
+	case CAM_ISP_IFE_OUT_RES_DS2:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_DS2;
+		break;
+	case CAM_ISP_IFE_OUT_RES_IR:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_IR;
+		break;
+	case CAM_ISP_IFE_OUT_RES_RDI_4:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_RDI4;
+		break;
+	case CAM_ISP_IFE_OUT_RES_STATS_TMC_BHIST:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_STATS_TMC_BHIST;
+		break;
+	case CAM_ISP_IFE_OUT_RES_STATS_AF_BHIST:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_STATS_AF_BHIST;
+		break;
+	case CAM_ISP_IFE_OUT_RES_STATS_AEC_BHIST:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_STATS_AEC_BHIST;
+		break;
 	default:
 		CAM_WARN(CAM_ISP, "VFE:%u Invalid isp res id: %d , assigning max",
 			bus_priv->common_data.core_index, res_type);
@@ -526,7 +550,10 @@ static enum cam_vfe_bus_ver3_packer_format
 	case CAM_FORMAT_PD10:
 		return PACKER_FMT_VER3_PLAIN_64;
 	case CAM_FORMAT_UBWC_TP10:
+	case CAM_FORMAT_GBR_UBWC_TP10:
+	case CAM_FORMAT_BAYER_UBWC_TP10:
 	case CAM_FORMAT_TP10:
+	case CAM_FORMAT_GBR_TP10:
 		return PACKER_FMT_VER3_TP_10;
 	default:
 		return PACKER_FMT_VER3_MAX;
@@ -765,6 +792,15 @@ static int cam_vfe_bus_ver3_handle_rup_bottom_half(void *handler_priv,
 	return ret;
 }
 
+static inline void cam_vfe_bus_ver3_config_frame_based_rdi_wm(
+	struct cam_vfe_bus_ver3_wm_resource_data  *rsrc_data)
+{
+	rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
+	rsrc_data->height = 0;
+	rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
+	rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+}
+
 static int cam_vfe_bus_ver3_config_rdi_wm(
 	struct cam_vfe_bus_ver3_wm_resource_data  *rsrc_data)
 {
@@ -777,10 +813,7 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->width =
 				ALIGNUP((rsrc_data->width * 5) / 4, 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 
 		if (rsrc_data->use_wm_pack) {
@@ -795,10 +828,7 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->width =
 				ALIGNUP((rsrc_data->width * 3) / 4, 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_8:
@@ -808,10 +838,7 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->width =
 				ALIGNUP(rsrc_data->width, 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_12:
@@ -820,10 +847,8 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->width =
 				ALIGNUP((rsrc_data->width * 3) / 2, 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 
 		if (rsrc_data->use_wm_pack) {
@@ -836,12 +861,10 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 		if (rsrc_data->default_line_based) {
 			rsrc_data->en_cfg = 0x1;
 			rsrc_data->width =
-				ALIGNUP((rsrc_data->width * 7) / 2, 16) / 16;
+				ALIGNUP((rsrc_data->width * 7) / 4, 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 
 		if (rsrc_data->use_wm_pack) {
@@ -856,10 +879,7 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->width =
 				ALIGNUP((rsrc_data->width * 2), 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 		break;
 	case CAM_FORMAT_MIPI_RAW_20:
@@ -868,10 +888,7 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->width =
 				ALIGNUP((rsrc_data->width * 5) / 2, 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 
 		if (rsrc_data->use_wm_pack)
@@ -883,10 +900,7 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->width =
 				ALIGNUP((rsrc_data->width * 16), 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 		break;
 	case CAM_FORMAT_PLAIN32_20:
@@ -895,10 +909,7 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->width =
 				ALIGNUP((rsrc_data->width * 4), 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 		break;
 	case CAM_FORMAT_PLAIN8:
@@ -935,10 +946,7 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 			rsrc_data->width =
 				ALIGNUP((rsrc_data->width * 5) / 4, 16) / 16;
 		} else {
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+			cam_vfe_bus_ver3_config_frame_based_rdi_wm(rsrc_data);
 		}
 		break;
 	default:
@@ -948,6 +956,178 @@ static int cam_vfe_bus_ver3_config_rdi_wm(
 	}
 
 	return 0;
+}
+
+static int cam_vfe_bus_ver3_config_ports_with_ubwc(
+	struct cam_vfe_bus_ver3_wm_resource_data  *rsrc_data,
+	enum cam_vfe_bus_ver3_vfe_out_type      vfe_out_res_id,
+	enum cam_vfe_bus_plane_type                plane)
+{
+	switch (rsrc_data->format) {
+	case CAM_FORMAT_UBWC_NV12_4R:
+	case CAM_FORMAT_UBWC_NV12:
+	case CAM_FORMAT_UBWC_TP10:
+	case CAM_FORMAT_UBWC_P016:
+	case CAM_FORMAT_GBR_UBWC_TP10:
+	case CAM_FORMAT_BAYER_UBWC_TP10:
+		rsrc_data->en_ubwc = 1;
+		fallthrough;
+	/* For v980, plain and MIPI formats also supported */
+	case CAM_FORMAT_PLAIN16_10:
+	case CAM_FORMAT_PLAIN16_12:
+	case CAM_FORMAT_PLAIN16_14:
+	case CAM_FORMAT_PLAIN16_16:
+	case CAM_FORMAT_MIPI_RAW_10:
+	case CAM_FORMAT_MIPI_RAW_12:
+	case CAM_FORMAT_MIPI_RAW_14:
+	case CAM_FORMAT_PLAIN8:
+	case CAM_FORMAT_NV21:
+	case CAM_FORMAT_NV12:
+	case CAM_FORMAT_Y_ONLY:
+	case CAM_FORMAT_TP10:
+	case CAM_FORMAT_GBR_TP10:
+		switch (plane) {
+		case PLANE_C:
+			rsrc_data->height /= 2;
+			break;
+		case PLANE_Y:
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "Invalid plane %d", plane);
+			return -EINVAL;
+		}
+		break;
+	case CAM_FORMAT_PD10:
+		/**
+		 * For PD10 format, on Lanai and older, width and height
+		 * halved for all planes
+		 */
+		rsrc_data->width /= 2;
+		rsrc_data->height /= 2;
+		break;
+	default:
+		CAM_ERR(CAM_ISP, "Invalid format %d out_type:%d",
+			rsrc_data->format, vfe_out_res_id);
+		return -EINVAL;
+	}
+	rsrc_data->en_cfg = 0x1;
+	CAM_DBG(CAM_ISP, "pack_fmt: %d", rsrc_data->pack_fmt);
+
+	return 0;
+}
+
+static int cam_vfe_bus_ver3_config_port(
+	struct cam_vfe_bus_ver3_priv           *ver3_bus_priv,
+	struct cam_vfe_bus_ver3_wm_resource_data  *rsrc_data,
+	enum cam_vfe_bus_ver3_vfe_out_type      vfe_out_res_id,
+	enum cam_vfe_bus_plane_type plane)
+{
+	int rc = 0;
+
+	switch (vfe_out_res_id) {
+	case CAM_VFE_BUS_VER3_VFE_OUT_RDI0:
+	case CAM_VFE_BUS_VER3_VFE_OUT_RDI1:
+	case CAM_VFE_BUS_VER3_VFE_OUT_RDI2:
+	case CAM_VFE_BUS_VER3_VFE_OUT_RDI3:
+	case CAM_VFE_BUS_VER3_VFE_OUT_RDI4:
+		rc = cam_vfe_bus_ver3_config_rdi_wm(rsrc_data);
+		if (rc)
+			return rc;
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_FULL:
+	case CAM_VFE_BUS_VER3_VFE_OUT_DS2:
+	case CAM_VFE_BUS_VER3_VFE_OUT_DS4:
+	case CAM_VFE_BUS_VER3_VFE_OUT_DS16:
+	case CAM_VFE_BUS_VER3_VFE_OUT_FD:
+	case CAM_VFE_BUS_VER3_VFE_OUT_FULL_DISP:
+		rc = cam_vfe_bus_ver3_config_ports_with_ubwc(rsrc_data,
+		vfe_out_res_id, plane);
+		if (rc)
+			return rc;
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_DS4_DISP:
+	case CAM_VFE_BUS_VER3_VFE_OUT_DS16_DISP:
+		rsrc_data->height = rsrc_data->height / 2;
+		rsrc_data->width  = rsrc_data->width / 2;
+		rsrc_data->en_cfg = 0x1;
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_HDR_BE:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_HDR_BHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_TL_BG:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_BF:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_AWB_BG:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_BHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_RS:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_CS:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_IHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_ALSC:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_BG:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_AF_BHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_TMC_BHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_AEC_BHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_AEC_BE:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_BAYER_RS:
+	case CAM_VFE_BUS_VER3_VFE_OUT_2PD:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_GTM_BHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_RAW:
+		rsrc_data->width = 0;
+		rsrc_data->height = 0;
+		rsrc_data->stride = 1;
+		rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_CAF:
+		rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_AWB_BFW:
+		rsrc_data->width = 0;
+		rsrc_data->height = 0;
+		rsrc_data->en_cfg = (0x1 << 16) | 0x1;
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_LCR:
+	case CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED:
+		rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
+		rsrc_data->en_cfg = 0x1;
+		/* LSB aligned */
+		rsrc_data->pack_fmt |= (1 <<
+			ver3_bus_priv->common_data.pack_align_shift);
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_RAW_DUMP:
+		rsrc_data->stride = rsrc_data->width;
+		rsrc_data->en_cfg = 0x1;
+		/* LSB aligned */
+		rsrc_data->pack_fmt |= (1 <<
+			ver3_bus_priv->common_data.pack_align_shift);
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_SPARSE_PD:
+		rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
+		rsrc_data->en_cfg = 0x1;
+		if (rsrc_data->format != CAM_FORMAT_PLAIN8)
+			/* LSB aligned */
+			rsrc_data->pack_fmt |= (1 <<
+				ver3_bus_priv->common_data.pack_align_shift);
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_2PD:
+		rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
+		rsrc_data->en_cfg = 0x1;
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_LTM_STATS:
+		rsrc_data->stride = ALIGNUP(rsrc_data->width * 4, 16);
+		rsrc_data->en_cfg = 0x1;
+		break;
+	case CAM_VFE_BUS_VER3_VFE_OUT_IR:
+		rsrc_data->stride = rsrc_data->width;
+		rsrc_data->en_cfg = 0x1;
+		/* LSB aligned */
+		rsrc_data->pack_fmt |=
+			(1 << ver3_bus_priv->common_data.pack_align_shift);
+		break;
+	default:
+		CAM_ERR(CAM_ISP, "Invalid out_type:%d requested",
+				vfe_out_res_id);
+		return -EINVAL;
+	}
+
+	return rc;
 }
 
 static int cam_vfe_bus_ver3_acquire_wm(
@@ -983,277 +1163,20 @@ static int cam_vfe_bus_ver3_acquire_wm(
 	rsrc_data->is_dual = out_acq_args->is_dual;
 	/* Set WM offset value to default */
 	rsrc_data->offset  = 0;
-	CAM_DBG(CAM_ISP, "VFE:%u WM:%d width %d height %d",
+	CAM_DBG(CAM_ISP, "VFE:%u WM:%d width %d height %d, supported_format: 0x%llx, pack_fmt: %d",
 		wm_res->hw_intf->hw_idx, rsrc_data->index,
-		rsrc_data->width, rsrc_data->height);
+		rsrc_data->width, rsrc_data->height, rsrc_data->hw_regs->supported_formats,
+		rsrc_data->pack_fmt);
 
-	if ((vfe_out_res_id >= CAM_VFE_BUS_VER3_VFE_OUT_RDI0) &&
-		(vfe_out_res_id <= CAM_VFE_BUS_VER3_VFE_OUT_RDI3)) {
-		rc = cam_vfe_bus_ver3_config_rdi_wm(rsrc_data);
-		if (rc)
-			return rc;
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_RAW_DUMP) {
-
-		rsrc_data->stride = rsrc_data->width;
-		rsrc_data->en_cfg = 0x1;
-		/* LSB aligned */
-		rsrc_data->pack_fmt |= (1 <<
-				ver3_bus_priv->common_data.pack_align_shift);
-
-	} else if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_FULL) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_FD) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_FULL_DISP)) {
-
-		switch (rsrc_data->format) {
-		case CAM_FORMAT_UBWC_NV12_4R:
-			rsrc_data->en_ubwc = 1;
-			switch (plane) {
-			case PLANE_C:
-				rsrc_data->height /= 2;
-				break;
-			case PLANE_Y:
-				break;
-			default:
-				CAM_ERR(CAM_ISP, "VFE:%u Invalid plane %d",
-					wm_res->hw_intf->hw_idx, plane);
-				return -EINVAL;
-			}
-			break;
-		case CAM_FORMAT_UBWC_NV12:
-			rsrc_data->en_ubwc = 1;
-			fallthrough;
-			/* Fall through for NV12 */
-		case CAM_FORMAT_NV21:
-		case CAM_FORMAT_NV12:
-		case CAM_FORMAT_Y_ONLY:
-			switch (plane) {
-			case PLANE_C:
-				rsrc_data->height /= 2;
-				break;
-			case PLANE_Y:
-				break;
-			default:
-				CAM_ERR(CAM_ISP, "VFE:%u Invalid plane %d",
-					wm_res->hw_intf->hw_idx, plane);
-				return -EINVAL;
-			}
-			break;
-		case CAM_FORMAT_UBWC_TP10:
-			rsrc_data->en_ubwc = 1;
-			switch (plane) {
-			case PLANE_C:
-				rsrc_data->height /= 2;
-				break;
-			case PLANE_Y:
-				break;
-			default:
-				CAM_ERR(CAM_ISP, "VFE:%u Invalid plane %d",
-					wm_res->hw_intf->hw_idx, plane);
-				return -EINVAL;
-			}
-			break;
-		case CAM_FORMAT_TP10:
-			switch (plane) {
-			case PLANE_C:
-				rsrc_data->height /= 2;
-				break;
-			case PLANE_Y:
-				break;
-			default:
-				CAM_ERR(CAM_ISP, "VFE:%u Invalid plane %d",
-					wm_res->hw_intf->hw_idx, plane);
-				return -EINVAL;
-			}
-			break;
-		case CAM_FORMAT_PLAIN16_10:
-			switch (plane) {
-			case PLANE_C:
-				rsrc_data->height /= 2;
-				break;
-			case PLANE_Y:
-				break;
-			default:
-				CAM_ERR(CAM_ISP, "VFE:%u Invalid plane %d",
-					wm_res->hw_intf->hw_idx, plane);
-				return -EINVAL;
-			}
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "VFE:%u Invalid format %d out_type:%d",
-				wm_res->hw_intf->hw_idx, rsrc_data->format, vfe_out_res_id);
-			return -EINVAL;
-		}
-		rsrc_data->en_cfg = 0x1;
-
-	} else if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_BF) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_CAF)) {
-
-		rsrc_data->en_cfg = (0x1 << 16) | 0x1;
-
-	} else if (((vfe_out_res_id >= CAM_VFE_BUS_VER3_VFE_OUT_STATS_HDR_BE) &&
-		(vfe_out_res_id <= CAM_VFE_BUS_VER3_VFE_OUT_STATS_IHIST)) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_BAYER_RS)) {
-
-		rsrc_data->width = 0;
-		rsrc_data->height = 0;
-		rsrc_data->stride = 1;
-		rsrc_data->en_cfg = (0x1 << 16) | 0x1;
-
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_2PD) {
-
-		rsrc_data->width = 0;
-		rsrc_data->height = 0;
-		rsrc_data->stride = 1;
-		rsrc_data->en_cfg = (0x1 << 16) | 0x1;
-
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_LCR) {
-		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN16_16:
-			rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
-			rsrc_data->en_cfg = 0x1;
-			/* LSB aligned */
-			rsrc_data->pack_fmt |= (1 <<
-				ver3_bus_priv->common_data.pack_align_shift);
-
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "VFE:%u Invalid format %d out_type:%d",
-				wm_res->hw_intf->hw_idx, rsrc_data->format, vfe_out_res_id);
-			return -EINVAL;
-		}
-
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_SPARSE_PD) {
-		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN8:
-			rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
-			rsrc_data->en_cfg = 0x1;
-			break;
-		case CAM_FORMAT_PLAIN16_8:
-		case CAM_FORMAT_PLAIN16_10:
-		case CAM_FORMAT_PLAIN16_12:
-		case CAM_FORMAT_PLAIN16_14:
-			rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
-			rsrc_data->en_cfg = 0x1;
-			/* LSB aligned */
-			rsrc_data->pack_fmt |= (1 <<
-				ver3_bus_priv->common_data.pack_align_shift);
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "VFE:%u Invalid format %d out_type:%d",
-				wm_res->hw_intf->hw_idx, rsrc_data->format, vfe_out_res_id);
-			return -EINVAL;
-		}
-
-	} else if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_DS4) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_DS16) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_DS4_DISP) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_DS16_DISP)) {
-
-		rsrc_data->height = rsrc_data->height / 2;
-		rsrc_data->width  = rsrc_data->width / 2;
-		rsrc_data->en_cfg = 0x1;
-
-	} else if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_AWB_BFW) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_ALSC)) {
-		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN64:
-			rsrc_data->width = 0;
-			rsrc_data->height = 0;
-			rsrc_data->stride = 1;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "VFE:%u Invalid format %d out_type:%d",
-				wm_res->hw_intf->hw_idx, rsrc_data->format, vfe_out_res_id);
-			return -EINVAL;
-		}
-
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_2PD) {
-		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN16_16:
-			rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
-			rsrc_data->en_cfg = 0x1;
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "VFE:%u Invalid format %d out_type:%d",
-				wm_res->hw_intf->hw_idx, rsrc_data->format, vfe_out_res_id);
-			return -EINVAL;
-		}
-
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_LTM_STATS) {
-		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN32:
-			rsrc_data->stride = ALIGNUP(rsrc_data->width * 4, 16);
-			rsrc_data->en_cfg = 0x1;
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "VFE:%u Invalid format %d out_type:%d",
-				wm_res->hw_intf->hw_idx, rsrc_data->format, vfe_out_res_id);
-			return -EINVAL;
-		}
-
-	} else if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_AEC_BE) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_GTM_BHIST)) {
-		rsrc_data->width = 0;
-		rsrc_data->height = 0;
-		rsrc_data->stride = 1;
-		rsrc_data->en_cfg = (0x1 << 16) | 0x1;
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_RAW) {
-		switch (rsrc_data->format) {
-		case CAM_FORMAT_MIPI_RAW_8:
-		case CAM_FORMAT_MIPI_RAW_10:
-		case CAM_FORMAT_MIPI_RAW_12:
-		case CAM_FORMAT_PLAIN8:
-		case CAM_FORMAT_PLAIN16_8:
-		case CAM_FORMAT_PLAIN16_10:
-		case CAM_FORMAT_PLAIN16_12:
-		case CAM_FORMAT_PLAIN16_14:
-			rsrc_data->width = 0;
-			rsrc_data->height = 0;
-			rsrc_data->stride = 1;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "VFE:%u Invalid format %d out_type:%d",
-				wm_res->hw_intf->hw_idx, rsrc_data->format, vfe_out_res_id);
-			return -EINVAL;
-		}
-
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_BG) {
-		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN64:
-			rsrc_data->width = 0;
-			rsrc_data->height = 0;
-			rsrc_data->stride = 1;
-			rsrc_data->en_cfg = (0x1 << 16) | 0x1;
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "VFE:%u Invalid format %d out_type:%d",
-				 wm_res->hw_intf->hw_idx, rsrc_data->format, vfe_out_res_id);
-			return -EINVAL;
-		}
-
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED) {
-		switch (rsrc_data->format) {
-		case CAM_FORMAT_PLAIN16_16:
-			rsrc_data->stride = ALIGNUP(rsrc_data->width * 2, 8);
-			rsrc_data->en_cfg = 0x1;
-			/* LSB aligned */
-			rsrc_data->pack_fmt |= (1 <<
-				ver3_bus_priv->common_data.pack_align_shift);
-
-			break;
-		default:
-			CAM_ERR(CAM_ISP, "VFE:%u Invalid format %d out_type:%d",
-				wm_res->hw_intf->hw_idx, rsrc_data->format, vfe_out_res_id);
-			return -EINVAL;
-		}
-
-	} else {
-		CAM_ERR(CAM_ISP, "VFE:%u Invalid out_type:%d requested",
-			wm_res->hw_intf->hw_idx, vfe_out_res_id);
+	if (!(rsrc_data->hw_regs->supported_formats & BIT_ULL(rsrc_data->format))) {
+		CAM_ERR(CAM_ISP, "Invalid format %d out_type:%d",
+			rsrc_data->format, vfe_out_res_id);
 		return -EINVAL;
 	}
+
+	rc = cam_vfe_bus_ver3_config_port(ver3_bus_priv, rsrc_data, vfe_out_res_id, plane);
+	if (rc)
+		return rc;
 
 	*comp_grp_id = rsrc_data->hw_regs->comp_group;
 
@@ -1606,7 +1529,7 @@ static int cam_vfe_bus_ver3_start_comp_grp(
 	struct cam_vfe_bus_ver3_common_data *common_data = rsrc_data->common_data;
 
 	CAM_DBG(CAM_ISP,
-		"Start VFE:%u comp_grp:%d streaming state:%d comp_mask:0x%X",
+		"Start VFE:%u comp_grp:%d streaming state:%d comp_mask:0x%lX",
 		rsrc_data->common_data->core_index,
 		rsrc_data->comp_grp_type, comp_grp->res_state,
 		rsrc_data->composite_mask);
@@ -1944,6 +1867,21 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 		(rsrc_data->format == CAM_FORMAT_Y_ONLY))
 		rsrc_data->num_wm = 1;
 
+	if (rsrc_data->out_type == CAM_VFE_BUS_VER3_VFE_OUT_DS2) {
+		switch (rsrc_data->format) {
+		case CAM_FORMAT_MIPI_RAW_10:
+		case CAM_FORMAT_PLAIN16_10:
+		case CAM_FORMAT_PLAIN16_12:
+		case CAM_FORMAT_PLAIN16_14:
+		case CAM_FORMAT_PLAIN16_16:
+		case CAM_FORMAT_BAYER_UBWC_TP10:
+			rsrc_data->num_wm = 1;
+			break;
+		default:
+			break;
+		}
+	}
+
 	/* Acquire WM and retrieve COMP GRP ID */
 	for (i = 0; i < rsrc_data->num_wm; i++) {
 		rc = cam_vfe_bus_ver3_acquire_wm(ver3_bus_priv,
@@ -2027,6 +1965,21 @@ static int cam_vfe_bus_ver3_release_vfe_out(void *bus_priv, void *release_args,
 	if ((rsrc_data->out_type == CAM_VFE_BUS_VER3_VFE_OUT_FD) &&
 		(rsrc_data->format == CAM_FORMAT_Y_ONLY))
 		rsrc_data->num_wm = 2;
+
+	if (rsrc_data->out_type == CAM_VFE_BUS_VER3_VFE_OUT_DS2) {
+		switch (rsrc_data->format) {
+		case CAM_FORMAT_MIPI_RAW_10:
+		case CAM_FORMAT_PLAIN16_10:
+		case CAM_FORMAT_PLAIN16_12:
+		case CAM_FORMAT_PLAIN16_14:
+		case CAM_FORMAT_PLAIN16_16:
+		case CAM_FORMAT_BAYER_UBWC_TP10:
+			rsrc_data->num_wm = 2;
+			break;
+		default:
+			break;
+		}
+	}
 
 	if (rsrc_data->comp_grp)
 		cam_vfe_bus_ver3_release_comp_grp(bus_priv,
@@ -2837,9 +2790,9 @@ static void cam_vfe_check_violations(
 				*out_port |= BIT_ULL(rsrc_node->res_id & 0xFF);
 
 				/* check what type of violation it is*/
-				switch (wm_data->index) {
-				case 21:
-				case 22:
+				switch (rsrc_data->out_type) {
+				case CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_2PD:
+				case CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED:
 					if (!strcmp(error_type, "Image Size"))
 						violation_type->hwpd_violation = true;
 					break;
@@ -3980,7 +3933,7 @@ static int cam_vfe_bus_ver3_update_wm_config(
 			/* Reconfigure only for valid packer fmt */
 			if (packer_fmt != PACKER_FMT_VER3_MAX) {
 				if ((vfe_out_data->out_type >= CAM_VFE_BUS_VER3_VFE_OUT_RDI0) &&
-					(vfe_out_data->out_type <= CAM_VFE_BUS_VER3_VFE_OUT_RDI3))
+					(vfe_out_data->out_type <= CAM_VFE_BUS_VER3_VFE_OUT_RDI4))
 					cam_vfe_bus_ver3_config_rdi_wm(wm_data);
 
 				/* LSB aligned for plain type format */
