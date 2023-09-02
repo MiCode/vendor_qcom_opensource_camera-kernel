@@ -5446,6 +5446,7 @@ static int cam_ife_mgr_acquire_get_unified_structure_v3(
 		in_port->data[i].secure_mode  = in->data[i].secure_mode;
 		in_port->data[i].wm_mode      = in->data[i].wm_mode;
 		in_port->data[i].hw_context_id   = in->data[i].context_id;
+		in_port->data[i].rcs_en       = in->data[i].param_mask & CAM_IFE_WM_RCS_EN;
 	}
 
 	return 0;

@@ -1061,6 +1061,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 				BIT_ULL(CAM_FORMAT_PLAIN8) | BIT_ULL(CAM_FORMAT_PLAIN16_8) |
 				BIT_ULL(CAM_FORMAT_PLAIN16_10) | BIT_ULL(CAM_FORMAT_PLAIN16_12) |
 				BIT_ULL(CAM_FORMAT_PLAIN16_14) | BIT_ULL(CAM_FORMAT_PLAIN16_16),
+			.rcs_en_mask             =  0x200,
 		},
 		/* BUS Client 1 DS4_Y */
 		{
@@ -1247,6 +1248,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 				BIT_ULL(CAM_FORMAT_GBR_TP10) |
 				BIT_ULL(CAM_FORMAT_GBR_UBWC_TP10) |
 				BIT_ULL(CAM_FORMAT_BAYER_UBWC_TP10),
+			.rcs_en_mask             =  0x200,
 		},
 		/* BUS Client 6 DS2_C */
 		{
@@ -1290,6 +1292,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 				BIT_ULL(CAM_FORMAT_GBR_UBWC_TP10) |
 				BIT_ULL(CAM_FORMAT_BAYER_UBWC_TP10),
 
+			.rcs_en_mask             =  0x200,
 		},
 		/* BUS Client 7 FD_Y */
 		{

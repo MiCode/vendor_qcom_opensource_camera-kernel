@@ -135,6 +135,7 @@ struct cam_isp_out_port_generic_info {
 	uint32_t                reserved;
 	uint32_t                wm_mode;
 	uint32_t                hw_context_id;
+	bool                    rcs_en;
 };
 
 struct cam_isp_in_port_generic_info {

@@ -1192,6 +1192,9 @@ static int cam_vfe_bus_ver3_acquire_wm(
 		break;
 	}
 
+	if (out_acq_args->out_port_info->rcs_en)
+		rsrc_data->en_cfg |= rsrc_data->hw_regs->rcs_en_mask;
+
 	wm_res->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
 	wm_res->tasklet_info = tasklet;
 

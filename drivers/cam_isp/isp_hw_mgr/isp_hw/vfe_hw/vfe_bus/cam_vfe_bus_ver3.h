@@ -206,6 +206,7 @@ struct cam_vfe_bus_ver3_reg_offset_bus_client {
 	uint32_t bw_limiter_addr;
 	uint32_t comp_group;
 	uint64_t supported_formats;
+	uint32_t rcs_en_mask;
 };
 
 /*
