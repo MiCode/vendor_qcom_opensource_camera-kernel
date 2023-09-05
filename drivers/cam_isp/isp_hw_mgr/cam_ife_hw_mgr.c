@@ -2687,6 +2687,7 @@ static int cam_convert_hw_idx_to_sfe_hw_num(int hw_idx)
 		switch (hw_idx) {
 		case 0: return CAM_ISP_SFE0_HW;
 		case 1: return CAM_ISP_SFE1_HW;
+		case 2: return CAM_ISP_SFE2_HW;
 		}
 	} else {
 		CAM_ERR(CAM_ISP, "SFE hw idx %d out-of-bounds max available %u",
@@ -9389,7 +9390,7 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 {
 	struct cam_ife_hw_mgr_ctx                  *ctx = NULL;
 	struct cam_hw_intf                         *hw_intf;
-	struct cam_ife_csid_mode_switch_update_args csid_mup_upd_args;
+	struct cam_ife_csid_mode_switch_update_args csid_mup_upd_args = {0};
 	struct cam_ife_hw_mgr                      *ife_hw_mgr;
 	struct cam_isp_prepare_hw_update_data      *prepare_hw_data;
 	int                                         i, rc = -EINVAL;
@@ -9404,6 +9405,15 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 			prepare->priv;
 	prepare_hw_data->mup_en = true;
 	prepare_hw_data->mup_val = mup_config->mup;
+
+	/*
+	 * Send MUP to CSID for INIT packets only to be used at stream on and after.
+	 * For update packets with MUP, append the config to the cdm packet
+	 */
+	if (prepare_hw_data->packet_opcode_type == CAM_ISP_PACKET_INIT_DEV) {
+		csid_mup_upd_args.mup_args.mup_val = mup_config->mup;
+		csid_mup_upd_args.mup_args.use_mup = true;
+	}
 
 	for (i = 0; i < ctx->num_base; i++) {
 		if (ctx->base[i].hw_type != CAM_ISP_HW_TYPE_CSID)

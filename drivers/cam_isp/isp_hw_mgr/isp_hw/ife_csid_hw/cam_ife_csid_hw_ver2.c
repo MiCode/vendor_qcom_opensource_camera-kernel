@@ -2516,14 +2516,12 @@ static int cam_ife_csid_ver2_internal_reset(
 		cam_io_w_mb(0x0, mem_base + csi2_reg->cfg1_addr);
 	}
 
-	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_SLAVE &&
-		rst_cmd == CAM_IFE_CSID_RESET_CMD_HW_RST)
+	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_SLAVE)
 		goto wait_only;
 
-	if (rst_cmd == CAM_IFE_CSID_RESET_CMD_SW_RST)
-		reinit_completion(&csid_hw->hw_info->hw_complete);
+	reinit_completion(&csid_hw->hw_info->hw_complete);
 
-	/*Program the reset location */
+	/* Program the reset location */
 	if (rst_location == CAM_IFE_CSID_RESET_LOC_PATH_ONLY)
 		val |= (csid_reg->cmn_reg->rst_loc_path_only_val <<
 		       csid_reg->cmn_reg->rst_location_shift_val);
@@ -6141,6 +6139,12 @@ static int cam_ife_csid_ver2_set_dynamic_switch_config(
 
 	switch_update =
 		(struct cam_ife_csid_mode_switch_update_args *)cmd_args;
+
+	if (switch_update->mup_args.use_mup) {
+		csid_hw->rx_cfg.mup = switch_update->mup_args.mup_val;
+		CAM_DBG(CAM_ISP, "CSID[%u] MUP %u",
+			csid_hw->hw_intf->hw_idx, csid_hw->rx_cfg.mup);
+	}
 
 	/* Handle number of frames to initially drop based on num starting exposures */
 	if (switch_update->exp_update_args.reset_discard_cfg) {
