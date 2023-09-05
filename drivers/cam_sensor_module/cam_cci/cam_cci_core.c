@@ -1014,6 +1014,10 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 	void __iomem                       *base = NULL;
 
 	cci_dev = v4l2_get_subdevdata(sd);
+	if (!cci_dev) {
+		CAM_ERR(CAM_CCI, "cci_dev NULL");
+		return -EINVAL;
+	}
 	master = c_ctrl->cci_info->cci_i2c_master;
 	read_cfg = &c_ctrl->cfg.cci_i2c_read_cfg;
 
@@ -1305,6 +1309,10 @@ static int32_t cam_cci_read(struct v4l2_subdev *sd,
 	void __iomem *base = NULL;
 
 	cci_dev = v4l2_get_subdevdata(sd);
+	if (!cci_dev) {
+		CAM_ERR(CAM_CCI, "cci_dev NULL");
+		return -EINVAL;
+	}
 	master = c_ctrl->cci_info->cci_i2c_master;
 	read_cfg = &c_ctrl->cfg.cci_i2c_read_cfg;
 
@@ -1523,6 +1531,10 @@ static int32_t cam_cci_i2c_write(struct v4l2_subdev *sd,
 	enum cci_i2c_master_t master;
 
 	cci_dev = v4l2_get_subdevdata(sd);
+	if (!cci_dev) {
+		CAM_ERR(CAM_CCI, "cci_dev NULL");
+		return -EINVAL;
+	}
 
 	if (cci_dev->cci_state != CCI_STATE_ENABLED) {
 		CAM_ERR(CAM_CCI, "invalid cci: %d state: %d",
@@ -1624,6 +1636,10 @@ static int32_t cam_cci_i2c_write_async(struct v4l2_subdev *sd,
 	struct cam_sensor_i2c_reg_setting *cci_i2c_write_cfg_w;
 
 	cci_dev = v4l2_get_subdevdata(sd);
+	if (!cci_dev) {
+		CAM_ERR(CAM_CCI, "cci_dev NULL");
+		return -EINVAL;
+	}
 
 	write_async = kzalloc(sizeof(*write_async), GFP_KERNEL);
 	if (!write_async) {
@@ -1874,6 +1890,10 @@ static int32_t cam_cci_release(struct v4l2_subdev *sd,
 	struct cci_device *cci_dev;
 
 	cci_dev = v4l2_get_subdevdata(sd);
+	if (!cci_dev) {
+		CAM_ERR(CAM_CCI, "cci_dev NULL");
+		return -EINVAL;
+	}
 
 	rc = cam_cci_soc_release(cci_dev, master);
 	if (rc < 0) {

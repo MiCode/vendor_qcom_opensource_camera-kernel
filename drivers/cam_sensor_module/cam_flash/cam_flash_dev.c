@@ -291,6 +291,10 @@ static long cam_flash_subdev_ioctl(struct v4l2_subdev *sd,
 	CAM_DBG(CAM_FLASH, "Enter");
 
 	fctrl = v4l2_get_subdevdata(sd);
+	if (!fctrl) {
+		CAM_ERR(CAM_FLASH, "Flash ctrl ptr is NULL");
+		return -EINVAL;
+	}
 	soc_private = fctrl->soc_info.soc_private;
 
 	switch (cmd) {

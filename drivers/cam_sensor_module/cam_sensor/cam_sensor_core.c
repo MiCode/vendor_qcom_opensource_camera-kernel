@@ -1621,6 +1621,10 @@ int cam_sensor_establish_link(struct cam_req_mgr_core_dev_link_setup *link)
 int cam_sensor_power(struct v4l2_subdev *sd, int on)
 {
 	struct cam_sensor_ctrl_t *s_ctrl = v4l2_get_subdevdata(sd);
+	if (!s_ctrl) {
+		CAM_ERR(CAM_SENSOR, "s_ctrl ptr is NULL");
+		return -EINVAL;
+	}
 
 	mutex_lock(&(s_ctrl->cam_sensor_mutex));
 	if (!on && s_ctrl->sensor_state == CAM_SENSOR_START) {
