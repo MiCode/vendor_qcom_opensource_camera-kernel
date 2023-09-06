@@ -1072,7 +1072,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.top_irq_mask                     = {0x10000,},
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
-		.pix_store_en_shift_val           = 10,
+		.pix_store_en_shift_val           = 0,
 		.sof_retiming_dis_shift           = 5,
 		.default_out_format               = CAM_FORMAT_PLAIN16_16,
 };
@@ -1191,7 +1191,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.top_irq_mask                     = {0x20000,},
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
-		.pix_store_en_shift_val           = 10,
+		.pix_store_en_shift_val           = 0,
 		.sof_retiming_dis_shift           = 5,
 };
 
@@ -1309,7 +1309,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.top_irq_mask                     = {0x40000,},
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
-		.pix_store_en_shift_val           = 10,
+		.pix_store_en_shift_val           = 0,
 		.sof_retiming_dis_shift           = 5,
 
 };
@@ -1424,7 +1424,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.top_irq_mask                     = {0x80000,},
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
-		.pix_store_en_shift_val           = 10,
+		.pix_store_en_shift_val           = 0,
 		.sof_retiming_dis_shift           = 5,
 };
 
@@ -1538,7 +1538,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.top_irq_mask                     = {0x100000,},
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
-		.pix_store_en_shift_val           = 10,
+		.pix_store_en_shift_val           = 0,
 		.sof_retiming_dis_shift           = 5,
 };
 
@@ -1610,13 +1610,13 @@ static struct cam_ife_csid_ver2_csi2_rx_reg_info
 		.epd_mode_shift_en               = 8,
 		.eotp_shift_en                   = 9,
 		.dyn_sensor_switch_shift_en      = 10,
-		.rup_aup_latch_shift             = 11,
+		.rup_aup_latch_shift             = 13,
 		.rup_aup_latch_supported         = true,
 		.long_pkt_strobe_rst_shift       = 0,
 		.short_pkt_strobe_rst_shift      = 1,
 		.cphy_pkt_strobe_rst_shift       = 2,
 		.unmapped_pkt_strobe_rst_shift   = 3,
-		.fatal_err_mask                  = {0x38f00000,},
+		.fatal_err_mask                  = {0x27f0f000, 0x0},
 		.part_fatal_err_mask             = {0xF0000,},
 		.non_fatal_err_mask              = {0x08000000,},
 		.top_irq_mask                    = {0x4,},
