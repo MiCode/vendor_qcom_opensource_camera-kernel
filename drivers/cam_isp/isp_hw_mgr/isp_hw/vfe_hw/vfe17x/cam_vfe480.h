@@ -1740,6 +1740,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 	.supported_irq =  CAM_VFE_HW_IRQ_CAP_BUF_DONE | CAM_VFE_HW_IRQ_CAP_RUP,
 	.comp_cfg_needed = true,
 	.pack_align_shift = 4,
+	.support_burst_limit = true,
 };
 
 static struct cam_irq_register_set vfe480_bus_rd_irq_reg[1] = {
