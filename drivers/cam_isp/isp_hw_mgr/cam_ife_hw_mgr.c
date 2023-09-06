@@ -8755,6 +8755,7 @@ static int cam_isp_get_generic_ubwc_data_v2(
 			ubwc_cfg[i].lossy_var_offset;
 		generic_ubwc_cfg->ubwc_plane_cfg[i].bandwidth_limit       =
 			ubwc_cfg[i].bandwidth_limit;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].hw_ctx_id_mask        = 0;
 	}
 
 	return 0;
@@ -8806,7 +8807,7 @@ static int cam_isp_blob_ubwc_update_v2(
 			ubwc_plane_cfg->port_type, ctx->ctx_index);
 
 		if (res_id_out >= max_ife_out_res) {
-			CAM_ERR(CAM_ISP, "Invalid port type:%x ctx_idx: %u",
+			CAM_ERR(CAM_ISP, "Invalid port type:0x%x ctx_idx: %u",
 				ubwc_plane_cfg->port_type, ctx->ctx_index);
 			rc = -EINVAL;
 			goto end;
@@ -8863,6 +8864,193 @@ static int cam_isp_blob_ubwc_update_v2(
 			hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
 			blob_type,
 			blob_type_hw_cmd_map[blob_type],
+			(void *)cmd_buf_addr,
+			kmd_buf_remain_size,
+			(void *)&generic_ubwc_cfg,
+			&bytes_used);
+		if (rc < 0) {
+			CAM_ERR(CAM_ISP,
+				"Failed cmd_update, base_idx=%d, bytes_used=%u, res_id_out=0x%X, ctx_idx: %u",
+				blob_info->base_info->idx,
+				bytes_used,
+				ubwc_plane_cfg->port_type, ctx->ctx_index);
+			goto end;
+		}
+
+		total_used_bytes += bytes_used;
+	}
+
+	if (total_used_bytes) {
+		cam_ife_mgr_update_hw_entries_util(
+			CAM_ISP_IQ_BL, total_used_bytes,
+			kmd_buf_info, prepare, blob_info->entry_added);
+		blob_info->entry_added = true;
+	}
+
+end:
+	return rc;
+}
+
+static int cam_isp_get_generic_ubwc_data_v3(
+	struct cam_ubwc_plane_cfg_v3       *ubwc_cfg,
+	uint32_t                            version,
+	struct cam_vfe_generic_ubwc_config *generic_ubwc_cfg)
+{
+	int i = 0;
+
+	generic_ubwc_cfg->api_version = version;
+	for (i = 0; i < CAM_PACKET_MAX_PLANES - 1; i++) {
+		generic_ubwc_cfg->ubwc_plane_cfg[i].port_type             =
+			ubwc_cfg[i].port_type;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].meta_stride           =
+			ubwc_cfg[i].meta_stride;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].meta_size             =
+			ubwc_cfg[i].meta_size;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].meta_offset           =
+			ubwc_cfg[i].meta_offset;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].packer_config         =
+			ubwc_cfg[i].packer_config;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].mode_config_0         =
+			ubwc_cfg[i].mode_config_0;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].mode_config_1         =
+			ubwc_cfg[i].mode_config_1;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].tile_config           =
+			ubwc_cfg[i].tile_config;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].h_init                =
+			ubwc_cfg[i].h_init;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].v_init                =
+			ubwc_cfg[i].v_init;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].static_ctrl           =
+			ubwc_cfg[i].static_ctrl;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].ctrl_2                =
+			ubwc_cfg[i].ctrl_2;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].stats_ctrl_2          =
+			ubwc_cfg[i].stats_ctrl_2;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].lossy_threshold_0     =
+			ubwc_cfg[i].lossy_threshold_0;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].lossy_threshold_1     =
+			ubwc_cfg[i].lossy_threshold_1;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].lossy_var_offset =
+			ubwc_cfg[i].lossy_var_offset;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].bandwidth_limit       =
+			ubwc_cfg[i].bandwidth_limit;
+		generic_ubwc_cfg->ubwc_plane_cfg[i].hw_ctx_id_mask        =
+			ubwc_cfg[i].hw_ctx_id_mask;
+	}
+
+	return 0;
+}
+
+static int cam_isp_blob_ubwc_update_v3(
+	uint32_t                               blob_type,
+	struct cam_isp_generic_blob_info      *blob_info,
+	struct cam_ubwc_config_v3             *ubwc_config,
+	struct cam_hw_prepare_update_args     *prepare)
+{
+	struct cam_ubwc_plane_cfg_v3          *ubwc_plane_cfg;
+	struct cam_kmd_buf_info               *kmd_buf_info;
+	struct cam_ife_hw_mgr_ctx             *ctx = NULL;
+	struct cam_isp_hw_mgr_res             *hw_mgr_res;
+	struct cam_hw_intf                    *hw_intf = NULL;
+	uint32_t                               res_id_out, i;
+	uint32_t                               total_used_bytes = 0;
+	uint32_t                               kmd_buf_remain_size;
+	uint32_t                              *cmd_buf_addr;
+	uint32_t                               bytes_used = 0;
+	int                                    rc = 0;
+	struct cam_vfe_generic_ubwc_config     generic_ubwc_cfg;
+
+	ctx = prepare->ctxt_to_hw_map;
+	if (!ctx) {
+		CAM_ERR(CAM_ISP, "Invalid ctx");
+		rc = -EINVAL;
+		goto end;
+	}
+
+	if (prepare->num_hw_update_entries + 1 >=
+		prepare->max_hw_update_entries) {
+		CAM_ERR(CAM_ISP, "Insufficient HW entries :%d max:%d, ctx_idx: %u",
+			prepare->num_hw_update_entries,
+			prepare->max_hw_update_entries, ctx->ctx_index);
+		rc = -EINVAL;
+		goto end;
+	}
+
+	CAM_DBG(CAM_ISP, "ctx_idx: %u num_ports= %d", ctx->ctx_index, ubwc_config->num_ports);
+
+	kmd_buf_info = blob_info->kmd_buf_info;
+	for (i = 0; i < ubwc_config->num_ports; i++) {
+		ubwc_plane_cfg = &ubwc_config->ubwc_plane_cfg[i][0];
+		res_id_out = ubwc_plane_cfg->port_type & 0xFF;
+
+		CAM_DBG(CAM_ISP, "UBWC config idx %d, port_type=%d ctx_idx: %u", i,
+			ubwc_plane_cfg->port_type, ctx->ctx_index);
+
+		if (res_id_out >= max_ife_out_res) {
+			CAM_ERR(CAM_ISP, "Invalid port type:0x%x ctx_idx: %u",
+				ubwc_plane_cfg->port_type, ctx->ctx_index);
+			rc = -EINVAL;
+			goto end;
+		}
+
+		if (ubwc_plane_cfg->hw_ctx_id_mask >= BIT(CAM_ISP_MULTI_CTXT_MAX)) {
+			CAM_ERR(CAM_ISP, "Invalid hw ctxt port:0x%x ctx_idx: %u hw_ctxt_mask: 0x%x",
+				ubwc_plane_cfg->port_type, ctx->ctx_index,
+				ubwc_plane_cfg->hw_ctx_id_mask);
+			rc = -EINVAL;
+			goto end;
+		}
+
+		if (ctx->vfe_out_map[res_id_out] == 0xff) {
+			CAM_ERR(CAM_ISP, "Invalid index:%d for out_map", res_id_out);
+			rc = -EINVAL;
+			goto end;
+		}
+
+		hw_mgr_res = &ctx->res_list_ife_out[ctx->vfe_out_map[res_id_out]];
+		if (!hw_mgr_res) {
+			CAM_ERR(CAM_ISP, "Invalid hw_mgr_res");
+			rc = -EINVAL;
+			goto end;
+		}
+
+		hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+
+		if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid base %u type %u", blob_info->base_info->idx,
+				blob_info->base_info->hw_type);
+			return rc;
+		}
+
+		if (!hw_mgr_res->hw_res[blob_info->base_info->split_id])
+			goto end;
+
+		if ((kmd_buf_info->used_bytes
+			+ total_used_bytes) < kmd_buf_info->size) {
+			kmd_buf_remain_size = kmd_buf_info->size -
+				(kmd_buf_info->used_bytes
+				+ total_used_bytes);
+		} else {
+			CAM_ERR(CAM_ISP,
+				"no free kmd memory for base=%d bytes_used=%u buf_size=%u ctx_idx: %u",
+				blob_info->base_info->idx, bytes_used,
+				kmd_buf_info->size, ctx->ctx_index);
+			rc = -ENOMEM;
+			goto end;
+		}
+
+		cmd_buf_addr = kmd_buf_info->cpu_addr +
+			kmd_buf_info->used_bytes/4 +
+			total_used_bytes/4;
+
+		(void) cam_isp_get_generic_ubwc_data_v3(ubwc_plane_cfg,
+			ubwc_config->api_version, &generic_ubwc_cfg);
+
+		rc = cam_isp_add_cmd_buf_update(
+			hw_mgr_res->hw_res[blob_info->base_info->split_id], hw_intf,
+			blob_type,
+			CAM_ISP_HW_CMD_UBWC_UPDATE_V3,
 			(void *)cmd_buf_addr,
 			kmd_buf_remain_size,
 			(void *)&generic_ubwc_cfg,
@@ -11513,6 +11701,56 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 				rc, ife_mgr_ctx->ctx_index);
 	}
 		break;
+	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG_V3: {
+		struct cam_ubwc_config_v3 *ubwc_config;
+
+		if (blob_size < sizeof(struct cam_ubwc_config_v3)) {
+			CAM_ERR(CAM_ISP, "Invalid blob_size %u, ctx_idx: %u",
+				blob_size, ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		ubwc_config = (struct cam_ubwc_config_v3 *)blob_data;
+
+		if (ubwc_config->num_ports > CAM_VFE_MAX_UBWC_PORTS ||
+			ubwc_config->num_ports == 0) {
+			CAM_ERR(CAM_ISP, "Invalid num_ports %u in ubwc config, ctx_idx: %u",
+				ubwc_config->num_ports, ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		/* Check for integer overflow */
+		if (ubwc_config->num_ports != 1) {
+			if (sizeof(struct cam_ubwc_plane_cfg_v3) >
+				((UINT_MAX - sizeof(struct cam_ubwc_config_v3))
+				/ ((ubwc_config->num_ports - 1) * 2))) {
+				CAM_ERR(CAM_ISP,
+					"Max size exceeded in ubwc config num_ports:%u size per port:%lu ctx_idx: %u",
+					ubwc_config->num_ports,
+					sizeof(struct cam_ubwc_plane_cfg_v3) *
+					2, ife_mgr_ctx->ctx_index);
+				return -EINVAL;
+			}
+		}
+
+		if (blob_size < (sizeof(struct cam_ubwc_config_v3) +
+			(ubwc_config->num_ports - 1) *
+			sizeof(struct cam_ubwc_plane_cfg_v3) * 2)) {
+			CAM_ERR(CAM_ISP, "Invalid blob_size %u expected %lu ctx_idx: %u",
+				blob_size,
+				sizeof(struct cam_ubwc_config_v3) +
+				(ubwc_config->num_ports - 1) *
+				sizeof(struct cam_ubwc_plane_cfg_v3) * 2, ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		rc = cam_isp_blob_ubwc_update_v3(blob_type, blob_info,
+			ubwc_config, prepare);
+		if (rc)
+			CAM_ERR(CAM_ISP, "UBWC Update Failed rc: %d, ctx_idx: %u",
+				rc, ife_mgr_ctx->ctx_index);
+	}
+		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_CSID_CLOCK_CONFIG: {
 		struct cam_isp_csid_clock_config    *clock_config;
 
@@ -12039,6 +12277,7 @@ static int cam_csid_packet_generic_blob_handler(void *user_data,
 	case CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_FCG_CFG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_IFE_FCG_CFG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG_V3:
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_IRQ_COMP_CFG: {
 		struct cam_isp_irq_comp_cfg *irq_comp_cfg;
@@ -12476,6 +12715,7 @@ static int cam_sfe_packet_generic_blob_handler(void *user_data,
 	case CAM_ISP_GENERIC_BLOB_TYPE_RDI_LCR_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V3:
 	case CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG:
+	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG_V3:
 		break;
 	default:
 		CAM_WARN(CAM_ISP, "Invalid blob type: %u, ctx_idx: %u",

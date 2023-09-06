@@ -359,6 +359,7 @@ struct cam_vfe_bus_irq_evt_payload {
  * @lossy_threshold1            UBWC lossy threshold 1
  * @lossy_var_offset            UBWC offset variance threshold
  * @bandwidth limit             UBWC bandwidth limit
+ * @hw_ctx_id_mask:             hw context id mask in case of multi context
  */
 struct cam_vfe_generic_ubwc_plane_config {
 	uint32_t                port_type;
@@ -378,6 +379,7 @@ struct cam_vfe_generic_ubwc_plane_config {
 	uint32_t                lossy_threshold_1;
 	uint32_t                lossy_var_offset;
 	uint32_t                bandwidth_limit;
+	uint32_t                hw_ctx_id_mask;
 };
 
 /**
