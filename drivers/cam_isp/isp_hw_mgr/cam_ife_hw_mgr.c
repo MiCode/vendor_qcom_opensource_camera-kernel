@@ -95,6 +95,7 @@ static uint32_t blob_type_hw_cmd_map[CAM_ISP_GENERIC_BLOB_TYPE_MAX] = {
 	CAM_ISP_HW_CMD_WM_CONFIG_UPDATE,
 	CAM_ISP_HW_CMD_BW_UPDATE_V2,
 	CAM_ISP_HW_CMD_BLANKING_UPDATE,
+	CAM_ISP_HW_CMD_WM_CONFIG_UPDATE_V2,
 };
 
 static struct cam_ife_hw_mgr g_ife_hw_mgr;
@@ -10482,6 +10483,125 @@ static int cam_isp_blob_vfe_out_update(
 	return rc;
 }
 
+
+static int cam_isp_blob_vfe_out_update_v2(
+	uint32_t                               blob_type,
+	struct cam_isp_generic_blob_info      *blob_info,
+	struct cam_isp_vfe_out_config_v2      *vfe_out_config,
+	struct cam_hw_prepare_update_args     *prepare,
+	uint32_t                               size_isp_out,
+	enum cam_isp_hw_type                   hw_type)
+{
+	struct cam_isp_vfe_wm_config_v2       *wm_config;
+	struct cam_kmd_buf_info               *kmd_buf_info;
+	struct cam_ife_hw_mgr_ctx             *ctx = NULL;
+	struct cam_isp_hw_mgr_res             *isp_out_res;
+	struct cam_hw_intf                    *hw_intf = NULL;
+	bool                                   is_sfe_rd = false;
+	uint32_t                               res_id_out, i;
+	uint32_t                               total_used_bytes = 0;
+	uint32_t                               kmd_buf_remain_size;
+	uint32_t                              *cmd_buf_addr;
+	uint32_t                               bytes_used = 0;
+	int                                    rc = 0;
+
+	ctx = prepare->ctxt_to_hw_map;
+
+	if (prepare->num_hw_update_entries + 1 >=
+			prepare->max_hw_update_entries) {
+		CAM_ERR(CAM_ISP, "Insufficient HW entries :%d, ctx_idx: %u",
+			prepare->num_hw_update_entries, ctx->ctx_index);
+		return -EINVAL;
+	}
+
+	kmd_buf_info = blob_info->kmd_buf_info;
+	for (i = 0; i < vfe_out_config->num_ports; i++) {
+		wm_config = &vfe_out_config->wm_config[i];
+		if ((hw_type == CAM_ISP_HW_TYPE_VFE) &&
+			(!cam_ife_hw_mgr_is_ife_out_port(wm_config->port_type)))
+			continue;
+
+		if (hw_type == CAM_ISP_HW_TYPE_SFE) {
+			is_sfe_rd = cam_ife_hw_mgr_is_sfe_rd_res(wm_config->port_type);
+			if ((!cam_ife_hw_mgr_is_sfe_out_port(wm_config->port_type)) &&
+				(!is_sfe_rd))
+				continue;
+		}
+
+		if ((kmd_buf_info->used_bytes
+			+ total_used_bytes) < kmd_buf_info->size) {
+			kmd_buf_remain_size = kmd_buf_info->size -
+			(kmd_buf_info->used_bytes +
+			total_used_bytes);
+		} else {
+			CAM_ERR(CAM_ISP,
+			"No free kmd memory for base idx: %d, ctx_idx: %u",
+			blob_info->base_info->idx, ctx->ctx_index);
+			rc = -ENOMEM;
+			return rc;
+		}
+
+		cmd_buf_addr = kmd_buf_info->cpu_addr +
+			(kmd_buf_info->used_bytes / 4) +
+			(total_used_bytes / 4);
+
+
+		res_id_out = wm_config->port_type & 0xFF;
+
+		CAM_DBG(CAM_ISP, "%s out config idx: %d port: 0x%x, ctx_idx: %u",
+			(hw_type == CAM_ISP_HW_TYPE_SFE ? "SFE" : "VFE"),
+			i, wm_config->port_type, ctx->ctx_index);
+
+		if (res_id_out >= size_isp_out) {
+			CAM_ERR(CAM_ISP, "Invalid out port:0x%x, ctx_idx: %u",
+				wm_config->port_type, ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		isp_out_res = &ctx->res_list_ife_out[ctx->vfe_out_map[res_id_out]];
+
+		hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
+		if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid base %u type %u", blob_info->base_info->idx,
+				blob_info->base_info->hw_type);
+			return rc;
+		}
+
+		if (!isp_out_res->hw_res[blob_info->base_info->split_id])
+			continue;
+
+		rc = cam_isp_add_cmd_buf_update(
+			isp_out_res->hw_res[blob_info->base_info->split_id], hw_intf,
+			blob_type,
+			CAM_ISP_HW_CMD_WM_CONFIG_UPDATE_V2,
+			(void *)cmd_buf_addr,
+			kmd_buf_remain_size,
+			(void *)wm_config,
+			&bytes_used);
+		if (rc < 0) {
+			CAM_ERR(CAM_ISP,
+				"Failed to update %s Out out_type:0x%X base_idx:%d bytes_used:%u rc:%d ctx_idx: %u",
+				((hw_type == CAM_ISP_HW_TYPE_SFE) ?
+				"SFE" : "VFE"),
+				wm_config->port_type, blob_info->base_info->idx,
+				bytes_used, rc, ctx->ctx_index);
+			return rc;
+		}
+
+		total_used_bytes += bytes_used;
+	}
+
+	if (total_used_bytes) {
+		cam_ife_mgr_update_hw_entries_util(
+			CAM_ISP_UNUSED_BL, total_used_bytes, kmd_buf_info, prepare,
+			blob_info->entry_added);
+		blob_info->entry_added = true;
+	}
+
+	return rc;
+}
+
 static int cam_isp_blob_sensor_blanking_config(
 	uint32_t                               blob_type,
 	struct cam_isp_generic_blob_info      *blob_info,
@@ -11650,7 +11770,6 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 				rc, ife_mgr_ctx->ctx_index);
 	}
 		break;
-
 	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG_V2: {
 		struct cam_ubwc_config_v2 *ubwc_config;
 
@@ -11879,6 +11998,59 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 				rc, ife_mgr_ctx->ctx_index);
 	}
 		break;
+	case CAM_ISP_GENERIC_BLOB_TYPE_VFE_OUT_CONFIG_V2: {
+		struct cam_isp_vfe_out_config_v2 *vfe_out_config_v2;
+
+		if (blob_size < sizeof(struct cam_isp_vfe_out_config_v2)) {
+			CAM_ERR(CAM_ISP, "Invalid blob size %u, ctx_idx: %u",
+				blob_size,
+				sizeof(struct cam_isp_vfe_out_config), ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		vfe_out_config_v2 = (struct cam_isp_vfe_out_config_v2 *)blob_data;
+
+		if (vfe_out_config_v2->num_ports >  max_ife_out_res ||
+			vfe_out_config_v2->num_ports == 0) {
+			CAM_ERR(CAM_ISP,
+				"Invalid num_ports:%u in vfe out config, ctx_idx: %u",
+				vfe_out_config_v2->num_ports, ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		/* Check for integer overflow */
+		if (vfe_out_config_v2->num_ports != 1) {
+			if (sizeof(struct cam_isp_vfe_wm_config_v2) > ((UINT_MAX -
+				sizeof(struct cam_isp_vfe_out_config_v2)) /
+				(vfe_out_config_v2->num_ports - 1))) {
+				CAM_ERR(CAM_ISP,
+					"Max size exceeded in vfe out config num_ports:%u size per port:%lu, ctx_idx: %u",
+					vfe_out_config_v2->num_ports,
+					sizeof(struct cam_isp_vfe_wm_config),
+					ife_mgr_ctx->ctx_index);
+				return -EINVAL;
+			}
+		}
+
+		if (blob_size < (sizeof(struct cam_isp_vfe_out_config_v2) +
+			(vfe_out_config_v2->num_ports - 1) *
+			sizeof(struct cam_isp_vfe_wm_config_v2))) {
+			CAM_ERR(CAM_ISP, "Invalid blob size %u expected %lu ctx_idx: %u",
+				blob_size, sizeof(struct cam_isp_vfe_out_config_v2)
+				+ (vfe_out_config_v2->num_ports - 1) *
+				sizeof(struct cam_isp_vfe_wm_config_v2), ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		rc = cam_isp_blob_vfe_out_update_v2(blob_type, blob_info,
+			vfe_out_config_v2, prepare, max_ife_out_res,
+			CAM_ISP_HW_TYPE_VFE);
+		if (rc)
+			CAM_ERR(CAM_ISP, "VFE out update failed rc: %d, ctx_idx: %u",
+				rc, ife_mgr_ctx->ctx_index);
+	}
+		break;
+
 	case CAM_ISP_GENERIC_BLOB_TYPE_SENSOR_BLANKING_CONFIG: {
 		struct cam_isp_sensor_blanking_config  *sensor_blanking_config;
 
@@ -12278,6 +12450,7 @@ static int cam_csid_packet_generic_blob_handler(void *user_data,
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_FCG_CFG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_IFE_FCG_CFG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG_V3:
+	case CAM_ISP_GENERIC_BLOB_TYPE_VFE_OUT_CONFIG_V2:
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_IRQ_COMP_CFG: {
 		struct cam_isp_irq_comp_cfg *irq_comp_cfg;
@@ -12716,6 +12889,7 @@ static int cam_sfe_packet_generic_blob_handler(void *user_data,
 	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V3:
 	case CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG:
 	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG_V3:
+	case CAM_ISP_GENERIC_BLOB_TYPE_VFE_OUT_CONFIG_V2:
 		break;
 	default:
 		CAM_WARN(CAM_ISP, "Invalid blob type: %u, ctx_idx: %u",
