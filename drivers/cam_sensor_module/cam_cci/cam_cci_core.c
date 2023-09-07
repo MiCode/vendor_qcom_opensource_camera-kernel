@@ -211,7 +211,13 @@ static int32_t cam_cci_lock_queue(struct cci_device *cci_dev,
 		goto end;
 
 	val = en ? CCI_I2C_LOCK_CMD : CCI_I2C_UNLOCK_CMD;
-	rc = cam_cci_write_i2c_queue(cci_dev, val, master, queue);
+
+	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d_Q%d_LOAD_DATA_ADDR:val 0x%x:0x%x ",
+		cci_dev->soc_info.index, master, queue,
+		CCI_I2C_M0_Q0_LOAD_DATA_ADDR +
+		reg_offset, val);
+	cam_io_w_mb(val, base + CCI_I2C_M0_Q0_LOAD_DATA_ADDR +
+		reg_offset);
 
 	if (rc) {
 		CAM_ERR(CAM_CCI,
