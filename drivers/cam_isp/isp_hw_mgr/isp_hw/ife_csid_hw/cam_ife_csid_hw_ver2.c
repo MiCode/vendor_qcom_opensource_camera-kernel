@@ -1262,6 +1262,7 @@ static inline uint32_t cam_ife_csid_ver2_input_core_to_hw_idx(int core_sel)
 	switch (core_sel) {
 	case CAM_IFE_CSID_INPUT_CORE_SEL_SFE_0: return 0;
 	case CAM_IFE_CSID_INPUT_CORE_SEL_SFE_1: return 1;
+	case CAM_IFE_CSID_INPUT_CORE_SEL_SFE_2: return 2;
 	/**
 	 * For all invalid cases, return a very large value
 	 * that can never be a valid hw idx.
