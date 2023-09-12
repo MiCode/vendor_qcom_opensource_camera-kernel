@@ -2438,6 +2438,59 @@ int cam_ife_csid_ver2_get_hw_caps(void *hw_priv,
 	return rc;
 }
 
+static void cam_ife_csid_ver2_dump_imp_regs(
+	struct cam_ife_csid_ver2_hw *csid_hw)
+{
+	void __iomem *mem_base;
+	int top_irq_val[4] = {0};
+	int reset_cfg = 0;
+	int dual_csid_cfg = 0;
+	uint32_t clk_lvl;
+	uint32_t hw_idx;
+	struct cam_ife_csid_ver2_reg_info *csid_reg;
+	struct cam_hw_soc_info            *soc_info;
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+		csid_hw->core_info->csid_reg;
+	soc_info = &csid_hw->hw_info->soc_info;
+	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
+	hw_idx = csid_hw->hw_intf->hw_idx;
+
+	/* Dumping CSID top irq registers */
+	top_irq_val[0] = cam_io_r_mb(mem_base +
+		csid_reg->cmn_reg->top_irq_status_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0]);
+	top_irq_val[1] = cam_io_r_mb(mem_base +
+		csid_reg->cmn_reg->top_irq_mask_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0]);
+	top_irq_val[2] = cam_io_r_mb(mem_base +
+		csid_reg->cmn_reg->top_irq_clear_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0]);
+	top_irq_val[3] = cam_io_r_mb(mem_base +
+		csid_reg->cmn_reg->top_irq_set_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0]);
+	CAM_INFO(CAM_ISP,
+		"CSID[%d] csid top status 0x%x, mask 0x%x, clr 0x%x, set 0x%x",
+		hw_idx, top_irq_val[0], top_irq_val[1],
+		top_irq_val[2], top_irq_val[3]);
+
+	/* Dumping CSID reset cfg and dual csid cfg */
+	reset_cfg = cam_io_r_mb(mem_base + csid_reg->cmn_reg->reset_cfg_addr);
+	dual_csid_cfg = cam_io_r_mb(
+		soc_info->reg_map[CAM_IFE_CSID_TOP_MEM_BASE_ID].mem_base +
+		csid_reg->top_reg->dual_csid_cfg0_addr[hw_idx]);
+	CAM_INFO(CAM_ISP,
+		"CSID[%d] csid reset_cfg 0x%x, dual_csid_cfg 0x%x, is_dual_en %d",
+		hw_idx, reset_cfg, dual_csid_cfg, csid_hw->top_cfg.dual_en);
+
+	/* Dumping CSID Clock */
+	cam_soc_util_get_clk_level(soc_info, csid_hw->clk_rate,
+		soc_info->src_clk_idx, &clk_lvl);
+
+	CAM_INFO(CAM_ISP,
+		"CSID[%d] clk lvl %u received clk_rate %u applied clk_rate sw_client:%lu hw_client:[%lu %lu]",
+		hw_idx, clk_lvl, csid_hw->clk_rate,
+		soc_info->applied_src_clk_rates.sw_client,
+		soc_info->applied_src_clk_rates.hw_client[hw_idx].high,
+		soc_info->applied_src_clk_rates.hw_client[hw_idx].low);
+}
+
 static int cam_ife_csid_ver2_wait_for_reset(
 	struct cam_ife_csid_ver2_hw *csid_hw)
 {
@@ -2461,16 +2514,16 @@ static int cam_ife_csid_ver2_wait_for_reset(
 				cam_io_r_mb(
 					soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base +
 					csid_reg->cmn_reg->test_bus_debug));
-		} else {
+		} else
 			CAM_ERR(CAM_ISP, "CSID[%u], sync-mode[%d] reset timed out",
 				csid_hw->hw_intf->hw_idx, csid_hw->sync_mode);
-		}
-	} else {
+
+		cam_ife_csid_ver2_dump_imp_regs(csid_hw);
+	} else
 		CAM_DBG(CAM_ISP,
-		"CSID[%u], sync-mode[%d] reset success",
-		csid_hw->hw_intf->hw_idx,
-		csid_hw->sync_mode);
-	}
+			"CSID[%u], sync-mode[%d] reset success",
+			csid_hw->hw_intf->hw_idx,
+			csid_hw->sync_mode);
 
 	return rc;
 }
@@ -2484,6 +2537,7 @@ static int cam_ife_csid_ver2_reset_irq_top_half(uint32_t    evt_id,
 
 	CAM_DBG(CAM_ISP, "CSID[%u] TOP_IRQ_STATUS_0 = 0x%x", csid_hw->hw_intf->hw_idx,
 		th_payload->evt_status_arr[0]);
+
 	complete(&csid_hw->hw_info->hw_complete);
 
 	return 0;
