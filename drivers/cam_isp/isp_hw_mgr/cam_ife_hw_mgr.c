@@ -2331,9 +2331,8 @@ static int cam_ife_hw_mgr_acquire_res_ife_out_pixel(
 				goto err;
 			}
 
-			ife_out_res->hw_res[j] =
-				vfe_acquire.vfe_out.rsrc_node;
-			if (j == CAM_ISP_HW_SPLIT_LEFT) {
+			ife_out_res->hw_res[j] = vfe_acquire.vfe_out.rsrc_node;
+			if ((j == CAM_ISP_HW_SPLIT_LEFT) && (!is_ife_out_in_list)) {
 				index = vfe_acquire.vfe_out.comp_grp_id;
 				comp_grp = &ife_ctx->vfe_bus_comp_grp[index];
 				comp_grp->res_id[comp_grp->num_res] =
@@ -5476,6 +5475,14 @@ static int cam_ife_mgr_acquire_get_unified_structure_v3(
 	}
 
 	for (i = 0; i < in_port->num_out_res; i++) {
+		if ((in->data[i].context_id < CAM_ISP_MULTI_CTXT0_MASK) ||
+			(in->data[i].context_id > CAM_ISP_MULTI_CTXT2_MASK)) {
+			CAM_ERR(CAM_ISP, "Invalid hw context id: 0x%x for acquire i: %d",
+				in->data[i].context_id, i);
+			rc = -EINVAL;
+			goto err;
+		}
+
 		in_port->data[i].res_type     = in->data[i].res_type;
 		in_port->data[i].format       = in->data[i].format;
 		in_port->data[i].width        = in->data[i].width;
@@ -8960,6 +8967,8 @@ static int cam_isp_blob_ubwc_update_v3(
 	uint32_t                               bytes_used = 0;
 	int                                    rc = 0;
 	struct cam_vfe_generic_ubwc_config     generic_ubwc_cfg;
+	uint32_t valid_hw_ctxt_mask = (CAM_ISP_MULTI_CTXT0_MASK | CAM_ISP_MULTI_CTXT1_MASK |
+					CAM_ISP_MULTI_CTXT2_MASK);
 
 	ctx = prepare->ctxt_to_hw_map;
 	if (!ctx) {
@@ -8994,7 +9003,7 @@ static int cam_isp_blob_ubwc_update_v3(
 			goto end;
 		}
 
-		if (ubwc_plane_cfg->hw_ctx_id_mask >= BIT(CAM_ISP_MULTI_CTXT_MAX)) {
+		if (ubwc_plane_cfg->hw_ctx_id_mask & (~valid_hw_ctxt_mask)) {
 			CAM_ERR(CAM_ISP, "Invalid hw ctxt port:0x%x ctx_idx: %u hw_ctxt_mask: 0x%x",
 				ubwc_plane_cfg->port_type, ctx->ctx_index,
 				ubwc_plane_cfg->hw_ctx_id_mask);
@@ -12369,6 +12378,15 @@ static int cam_isp_blob_csid_irq_comp_cfg(
 {
 	int rc = 0;
 	struct cam_isp_hw_mgr_res         *hw_mgr_res;
+	uint32_t valid_hw_ctxt_mask = (CAM_ISP_MULTI_CTXT0_MASK | CAM_ISP_MULTI_CTXT1_MASK |
+					CAM_ISP_MULTI_CTXT2_MASK);
+
+	if ((comp_cfg->ipp_src_ctxt_mask & (~valid_hw_ctxt_mask)) ||
+		(comp_cfg->ipp_dst_comp_mask & (~valid_hw_ctxt_mask))) {
+		CAM_ERR(CAM_ISP, "Invalid hw ctx masks Ctx:%d IPP SRC mask 0x%x IPP DST mask 0x%x",
+			ctx->ctx_index, comp_cfg->ipp_src_ctxt_mask, comp_cfg->ipp_dst_comp_mask);
+		return -EINVAL;
+	}
 
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
 		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)

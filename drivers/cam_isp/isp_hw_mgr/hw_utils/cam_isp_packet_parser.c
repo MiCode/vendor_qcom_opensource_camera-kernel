@@ -1154,6 +1154,14 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 	for (i = 0; i < io_info->prepare->packet->num_io_configs; i++) {
 
 		if (major_version == 3) {
+			if ((io_cfg[i].flag < CAM_ISP_MULTI_CTXT0_MASK) ||
+				(io_cfg[i].flag > CAM_ISP_MULTI_CTXT2_MASK)) {
+				CAM_ERR(CAM_ISP, "Invalid hw context id: 0x%x for io cfg: %d",
+					io_cfg[i].flag, i);
+				rc = -EINVAL;
+				goto err;
+			}
+
 			ctxt_id = ffs(io_cfg[i].flag) - 1;
 			if (ctxt_id < 0) {
 				CAM_ERR(CAM_ISP,
@@ -1197,6 +1205,7 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 		for (i = 0; i < CAM_ISP_MULTI_CTXT_MAX; i++) {
 			if (!num_ports[i])
 				continue;
+
 			rc = cam_isp_add_io_buffers_mc(mc_cfg, io_info, num_ports[i], i);
 			if (rc) {
 				CAM_ERR(CAM_ISP, "MC context[%u] failed for base[%d]",
@@ -1204,6 +1213,7 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 				goto err;
 			}
 		}
+
 		vfree(mc_cfg);
 	}
 

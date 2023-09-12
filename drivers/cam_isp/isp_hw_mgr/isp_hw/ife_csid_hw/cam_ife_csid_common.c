@@ -28,7 +28,7 @@
 /* factor to conver qtime to boottime */
 int64_t qtime_to_boottime;
 
-const uint8_t *cam_ife_csid_irq_reg_tag[CAM_IFE_CSID_IRQ_REG_MAX] = {
+const uint8_t *cam_ife_csid_irq_reg_tag[CAM_IFE_CSID_IRQ_REG_MAX + 1] = {
 	"TOP",
 	"RX",
 	"RDI0",
@@ -41,6 +41,11 @@ const uint8_t *cam_ife_csid_irq_reg_tag[CAM_IFE_CSID_IRQ_REG_MAX] = {
 	"UDI0",
 	"UDI1",
 	"UDI2",
+	"TOP2",
+	"RX2",
+	"IPP1",
+	"IPP2",
+	"MAX",
 };
 
 static int cam_ife_csid_get_cid(struct cam_ife_csid_cid_data *cid_data,
@@ -627,6 +632,10 @@ int cam_ife_csid_convert_res_to_irq_reg(uint32_t res_id)
 		return CAM_IFE_CSID_IRQ_REG_UDI_1;
 	case CAM_IFE_PIX_PATH_RES_UDI_2:
 		return CAM_IFE_CSID_IRQ_REG_UDI_2;
+	case CAM_IFE_PIX_PATH_RES_IPP_1:
+		return CAM_IFE_CSID_IRQ_REG_IPP_1;
+	case CAM_IFE_PIX_PATH_RES_IPP_2:
+		return CAM_IFE_CSID_IRQ_REG_IPP_2;
 	default:
 		return CAM_IFE_CSID_IRQ_REG_MAX;
 	}
