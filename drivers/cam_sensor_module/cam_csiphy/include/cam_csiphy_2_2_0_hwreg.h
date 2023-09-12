@@ -18,6 +18,7 @@ struct cam_csiphy_aon_sel_params_t aon_cam_select_params_2_2_0 = {
 struct cam_cphy_dphy_status_reg_params_t status_regs_2_2_0 = {
 	.csiphy_3ph_status0_offset = 0x0340,
 	.csiphy_2ph_status0_offset = 0x00C0,
+	.refgen_status_offset = 0x10FC,
 	.cphy_lane_status = {0x0358, 0x0758, 0x0B58},
 	.csiphy_3ph_status_size = 24,
 	.csiphy_2ph_status_size = 20,
@@ -35,7 +36,7 @@ struct csiphy_reg_t csiphy_common_reg_2_2_0[] = {
 };
 
 struct csiphy_reg_t csiphy_reset_enter_reg_2_2_0[] = {
-	{0x1000, 0x01, 0x01, CSIPHY_DEFAULT_PARAMS},
+	{0x1000, 0x01, 0x14, CSIPHY_DEFAULT_PARAMS},
 };
 
 struct csiphy_reg_t csiphy_reset_exit_reg_2_2_0[] = {

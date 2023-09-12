@@ -33,6 +33,10 @@
  */
 #define CAM_MAX_PHYS_PER_CP_CTRL_REG 4
 
+#define CSIPHY_POLL_DELAY_US 500
+#define CSIPHY_POLL_TIMEOUT_US 10000
+#define CSPIHY_REFGEN_STATUS_BIT (1 << 7)
+
 static DEFINE_MUTEX(active_csiphy_cnt_mutex);
 static DEFINE_MUTEX(main_aon_selection);
 
@@ -2057,6 +2061,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 	struct csiphy_reg_parms_t *csiphy_reg;
 	struct cam_hw_soc_info *soc_info;
 	uint32_t      cphy_trio_status;
+	uint32_t      refgen_status = 0;
 	void __iomem *csiphybase;
 	int32_t              rc = 0;
 	uint32_t             i;
@@ -2653,6 +2658,16 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		rc = cam_csiphy_enable_hw(csiphy_dev, offset);
 		if (rc != 0) {
 			CAM_ERR(CAM_CSIPHY, "cam_csiphy_enable_hw failed");
+			goto cpas_stop;
+		}
+
+		if (cam_common_read_poll_timeout(csiphybase +
+			status_reg_ptr->refgen_status_offset,
+			CSIPHY_POLL_DELAY_US, CSIPHY_POLL_TIMEOUT_US,
+			CSPIHY_REFGEN_STATUS_BIT, CSPIHY_REFGEN_STATUS_BIT, &refgen_status)) {
+			CAM_ERR(CAM_CSIPHY, "Response poll timed out: status=0x%08x",
+				refgen_status);
+			rc = -ETIMEDOUT;
 			goto cpas_stop;
 		}
 
