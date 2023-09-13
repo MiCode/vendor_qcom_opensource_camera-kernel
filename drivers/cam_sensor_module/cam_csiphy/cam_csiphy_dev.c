@@ -607,8 +607,22 @@ static void cam_csiphy_component_unbind(struct device *dev,
 {
 	struct platform_device *pdev = to_platform_device(dev);
 
-	struct v4l2_subdev *subdev = platform_get_drvdata(pdev);
-	struct csiphy_device *csiphy_dev = v4l2_get_subdevdata(subdev);
+	struct v4l2_subdev *subdev = NULL;
+	struct csiphy_device *csiphy_dev = NULL;
+
+	subdev = platform_get_drvdata(pdev);
+
+	if (!subdev) {
+		CAM_ERR(CAM_CSIPHY, "Error No data in subdev");
+		return;
+	}
+
+	csiphy_dev = v4l2_get_subdevdata(subdev);
+
+	if (!csiphy_dev) {
+		CAM_ERR(CAM_CSIPHY, "Error No data in csiphy_dev");
+		return;
+	}
 
 	if (!csiphy_dev) {
 		CAM_ERR(CAM_CSIPHY, "csiphy_dev ptr is NULL");

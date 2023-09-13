@@ -336,7 +336,14 @@ static void cam_tpg_component_unbind(struct device *dev,
 	struct device *master_dev, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-	struct cam_tpg_device  *tpg_dev = platform_get_drvdata(pdev);
+	struct cam_tpg_device  *tpg_dev = NULL;
+
+	tpg_dev = platform_get_drvdata(pdev);
+
+	if (!tpg_dev) {
+		CAM_ERR(CAM_TPG, "Error No data in tpg_dev");
+		return;
+	}
 
 	CAM_INFO(CAM_TPG, "Unbind TPG component");
 	cam_cpas_unregister_client(tpg_dev->cpas_handle);

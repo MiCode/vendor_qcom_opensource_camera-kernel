@@ -560,8 +560,17 @@ static void cam_cci_component_unbind(struct device *dev,
 	struct platform_device *pdev = to_platform_device(dev);
 
 	struct v4l2_subdev *subdev = platform_get_drvdata(pdev);
-	struct cci_device *cci_dev =
-		v4l2_get_subdevdata(subdev);
+	struct cci_device *cci_dev = cci_dev = v4l2_get_subdevdata(subdev);
+
+	if (!subdev) {
+		CAM_ERR(CAM_CCI, "Error No data in subdev");
+		return;
+	}
+
+	if (!cci_dev) {
+		CAM_ERR(CAM_CCI, "Error No data in cci_dev");
+		return;
+	}
 
 	if (!cci_dev) {
 		CAM_ERR(CAM_CCI, "cci_dev NULL");
