@@ -193,11 +193,10 @@ static int32_t cam_cci_write_i2c_queue(struct cci_device *cci_dev,
 	return rc;
 }
 
-static int32_t cam_cci_lock_queue(struct cci_device *cci_dev,
+static void cam_cci_lock_queue(struct cci_device *cci_dev,
 	enum cci_i2c_master_t master,
 	enum cci_i2c_queue_t queue, uint32_t en)
 {
-	int32_t                 rc = 0;
 	uint32_t                val = 0;
 	uint32_t                read_val = 0;
 	struct cam_hw_soc_info *soc_info =
@@ -208,7 +207,7 @@ static int32_t cam_cci_lock_queue(struct cci_device *cci_dev,
 		master * 0x200 + queue * 0x100;
 
 	if (queue != PRIORITY_QUEUE)
-		goto end;
+		return;
 
 	val = en ? CCI_I2C_LOCK_CMD : CCI_I2C_UNLOCK_CMD;
 
@@ -219,21 +218,13 @@ static int32_t cam_cci_lock_queue(struct cci_device *cci_dev,
 	cam_io_w_mb(val, base + CCI_I2C_M0_Q0_LOAD_DATA_ADDR +
 		reg_offset);
 
-	if (rc) {
-		CAM_ERR(CAM_CCI,
-			"CCI%d_I2C_M%d_Q%d Failed to write i2c data:0x%x rc:%d",
-			cci_dev->soc_info.index, master, queue, val, rc);
-		goto end;
-	}
-
 	read_val = cam_io_r_mb(base +
 		CCI_I2C_M0_Q0_CUR_WORD_CNT_ADDR + reg_offset);
 
+	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d_Q%d_EXEC_WORD_CNT_ADDR %d",
+		cci_dev->soc_info.index, master, queue, read_val);
 	cam_io_w_mb(read_val, base +
 		CCI_I2C_M0_Q0_EXEC_WORD_CNT_ADDR + reg_offset);
-
-end:
-	return rc;
 }
 
 void cam_cci_dump_registers(struct cci_device *cci_dev,
@@ -409,13 +400,7 @@ static int32_t cam_cci_transfer_end(struct cci_device *cci_dev,
 		spin_unlock_irqrestore(
 			&cci_dev->cci_master_info[master].lock_q[queue], flags);
 		cam_cci_load_report_cmd(cci_dev, master, queue);
-		rc = cam_cci_lock_queue(cci_dev, master, queue, 0);
-		if (rc < 0) {
-			CAM_ERR(CAM_CCI,
-				"CCI%d_I2C_M%d_Q%d Failed to lock for rc: %d",
-				cci_dev->soc_info.index, master, queue, rc);
-			return rc;
-		}
+		cam_cci_lock_queue(cci_dev, master, queue, 0);
 
 		rc = cam_cci_wait_report_cmd(cci_dev, master, queue);
 		if (rc < 0) {
@@ -438,13 +423,7 @@ static int32_t cam_cci_transfer_end(struct cci_device *cci_dev,
 			return rc;
 		}
 		cam_cci_load_report_cmd(cci_dev, master, queue);
-		rc = cam_cci_lock_queue(cci_dev, master, queue, 0);
-		if (rc < 0) {
-			CAM_ERR(CAM_CCI,
-				"CCI%d_I2C_M%d_Q%d Failed to lock_queue for rc: %d",
-				cci_dev->soc_info.index, master, queue, rc);
-			return rc;
-		}
+		cam_cci_lock_queue(cci_dev, master, queue, 0);
 
 		rc = cam_cci_wait_report_cmd(cci_dev, master, queue);
 		if (rc < 0) {
@@ -803,13 +782,7 @@ static int32_t cam_cci_data_queue(struct cci_device *cci_dev,
 		cci_dev->cci_wait_sync_cfg.csid *
 		CCI_SET_CID_SYNC_TIMER_OFFSET);
 
-	rc = cam_cci_lock_queue(cci_dev, master, queue, 1);
-	if (rc < 0) {
-		CAM_ERR(CAM_CCI,
-			"CCI%d_I2C_M%d_Q%d Failed to lock_queue for rc: %d",
-			cci_dev->soc_info.index, master, queue, rc);
-		return rc;
-	}
+	cam_cci_lock_queue(cci_dev, master, queue, 1);
 
 	val = CCI_I2C_SET_PARAM_CMD | c_ctrl->cci_info->sid << 4 |
 		c_ctrl->cci_info->retries << 16 |
