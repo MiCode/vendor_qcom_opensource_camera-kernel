@@ -2050,7 +2050,7 @@ int32_t cam_sensor_flush_request(struct cam_req_mgr_flush_request *flush_req)
 		 * before EOF, so we need to stream off the sensor during flush
 		 * for VFPS usecase.
 		 */
-		if (s_ctrl->stream_off_after_eof && s_ctrl->is_stopped_by_user) {
+		if (s_ctrl->stream_off_after_eof) {
 			cam_sensor_stream_off(s_ctrl);
 			s_ctrl->is_stopped_by_user = false;
 		}
