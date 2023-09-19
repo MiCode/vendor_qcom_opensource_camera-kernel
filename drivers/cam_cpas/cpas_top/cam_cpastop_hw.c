@@ -1182,26 +1182,26 @@ static int cam_cpastop_set_up_camnoc_info(struct cam_cpas *cpas_core,
 
 			switch (i) {
 			case CAM_CAMNOC_HW_COMBINED:
-				camnoc_info[i]->reg_base = CAM_CPAS_REG_CAMNOC;
+				camnoc_info[camnoc_cnt]->reg_base = CAM_CPAS_REG_CAMNOC;
 				break;
 			case CAM_CAMNOC_HW_RT:
-				camnoc_info[i]->reg_base = CAM_CPAS_REG_CAMNOC_RT;
+				camnoc_info[camnoc_cnt]->reg_base = CAM_CPAS_REG_CAMNOC_RT;
 				break;
 			case CAM_CAMNOC_HW_NRT:
-				camnoc_info[i]->reg_base = CAM_CPAS_REG_CAMNOC_NRT;
+				camnoc_info[camnoc_cnt]->reg_base = CAM_CPAS_REG_CAMNOC_NRT;
 				break;
 			default:
 				CAM_ERR(CAM_CPAS, "Invalid camnoc type %u", i);
 				return -EINVAL;
 			}
 
-			camnoc_cnt++;
 
-			if (cpas_core->regbase_index[camnoc_info[i]->reg_base] == -1) {
+			if (cpas_core->regbase_index[camnoc_info[camnoc_cnt]->reg_base] == -1) {
 				CAM_ERR(CAM_CPAS, "Regbase not set up for %s",
 					camnoc_info[i]->camnoc_name);
 				return -EINVAL;
 			}
+			camnoc_cnt++;
 		} else {
 			cpas_core->camnoc_info_idx[i] = -1;
 		}

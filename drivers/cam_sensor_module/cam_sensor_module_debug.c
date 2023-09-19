@@ -119,7 +119,7 @@ static int cam_sensor_module_parse_line(const char *p_line,
 	} else if (p_line[0] == 'w'  || p_line[0] == 'W') {
 		*is_read = false;
 
-		rc = sscanf(p_line+2, "%x,%x,%u,%d,%d,%d,%d",
+		rc = sscanf(p_line+2, "%x,%x,%d,%d,%d,%d,%d",
 			&reg_array->reg_addr,  &reg_array->reg_data, &reg_array->delay,
 			&reg_list->addr_type, &reg_list->data_type,
 			&device_type, &instance_number);
@@ -225,7 +225,7 @@ static ssize_t i2c_write(struct file *t_file, const char __user *t_char,
 			rc = camera_io_dev_write(io_master, &read_write);
 			if (rc) {
 				snprintf(line_buffer, LINE_BUFFER_SIZE,
-					"Error: 0x%X, 0x%X, rc: %d\n",
+					"Error: 0x%X, 0x%X, rc: %zu\n",
 					read_write.reg_setting->reg_addr,
 					read_write.reg_setting->reg_data, rc);
 				strlcat(out_buffer, line_buffer, RW_BUFFER_SIZE);
@@ -239,7 +239,7 @@ static ssize_t i2c_write(struct file *t_file, const char __user *t_char,
 				snprintf(line_buffer, LINE_BUFFER_SIZE, "Read data: 0x%X\n",
 					read_write.reg_setting->reg_data);
 			else
-				snprintf(line_buffer, LINE_BUFFER_SIZE, "Error, rc: %d\n", rc);
+				snprintf(line_buffer, LINE_BUFFER_SIZE, "Error, rc: %zu\n", rc);
 			strlcat(out_buffer, line_buffer, RW_BUFFER_SIZE);
 		}
 	} else {

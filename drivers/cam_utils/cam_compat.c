@@ -842,3 +842,88 @@ int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam)
 	return 0;
 }
 #endif
+
+#if KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE
+int cam_iommu_map(struct iommu_domain *domain,
+	size_t firmware_start, phys_addr_t fw_hdl,
+	size_t firmware_len, int prot)
+{
+	int rc = 0;
+
+	rc = iommu_map(domain, firmware_start,
+			fw_hdl,	firmware_len,
+			prot, GFP_ATOMIC);
+	return rc;
+}
+#else
+int cam_iommu_map(struct iommu_domain *domain,
+	size_t firmware_start, phys_addr_t fw_hdl,
+	size_t firmware_len, int prot)
+{
+	int rc = 0;
+
+	rc = iommu_map(domain, firmware_start,
+			fw_hdl,	firmware_len,
+			prot);
+	return rc;
+}
+#endif
+
+#if KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE
+size_t cam_iommu_map_sg(struct iommu_domain *domain,
+	dma_addr_t iova_start, struct scatterlist *sgl,
+	uint64_t orig_nents, int prot)
+{
+	size_t size = 0;
+
+	size = iommu_map_sg(domain,
+			iova_start,
+			sgl, orig_nents,
+			prot, GFP_ATOMIC);
+	return size;
+}
+#else
+size_t cam_iommu_map_sg(struct iommu_domain *domain,
+	dma_addr_t iova_start, struct scatterlist *sgl,
+	uint64_t orig_nents, int prot)
+{
+	size_t size = 0;
+
+	size = iommu_map_sg(domain, iova_start,
+			sgl, orig_nents,
+			prot);
+	return size;
+}
+#endif
+
+int16_t cam_get_gpio_counts(struct cam_hw_soc_info *soc_info)
+{
+	struct device_node *of_node = NULL;
+	int16_t gpio_array_size = 0;
+
+	of_node = soc_info->dev->of_node;
+#if KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE
+	gpio_array_size = of_count_phandle_with_args(
+		of_node, soc_info->compatible, NULL);
+#else
+	gpio_array_size = of_gpio_count(of_node);
+#endif
+
+	return gpio_array_size;
+}
+
+uint16_t cam_get_named_gpio(struct cam_hw_soc_info *soc_info,
+	int index)
+{
+	struct device_node *of_node = NULL;
+	uint16_t gpio_pin = 0;
+
+	of_node = soc_info->dev->of_node;
+#if KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE
+	gpio_pin = of_get_named_gpio(of_node, soc_info->compatible, index);
+#else
+	gpio_pin = of_get_gpio(of_node, index);
+#endif
+
+	return gpio_pin;
+}

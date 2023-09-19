@@ -1388,7 +1388,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 		for (i = 0; i < 4; i++) {
 			/* NOTE: Hardware specific bits */
 			if (irq_status & (IFE_CSID_VER2_RX_LANE0_FIFO_OVERFLOW << i)) {
-				tmp_len += scnprintf(tmp_buf + tmp_len, 10 - tmp_len, " %d", i);
+				tmp_len += scnprintf(tmp_buf + tmp_len, 10 - tmp_len, " %zu", i);
 				lane_overflow = true;
 			}
 		}

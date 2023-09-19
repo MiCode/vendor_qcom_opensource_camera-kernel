@@ -5,7 +5,6 @@
  */
 
 #include <linux/of_address.h>
-#include <linux/qcom_scm.h>
 #include <linux/soc/qcom/mdt_loader.h>
 
 #include "cam_cpas_api.h"
@@ -1145,7 +1144,7 @@ int cam_icp_v2_test_irq_line(void *priv)
 	reinit_completion(&icp_v2_info->hw_complete);
 	core_info->is_irq_test = true;
 
-	cam_icp_v2_hw_init(priv, NULL, 0);
+	cam_icp_v2_hw_init(priv, &send_freq_info, sizeof(send_freq_info));
 
 	cam_io_w_mb(ICP_V2_WDT_BARK_WS0, irq_membase + core_info->hw_info->ob_irq_mask);
 	cam_io_w_mb(ICP_V2_WDT_BARK_WS0, irq_membase + core_info->hw_info->ob_irq_set);

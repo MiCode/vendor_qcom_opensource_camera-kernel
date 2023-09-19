@@ -1,5 +1,6 @@
 load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
+load("//msm-kernel:target_variants.bzl", "get_all_variants")
 
 def _define_module(target, variant):
     tv = "{}_{}".format(target, variant)
@@ -219,7 +220,7 @@ def _define_module(target, variant):
         copts = ["-include", "$(location :camera_banner)"],
         deps = deps,
         kconfig = "Kconfig",
-        defconfig = "{}_defconfig".format(tv),
+        defconfig = "{}_defconfig".format(target),
         kernel_build = "//msm-kernel:{}".format(tv),
     )
 
@@ -234,5 +235,5 @@ def _define_module(target, variant):
     )
 
 def define_camera_module():
-    _define_module("pineapple", "gki")
-    _define_module("pineapple", "consolidate")
+    for (t, v) in get_all_variants():
+        _define_module(t, v)

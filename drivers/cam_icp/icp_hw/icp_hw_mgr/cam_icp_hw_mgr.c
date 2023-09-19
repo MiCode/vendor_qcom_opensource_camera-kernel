@@ -6535,7 +6535,7 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	for (j = 0; j < ctx_data->clk_info.num_paths; j++) {
 		inner_hdr = (struct cam_icp_dump_header *)dst;
 		scnprintf(inner_hdr->tag, CAM_ICP_DUMP_TAG_MAX_LEN,
-			"camnoc_bw 0x%x  ab_bw = 0x%x  ib_bw = 0x%x:",
+			"camnoc_bw %lld  ab_bw = %lld  ib_bw = %lld:",
 			ctx_data->clk_info.axi_path[j].camnoc_bw,
 			ctx_data->clk_info.axi_path[j].mnoc_ab_bw,
 			ctx_data->clk_info.axi_path[j].mnoc_ib_bw);

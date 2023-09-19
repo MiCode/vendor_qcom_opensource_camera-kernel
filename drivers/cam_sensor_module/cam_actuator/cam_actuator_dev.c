@@ -306,6 +306,31 @@ const static struct component_ops cam_actuator_i2c_component_ops = {
 	.unbind = cam_actuator_i2c_component_unbind,
 };
 
+#if KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE
+static int cam_actuator_driver_i2c_probe(struct i2c_client *client)
+{
+	int rc = 0;
+
+	if (client == NULL) {
+		CAM_ERR(CAM_ACTUATOR, "Invalid Args client: %pK",
+			client);
+		return -EINVAL;
+	}
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		CAM_ERR(CAM_ACTUATOR, "%s :: i2c_check_functionality failed",
+			 client->name);
+		return -EFAULT;
+	}
+
+	CAM_DBG(CAM_ACTUATOR, "Adding sensor actuator component");
+	rc = component_add(&client->dev, &cam_actuator_i2c_component_ops);
+	if (rc)
+		CAM_ERR(CAM_ACTUATOR, "failed to add component rc: %d", rc);
+
+	return rc;
+}
+#else
 static int32_t cam_actuator_driver_i2c_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
@@ -330,6 +355,7 @@ static int32_t cam_actuator_driver_i2c_probe(struct i2c_client *client,
 
 	return rc;
 }
+#endif
 
 #if KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE
 void cam_actuator_driver_i2c_remove(

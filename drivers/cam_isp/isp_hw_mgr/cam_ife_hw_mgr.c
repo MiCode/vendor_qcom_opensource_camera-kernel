@@ -6878,11 +6878,11 @@ static int cam_ife_hw_mgr_sfe_irq_inject_or_dump_desc(
 			sizeof(struct cam_isp_irq_inject_param));
 		if (rc)
 			scnprintf(line_buf, LINE_BUFFER_LEN,
-				"Injecting IRQ %x failed for SFE at req: %d\n",
+				"Injecting IRQ %x failed for SFE at req: %lld",
 				params->irq_mask, params->req_id);
 		else
 			scnprintf(line_buf, LINE_BUFFER_LEN,
-				"IRQ %#x injected for SFE at req: %d\n",
+				"IRQ %#x injected for SFE at req: %lld",
 				params->irq_mask, params->req_id);
 		break;
 	}
@@ -6929,11 +6929,11 @@ static int cam_ife_hw_mgr_vfe_irq_inject_or_dump_desc(
 			sizeof(struct cam_isp_irq_inject_param));
 		if (rc)
 			scnprintf(line_buf, LINE_BUFFER_LEN,
-				"Injecting IRQ %x failed for IFE at req: %d\n",
+				"Injecting IRQ %x failed for IFE at req: %lld",
 				params->irq_mask, params->req_id);
 		else
 			scnprintf(line_buf, LINE_BUFFER_LEN,
-				"IRQ %#x injected for IFE at req: %d\n",
+				"IRQ %#x injected for IFE at req: %lld",
 				params->irq_mask, params->req_id);
 		break;
 	}
@@ -6980,11 +6980,11 @@ static int cam_ife_hw_mgr_csid_irq_inject_or_dump_desc(
 			sizeof(struct cam_isp_irq_inject_param));
 		if (rc)
 			scnprintf(line_buf, LINE_BUFFER_LEN,
-				"Injecting IRQ %x failed for CSID at req: %d\n",
+				"Injecting IRQ %x failed for CSID at req: %lld",
 				params->irq_mask, params->req_id);
 		else
 			scnprintf(line_buf, LINE_BUFFER_LEN,
-				"IRQ %#x injected for CSID at req: %d\n",
+				"IRQ %#x injected for CSID at req: %lld",
 				params->irq_mask, params->req_id);
 		break;
 	}
@@ -17316,7 +17316,7 @@ static ssize_t cam_isp_irq_injection_read(struct file *file,
 
 		hw_type = g_ife_hw_mgr.irq_inject_param[i].hw_type;
 		offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
-			"injected param[%d] : hw_type:%s hw_idx:%d reg_unit:%d irq_mask:%#x req_id:%d\n",
+			"injected param[%d] : hw_type:%s hw_idx:%d reg_unit:%d irq_mask:%#x req_id:%lld",
 			i, __cam_isp_irq_inject_hw_type_to_name(hw_type),
 			g_ife_hw_mgr.irq_inject_param[i].hw_idx,
 			g_ife_hw_mgr.irq_inject_param[i].reg_unit,
@@ -17382,7 +17382,7 @@ static ssize_t cam_isp_irq_injection_write(struct file *file,
 			g_ife_hw_mgr.irq_inject_param[i].is_valid = true;
 			hw_type = g_ife_hw_mgr.irq_inject_param[i].hw_type;
 			offset += scnprintf(line_buf + offset, LINE_BUFFER_LEN - offset,
-				"Setting param[%d] : hw_type:%s hw_idx:%d reg_unit:%d irq_mask:%#x req_id:%d\n",
+				"Setting param[%d] : hw_type:%s hw_idx:%d reg_unit:%d irq_mask:%#x req_id:%lld",
 				i, __cam_isp_irq_inject_hw_type_to_name(hw_type),
 				g_ife_hw_mgr.irq_inject_param[i].hw_idx,
 				g_ife_hw_mgr.irq_inject_param[i].reg_unit,
