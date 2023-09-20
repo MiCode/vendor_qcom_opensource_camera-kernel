@@ -114,7 +114,7 @@ int cam_cpas_drv_channel_switch_for_dev(const struct device *dev)
 
 int cam_smmu_fetch_csf_version(struct cam_csf_version *csf_version)
 {
-#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
 	struct csf_version csf_ver;
 	int rc;
 
@@ -148,7 +148,7 @@ unsigned long cam_update_dma_map_attributes(unsigned long attrs)
 
 size_t cam_align_dma_buf_size(size_t len)
 {
-#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
 	len = ALIGN(len, SMMU_PROXY_MEM_ALIGNMENT);
 #endif
 	return len;
