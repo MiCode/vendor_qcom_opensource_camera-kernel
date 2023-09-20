@@ -1716,27 +1716,32 @@ void cam_tfe_cam_cdm_callback(uint32_t handle, void *userdata,
 		return;
 	}
 
+	ctx = (struct cam_tfe_hw_mgr_ctx *)userdata;
+	hw_update_data = ctx->cdm_userdata.hw_update_data;
+
 	if (status == CAM_CDM_CB_STATUS_BL_SUCCESS) {
-		hw_update_data =
-			(struct cam_isp_prepare_hw_update_data *)userdata;
-		ctx =
-		(struct cam_tfe_hw_mgr_ctx *)hw_update_data->isp_mgr_ctx;
 		complete_all(&ctx->config_done_complete);
 		atomic_set(&ctx->cdm_done, 1);
 		ctx->last_cdm_done_req = *(uint64_t *)cookie;
-		if (g_tfe_hw_mgr.debug_cfg.per_req_reg_dump)
-			cam_tfe_mgr_handle_reg_dump(ctx,
-				hw_update_data->reg_dump_buf_desc,
-				hw_update_data->num_reg_dump_buf,
-				CAM_ISP_TFE_PACKET_META_REG_DUMP_PER_REQUEST,
-				NULL, false);
+		if (g_tfe_hw_mgr.debug_cfg.per_req_reg_dump) {
+			if (ctx->cdm_userdata.request_id == *(uint64_t *)cookie) {
+				cam_tfe_mgr_handle_reg_dump(ctx,
+					hw_update_data->reg_dump_buf_desc,
+					hw_update_data->num_reg_dump_buf,
+					CAM_ISP_TFE_PACKET_META_REG_DUMP_PER_REQUEST,
+					NULL, false);
+			} else {
+				CAM_INFO(CAM_ISP, "CDM delay, Skip dump req: %llu, cdm_req: %llu",
+					*(uint64_t *)cookie, ctx->cdm_userdata.request_id);
+			}
+		}
 		CAM_DBG(CAM_ISP,
-			"Called by CDM hdl=%x, udata=%pK, status=%d, cookie=%llu ctx_index=%d",
-			 handle, userdata, status, *(uint64_t *)cookie, ctx->ctx_index);
+			"CDM hdl=%x, udata=%pK, status=%d, cookie=%llu ctx_index=%d cdm_req=%llu",
+			 handle, userdata, status, cookie, ctx->ctx_index,
+			 ctx->cdm_userdata.request_id);
 	} else if (status == CAM_CDM_CB_STATUS_PAGEFAULT ||
 		status == CAM_CDM_CB_STATUS_INVALID_BL_CMD ||
 		status == CAM_CDM_CB_STATUS_HW_ERROR) {
-		ctx = userdata;
 		CAM_INFO(CAM_ISP,
 			"req_id =%d ctx_id =%d Bl_cmd_count =%d status=%d",
 			ctx->applied_req_id, ctx->ctx_index,
@@ -1772,8 +1777,8 @@ void cam_tfe_cam_cdm_callback(uint32_t handle, void *userdata,
 
 	} else {
 		CAM_WARN(CAM_ISP,
-			"Called by CDM hdl=%x, udata=%pK, status=%d, cookie=%llu",
-			 handle, userdata, status, *(uint64_t *)cookie);
+			"CDM hdl=%x, udata=%pK, status=%d, cookie=%llu cdm_req=%llu",
+			 handle, userdata, status, cookie, ctx->cdm_userdata.request_id);
 	}
 }
 
@@ -2749,6 +2754,8 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 
 	hw_update_data = (struct cam_isp_prepare_hw_update_data  *) cfg->priv;
 	hw_update_data->isp_mgr_ctx = ctx;
+	ctx->cdm_userdata.request_id = cfg->request_id;
+	ctx->cdm_userdata.hw_update_data = hw_update_data;
 
 	if (cfg->reapply_type && cfg->cdm_reset_before_apply) {
 		if (ctx->last_cdm_done_req < cfg->request_id) {
@@ -2811,7 +2818,7 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 	cdm_cmd->cmd_arrary_count     = cfg->num_hw_update_entries;
 	cdm_cmd->type                 = CAM_CDM_BL_CMD_TYPE_MEM_HANDLE;
 	cdm_cmd->flag                 = true;
-	cdm_cmd->userdata             = hw_update_data;
+	cdm_cmd->userdata             = ctx;
 	cdm_cmd->cookie               = cfg->request_id;
 	cdm_cmd->gen_irq_arb          = false;
 	cdm_cmd->genirq_buff          = &hw_update_data->kmd_cmd_buff_info;
@@ -5086,6 +5093,38 @@ outportlog:
 
 }
 
+static void *cam_tfe_mgr_user_dump_stream_info(
+	void *dump_struct, uint8_t *addr_ptr)
+{
+	struct cam_tfe_hw_mgr_ctx    *ctx = NULL;
+	struct cam_isp_hw_mgr_res    *hw_mgr_res = NULL;
+	struct cam_isp_resource_node *hw_res = NULL;
+	int32_t                      *addr;
+	int                           i;
+	int hw_idx[CAM_ISP_HW_SPLIT_MAX] = { -1, -1 };
+
+	ctx = (struct cam_tfe_hw_mgr_ctx *)dump_struct;
+
+	if (!list_empty(&ctx->res_list_tfe_in)) {
+		hw_mgr_res = list_first_entry(&ctx->res_list_tfe_in,
+			struct cam_isp_hw_mgr_res, list);
+
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			hw_res = hw_mgr_res->hw_res[i];
+			if (hw_res && hw_res->hw_intf)
+				hw_idx[i] = hw_res->hw_intf->hw_idx;
+		}
+	}
+
+	addr = (int32_t *)addr_ptr;
+
+	*addr++ = ctx->is_dual;
+	*addr++ = hw_idx[CAM_ISP_HW_SPLIT_LEFT];
+	*addr++ = hw_idx[CAM_ISP_HW_SPLIT_RIGHT];
+
+	return addr;
+}
+
 static int cam_tfe_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 {
 	int rc = 0;
@@ -5164,6 +5203,12 @@ static int cam_tfe_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 			break;
 		case CAM_ISP_HW_MGR_CMD_UPDATE_CLOCK:
 			rc = cam_tfe_hw_mgr_csiphy_clk_sync(ctx, isp_hw_cmd_args->cmd_data);
+			break;
+		case CAM_ISP_HW_MGR_DUMP_STREAM_INFO:
+			rc = cam_common_user_dump_helper(
+					(void *)(isp_hw_cmd_args->cmd_data),
+					cam_tfe_mgr_user_dump_stream_info, ctx,
+					sizeof(int32_t), "ISP_STREAM_INFO_FROM_TFE_HW_MGR:");
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x, ISP HW mgr cmd:0x%x",

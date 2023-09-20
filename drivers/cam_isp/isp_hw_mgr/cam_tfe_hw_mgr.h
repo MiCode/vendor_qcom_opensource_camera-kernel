@@ -73,6 +73,17 @@ struct cam_tfe_comp_record_query {
 };
 
 /**
+ * struct cam_tfe_cdm_user_data - TFE HW user data with CDM
+ *
+ * @prepare:                   hw_update_data
+ * @request_id:                Request id
+ */
+struct cam_tfe_cdm_user_data {
+	struct cam_isp_prepare_hw_update_data    *hw_update_data;
+	uint64_t                                  request_id;
+};
+
+/**
  * struct cam_tfe_hw_mgr_ctx - TFE HW manager Context object
  *
  * @list:                     used by the ctx list.
@@ -114,6 +125,7 @@ struct cam_tfe_comp_record_query {
  * @packet                     CSL packet from user mode driver
  * @bw_config_version          BW Config version
  * @tfe_bus_comp_grp          pointer to tfe comp group info
+ * @cdm_userdata               CDM user data
  */
 struct cam_tfe_hw_mgr_ctx {
 	struct list_head                list;
@@ -157,6 +169,7 @@ struct cam_tfe_hw_mgr_ctx {
 	struct cam_packet              *packet;
 	uint32_t                        bw_config_version;
 	struct cam_tfe_hw_comp_record  *tfe_bus_comp_grp;
+	struct cam_tfe_cdm_user_data    cdm_userdata;
 };
 
 /**
