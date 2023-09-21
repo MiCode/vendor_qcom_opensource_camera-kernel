@@ -495,7 +495,7 @@ static int cam_cdm_util_reg_cont_write(void __iomem *base_addr,
 {
 	int ret = 0;
 	uint32_t *data;
-	struct cdm_regcontinuous_cmd *reg_cont;
+	struct cdm_regcontinuous_cmd reg_cont;
 
 	if ((cmd_buf_size < cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_CONT)) ||
 		(!base_addr)) {
@@ -504,19 +504,19 @@ static int cam_cdm_util_reg_cont_write(void __iomem *base_addr,
 		return -EINVAL;
 	}
 
-	reg_cont = (struct cdm_regcontinuous_cmd *)cmd_buf;
-	if ((!reg_cont->count) || (((reg_cont->count * sizeof(uint32_t)) +
-			cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_CONT)) >
-			cmd_buf_size)) {
+	memcpy(&reg_cont, cmd_buf, sizeof(struct cdm_regcontinuous_cmd));
+	if ((!reg_cont.count) || (((reg_cont.count * sizeof(uint32_t)) +
+		cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_CONT)) >
+		cmd_buf_size)) {
 		CAM_ERR(CAM_CDM, "buffer size %d is not sufficient for count%d",
-			cmd_buf_size, reg_cont->count);
+			cmd_buf_size, reg_cont.count);
 		return -EINVAL;
 	}
 	data = cmd_buf + cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_CONT);
-	cam_io_memcpy(base_addr + reg_cont->offset,	data,
-		reg_cont->count * sizeof(uint32_t));
+	cam_io_memcpy(base_addr + reg_cont.offset,	data,
+		reg_cont.count * sizeof(uint32_t));
 
-	*used_bytes = (reg_cont->count * sizeof(uint32_t)) +
+	*used_bytes = (reg_cont.count * sizeof(uint32_t)) +
 		(4 * cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_CONT));
 
 	return ret;
@@ -526,7 +526,7 @@ static int cam_cdm_util_reg_random_write(void __iomem *base_addr,
 	uint32_t *cmd_buf, uint32_t cmd_buf_size, uint32_t *used_bytes)
 {
 	uint32_t i;
-	struct cdm_regrandom_cmd *reg_random;
+	struct cdm_regrandom_cmd reg_random;
 	uint32_t *data;
 
 	if (!base_addr) {
@@ -534,17 +534,17 @@ static int cam_cdm_util_reg_random_write(void __iomem *base_addr,
 		return -EINVAL;
 	}
 
-	reg_random = (struct cdm_regrandom_cmd *) cmd_buf;
-	if ((!reg_random->count) || (((reg_random->count * (sizeof(uint32_t) * 2)) +
+	memcpy(&reg_random, cmd_buf, sizeof(struct cdm_regrandom_cmd));
+	if ((!reg_random.count) || (((reg_random.count * (sizeof(uint32_t) * 2)) +
 		cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_RANDOM)) >
-			cmd_buf_size)) {
+		cmd_buf_size)) {
 		CAM_ERR(CAM_CDM, "invalid reg_count  %d cmd_buf_size %d",
-			reg_random->count, cmd_buf_size);
+			reg_random.count, cmd_buf_size);
 		return -EINVAL;
 	}
 	data = cmd_buf + cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_RANDOM);
 
-	for (i = 0; i < reg_random->count; i++) {
+	for (i = 0; i < reg_random.count; i++) {
 		CAM_DBG(CAM_CDM, "reg random: offset %pK, value 0x%x",
 			((void __iomem *)(base_addr + data[0])),
 			data[1]);
@@ -552,7 +552,7 @@ static int cam_cdm_util_reg_random_write(void __iomem *base_addr,
 		data += 2;
 	}
 
-	*used_bytes = ((reg_random->count * (sizeof(uint32_t) * 2)) +
+	*used_bytes = ((reg_random.count * (sizeof(uint32_t) * 2)) +
 		(4 * cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_RANDOM)));
 
 	return 0;
@@ -563,40 +563,39 @@ static int cam_cdm_util_swd_dmi_write(uint32_t cdm_cmd_type,
 	uint32_t *used_bytes)
 {
 	uint32_t i;
-	struct cdm_dmi_cmd *swd_dmi;
+	struct cdm_dmi_cmd swd_dmi;
 	uint32_t *data;
 
-	swd_dmi = (struct cdm_dmi_cmd *)cmd_buf;
-
-	if (cmd_buf_size < (cam_cdm_required_size_dmi() + swd_dmi->length + 1)) {
+	memcpy(&swd_dmi, cmd_buf, sizeof(struct cdm_dmi_cmd));
+	if (cmd_buf_size < (cam_cdm_required_size_dmi() + swd_dmi.length + 1)) {
 		CAM_ERR(CAM_CDM, "invalid CDM_SWD_DMI length %d",
-			swd_dmi->length + 1);
+			swd_dmi.length + 1);
 		return -EINVAL;
 	}
 	data = cmd_buf + cam_cdm_required_size_dmi();
 
 	if (cdm_cmd_type == CAM_CDM_CMD_SWD_DMI_64) {
-		for (i = 0; i < (swd_dmi->length + 1)/8; i++) {
+		for (i = 0; i < (swd_dmi.length + 1)/8; i++) {
 			cam_io_w_mb(data[0], base_addr +
-				swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
+				swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
 			cam_io_w_mb(data[1], base_addr +
-				swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_HI_OFFSET);
+				swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_HI_OFFSET);
 			data += 2;
 		}
 	} else if (cdm_cmd_type == CAM_CDM_CMD_DMI) {
-		for (i = 0; i < (swd_dmi->length + 1)/4; i++) {
+		for (i = 0; i < (swd_dmi.length + 1)/4; i++) {
 			cam_io_w_mb(data[0], base_addr +
-				swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_OFFSET);
+				swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_OFFSET);
 			data += 1;
 		}
 	} else {
-		for (i = 0; i < (swd_dmi->length + 1)/4; i++) {
+		for (i = 0; i < (swd_dmi.length + 1)/4; i++) {
 			cam_io_w_mb(data[0], base_addr +
-				swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
+				swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
 			data += 1;
 		}
 	}
-	*used_bytes = (4 * cam_cdm_required_size_dmi()) + swd_dmi->length + 1;
+	*used_bytes = (4 * cam_cdm_required_size_dmi()) + swd_dmi.length + 1;
 
 	return 0;
 }

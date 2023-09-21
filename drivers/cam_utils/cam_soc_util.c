@@ -4022,11 +4022,15 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 	uint32_t                          reg_base_type = 0;
 	size_t                            buf_size = 0, remain_len = 0;
 	struct cam_reg_dump_input_info   *reg_input_info = NULL;
+	struct cam_reg_dump_input_info   *reg_input_info_u = NULL;
 	struct cam_reg_dump_desc         *reg_dump_desc = NULL;
+	struct cam_reg_dump_desc         *reg_dump_desc_u = NULL;
 	struct cam_reg_dump_out_buffer   *dump_out_buf = NULL;
 	struct cam_reg_read_info         *reg_read_info = NULL;
 	struct cam_hw_soc_info           *soc_info;
 	uint32_t                          reg_base_idx = 0;
+	uint32_t                          local_num_dump = 0;
+	uint32_t                          local_num_read_range = 0;
 
 	if (!ctx || !cmd_desc || !reg_data_cb) {
 		CAM_ERR(CAM_UTIL, "Invalid args to reg dump [%pK] [%pK]",
@@ -4046,7 +4050,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 			rc, (void *)cpu_addr);
 		if (rc)
 			return rc;
-		goto end;
+		goto put_ref;
 	}
 
 	CAM_DBG(CAM_UTIL, "Get cpu buf success req_id: %llu buf_size: %zu",
@@ -4056,7 +4060,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 		CAM_ERR(CAM_UTIL, "Invalid offset for cmd buf: %zu",
 			(size_t)cmd_desc->offset);
 		rc = -EINVAL;
-		goto end;
+		goto put_ref;
 	}
 
 	remain_len = buf_size - (size_t)cmd_desc->offset;
@@ -4067,7 +4071,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 			(size_t)cmd_desc->length, (size_t)cmd_desc->length,
 			remain_len);
 		rc = -EINVAL;
-		goto end;
+		goto put_ref;
 	}
 
 	cmd_buf_start = cpu_addr + (uintptr_t)cmd_desc->offset;
@@ -4079,13 +4083,36 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 			"Invalid length or size for cmd buf: [%zu] [%zu]",
 			(size_t)cmd_desc->length, (size_t)cmd_desc->size);
 		rc = -EINVAL;
-		goto end;
+		goto put_ref;
 	}
 
 	CAM_DBG(CAM_UTIL,
 		"Buffer params start [%pK] input_end [%pK] buf_end [%pK]",
 		cmd_buf_start, cmd_in_data_end, cmd_buf_end);
-	reg_input_info = (struct cam_reg_dump_input_info *) cmd_buf_start;
+	reg_input_info_u = (struct cam_reg_dump_input_info *) cmd_buf_start;
+	local_num_dump = reg_input_info_u->num_dump_sets;
+	if (!local_num_dump) {
+		CAM_ERR(CAM_UTIL,
+			"Invalid number of dump sets 0, req_id: [%llu]", req_id);
+		rc = -EINVAL;
+		goto put_ref;
+	}
+
+	rc = cam_common_mem_kdup((void **)&reg_input_info,
+		reg_input_info_u,
+		sizeof(struct cam_reg_dump_input_info) +
+		((local_num_dump - 1) * sizeof(uint32_t)));
+
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "Alloc and copy req: %llu input info fail", req_id);
+		goto put_ref;
+	}
+
+	if (local_num_dump != reg_input_info->num_dump_sets) {
+		CAM_ERR(CAM_UTIL, "TOCTOU race with userland, error out");
+		goto end;
+	}
+
 	if ((reg_input_info->num_dump_sets > 1) && (sizeof(uint32_t) >
 		((U32_MAX - sizeof(struct cam_reg_dump_input_info)) /
 		(reg_input_info->num_dump_sets - 1)))) {
@@ -4121,9 +4148,30 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 			goto end;
 		}
 
-		reg_dump_desc = (struct cam_reg_dump_desc *)
+		reg_dump_desc_u = (struct cam_reg_dump_desc *)
 			(cmd_buf_start +
 			(uintptr_t)reg_input_info->dump_set_offsets[i]);
+		local_num_read_range = reg_dump_desc_u->num_read_range;
+		if (!local_num_read_range) {
+			CAM_ERR(CAM_UTIL,
+				"Invalid number of read ranges 0, req_id: [%llu]", req_id);
+			rc = -EINVAL;
+			goto end;
+		}
+
+		rc = cam_common_mem_kdup((void **)&reg_dump_desc,
+			reg_dump_desc_u, sizeof(struct cam_reg_dump_desc) +
+			((local_num_read_range - 1) * sizeof(struct cam_reg_read_info)));
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Alloc and copy req: [%llu] desc fail", req_id);
+			goto end;
+		}
+
+		if (local_num_read_range != reg_dump_desc->num_read_range) {
+			CAM_ERR(CAM_UTIL, "TOCTOU race with userland, error out");
+			goto free_desc;
+		}
+
 		if ((reg_dump_desc->num_read_range > 1) &&
 			(sizeof(struct cam_reg_read_info) > ((U32_MAX -
 			sizeof(struct cam_reg_dump_desc)) /
@@ -4132,7 +4180,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 				"Integer Overflow req_id: [%llu] num_read_range: [%u]",
 				req_id, reg_dump_desc->num_read_range);
 			rc = -EOVERFLOW;
-			goto end;
+			goto free_desc;
 		}
 
 		if ((!reg_dump_desc->num_read_range) ||
@@ -4144,7 +4192,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 				"Invalid number of read ranges, req_id: [%llu] num_read_range: [%d]",
 				req_id, reg_dump_desc->num_read_range);
 			rc = -EINVAL;
-			goto end;
+			goto free_desc;
 		}
 
 		if ((cmd_buf_end - cmd_buf_start) <= (uintptr_t)
@@ -4155,7 +4203,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 				(uintptr_t)reg_dump_desc->dump_buffer_offset,
 				cmd_buf_start, cmd_buf_end);
 			rc = -EINVAL;
-			goto end;
+			goto free_desc;
 		}
 
 		reg_base_type = reg_dump_desc->reg_base_type;
@@ -4165,7 +4213,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 				"Invalid Reg dump base type: %d",
 				reg_base_type);
 			rc = -EINVAL;
-			goto end;
+			goto free_desc;
 		}
 
 		rc = reg_data_cb(reg_base_type, ctx, &soc_info, &reg_base_idx);
@@ -4174,7 +4222,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 				"Reg space data callback failed rc: %d soc_info: [%pK]",
 				rc, soc_info);
 			rc = -EINVAL;
-			goto end;
+			goto free_desc;
 		}
 
 		if (reg_base_idx > soc_info->num_reg_map) {
@@ -4182,7 +4230,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 				"Invalid reg base idx: %d num reg map: %d",
 				reg_base_idx, soc_info->num_reg_map);
 			rc = -EINVAL;
-			goto end;
+			goto free_desc;
 		}
 
 		CAM_DBG(CAM_UTIL,
@@ -4202,7 +4250,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 				"%s reg_base_idx %d dumped offset %u",
 				soc_info->dev_name, reg_base_idx,
 				soc_dump_args->offset);
-			goto end;
+			goto free_desc;
 		}
 
 		/* Below code is executed when data is dumped to the
@@ -4234,19 +4282,28 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 					"Invalid Reg dump read type: %d",
 					reg_read_info->type);
 				rc = -EINVAL;
-				goto end;
+				goto free_desc;
 			}
 
 			if (rc) {
 				CAM_ERR(CAM_UTIL,
 					"Reg range read failed rc: %d reg_base_idx: %d dump_out_buf: %pK",
 					rc, reg_base_idx, dump_out_buf);
-				goto end;
+				goto free_desc;
 			}
 		}
+
+		cam_common_mem_free(reg_dump_desc);
 	}
 
+	if (!rc)
+		goto end;
+
+free_desc:
+	cam_common_mem_free(reg_dump_desc);
 end:
+	cam_common_mem_free(reg_input_info);
+put_ref:
 	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
 	return rc;
 }

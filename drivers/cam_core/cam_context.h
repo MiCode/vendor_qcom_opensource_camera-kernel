@@ -69,6 +69,7 @@ enum cam_context_state {
  * @buf_tracker:           List of buffers we want to keep ref counts on
  *                         used by the HW block for a particular req
  * @pf_data                page fault debug data
+ * @packet                 pointer to packet
  *
  */
 struct cam_ctx_request {
@@ -89,6 +90,7 @@ struct cam_ctx_request {
 	struct cam_context            *ctx;
 	struct list_head               buf_tracker;
 	struct cam_hw_mgr_pf_request_info  pf_data;
+	void                           *packet;
 };
 
 /**

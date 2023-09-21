@@ -235,14 +235,10 @@ struct cam_hw_stop_args {
 /**
  * struct cam_hw_mgr_pf_request_info - page fault debug data
  *
- * @packet_handle:     packet handle
- * @offset:            packet offset
  * @req:               pointer to req (HW specific)
  */
 struct cam_hw_mgr_pf_request_info {
-	uint64_t packet_handle;
-	uint64_t packet_offset;
-	void    *req;
+	void              *req;
 };
 
 /**

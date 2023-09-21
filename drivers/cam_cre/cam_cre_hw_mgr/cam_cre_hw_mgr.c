@@ -2415,19 +2415,12 @@ static void cam_cre_mgr_dump_pf_data(struct cam_cre_hw_mgr  *hw_mgr,
 {
 	struct cam_packet          *packet;
 	struct cam_hw_dump_pf_args *pf_args;
-	size_t                      len;
-	uintptr_t                   packet_addr;
+	struct cam_ctx_request     *req_pf;
 
+	req_pf = (struct cam_ctx_request *)
+		pf_cmd_args->pf_req_info->req;
+	packet = (struct cam_packet *)req_pf->packet;
 	pf_args = pf_cmd_args->pf_args;
-
-	rc = cam_mem_get_cpu_buf(pf_cmd_args->pf_req_info->packet_handle, &packet_addr, &len);
-	if (rc) {
-		CAM_ERR(CAM_CRE, "Fail to get packet address from handle: %llu",
-			pf_cmd_args->pf_req_info->packet_handle);
-		return;
-	}
-	packet = (struct cam_packet *)((uint8_t *)packet_addr +
-		(uint32_t)pf_cmd_args->pf_req_info->packet_offset);
 
 	cam_packet_util_dump_io_bufs(packet, hw_mgr->iommu_hdl,
 		hw_mgr->iommu_sec_hdl, pf_args, false);

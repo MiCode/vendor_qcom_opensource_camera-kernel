@@ -1962,19 +1962,16 @@ static void cam_jpeg_mgr_dump_pf_data(
 	struct cam_packet                 *packet;
 	struct cam_jpeg_match_pid_args     jpeg_pid_mid_args;
 	struct cam_hw_dump_pf_args        *pf_args;
-	struct cam_hw_mgr_pf_request_info *pf_req_info;
 	uint32_t                           dev_type;
 	bool                               hw_pid_support = true;
 	int                                rc = 0;
+	struct cam_ctx_request            *req_pf;
 
 	ctx_data = (struct cam_jpeg_hw_ctx_data  *)hw_cmd_args->ctxt_to_hw_map;
 	pf_args = hw_cmd_args->u.pf_cmd_args->pf_args;
-	pf_req_info = hw_cmd_args->u.pf_cmd_args->pf_req_info;
-	rc = cam_packet_util_get_packet_addr(&packet,
-		pf_req_info->packet_handle, pf_req_info->packet_offset);
-	if (rc)
-		return;
-
+	req_pf = (struct cam_ctx_request *)
+		hw_cmd_args->u.pf_cmd_args->pf_req_info->req;
+	packet = (struct cam_packet *)req_pf->packet;
 	jpeg_pid_mid_args.fault_mid = pf_args->pf_smmu_info->mid;
 	jpeg_pid_mid_args.pid = pf_args->pf_smmu_info->pid;
 	dev_type = ctx_data->jpeg_dev_acquire_info.dev_type;
@@ -2002,7 +1999,6 @@ static void cam_jpeg_mgr_dump_pf_data(
 iodump:
 	cam_packet_util_dump_io_bufs(packet, hw_mgr->iommu_hdl, hw_mgr->iommu_sec_hdl,
 		pf_args, hw_pid_support);
-	cam_packet_util_put_packet_addr(pf_req_info->packet_handle);
 
 	/* Dump JPEG registers for debug purpose */
 	if (dev_type == CAM_JPEG_RES_TYPE_DMA ||

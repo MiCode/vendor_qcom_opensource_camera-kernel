@@ -7957,14 +7957,12 @@ static void cam_icp_mgr_dump_pf_data(struct cam_icp_hw_mgr *hw_mgr,
 {
 	struct cam_packet          *packet;
 	struct cam_hw_dump_pf_args *pf_args;
-	int                         rc;
+	struct cam_ctx_request     *req_pf;
 
+	req_pf = (struct cam_ctx_request *)
+		pf_cmd_args->pf_req_info->req;
+	packet = (struct cam_packet *)req_pf->packet;
 	pf_args = pf_cmd_args->pf_args;
-
-	rc = cam_packet_util_get_packet_addr(&packet, pf_cmd_args->pf_req_info->packet_handle,
-		pf_cmd_args->pf_req_info->packet_offset);
-	if (rc)
-		return;
 
 	/*
 	 * res_id_support is false since ICP doesn't have knowledge
@@ -7976,7 +7974,6 @@ static void cam_icp_mgr_dump_pf_data(struct cam_icp_hw_mgr *hw_mgr,
 	cam_packet_util_dump_patch_info(packet, hw_mgr->iommu_hdl,
 		hw_mgr->iommu_sec_hdl, pf_args);
 
-	cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 }
 
 static int cam_icp_mgr_cmd(void *hw_mgr_priv, void *cmd_args)

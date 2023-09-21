@@ -4156,7 +4156,7 @@ static void cam_ope_mgr_dump_pf_data(
 	struct ope_io_buf                 *io_buf = NULL;
 	struct cam_ope_match_pid_args      ope_pid_mid_args;
 	struct cam_hw_dump_pf_args        *pf_args;
-	struct cam_hw_mgr_pf_request_info *pf_req_info;
+	struct cam_ctx_request            *req_pf;
 
 	int          device_idx;
 	bool         *ctx_found;
@@ -4168,14 +4168,12 @@ static void cam_ope_mgr_dump_pf_data(
 	int          stripe_num;
 	int          rc = 0;
 
-	ctx_data    = (struct cam_ope_ctx *)hw_cmd_args->ctxt_to_hw_map;
+	ctx_data = (struct cam_ope_ctx *)hw_cmd_args->ctxt_to_hw_map;
 	pf_args = hw_cmd_args->u.pf_cmd_args->pf_args;
-	pf_req_info = hw_cmd_args->u.pf_cmd_args->pf_req_info;
-	rc = cam_packet_util_get_packet_addr(&packet, pf_req_info->packet_handle,
-		pf_req_info->packet_offset);
-	if (rc)
-		return rc;
-	ope_request = pf_req_info->req;
+	req_pf = (struct cam_ctx_request *)
+		hw_cmd_args->u.pf_cmd_args->pf_req_info->req;
+	packet = (struct cam_packet *)req_pf->packet;
+	ope_request = hw_cmd_args->u.pf_cmd_args->pf_req_info->req;
 
 	ope_pid_mid_args.fault_mid =  pf_args->pf_smmu_info->mid;
 	ope_pid_mid_args.fault_pid = pf_args->pf_smmu_info->pid;

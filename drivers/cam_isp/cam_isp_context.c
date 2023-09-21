@@ -1060,6 +1060,7 @@ static int __cam_isp_ctx_enqueue_init_request(
 {
 	int rc = 0;
 	struct cam_ctx_request                *req_old;
+	struct cam_ctx_request                *req_pf;
 	struct cam_isp_ctx_req                *req_isp_old;
 	struct cam_isp_ctx_req                *req_isp_new;
 	struct cam_isp_prepare_hw_update_data *req_update_old;
@@ -1119,8 +1120,18 @@ static int __cam_isp_ctx_enqueue_init_request(
 				sizeof(req_isp_new->cfg[0]) *
 				req_isp_new->num_cfg);
 
+			if (req_old->packet) {
+				cam_common_mem_free(req_old->packet);
+				req_old->packet = req->packet;
+				req->packet = NULL;
+			}
+
 			memcpy(&req_old->pf_data, &req->pf_data,
 				sizeof(struct cam_hw_mgr_pf_request_info));
+
+			/* Update packet pointer for pf data req */
+			req_pf = (struct cam_ctx_request *)req_old->pf_data.req;
+			req_pf->packet = req_old->packet;
 
 			if (req_isp_new->hw_update_data.num_reg_dump_buf) {
 				req_update_new = &req_isp_new->hw_update_data;
@@ -1730,6 +1741,8 @@ static int __cam_isp_ctx_handle_buf_done_for_req_list(
 	uint64_t buf_done_req_id;
 	struct cam_isp_ctx_req *req_isp;
 	struct cam_context *ctx = ctx_isp->base;
+	struct cam_ctx_request *req_pf =
+		(struct cam_ctx_request *)req->pf_data.req;
 
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
 	ctx_isp->active_req_cnt--;
@@ -1751,6 +1764,11 @@ static int __cam_isp_ctx_handle_buf_done_for_req_list(
 					req_isp->fence_map_out[i].sync_id,
 					CAM_SYNC_STATE_SIGNALED_ERROR,
 					CAM_SYNC_ISP_EVENT_BUBBLE);
+
+			if (req->packet) {
+				cam_common_mem_free(req->packet);
+				req->packet = NULL;
+			}
 
 			list_add_tail(&req->list, &ctx->free_req_list);
 			CAM_DBG(CAM_REQ,
@@ -1776,6 +1794,20 @@ static int __cam_isp_ctx_handle_buf_done_for_req_list(
 		}
 		list_del_init(&req->list);
 		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
+
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
+		/*
+		 * For ePCR we enqueue init request new to old, keep old
+		 * req then set new packet pointer to old request and also
+		 * pf data request, so reset the according packet pointer.
+		 */
+		if (req_pf && (req_pf != req))
+			req_pf->packet = NULL;
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 		req_isp->reapply_type = CAM_CONFIG_REAPPLY_NONE;
 		req_isp->cdm_reset_before_apply = false;
@@ -2953,6 +2985,11 @@ static int __cam_isp_ctx_reg_upd_in_applied_state(
 	} else {
 		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		/* no io config, so the request is completed. */
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 		CAM_DBG(CAM_ISP,
 			"move active request %lld to free list(cnt = %d), ctx %u, link: 0x%x",
@@ -3215,8 +3252,14 @@ static int __cam_isp_ctx_reg_upd_in_sof(struct cam_isp_context *ctx_isp,
 		list_del_init(&req->list);
 		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-		if (req_isp->num_fence_map_out == req_isp->num_acked)
+		if (req_isp->num_fence_map_out == req_isp->num_acked) {
+			if (req->packet) {
+				cam_common_mem_free(req->packet);
+				req->packet = NULL;
+			}
+
 			list_add_tail(&req->list, &ctx->free_req_list);
+		}
 		else
 			CAM_ERR(CAM_ISP,
 				"receive rup in unexpected state, ctx_idx: %u, link: 0x%x",
@@ -3968,6 +4011,11 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 				}
 			}
 			list_del_init(&req->list);
+			if (req->packet) {
+				cam_common_mem_free(req->packet);
+				req->packet = NULL;
+			}
+
 			list_add_tail(&req->list, &ctx->free_req_list);
 			ctx_isp->active_req_cnt--;
 		} else {
@@ -4003,6 +4051,11 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 				}
 			}
 			list_del_init(&req->list);
+			if (req->packet) {
+				cam_common_mem_free(req->packet);
+				req->packet = NULL;
+			}
+
 			list_add_tail(&req->list, &ctx->free_req_list);
 		} else {
 			found = 1;
@@ -4062,6 +4115,11 @@ end:
 			req_isp->fence_map_out[i].sync_id = -1;
 		}
 		list_del_init(&req->list);
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 
 	} while (req->request_id < ctx_isp->last_applied_req_id);
@@ -4217,8 +4275,14 @@ static int __cam_isp_ctx_fs2_reg_upd_in_sof(struct cam_isp_context *ctx_isp,
 		list_del_init(&req->list);
 		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-		if (req_isp->num_fence_map_out == req_isp->num_acked)
+		if (req_isp->num_fence_map_out == req_isp->num_acked) {
+			if (req->packet) {
+				cam_common_mem_free(req->packet);
+				req->packet = NULL;
+			}
+
 			list_add_tail(&req->list, &ctx->free_req_list);
+		}
 		else
 			CAM_ERR(CAM_ISP,
 				"receive rup in unexpected state, ctx_idx: %u, link: 0x%x",
@@ -4260,6 +4324,11 @@ static int __cam_isp_ctx_fs2_reg_upd_in_applied_state(
 	} else {
 		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		/* no io config, so the request is completed. */
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 	}
 
@@ -5645,6 +5714,11 @@ static int __cam_isp_ctx_flush_req(struct cam_context *ctx,
 		req_isp->reapply_type = CAM_CONFIG_REAPPLY_NONE;
 		req_isp->cdm_reset_before_apply = false;
 		list_del_init(&req->list);
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 	}
 
@@ -6193,6 +6267,12 @@ static int __cam_isp_ctx_rdi_only_sof_in_bubble_state(
 					CAM_SYNC_STATE_SIGNALED_ERROR,
 					CAM_SYNC_ISP_EVENT_BUBBLE);
 			}
+
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 		ctx_isp->active_req_cnt--;
 	}
@@ -6276,6 +6356,11 @@ static int __cam_isp_ctx_rdi_only_reg_upd_in_bubble_applied_state(
 	} else {
 		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		/* no io config, so the request is completed. */
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 		CAM_DBG(CAM_ISP,
 			"move active req %lld to free list(cnt=%d), ctx %u link: 0x%x",
@@ -6684,7 +6769,8 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	int rc = 0, i;
 	struct cam_ctx_request           *req = NULL;
 	struct cam_isp_ctx_req           *req_isp;
-	struct cam_packet                *packet;
+	struct cam_packet                *packet_u;
+	struct cam_packet                *packet = NULL;
 	size_t                            remain_len = 0;
 	struct cam_hw_prepare_update_args cfg = {0};
 	struct cam_req_mgr_add_request    add_req;
@@ -6693,6 +6779,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	struct cam_hw_cmd_args           hw_cmd_args;
 	struct cam_isp_hw_cmd_args       isp_hw_cmd_args;
 	uint32_t                         packet_opcode = 0;
+	size_t                           packet_size = 0;
 
 	CAM_DBG(CAM_ISP, "get free request object......ctx_idx: %u, link: 0x%x",
 		ctx->ctx_id, ctx->link_hdl);
@@ -6712,11 +6799,40 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		return -ENOMEM;
 	}
 
+	if (req->packet) {
+		CAM_WARN(CAM_CTXT, "[%s][%d] Missing free request local packet",
+			ctx->dev_name, ctx->ctx_id);
+		cam_common_mem_free(req->packet);
+		req->packet = NULL;
+	}
+
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
 
-	remain_len = cam_context_parse_config_cmd(ctx, cmd, &packet);
-	if (IS_ERR(packet)) {
-		rc = PTR_ERR(packet);
+	remain_len = cam_context_parse_config_cmd(ctx, cmd, &packet_u);
+	if (IS_ERR(packet_u)) {
+		rc = PTR_ERR(packet_u);
+		goto free_req;
+	}
+
+	packet_size = packet_u->header.size;
+	if (packet_size <= remain_len) {
+		rc = cam_common_mem_kdup((void **)&packet,
+			packet_u, packet_size);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Alloc and copy request %lld packet fail",
+				packet_u->header.request_id);
+			goto free_req;
+		}
+	} else {
+		CAM_ERR(CAM_ISP, "Invalid packet header size %u",
+			packet_size);
+		rc = -EINVAL;
+		goto free_req;
+	}
+
+	if (cam_packet_util_validate_packet(packet, remain_len)) {
+		CAM_ERR(CAM_ISP, "Invalid packet params");
+		rc = -EINVAL;
 		goto free_req;
 	}
 
@@ -6789,9 +6905,8 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	req_isp->bubble_detected = false;
 	req_isp->cdm_reset_before_apply = false;
 	req_isp->hw_update_data.packet = packet;
-	req->pf_data.packet_handle = cmd->packet_handle;
-	req->pf_data.packet_offset = cmd->offset;
 	req->pf_data.req = req;
+	req->packet = packet;
 
 	for (i = 0; i < req_isp->num_fence_map_out; i++) {
 		rc = cam_sync_get_obj_ref(req_isp->fence_map_out[i].sync_id);
@@ -6889,6 +7004,7 @@ free_req_and_buf_tracker_list:
 	cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 free_req:
 	spin_lock_bh(&ctx->lock);
+	cam_common_mem_free(packet);
 	list_add_tail(&req->list, &ctx->free_req_list);
 	spin_unlock_bh(&ctx->lock);
 
@@ -7914,6 +8030,11 @@ static int __cam_isp_ctx_start_dev_in_ready(struct cam_context *ctx,
 
 	if (ctx_isp->offline_context && !req_isp->num_fence_map_out) {
 		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 		atomic_set(&ctx_isp->rxd_epoch, 1);
 		CAM_DBG(CAM_REQ,
@@ -8036,6 +8157,12 @@ static int __cam_isp_ctx_stop_dev_in_activated_unlock(
 					CAM_SYNC_STATE_SIGNALED_CANCEL,
 					CAM_SYNC_ISP_EVENT_HW_STOP);
 			}
+
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 	}
 
@@ -8054,6 +8181,12 @@ static int __cam_isp_ctx_stop_dev_in_activated_unlock(
 					CAM_SYNC_STATE_SIGNALED_CANCEL,
 					CAM_SYNC_ISP_EVENT_HW_STOP);
 			}
+
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 	}
 
@@ -8072,6 +8205,12 @@ static int __cam_isp_ctx_stop_dev_in_activated_unlock(
 					CAM_SYNC_STATE_SIGNALED_CANCEL,
 					CAM_SYNC_ISP_EVENT_HW_STOP);
 			}
+
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 	}
 

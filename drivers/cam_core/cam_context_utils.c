@@ -171,7 +171,6 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 	struct cam_ctx_request *req;
 	struct cam_hw_done_event_data *done =
 		(struct cam_hw_done_event_data *)done_event_data;
-	struct cam_packet *packet;
 
 	if (!ctx || !done) {
 		CAM_ERR(CAM_CTXT, "Invalid input params %pK %pK", ctx, done);
@@ -234,22 +233,10 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 		"[%s][ctx_id %d] : req[%llu] : Signaling %d",
 		ctx->dev_name, ctx->ctx_id, req->request_id, result);
 
-	if (cam_presil_mode_enabled()) {
-		rc = cam_packet_util_get_packet_addr(&packet, req->pf_data.packet_handle,
-			req->pf_data.packet_offset);
-		if (rc) {
-			CAM_ERR(CAM_CTXT,
-				"[%s][%d] : req[%llu] failed to get packet address for handle: 0x%llx",
-				ctx->dev_name, ctx->ctx_id, req->request_id,
-				req->pf_data.packet_handle);
-			return rc;
-		}
-	}
-
 	for (j = 0; j < req->num_out_map_entries; j++) {
 		/* Get buf handles from packet and retrieve them from presil framework */
 		if (cam_presil_mode_enabled()) {
-			rc = cam_presil_retrieve_buffers_from_packet(packet,
+			rc = cam_presil_retrieve_buffers_from_packet(req->packet,
 				ctx->img_iommu_hdl, req->out_map_entries[j].resource_handle);
 			if (rc) {
 				CAM_ERR(CAM_CTXT, "Failed to retrieve image buffers rc:%d", rc);
@@ -264,9 +251,6 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 		req->out_map_entries[j].sync_id = -1;
 	}
 
-	if (cam_presil_mode_enabled())
-		cam_packet_util_put_packet_addr(req->pf_data.packet_handle);
-
 	if (cam_debug_ctx_req_list & ctx->dev_id)
 		CAM_INFO(CAM_CTXT,
 			"[%s][%d] : Moving req[%llu] from active_list to free_list",
@@ -279,6 +263,11 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 	 * so hold the lock
 	 */
 	spin_lock(&ctx->lock);
+	if (req->packet) {
+		cam_common_mem_free(req->packet);
+		req->packet = NULL;
+	}
+
 	list_add_tail(&req->list, &ctx->free_req_list);
 	req->ctx = NULL;
 	spin_unlock(&ctx->lock);
@@ -323,6 +312,11 @@ static int cam_context_apply_req_to_hw(struct cam_ctx_request *req,
 		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		spin_lock(&ctx->lock);
 		list_del_init(&req->list);
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
 		list_add_tail(&req->list, &ctx->free_req_list);
 		spin_unlock(&ctx->lock);
 
@@ -389,6 +383,11 @@ static void cam_context_sync_callback(int32_t sync_obj, int status, void *data)
 			mutex_unlock(&ctx->sync_mutex);
 			spin_lock(&ctx->lock);
 			list_del_init(&req->list);
+			if (req->packet) {
+				cam_common_mem_free(req->packet);
+				req->packet = NULL;
+			}
+
 			list_add_tail(&req->list, &ctx->free_req_list);
 			spin_unlock(&ctx->lock);
 
@@ -439,7 +438,10 @@ int32_t cam_context_config_dev_to_hw(
 	size_t len;
 	struct cam_hw_stream_setttings cfg;
 	uintptr_t packet_addr;
-	struct cam_packet *packet;
+	struct cam_packet *packet_u;
+	struct cam_packet *packet = NULL;
+	size_t packet_size = 0;
+	size_t remain_len = 0;
 
 	if (!ctx || !cmd) {
 		CAM_ERR(CAM_CTXT, "Invalid input params %pK %pK", ctx, cmd);
@@ -469,8 +471,30 @@ int32_t cam_context_config_dev_to_hw(
 		return rc;
 	}
 
-	packet = (struct cam_packet *) ((uint8_t *)packet_addr +
+	packet_u = (struct cam_packet *) ((uint8_t *)packet_addr +
 		(uint32_t)cmd->offset);
+	remain_len = len - (uint32_t)cmd->offset;
+	packet_size = packet_u->header.size;
+	if (packet_size <= remain_len) {
+		rc = cam_common_mem_kdup((void **)&packet,
+			packet_u, packet_size);
+		if (rc) {
+			CAM_ERR(CAM_CTXT, "Alloc and copy request %lld packet fail",
+				packet_u->header.request_id);
+			goto put_ref;
+		}
+	} else {
+		CAM_ERR(CAM_CTXT, "Invalid packet header size %u",
+			packet_size);
+		rc = -EINVAL;
+		goto put_ref;
+	}
+
+	if (cam_packet_util_validate_packet(packet, remain_len)) {
+		CAM_ERR(CAM_CTXT, "Invalid packet params");
+		rc = -EINVAL;
+		goto put_ref;
+	}
 
 	cfg.packet = packet;
 	cfg.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
@@ -486,6 +510,9 @@ int32_t cam_context_config_dev_to_hw(
 		rc = -EFAULT;
 	}
 
+	cam_common_mem_free(packet);
+	packet = NULL;
+put_ref:
 	cam_mem_put_cpu_buf((int32_t) cmd->packet_handle);
 	return rc;
 }
@@ -496,9 +523,11 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 	int rc = 0;
 	struct cam_ctx_request *req = NULL;
 	struct cam_hw_prepare_update_args cfg;
-	struct cam_packet *packet;
+	struct cam_packet *packet_u;
+	struct cam_packet *packet = NULL;
 	size_t remain_len = 0;
 	int32_t i = 0, j = 0;
+	size_t packet_size = 0;
 
 	if (!ctx || !cmd) {
 		CAM_ERR(CAM_CTXT, "Invalid input params %pK %pK", ctx, cmd);
@@ -528,6 +557,13 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 		return -ENOMEM;
 	}
 
+	if (req->packet) {
+		CAM_WARN(CAM_CTXT, "[%s][%d] Missing free request local packet",
+			ctx->dev_name, ctx->ctx_id);
+		cam_common_mem_free(req->packet);
+		req->packet = NULL;
+	}
+
 	INIT_LIST_HEAD(&req->buf_tracker);
 	INIT_LIST_HEAD(&req->list);
 	req->ctx = ctx;
@@ -538,9 +574,31 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 	req->flushed                = 0;
 	atomic_set(&req->num_in_acked, 0);
 
-	remain_len = cam_context_parse_config_cmd(ctx, cmd, &packet);
-	if (IS_ERR(packet)) {
-		rc = PTR_ERR(packet);
+	remain_len = cam_context_parse_config_cmd(ctx, cmd, &packet_u);
+	if (IS_ERR(packet_u)) {
+		rc = PTR_ERR(packet_u);
+		goto free_req;
+	}
+
+	packet_size = packet_u->header.size;
+	if (packet_size <= remain_len) {
+		rc = cam_common_mem_kdup((void **)&packet,
+			packet_u, packet_size);
+		if (rc) {
+			CAM_ERR(CAM_CTXT, "Alloc and copy request %lld packet fail",
+				packet_u->header.request_id);
+			goto free_req;
+		}
+	} else {
+		CAM_ERR(CAM_CTXT, "Invalid packet header size %u",
+			packet_size);
+		rc = -EINVAL;
+		goto free_req;
+	}
+
+	if (cam_packet_util_validate_packet(packet, remain_len)) {
+		CAM_ERR(CAM_CTXT, "Invalid packet params");
+		rc = -EINVAL;
 		goto free_req;
 	}
 
@@ -591,9 +649,8 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 	req->request_id = packet->header.request_id;
 	req->status = 1;
 	req->req_priv = cfg.priv;
-	req->pf_data.packet_handle = cmd->packet_handle;
-	req->pf_data.packet_offset = cmd->offset;
 	req->pf_data.req = req;
+	req->packet = packet;
 
 	for (i = 0; i < req->num_out_map_entries; i++) {
 		rc = cam_sync_get_obj_ref(req->out_map_entries[i].sync_id);
@@ -678,8 +735,14 @@ put_ref:
 free_req:
 	cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 	spin_lock(&ctx->lock);
-	list_add_tail(&req->list, &ctx->free_req_list);
+	if (packet) {
+		cam_common_mem_free(packet);
+		packet = NULL;
+	}
+
+	req->packet = NULL;
 	req->ctx = NULL;
+	list_add_tail(&req->list, &ctx->free_req_list);
 	spin_unlock(&ctx->lock);
 
 	return rc;
@@ -891,6 +954,11 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 		if (free_req) {
 			req->ctx = NULL;
 			spin_lock(&ctx->lock);
+			if (req->packet) {
+				cam_common_mem_free(req->packet);
+				req->packet = NULL;
+			}
+
 			list_add_tail(&req->list, &ctx->free_req_list);
 			spin_unlock(&ctx->lock);
 		}
@@ -981,11 +1049,15 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 			}
 		}
 
-		req->ctx = NULL;
 		spin_lock(&ctx->lock);
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
+
+		req->ctx = NULL;
 		list_add_tail(&req->list, &ctx->free_req_list);
 		spin_unlock(&ctx->lock);
-
 		if (cam_debug_ctx_req_list & ctx->dev_id)
 			CAM_INFO(CAM_CTXT,
 				"[%s][%d] : Moving req[%llu] from temp_list to free_list",
@@ -1121,6 +1193,11 @@ int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 			if (flush_args.num_req_active || free_req) {
 				req->ctx = NULL;
 				spin_lock(&ctx->lock);
+				if (req->packet) {
+					cam_common_mem_free(req->packet);
+					req->packet = NULL;
+				}
+
 				list_add_tail(&req->list, &ctx->free_req_list);
 				spin_unlock(&ctx->lock);
 
@@ -1806,7 +1883,6 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 	struct cam_packet                *packet = NULL;
 	unsigned long                     bytes_written = 0;
 	unsigned long                     bytes_required = 0;
-	int rc;
 
 	bytes_required = sizeof(*req_md);
 	if (start_addr + bytes_written + bytes_required > end_addr)
@@ -1847,11 +1923,7 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 		bytes_written += bytes_required;
 	}
 
-	rc = cam_packet_util_get_packet_addr(&packet, req->pf_data.packet_handle,
-		req->pf_data.packet_offset);
-	if (rc)
-		return;
-
+	packet = (struct cam_packet *)req->packet;
 	if (packet && packet->num_io_configs) {
 		bytes_required = packet->num_io_configs * sizeof(struct cam_buf_io_cfg);
 		if (start_addr + bytes_written + bytes_required > end_addr)
@@ -1865,7 +1937,6 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 		req_md->num_io_cfg = packet->num_io_configs;
 	}
 
-	cam_packet_util_put_packet_addr(req->pf_data.packet_handle);
 end:
 	*bytes_updated = bytes_written;
 }
