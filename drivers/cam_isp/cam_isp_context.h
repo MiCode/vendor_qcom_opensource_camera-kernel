@@ -62,13 +62,13 @@
 /* Debug Buffer length*/
 #define CAM_ISP_CONTEXT_DBG_BUF_LEN 300
 
+/* AFD pipeline delay for FCG configuration */
+#define CAM_ISP_AFD_PIPELINE_DELAY 3
+
 /* Maximum entries in frame record */
 #define CAM_ISP_CTX_MAX_FRAME_RECORDS  5
 
-
-/*
- * Congestion count threshold
- */
+/* Congestion count threshold */
 #define CAM_ISP_CONTEXT_CONGESTION_CNT_MAX 3
 
 /* forward declaration */
@@ -303,6 +303,34 @@ struct cam_isp_context_debug_monitors {
 };
 
 /**
+ * struct cam_isp_skip_frame_info - FIFO Queue for number of skipped frames for
+ *                                  the decision of FCG prediction
+ * @num_frame_skipped:              Keep track of the number of skipped frames in between
+ *                                  of the normal frames
+ * @list:                           List member used to append this node to a linked list
+ */
+struct cam_isp_skip_frame_info {
+	uint32_t                         num_frame_skipped;
+	struct list_head                 list;
+};
+
+/**
+ * struct cam_isp_fcg_prediction_tracker - Track the number of skipped frames before and
+ *                                         indicate which FCG prediction should be applied
+ *
+ * @num_skipped:               Number of skipped frames from previous normally applied frame
+ *                             to this normally applied frame
+ * @sum_skipped:               Sum of the number of frames from req generation to req apply
+ * @skipped_list:              Keep track of the number of skipped frames in between from two
+ *                             normal frames
+ */
+struct cam_isp_fcg_prediction_tracker {
+	uint32_t                              num_skipped;
+	uint32_t                              sum_skipped;
+	struct list_head                      skipped_list;
+};
+
+/**
  * struct cam_isp_context   -  ISP context object
  *
  * @base:                      Common context object pointer
@@ -373,6 +401,8 @@ struct cam_isp_context_debug_monitors {
  *                             by other devices on the link as part of link setup
  * @mode_switch_en:            Indicates if mode switch is enabled
  * @hw_idx:                    Hardware ID
+ * @fcg_tracker:               FCG prediction tracker containing number of previously skipped
+ *                             frames and indicates which prediction should be used
  *
  */
 struct cam_isp_context {
@@ -436,6 +466,7 @@ struct cam_isp_context {
 	bool                                  handle_mswitch;
 	bool                                  mode_switch_en;
 	uint32_t                              hw_idx;
+	struct cam_isp_fcg_prediction_tracker fcg_tracker;
 };
 
 /**

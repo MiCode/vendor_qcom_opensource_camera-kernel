@@ -621,13 +621,29 @@ static struct cam_sfe_top_common_reg_offset  sfe880_top_commong_reg  = {
 	},
 };
 
+static struct cam_sfe_fcg_module_info sfe880_fcg_module_info = {
+	.fcg_index_shift                     = 16,
+	.max_reg_val_pair_size               = 16,
+	.fcg_type_size                       = 2,
+	.fcg_ch1_phase_index_cfg_0           = 0x00007270,
+	.fcg_ch1_phase_index_cfg_1           = 0x00007274,
+	.fcg_ch2_phase_index_cfg_0           = 0x00007470,
+	.fcg_ch2_phase_index_cfg_1           = 0x00007474,
+	.fcg_ch1_stats_phase_index_cfg_0     = 0x00007670,
+	.fcg_ch1_stats_phase_index_cfg_1     = 0x00007674,
+	.fcg_ch2_stats_phase_index_cfg_0     = 0x00007870,
+	.fcg_ch2_stats_phase_index_cfg_1     = 0x00007874,
+};
+
 static struct cam_sfe_modules_common_reg_offset sfe880_modules_common_reg = {
-	.demux_module_cfg              = 0x00003060,
-	.demux_xcfa_cfg                = 0x00003064,
-	.demux_hdr_cfg                 = 0x00003074,
-	.hdrc_remo_mod_cfg             = 0x00005860,
-	.xcfa_hdrc_remo_out_mux_cfg    = 0x00005A74,
-	.hdrc_remo_xcfa_bin_cfg        = 0x00005A78,
+	.demux_module_cfg                    = 0x00003060,
+	.demux_xcfa_cfg                      = 0x00003064,
+	.demux_hdr_cfg                       = 0x00003074,
+	.hdrc_remo_mod_cfg                   = 0x00005860,
+	.xcfa_hdrc_remo_out_mux_cfg          = 0x00005A74,
+	.hdrc_remo_xcfa_bin_cfg              = 0x00005A78,
+	.fcg_module_info                     = &sfe880_fcg_module_info,
+	.fcg_supported                       = true,
 };
 
 static struct cam_sfe_top_common_reg_data sfe_880_top_common_reg_data = {

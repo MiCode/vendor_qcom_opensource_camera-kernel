@@ -1065,6 +1065,8 @@ static int __cam_isp_ctx_enqueue_init_request(
 	struct cam_isp_prepare_hw_update_data *req_update_old;
 	struct cam_isp_prepare_hw_update_data *req_update_new;
 	struct cam_isp_prepare_hw_update_data *hw_update_data;
+	struct cam_isp_fcg_config_info        *fcg_info_old;
+	struct cam_isp_fcg_config_info        *fcg_info_new;
 
 	spin_lock_bh(&ctx->lock);
 	if (list_empty(&ctx->pending_req_list)) {
@@ -1111,11 +1113,11 @@ static int __cam_isp_ctx_enqueue_init_request(
 			req_isp_old->num_fence_map_in =
 				req_isp_new->num_fence_map_in;
 
+			/* Copy hw update entries, num_cfg is updated later */
 			memcpy(&req_isp_old->cfg[req_isp_old->num_cfg],
 				req_isp_new->cfg,
 				sizeof(req_isp_new->cfg[0]) *
 				req_isp_new->num_cfg);
-			req_isp_old->num_cfg += req_isp_new->num_cfg;
 
 			memcpy(&req_old->pf_data, &req->pf_data,
 				sizeof(struct cam_hw_mgr_pf_request_info));
@@ -1145,6 +1147,32 @@ static int __cam_isp_ctx_enqueue_init_request(
 				req_isp_old->hw_update_data.num_exp =
 					req_isp_new->hw_update_data.num_exp;
 			}
+
+			/* Copy FCG HW update params */
+			fcg_info_new = &hw_update_data->fcg_info;
+			fcg_info_old = &req_isp_old->hw_update_data.fcg_info;
+			fcg_info_old->use_current_cfg = true;
+
+			if (fcg_info_new->ife_fcg_online) {
+				fcg_info_old->ife_fcg_online = true;
+				fcg_info_old->ife_fcg_entry_idx =
+					req_isp_old->num_cfg +
+					fcg_info_new->ife_fcg_entry_idx;
+				memcpy(&fcg_info_old->ife_fcg_config,
+					&fcg_info_new->ife_fcg_config,
+					sizeof(struct cam_isp_fcg_config_internal));
+			}
+
+			if (fcg_info_new->sfe_fcg_online) {
+				fcg_info_old->sfe_fcg_online = true;
+				fcg_info_old->sfe_fcg_entry_idx =
+					req_isp_old->num_cfg +
+					fcg_info_new->sfe_fcg_entry_idx;
+				memcpy(&fcg_info_old->sfe_fcg_config,
+					&fcg_info_new->sfe_fcg_config,
+					sizeof(struct cam_isp_fcg_config_internal));
+			}
+			req_isp_old->num_cfg += req_isp_new->num_cfg;
 			req_old->request_id = req->request_id;
 			list_splice_init(&req->buf_tracker, &req_old->buf_tracker);
 
@@ -4728,17 +4756,62 @@ static inline int cam_isp_context_apply_evt_injection(struct cam_context *ctx)
 	return rc;
 }
 
+static inline void __cam_isp_ctx_update_fcg_prediction_idx(
+	struct cam_context                      *ctx,
+	uint32_t                                 request_id,
+	struct cam_isp_fcg_prediction_tracker   *fcg_tracker,
+	struct cam_isp_fcg_config_info          *fcg_info)
+{
+	struct cam_isp_context *ctx_isp = ctx->ctx_priv;
+
+	if ((fcg_tracker->sum_skipped == 0) ||
+		(fcg_tracker->sum_skipped > CAM_ISP_MAX_FCG_PREDICTIONS)) {
+		fcg_info->use_current_cfg = true;
+		CAM_DBG(CAM_ISP,
+			"Apply req: %llu, Use current FCG value, frame_id: %llu, ctx_id: %u",
+			request_id, ctx_isp->frame_id, ctx->ctx_id);
+	} else {
+		fcg_info->prediction_idx = fcg_tracker->sum_skipped;
+		CAM_DBG(CAM_ISP,
+			"Apply req: %llu, FCG prediction: %u, frame_id: %llu, ctx_id: %u",
+			request_id, fcg_tracker->sum_skipped,
+			ctx_isp->frame_id, ctx->ctx_id);
+	}
+}
+
+static inline void __cam_isp_ctx_print_fcg_tracker(
+	struct cam_isp_fcg_prediction_tracker *fcg_tracker)
+{
+	uint32_t skipped_list[CAM_ISP_AFD_PIPELINE_DELAY];
+	struct cam_isp_skip_frame_info *skip_info;
+	int i = 0;
+
+	list_for_each_entry(skip_info,
+		&fcg_tracker->skipped_list, list) {
+		skipped_list[i] = skip_info->num_frame_skipped;
+		i += 1;
+	}
+
+	CAM_DBG(CAM_ISP,
+		"FCG tracker num_skipped: %u, sum_skipped: %u, skipped list: [%u, %u, %u]",
+		fcg_tracker->num_skipped, fcg_tracker->sum_skipped,
+		skipped_list[0], skipped_list[1], skipped_list[2]);
+}
+
 static int __cam_isp_ctx_apply_req_in_activated_state(
 	struct cam_context *ctx, struct cam_req_mgr_apply_request *apply,
 	enum cam_isp_ctx_activated_substate next_state)
 {
 	int rc = 0;
-	struct cam_ctx_request          *req;
-	struct cam_ctx_request          *active_req = NULL;
-	struct cam_isp_ctx_req          *req_isp;
-	struct cam_isp_ctx_req          *active_req_isp;
-	struct cam_isp_context          *ctx_isp = NULL;
-	struct cam_hw_config_args        cfg = {0};
+	struct cam_ctx_request                  *req;
+	struct cam_ctx_request                  *active_req = NULL;
+	struct cam_isp_ctx_req                  *req_isp;
+	struct cam_isp_ctx_req                  *active_req_isp;
+	struct cam_isp_context                  *ctx_isp = NULL;
+	struct cam_hw_config_args                cfg = {0};
+	struct cam_isp_skip_frame_info          *skip_info;
+	struct cam_isp_fcg_prediction_tracker   *fcg_tracker;
+	struct cam_isp_fcg_config_info          *fcg_info;
 
 	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
 
@@ -4873,6 +4946,28 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 		rc = cam_isp_context_apply_evt_injection(ctx_isp->base);
 		if (!rc)
 			goto end;
+	}
+
+	/* Decide the exact FCG prediction */
+	fcg_tracker = &ctx_isp->fcg_tracker;
+	fcg_info = &req_isp->hw_update_data.fcg_info;
+	if (!list_empty(&fcg_tracker->skipped_list)) {
+		__cam_isp_ctx_print_fcg_tracker(fcg_tracker);
+		skip_info = list_first_entry(&fcg_tracker->skipped_list,
+			struct cam_isp_skip_frame_info, list);
+		fcg_tracker->sum_skipped -= skip_info->num_frame_skipped;
+		if (unlikely((uint32_t)UINT_MAX - fcg_tracker->sum_skipped <
+			fcg_tracker->num_skipped))
+			fcg_tracker->num_skipped =
+				(uint32_t)UINT_MAX - fcg_tracker->sum_skipped;
+		fcg_tracker->sum_skipped += fcg_tracker->num_skipped;
+		skip_info->num_frame_skipped = fcg_tracker->num_skipped;
+		fcg_tracker->num_skipped = 0;
+		list_rotate_left(&fcg_tracker->skipped_list);
+
+		__cam_isp_ctx_print_fcg_tracker(fcg_tracker);
+		__cam_isp_ctx_update_fcg_prediction_idx(ctx,
+			apply->request_id, fcg_tracker, fcg_info);
 	}
 
 	atomic_set(&ctx_isp->apply_in_progress, 1);
@@ -5556,6 +5651,23 @@ static int __cam_isp_ctx_flush_req(struct cam_context *ctx,
 	return 0;
 }
 
+static inline void __cam_isp_ctx_reset_fcg_tracker(
+	struct cam_context *ctx)
+{
+	struct cam_isp_context         *ctx_isp;
+	struct cam_isp_skip_frame_info *skip_info;
+
+	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
+
+	/* Reset skipped_list for FCG config */
+	ctx_isp->fcg_tracker.sum_skipped = 0;
+	ctx_isp->fcg_tracker.num_skipped = 0;
+	list_for_each_entry(skip_info, &ctx_isp->fcg_tracker.skipped_list, list)
+		skip_info->num_frame_skipped = 0;
+	CAM_DBG(CAM_ISP, "Reset FCG skip info on ctx %u link: %x",
+		ctx->ctx_id, ctx->link_hdl);
+}
+
 static int __cam_isp_ctx_flush_req_in_top_state(
 	struct cam_context               *ctx,
 	struct cam_req_mgr_flush_request *flush_req)
@@ -5573,6 +5685,9 @@ static int __cam_isp_ctx_flush_req_in_top_state(
 	spin_lock_bh(&ctx->lock);
 	__cam_isp_ctx_flush_req(ctx, &ctx->pending_req_list, flush_req);
 	spin_unlock_bh(&ctx->lock);
+
+	/* Reset skipped_list for FCG config */
+	__cam_isp_ctx_reset_fcg_tracker(ctx);
 
 	if (flush_req->type == CAM_REQ_MGR_FLUSH_TYPE_ALL) {
 		if (ctx->state <= CAM_CTX_READY) {
@@ -7171,7 +7286,7 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 	}
 
 	ctx_isp->support_consumed_addr =
-		(param.op_flags & CAM_IFE_CTX_FRAME_HEADER_EN);
+		(param.op_flags & CAM_IFE_CTX_CONSUME_ADDR_EN);
 
 	/* Query the context has rdi only resource */
 	hw_cmd_args.ctxt_to_hw_map = param.ctxt_to_hw_map;
@@ -7975,6 +8090,9 @@ static int __cam_isp_ctx_stop_dev_in_activated_unlock(
 	atomic64_set(&ctx_isp->dbg_monitors.state_monitor_head, -1);
 	atomic64_set(&ctx_isp->dbg_monitors.frame_monitor_head, -1);
 
+	/* Reset skipped_list for FCG config */
+	__cam_isp_ctx_reset_fcg_tracker(ctx);
+
 	for (i = 0; i < CAM_ISP_CTX_EVENT_MAX; i++)
 		atomic64_set(&ctx_isp->dbg_monitors.event_record_head[i], -1);
 
@@ -8393,6 +8511,7 @@ static int __cam_isp_ctx_apply_default_settings(
 	struct cam_ctx_ops *ctx_ops = NULL;
 	struct cam_isp_context *ctx_isp =
 		(struct cam_isp_context *) ctx->ctx_priv;
+	struct cam_isp_fcg_prediction_tracker *fcg_tracker;
 
 	if (!(apply->trigger_point & ctx_isp->subscribe_event)) {
 		CAM_WARN(CAM_ISP,
@@ -8408,6 +8527,14 @@ static int __cam_isp_ctx_apply_default_settings(
 
 	if (atomic_read(&ctx_isp->internal_recovery_set))
 		return __cam_isp_ctx_reset_and_recover(false, ctx);
+
+	/* FCG handling */
+	fcg_tracker = &ctx_isp->fcg_tracker;
+	if (ctx_isp->frame_id != 1)
+		fcg_tracker->num_skipped += 1;
+	CAM_DBG(CAM_ISP,
+		"Apply default settings, number of previous continuous skipped frames: %d, ctx_id: %d",
+		fcg_tracker->num_skipped, ctx->ctx_id);
 
 	/*
 	 * Call notify frame skip for static offline cases or
@@ -8916,6 +9043,7 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
 {
 	int rc = -1;
 	int i;
+	struct cam_isp_skip_frame_info *skip_info, *temp;
 
 	if (!ctx || !ctx_base) {
 		CAM_ERR(CAM_ISP, "Invalid Context");
@@ -8958,6 +9086,21 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
 		goto err;
 	}
 
+	/* FCG related struct setup */
+	INIT_LIST_HEAD(&ctx->fcg_tracker.skipped_list);
+	for (i = 0; i < CAM_ISP_AFD_PIPELINE_DELAY; i++) {
+		skip_info = kzalloc(sizeof(struct cam_isp_skip_frame_info), GFP_KERNEL);
+		if (!skip_info) {
+			CAM_ERR(CAM_ISP,
+				"Failed to allocate memory for FCG struct, ctx_idx: %u, link: %x",
+				ctx_base->ctx_id, ctx_base->link_hdl);
+			rc = -ENOMEM;
+			goto kfree;
+		}
+
+		list_add_tail(&skip_info->list, &ctx->fcg_tracker.skipped_list);
+	}
+
 	/* link camera context with isp context */
 	ctx_base->state_machine = cam_isp_ctx_top_state_machine;
 	ctx_base->ctx_priv = ctx;
@@ -8977,12 +9120,30 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
 	if (!isp_ctx_debug.dentry)
 		cam_isp_context_debug_register();
 
+	return rc;
+
+kfree:
+	list_for_each_entry_safe(skip_info, temp,
+		&ctx->fcg_tracker.skipped_list, list) {
+		list_del(&skip_info->list);
+		kfree(skip_info);
+		skip_info = NULL;
+	}
 err:
 	return rc;
 }
 
 int cam_isp_context_deinit(struct cam_isp_context *ctx)
 {
+	struct cam_isp_skip_frame_info *skip_info, *temp;
+
+	list_for_each_entry_safe(skip_info, temp,
+		&ctx->fcg_tracker.skipped_list, list) {
+		list_del(&skip_info->list);
+		kfree(skip_info);
+		skip_info = NULL;
+	}
+
 	if (ctx->base)
 		cam_context_deinit(ctx->base);
 

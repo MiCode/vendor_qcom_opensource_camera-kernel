@@ -29,6 +29,8 @@ static void cam_isp_add_update_entry(
 	curr_update_entry->len = update_size;
 	curr_update_entry->offset = kmd_buf_info->offset;
 	curr_update_entry->flags = cdm_bl_type;
+	curr_update_entry->addr = (uintptr_t) (kmd_buf_info->cpu_addr +
+		kmd_buf_info->used_bytes/4);
 
 	num_ent++;
 	kmd_buf_info->used_bytes += update_size;

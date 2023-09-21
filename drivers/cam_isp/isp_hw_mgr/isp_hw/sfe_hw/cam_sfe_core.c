@@ -395,6 +395,7 @@ int cam_sfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_CORE_CONFIG:
 	case CAM_ISP_HW_NOTIFY_OVERFLOW:
 	case CAM_ISP_HW_CMD_APPLY_CLK_BW_UPDATE:
+	case CAM_ISP_HW_CMD_FCG_CONFIG:
 		rc = core_info->sfe_top->hw_ops.process_cmd(
 			core_info->sfe_top->top_priv, cmd_type,
 			cmd_args, arg_size);

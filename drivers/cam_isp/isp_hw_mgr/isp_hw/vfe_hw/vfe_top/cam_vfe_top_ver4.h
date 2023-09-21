@@ -153,28 +153,43 @@ struct cam_vfe_top_ver4_debug_reg_info {
 	char     *clc_name;
 };
 
+
+struct cam_vfe_ver4_fcg_module_info {
+	uint32_t fcg_index_shift;
+	uint32_t max_reg_val_pair_size;
+	uint32_t fcg_type_size;
+	uint32_t fcg_phase_index_cfg_0;
+	uint32_t fcg_phase_index_cfg_1;
+	uint32_t fcg_reg_ctxt_shift;
+	uint32_t fcg_reg_ctxt_mask;
+	uint32_t fcg_reg_ctxt_sel;
+};
+
 struct cam_vfe_top_ver4_hw_info {
-	struct cam_vfe_top_ver4_reg_offset_common  *common_reg;
-	struct cam_vfe_ver4_path_hw_info            vfe_full_hw_info;
-	struct cam_vfe_ver4_path_hw_info            pdlib_hw_info;
-	struct cam_vfe_ver4_path_hw_info           *rdi_hw_info;
-	struct cam_vfe_ver4_path_reg_data          *reg_data;
-	struct cam_vfe_top_ver4_wr_client_desc     *wr_client_desc;
-	struct cam_vfe_top_ver4_module_desc        *ipp_module_desc;
-	struct cam_vfe_bayer_ver4_module_desc      *bayer_module_desc;
-	uint32_t                                    num_reg;
-	struct cam_vfe_top_ver4_debug_reg_info     (*debug_reg_info)[][8];
-	uint32_t                                    num_mux;
-	uint32_t                                    num_path_port_map;
+	struct cam_vfe_top_ver4_reg_offset_common      *common_reg;
+	struct cam_vfe_ver4_path_hw_info                vfe_full_hw_info;
+	struct cam_vfe_ver4_path_hw_info                pdlib_hw_info;
+	struct cam_vfe_ver4_path_hw_info               *rdi_hw_info;
+	struct cam_vfe_ver4_path_reg_data              *reg_data;
+	struct cam_vfe_top_ver4_wr_client_desc         *wr_client_desc;
+	struct cam_vfe_top_ver4_module_desc            *ipp_module_desc;
+	struct cam_vfe_bayer_ver4_module_desc          *bayer_module_desc;
+	uint32_t                                        num_reg;
+	struct cam_vfe_top_ver4_debug_reg_info        (*debug_reg_info)[][8];
+	uint32_t                                        num_mux;
+	uint32_t                                        num_path_port_map;
 	uint32_t mux_type[CAM_VFE_TOP_MUX_MAX];
 	uint32_t path_port_map[CAM_ISP_HW_PATH_PORT_MAP_MAX][2];
-	uint32_t                                     num_rdi;
-	uint32_t                                     num_top_errors;
-	struct cam_vfe_top_ver4_top_err_irq_desc    *top_err_desc;
-	uint32_t                                     num_pdaf_violation_errors;
-	struct cam_vfe_top_ver4_pdaf_violation_desc *pdaf_violation_desc;
-	struct cam_vfe_top_ver4_pdaf_lcr_res_info   *pdaf_lcr_res_mask;
-	uint32_t                                     num_pdaf_lcr_res;
+	uint32_t                                         num_rdi;
+	uint32_t                                         num_top_errors;
+	struct cam_vfe_top_ver4_top_err_irq_desc        *top_err_desc;
+	uint32_t                                         num_pdaf_violation_errors;
+	struct cam_vfe_top_ver4_pdaf_violation_desc     *pdaf_violation_desc;
+	struct cam_vfe_top_ver4_pdaf_lcr_res_info       *pdaf_lcr_res_mask;
+	uint32_t                                         num_pdaf_lcr_res;
+	struct cam_vfe_ver4_fcg_module_info             *fcg_module_info;
+	bool                                             fcg_supported;
+	bool                                             fcg_mc_supported;
 };
 
 struct cam_vfe_ver4_path_reg_data {
@@ -215,5 +230,11 @@ int cam_vfe_top_ver4_deinit(struct cam_vfe_top      **vfe_top);
 		VFE_DBG_INFO(24, name7),                                                \
 		VFE_DBG_INFO(28, name8),                                                \
 	}
+
+#define CAM_VFE_ADD_REG_VAL_PAIR(buf_array, index, offset, val)    \
+	do {                                               \
+		buf_array[(index)++] = offset;             \
+		buf_array[(index)++] = val;                \
+	} while (0)
 
 #endif /* _CAM_VFE_TOP_VER4_H_ */
