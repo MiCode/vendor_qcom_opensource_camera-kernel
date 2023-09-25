@@ -653,7 +653,9 @@ static int cam_ife_csid_ver2_path_top_half(
 
 	evt_payload->irq_reg_val = th_payload->evt_status_arr[0];
 
-	if ((evt_payload->irq_reg_val & path_reg->sof_irq_mask)
+	if (((evt_payload->irq_reg_val & path_reg->sof_irq_mask) ||
+		((path_reg->capabilities & CAM_IFE_CSID_CAP_MULTI_CTXT) &&
+		(evt_payload->irq_reg_val & csid_reg->ipp_mc_reg->comp_sof_mask)))
 		&& path_cfg->handle_camif_irq) {
 		evt_payload->sof_ts_reg_val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			path_reg->timestamp_curr1_sof_addr);
@@ -3989,7 +3991,8 @@ static int cam_ife_csid_ver2_path_irq_subscribe(
 	}
 
 	top_irq_mask = csid_reg->path_reg[res->res_id]->top_irq_mask[top_index];
-	if (csid_reg->path_reg[res->res_id]->capabilities & CAM_IFE_CSID_CAP_MULTI_CTXT) {
+	if ((res->res_id == CAM_IFE_PIX_PATH_RES_IPP) &&
+		(csid_reg->path_reg[res->res_id]->capabilities & CAM_IFE_CSID_CAP_MULTI_CTXT)) {
 		rc = cam_ife_csid_ver2_mc_irq_subscribe(csid_hw, res, top_index);
 		if (rc || csid_hw->top_mc_irq_handle < 1) {
 			CAM_ERR(CAM_ISP, "CSID[%u] Failed to subscribe MC top irq",
