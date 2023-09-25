@@ -4891,14 +4891,14 @@ static void cam_tfe_mgr_dump_pf_data(
 	uint32_t   hw_id;
 	bool      *ctx_found, hw_id_found = false;
 	int        i, j, rc = 0;
-	struct cam_ctx_request              *req_pf;
 
 	ctx = (struct cam_tfe_hw_mgr_ctx *)hw_cmd_args->ctxt_to_hw_map;
 
 	pf_cmd_args = hw_cmd_args->u.pf_cmd_args;
-	req_pf = (struct cam_ctx_request *)
-		pf_cmd_args->pf_req_info->req;
-	packet = (struct cam_packet *)req_pf->packet;
+	rc = cam_packet_util_get_packet_addr(&packet,
+		pf_cmd_args->pf_req_info->packet_handle, pf_cmd_args->pf_req_info->packet_offset);
+	if (rc)
+		return;
 	ctx_found = &pf_cmd_args->pf_args->pf_context_info.ctx_found;
 	resource_type = &pf_cmd_args->pf_args->pf_context_info.resource_type;
 

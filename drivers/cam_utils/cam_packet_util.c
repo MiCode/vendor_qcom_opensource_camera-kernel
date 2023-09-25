@@ -22,6 +22,37 @@ struct cam_patch_unique_src_buf_tbl {
 	uint32_t      flags;
 };
 
+int cam_packet_util_get_packet_addr(struct cam_packet **packet,
+	uint64_t packet_handle, uint32_t offset)
+{
+	uintptr_t          packet_addr;
+	size_t             len;
+	int                rc = 0;
+
+	if (!packet) {
+		CAM_ERR(CAM_UTIL, "Invalid parameter packet is NULL");
+		return -EINVAL;
+	}
+
+	rc = cam_mem_get_cpu_buf(packet_handle, &packet_addr,
+		&len);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "Failed to get packet address from handle: 0x%llx rc: %d",
+			packet_handle, rc);
+		*packet = NULL;
+		return rc;
+	}
+
+	*packet = (struct cam_packet *)((uint8_t *)packet_addr + offset);
+
+	return rc;
+}
+
+void cam_packet_util_put_packet_addr(uint64_t packet_handle)
+{
+	cam_mem_put_cpu_buf(packet_handle);
+}
+
 int cam_packet_util_get_cmd_mem_addr(int handle, uint32_t **buf_addr,
 	size_t *len)
 {
@@ -527,42 +558,33 @@ void cam_packet_util_dump_io_bufs(struct cam_packet *packet,
 }
 
 int cam_packet_util_process_generic_cmd_buffer(
-	struct cam_cmd_buf_desc *cmd_buf_u,
+	struct cam_cmd_buf_desc *cmd_buf,
 	cam_packet_generic_blob_handler blob_handler_cb, void *user_data)
 {
 	int       rc = 0;
-	uintptr_t cpu_addr = 0;
+	uintptr_t  cpu_addr = 0;
 	size_t    buf_size;
 	size_t    remain_len = 0;
 	uint32_t *blob_ptr;
 	uint32_t  blob_type, blob_size, blob_block_size, len_read;
-	struct    cam_cmd_buf_desc *cmd_buf = NULL;
 
-	if (!cmd_buf_u || !blob_handler_cb) {
+	if (!cmd_buf || !blob_handler_cb) {
 		CAM_ERR(CAM_UTIL, "Invalid args %pK %pK",
-			cmd_buf_u, blob_handler_cb);
+			cmd_buf, blob_handler_cb);
 		return -EINVAL;
-	}
-
-	rc = cam_common_mem_kdup((void **)&cmd_buf,
-		cmd_buf_u, sizeof(struct cam_cmd_buf_desc));
-	if (rc) {
-		CAM_ERR(CAM_SENSOR, "Alloc and copy cmd header fail");
-		return rc;
 	}
 
 	if (!cmd_buf->length || !cmd_buf->size) {
 		CAM_ERR(CAM_UTIL, "Invalid cmd buf size %d %d",
 			cmd_buf->length, cmd_buf->size);
-		rc = -EINVAL;
-		goto free_buf;
+		return -EINVAL;
 	}
 
 	rc = cam_mem_get_cpu_buf(cmd_buf->mem_handle, &cpu_addr, &buf_size);
 	if (rc || !cpu_addr || (buf_size == 0)) {
 		CAM_ERR(CAM_UTIL, "Failed in Get cpu addr, rc=%d, cpu_addr=%pK",
 			rc, (void *)cpu_addr);
-		goto free_buf;
+		return rc;
 	}
 
 	remain_len = buf_size;
@@ -630,8 +652,6 @@ int cam_packet_util_process_generic_cmd_buffer(
 
 end:
 	cam_mem_put_cpu_buf(cmd_buf->mem_handle);
-free_buf:
-	cam_common_mem_free(cmd_buf);
 	return rc;
 }
 
