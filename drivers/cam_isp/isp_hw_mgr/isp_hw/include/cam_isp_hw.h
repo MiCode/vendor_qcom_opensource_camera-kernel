@@ -436,11 +436,13 @@ struct cam_isp_hw_get_wm_update {
  * @Brief:           Get the out resource id for given mid
  *
  * @mid:             Mid number of hw outport numb
+ * @pid:             Pid number associated with mid
  * @out_res_id:      Out resource id
  *
  */
 struct cam_isp_hw_get_res_for_mid {
 	uint32_t                       mid;
+	uint32_t                       pid;
 	uint32_t                       out_res_id;
 };
 

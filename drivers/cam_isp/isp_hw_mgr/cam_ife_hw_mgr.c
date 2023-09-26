@@ -13711,6 +13711,7 @@ static void cam_ife_mgr_pf_dump_mid_info(
 	int                                 rc = 0;
 
 	get_res.mid = hw_cmd_args->u.pf_cmd_args->pf_args->pf_smmu_info->mid;
+	get_res.pid = hw_cmd_args->u.pf_cmd_args->pf_args->pf_smmu_info->pid;
 	cmd_update.cmd_type = CAM_ISP_HW_CMD_GET_RES_FOR_MID;
 	cmd_update.data = (void *) &get_res;
 
