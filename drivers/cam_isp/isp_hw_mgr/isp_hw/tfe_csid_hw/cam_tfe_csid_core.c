@@ -2871,6 +2871,23 @@ static int cam_tfe_csid_set_csid_clock(
 	return 0;
 }
 
+static int cam_tfe_csid_dump_csid_clock(
+	struct cam_tfe_csid_hw *csid_hw, void *cmd_args)
+{
+	struct cam_hw_soc_info   *soc_info;
+
+	if (!csid_hw)
+		return -EINVAL;
+
+	soc_info = &csid_hw->hw_info->soc_info;
+
+	CAM_INFO(CAM_ISP, "CSID:%d sw_client clk rate:%lu ",
+		csid_hw->hw_intf->hw_idx,
+		soc_info->applied_src_clk_rates.sw_client);
+
+	return 0;
+}
+
 static int cam_tfe_csid_get_regdump(struct cam_tfe_csid_hw *csid_hw,
 	void *cmd_args)
 {
@@ -3140,6 +3157,9 @@ static int cam_tfe_csid_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_CSID_CLOCK_UPDATE:
 		rc = cam_tfe_csid_set_csid_clock(csid_hw, cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_CSID_CLOCK_DUMP:
+		rc = cam_tfe_csid_dump_csid_clock(csid_hw, cmd_args);
 		break;
 	case CAM_TFE_CSID_CMD_GET_REG_DUMP:
 		rc = cam_tfe_csid_get_regdump(csid_hw, cmd_args);
@@ -3794,9 +3814,23 @@ handle_fatal_error:
 		}
 	}
 
-	if (is_error_irq || log_en)
+	if (is_error_irq || log_en) {
+		CAM_ERR_RATE_LIMIT(CAM_ISP,
+			"CSID %d irq status TOP: 0x%x RX: 0x%x IPP: 0x%x",
+			csid_hw->hw_intf->hw_idx,
+			irq_status[TFE_CSID_IRQ_REG_TOP],
+			irq_status[TFE_CSID_IRQ_REG_RX],
+			irq_status[TFE_CSID_IRQ_REG_IPP]);
+		CAM_ERR_RATE_LIMIT(CAM_ISP,
+			"RDI0: 0x%x RDI1: 0x%x RDI2: 0x%x CSID clk:%d",
+			irq_status[TFE_CSID_IRQ_REG_RDI0],
+			irq_status[TFE_CSID_IRQ_REG_RDI1],
+			irq_status[TFE_CSID_IRQ_REG_RDI2],
+			soc_info->applied_src_clk_rates.sw_client);
+
 		cam_tfe_csid_handle_hw_err_irq(csid_hw,
 			CAM_ISP_HW_ERROR_NONE, irq_status);
+	}
 
 	if (csid_hw->irq_debug_cnt >= CAM_TFE_CSID_IRQ_SOF_DEBUG_CNT_MAX) {
 		cam_tfe_csid_sof_irq_debug(csid_hw, &sof_irq_debug_en);
