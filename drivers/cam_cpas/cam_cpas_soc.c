@@ -489,6 +489,7 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 	struct cam_cpas_client *curr_client = NULL;
 	const char *client_name = NULL;
 	uint32_t client_idx = 0, cell_idx = 0;
+	uint32_t auto_path_incr[CAM_CPAS_MAX_CLIENTS] = {0};
 	uint8_t niu_idx = 0;
 	int rc = 0, count = 0, i, j, num_drv_ports;
 
@@ -522,8 +523,7 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 	else
 		num_drv_ports = 1;
 
-	for (level_idx = (CAM_CPAS_MAX_TREE_LEVELS - 1); level_idx >= 0;
-		level_idx--) {
+	for (level_idx = (CAM_CPAS_MAX_TREE_LEVELS - 1); level_idx >= 0; level_idx--) {
 		level_node = soc_private->level_node[level_idx];
 		if (!level_node)
 			continue;
@@ -653,15 +653,61 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 				}
 			}
 
-			rc = of_property_read_string(curr_node, "client-name", &client_name);
-			if (!rc) {
-				rc = of_property_read_u32(curr_node, "traffic-data",
-					&curr_node_ptr->path_data_type);
-				if (rc) {
+			if (level_idx == 0) {
+				bool traffic_data_found = false, constituent_path_found = false;
+
+				traffic_data_found =
+					(of_find_property(curr_node, "traffic-data",
+						NULL) ? true : false);
+				constituent_path_found =
+					(of_find_property(curr_node, "constituent-paths",
+						NULL) ? true : false);
+
+				if (!traffic_data_found && !constituent_path_found) {
 					CAM_ERR(CAM_CPAS,
-						"Path Data type not found");
+						"Essential path identifier property missing, traffic-data:%s constituent-paths:%s",
+						CAM_BOOL_TO_YESNO(traffic_data_found),
+						CAM_BOOL_TO_YESNO(constituent_path_found));
+					return -EINVAL;
+				}
+
+				rc = of_property_read_string(curr_node, "client-name",
+					&client_name);
+				if (rc) {
+					CAM_ERR(CAM_CPAS, "Client name not found");
+					return -EINVAL;
+				}
+
+				rc = cam_common_util_get_string_index(soc_private->client_name,
+					soc_private->num_clients, client_name, &client_idx);
+				if (rc) {
+					CAM_ERR(CAM_CPAS, "client name not found in list: %s",
+						client_name);
 					return rc;
 				}
+
+				if (client_idx >= CAM_CPAS_MAX_CLIENTS) {
+					CAM_ERR(CAM_ISP, "Client idx:%d exceeds max:%d", client_idx,
+						CAM_CPAS_MAX_CLIENTS);
+					return -EINVAL;
+				}
+
+				rc = of_property_read_u32(curr_node, "traffic-data",
+					&curr_node_ptr->path_data_type);
+				if (rc && !constituent_path_found) {
+					CAM_ERR(CAM_CPAS, "Path Data type not found");
+					return rc;
+				}
+
+				/*
+				 * If constituent path found for a node, update path_data_type such
+				 * that it always has a unique path type value for a particular
+				 * client
+				 */
+				if (constituent_path_found)
+					curr_node_ptr->path_data_type =
+						(CAM_CPAS_PATH_DATA_CONSO_OFFSET +
+							(++auto_path_incr[client_idx]));
 
 				rc = cam_cpas_util_path_type_to_idx(&curr_node_ptr->path_data_type);
 				if (rc) {
@@ -698,17 +744,6 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 
 					curr_node_ptr->constituent_paths[path_idx] = true;
 				}
-
-				rc = cam_common_util_get_string_index(soc_private->client_name,
-					soc_private->num_clients, client_name, &client_idx);
-				if (rc) {
-					CAM_ERR(CAM_CPAS, "client name not found in list: %s",
-						client_name);
-					return rc;
-				}
-
-				if (client_idx >= CAM_CPAS_MAX_CLIENTS)
-					return -EINVAL;
 
 				curr_client = cpas_core->cpas_client[client_idx];
 				curr_client->tree_node_valid = true;
