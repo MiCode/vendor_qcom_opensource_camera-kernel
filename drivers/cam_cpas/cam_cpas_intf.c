@@ -86,6 +86,26 @@ const char *cam_cpas_axi_util_path_type_to_string(
 		return "IFE_PDAF";
 	case CAM_AXI_PATH_DATA_IFE_PIXEL_RAW:
 		return "IFE_PIXEL_RAW";
+	case CAM_AXI_PATH_DATA_IFE_FULL:
+		return "IFE_FULL";
+	case CAM_AXI_PATH_DATA_IFE_DS2:
+		return "IFE_DS2";
+	case CAM_AXI_PATH_DATA_IFE_DS4:
+		return "IFE_DS4";
+	case CAM_AXI_PATH_DATA_IFE_DS16:
+		return "IFE_DS16";
+	case CAM_AXI_PATH_DATA_IFE_RDI4:
+		return "IFE_RDI4";
+	case CAM_AXI_PATH_DATA_IFE_PDAF_1:
+		return "IFE_PDAF_1";
+	case CAM_AXI_PATH_DATA_IFE_PDAF_2:
+		return "IFE_PDAF_2";
+	case CAM_AXI_PATH_DATA_IFE_PDAF_3:
+		return "IFE_PDAF_3";
+	case CAM_AXI_PATH_DATA_IFE_IR:
+		return "IFE_IR";
+	case CAM_AXI_PATH_DATA_IFE_FD:
+		return "IFE_FD";
 
 	/* IPE Paths */
 	case CAM_AXI_PATH_DATA_IPE_RD_IN:
