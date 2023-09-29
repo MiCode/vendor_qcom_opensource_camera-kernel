@@ -380,8 +380,14 @@ static int cam_cci_irq_routine(struct v4l2_subdev *sd, u32 status,
 {
 	struct cci_device *cci_dev = v4l2_get_subdevdata(sd);
 	irqreturn_t ret;
-	struct cam_hw_soc_info *soc_info =
-		&cci_dev->soc_info;
+	struct cam_hw_soc_info *soc_info = NULL;
+
+	if (!cci_dev) {
+		CAM_ERR(CAM_CCI, "cci_dev NULL");
+		return -EINVAL;
+	}
+
+	soc_info = &cci_dev->soc_info;
 
 	ret = cam_cci_irq(soc_info->irq_num[0], cci_dev);
 	if (ret == IRQ_NONE)
@@ -556,6 +562,11 @@ static void cam_cci_component_unbind(struct device *dev,
 	struct v4l2_subdev *subdev = platform_get_drvdata(pdev);
 	struct cci_device *cci_dev =
 		v4l2_get_subdevdata(subdev);
+
+	if (!cci_dev) {
+		CAM_ERR(CAM_CCI, "cci_dev NULL");
+		return;
+	}
 
 	cam_cpas_unregister_client(cci_dev->cpas_handle);
 	debugfs_root = NULL;
