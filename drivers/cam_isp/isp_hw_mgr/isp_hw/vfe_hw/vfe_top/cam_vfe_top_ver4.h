@@ -231,10 +231,4 @@ int cam_vfe_top_ver4_deinit(struct cam_vfe_top      **vfe_top);
 		VFE_DBG_INFO(28, name8),                                                \
 	}
 
-#define CAM_VFE_ADD_REG_VAL_PAIR(buf_array, index, offset, val)    \
-	do {                                               \
-		buf_array[(index)++] = offset;             \
-		buf_array[(index)++] = val;                \
-	} while (0)
-
 #endif /* _CAM_VFE_TOP_VER4_H_ */

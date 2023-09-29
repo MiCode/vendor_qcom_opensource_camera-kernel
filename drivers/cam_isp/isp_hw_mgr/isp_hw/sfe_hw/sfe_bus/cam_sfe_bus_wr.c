@@ -2447,12 +2447,14 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 		wm_data = (struct cam_sfe_bus_wr_wm_resource_data *)
 			sfe_out_data->wm_res[i].res_priv;
 
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->cfg, wm_data->en_cfg);
 		CAM_DBG(CAM_SFE, "WM:%d %s en_cfg 0x%X",
 			wm_data->index, sfe_out_data->wm_res[i].res_name,
 			reg_val_pair[j-1]);
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->packer_cfg, wm_data->pack_fmt);
 		CAM_DBG(CAM_SFE, "WM:%d %s packer_fmt 0x%X",
 			wm_data->index, sfe_out_data->wm_res[i].res_name,
@@ -2491,14 +2493,16 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 
 skip_cache_cfg:
 
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->system_cache_cfg,
 			wm_data->cache_cfg);
 		CAM_DBG(CAM_SFE, "WM:%d cache_cfg:0x%x",
 			wm_data->index, reg_val_pair[j-1]);
 
 		val = (wm_data->height << 16) | wm_data->width;
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->image_cfg_0, val);
 		CAM_DBG(CAM_SFE, "WM:%d image height and width 0x%X",
 			wm_data->index, reg_val_pair[j-1]);
@@ -2520,7 +2524,8 @@ skip_cache_cfg:
 				stride, val);
 
 		if (wm_data->stride != val || !wm_data->init_cfg_done) {
-			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->image_cfg_2,
 				stride);
 			wm_data->stride = val;
@@ -2531,7 +2536,8 @@ skip_cache_cfg:
 		frame_inc = stride * slice_h;
 
 		if (!(wm_data->en_cfg & (0x3 << 16))) {
-			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->image_cfg_1, wm_data->h_init);
 			CAM_DBG(CAM_SFE, "WM:%d h_init 0x%X",
 				wm_data->index, reg_val_pair[j-1]);
@@ -2550,7 +2556,8 @@ skip_cache_cfg:
 			frame_inc = CAM_36BIT_INTF_GET_IOVA_BASE(frame_inc);
 
 			/* Only write to offset register in 36-bit enabled HW */
-			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->addr_cfg, img_offset);
 			CAM_DBG(CAM_SFE, "WM:%d image offset 0x%X",
 				wm_data->index, img_offset);
@@ -2558,19 +2565,22 @@ skip_cache_cfg:
 			img_addr = iova;
 		}
 
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->image_addr, img_addr);
 
 		CAM_DBG(CAM_SFE, "WM:%d image address 0x%x", wm_data->index, img_addr);
 
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->frame_incr, frame_inc);
 		CAM_DBG(CAM_SFE, "WM:%d frame_inc %d expanded mem: %s",
 			wm_data->index, reg_val_pair[j-1],
 			CAM_BOOL_TO_YESNO(cam_smmu_is_expanded_memory));
 
 		/* enable the WM */
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->cfg,
 			wm_data->en_cfg);
 
@@ -2804,7 +2814,8 @@ static int cam_sfe_bus_wr_update_hfr(void *priv, void *cmd_args,
 		if ((wm_data->framedrop_pattern !=
 			hfr_cfg->framedrop_pattern) ||
 			!wm_data->hfr_cfg_done) {
-			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->framedrop_pattern,
 				hfr_cfg->framedrop_pattern);
 			wm_data->framedrop_pattern = hfr_cfg->framedrop_pattern;
@@ -2814,7 +2825,8 @@ static int cam_sfe_bus_wr_update_hfr(void *priv, void *cmd_args,
 
 		if (wm_data->framedrop_period != hfr_cfg->framedrop_period ||
 			!wm_data->hfr_cfg_done) {
-			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->framedrop_period,
 				hfr_cfg->framedrop_period);
 			wm_data->framedrop_period = hfr_cfg->framedrop_period;
@@ -2824,7 +2836,8 @@ static int cam_sfe_bus_wr_update_hfr(void *priv, void *cmd_args,
 
 		if (wm_data->irq_subsample_period != hfr_cfg->subsample_period
 			|| !wm_data->hfr_cfg_done) {
-			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->irq_subsample_period,
 				hfr_cfg->subsample_period);
 			wm_data->irq_subsample_period =
@@ -2835,7 +2848,8 @@ static int cam_sfe_bus_wr_update_hfr(void *priv, void *cmd_args,
 
 		if (wm_data->irq_subsample_pattern != hfr_cfg->subsample_pattern
 			|| !wm_data->hfr_cfg_done) {
-			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->irq_subsample_pattern,
 				hfr_cfg->subsample_pattern);
 			wm_data->irq_subsample_pattern =
@@ -3090,7 +3104,8 @@ static int cam_sfe_bus_wr_update_bw_limiter(
 			reg_val = 0;
 		}
 
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->bw_limiter_addr, reg_val);
 		CAM_DBG(CAM_SFE, "WM: %d %s bw_limter: 0x%x",
 			wm_data->index, sfe_out_data->wm_res[i].res_name,

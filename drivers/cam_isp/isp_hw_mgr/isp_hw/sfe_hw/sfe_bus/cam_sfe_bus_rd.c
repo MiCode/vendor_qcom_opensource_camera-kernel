@@ -1609,16 +1609,19 @@ static int cam_sfe_bus_rd_update_rm(void *priv, void *cmd_args,
 
 skip_cache_cfg:
 
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			rm_data->hw_regs->system_cache_cfg,
 			rm_data->cache_cfg);
 		CAM_DBG(CAM_SFE, "SFE:%d RM:%d cache_cfg:0x%x",
 			rm_data->common_data->core_index,
 			rm_data->index, reg_val_pair[j-1]);
 
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			rm_data->hw_regs->buf_width, width_in_bytes);
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			rm_data->hw_regs->buf_height, height);
 		CAM_DBG(CAM_SFE, "SFE:%d RM:%d width:0x%X [in bytes: 0x%x] height:0x%X",
 			rm_data->common_data->core_index,
@@ -1626,16 +1629,19 @@ skip_cache_cfg:
 			width_in_bytes, rm_data->height);
 
 		rm_data->stride = stride;
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			rm_data->hw_regs->stride, rm_data->stride);
 		CAM_DBG(CAM_SFE, "SFE:%d RM:%d image_stride:0x%X",
 			rm_data->common_data->core_index,
 			rm_data->index, reg_val_pair[j-1]);
 
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			rm_data->hw_regs->image_addr, img_addr);
 		if (cam_smmu_is_expanded_memory())
-			CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				rm_data->hw_regs->addr_cfg, img_offset);
 		CAM_DBG(CAM_SFE, "SFE:%d RM:%d image_address:0x%x image_offset:0x%x",
 			rm_data->common_data->core_index,
@@ -1721,7 +1727,8 @@ static int cam_sfe_bus_rd_update_rm_core_cfg(
 		/* To avoid AHB write @ stream on */
 		rm_data->enable_disable_cfg_done = true;
 
-		CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			rm_data->hw_regs->cfg, hw_cfg);
 		CAM_DBG(CAM_SFE, "SFE:%d RM:%d cfg:0x%x",
 			rm_data->common_data->core_index,

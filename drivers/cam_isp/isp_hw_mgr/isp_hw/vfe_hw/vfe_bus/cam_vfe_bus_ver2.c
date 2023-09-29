@@ -2612,7 +2612,7 @@ static int cam_vfe_bus_error_irq_top_half(uint32_t evt_id,
 
 static void cam_vfe_bus_update_ubwc_meta_addr(
 	uint32_t *reg_val_pair,
-	uint32_t  *j,
+	uint32_t *j,
 	void     *regs,
 	uint64_t  image_buf)
 {
@@ -2644,7 +2644,8 @@ static void cam_vfe_bus_update_ubwc_meta_addr(
 	case CAM_CPAS_TITAN_170_V200:
 		ubwc_regs =
 			(struct cam_vfe_bus_ver2_reg_offset_ubwc_client *)regs;
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->meta_addr,
 			image_buf);
 		break;
@@ -2656,7 +2657,8 @@ static void cam_vfe_bus_update_ubwc_meta_addr(
 		ubwc_3_regs =
 			(struct cam_vfe_bus_ver2_reg_offset_ubwc_3_client *)
 			regs;
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_3_regs->meta_addr,
 			image_buf);
 		break;
@@ -2683,37 +2685,44 @@ static int cam_vfe_bus_update_ubwc_3_regs(
 	ubwc_regs = (struct cam_vfe_bus_ver2_reg_offset_ubwc_3_client *)
 		wm_data->hw_regs->ubwc_regs;
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		wm_data->hw_regs->packer_cfg, wm_data->packer_cfg);
 	CAM_DBG(CAM_ISP, "WM %d packer cfg 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
 
 	if (wm_data->is_dual) {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->tile_cfg, wm_data->tile_cfg);
 	} else {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->tile_cfg, wm_data->tile_cfg);
 		CAM_DBG(CAM_ISP, "WM %d tile cfg 0x%x",
 			wm_data->index, reg_val_pair[*j-1]);
 	}
 
 	if (wm_data->is_dual) {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->h_init, wm_data->offset);
 	} else {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->h_init, wm_data->h_init);
 		CAM_DBG(CAM_ISP, "WM %d h_init 0x%x",
 			wm_data->index, reg_val_pair[*j-1]);
 	}
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		ubwc_regs->v_init, wm_data->v_init);
 	CAM_DBG(CAM_ISP, "WM %d v_init 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		ubwc_regs->meta_stride, wm_data->ubwc_meta_stride);
 	CAM_DBG(CAM_ISP, "WM %d meta stride 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
@@ -2725,23 +2734,27 @@ static int cam_vfe_bus_update_ubwc_3_regs(
 			wm_data->common_data->core_index, wm_data->index);
 	}
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		ubwc_regs->mode_cfg_0, wm_data->ubwc_mode_cfg_0);
 	CAM_DBG(CAM_ISP, "WM %d ubwc_mode_cfg_0 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		ubwc_regs->mode_cfg_1, wm_data->ubwc_mode_cfg_1);
 	CAM_DBG(CAM_ISP, "WM %d ubwc_mode_cfg_1 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		ubwc_regs->meta_offset, wm_data->ubwc_meta_offset);
 	CAM_DBG(CAM_ISP, "WM %d ubwc meta offset 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
 
 	if (wm_data->ubwc_bandwidth_limit) {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->bw_limit, wm_data->ubwc_bandwidth_limit);
 		CAM_DBG(CAM_ISP, "WM %d ubwc bw limit 0x%x",
 			wm_data->index,   wm_data->ubwc_bandwidth_limit);
@@ -2769,37 +2782,44 @@ static int cam_vfe_bus_update_ubwc_legacy_regs(
 	ubwc_regs = (struct cam_vfe_bus_ver2_reg_offset_ubwc_client *)
 		wm_data->hw_regs->ubwc_regs;
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		wm_data->hw_regs->packer_cfg, wm_data->packer_cfg);
 	CAM_DBG(CAM_ISP, "WM %d packer cfg 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
 
 	if (wm_data->is_dual) {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->tile_cfg, wm_data->tile_cfg);
 	} else {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->tile_cfg, wm_data->tile_cfg);
 		CAM_DBG(CAM_ISP, "WM %d tile cfg 0x%x",
 			wm_data->index, reg_val_pair[*j-1]);
 	}
 
 	if (wm_data->is_dual) {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->h_init, wm_data->offset);
 	} else {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->h_init, wm_data->h_init);
 		CAM_DBG(CAM_ISP, "WM %d h_init 0x%x",
 			wm_data->index, reg_val_pair[*j-1]);
 	}
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		ubwc_regs->v_init, wm_data->v_init);
 	CAM_DBG(CAM_ISP, "WM %d v_init 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		ubwc_regs->meta_stride, wm_data->ubwc_meta_stride);
 	CAM_DBG(CAM_ISP, "WM %d meta stride 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
@@ -2810,12 +2830,14 @@ static int cam_vfe_bus_update_ubwc_legacy_regs(
 			"Force disable UBWC compression on VFE:%d WM:%d",
 			wm_data->common_data->core_index, wm_data->index);
 	}
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		ubwc_regs->mode_cfg_0, wm_data->ubwc_mode_cfg_0);
 	CAM_DBG(CAM_ISP, "WM %d ubwc_mode_cfg_0 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
 
-	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+	CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+		MAX_REG_VAL_PAIR_SIZE, *j,
 		ubwc_regs->meta_offset, wm_data->ubwc_meta_offset);
 	CAM_DBG(CAM_ISP, "WM %d ubwc meta offset 0x%x",
 		wm_data->index, reg_val_pair[*j-1]);
@@ -2835,7 +2857,8 @@ static int cam_vfe_bus_update_ubwc_legacy_regs(
 	}
 
 	if (ubwc_bw_limit) {
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, *j,
 			ubwc_regs->bw_limit, ubwc_bw_limit);
 		CAM_DBG(CAM_ISP, "WM %d ubwc bw limit 0x%x",
 			wm_data->index, ubwc_bw_limit);
@@ -2942,7 +2965,8 @@ static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 
 		wm_data = vfe_out_data->wm_res[i]->res_priv;
 		/* update width register */
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->buffer_width_cfg,
 			wm_data->width);
 		CAM_DBG(CAM_ISP, "WM %d image width 0x%x",
@@ -2961,7 +2985,8 @@ static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 
 		if ((wm_data->stride != val ||
 			!wm_data->init_cfg_done) && (wm_data->index >= 3)) {
-			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->stride,
 				io_cfg->planes[i].plane_stride);
 			wm_data->stride = val;
@@ -3014,13 +3039,15 @@ static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 		/* WM Image address */
 		for (k = 0; k < loop_size; k++) {
 			if (wm_data->en_ubwc)
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					MAX_REG_VAL_PAIR_SIZE, j,
 					wm_data->hw_regs->image_addr,
 					update_buf->wm_update->image_buf[i] +
 					io_cfg->planes[i].meta_size +
 					k * frame_inc);
 			else
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					MAX_REG_VAL_PAIR_SIZE, j,
 					wm_data->hw_regs->image_addr,
 					update_buf->wm_update->image_buf[i] +
 					wm_data->offset + k * frame_inc);
@@ -3028,14 +3055,16 @@ static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 				wm_data->index, reg_val_pair[j-1]);
 		}
 
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->frame_inc, frame_inc);
 		CAM_DBG(CAM_ISP, "WM %d frame_inc %d",
 			wm_data->index, reg_val_pair[j-1]);
 
 
 		/* enable the WM */
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			wm_data->hw_regs->cfg,
 			wm_data->en_cfg);
 
@@ -3121,7 +3150,8 @@ static int cam_vfe_bus_update_hfr(void *priv, void *cmd_args,
 		if ((wm_data->framedrop_pattern !=
 			hfr_cfg->framedrop_pattern) ||
 			!wm_data->hfr_cfg_done) {
-			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->framedrop_pattern,
 				hfr_cfg->framedrop_pattern);
 			wm_data->framedrop_pattern = hfr_cfg->framedrop_pattern;
@@ -3131,7 +3161,8 @@ static int cam_vfe_bus_update_hfr(void *priv, void *cmd_args,
 
 		if (wm_data->framedrop_period != hfr_cfg->framedrop_period ||
 			!wm_data->hfr_cfg_done) {
-			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->framedrop_period,
 				hfr_cfg->framedrop_period);
 			wm_data->framedrop_period = hfr_cfg->framedrop_period;
@@ -3141,7 +3172,8 @@ static int cam_vfe_bus_update_hfr(void *priv, void *cmd_args,
 
 		if (wm_data->irq_subsample_period != hfr_cfg->subsample_period
 			|| !wm_data->hfr_cfg_done) {
-			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->irq_subsample_period,
 				hfr_cfg->subsample_period);
 			wm_data->irq_subsample_period =
@@ -3152,7 +3184,8 @@ static int cam_vfe_bus_update_hfr(void *priv, void *cmd_args,
 
 		if (wm_data->irq_subsample_pattern != hfr_cfg->subsample_pattern
 			|| !wm_data->hfr_cfg_done) {
-			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+			CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+				MAX_REG_VAL_PAIR_SIZE, j,
 				wm_data->hw_regs->irq_subsample_pattern,
 				hfr_cfg->subsample_pattern);
 			wm_data->irq_subsample_pattern =

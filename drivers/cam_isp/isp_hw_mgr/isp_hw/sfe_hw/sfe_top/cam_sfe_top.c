@@ -1204,11 +1204,13 @@ static int cam_sfe_top_apply_fcg_update(
 		if (fcg_ch_ctx->fcg_enable_mask & CAM_ISP_FCG_ENABLE_PHASE) {
 			switch (fcg_ch_ctx->fcg_ch_ctx_id) {
 			case CAM_ISP_FCG_MASK_CH1:
-				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_ch1_phase_index_cfg_0,
 					(fcg_pr->phase_index_r |
 					fcg_pr->phase_index_g << fcg_index_shift));
-				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_ch1_phase_index_cfg_1,
 					fcg_pr->phase_index_b);
 				CAM_DBG(CAM_SFE,
@@ -1219,11 +1221,13 @@ static int cam_sfe_top_apply_fcg_update(
 					fcg_pr->phase_index_b);
 				break;
 			case CAM_ISP_FCG_MASK_CH2:
-				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_ch2_phase_index_cfg_0,
 					(fcg_pr->phase_index_r |
 					fcg_pr->phase_index_g << fcg_index_shift));
-				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_ch2_phase_index_cfg_1,
 					fcg_pr->phase_index_b);
 				CAM_DBG(CAM_SFE,
@@ -1244,11 +1248,13 @@ static int cam_sfe_top_apply_fcg_update(
 		if (fcg_ch_ctx->fcg_enable_mask & CAM_ISP_FCG_ENABLE_STATS) {
 			switch (fcg_ch_ctx->fcg_ch_ctx_id) {
 			case CAM_ISP_FCG_MASK_CH1:
-				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_ch1_stats_phase_index_cfg_0,
 					(fcg_pr->stats_index_r |
 					fcg_pr->stats_index_g << fcg_index_shift));
-				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_ch1_stats_phase_index_cfg_1,
 					fcg_pr->stats_index_b);
 				CAM_DBG(CAM_SFE,
@@ -1259,11 +1265,13 @@ static int cam_sfe_top_apply_fcg_update(
 					fcg_pr->phase_index_b);
 				break;
 			case CAM_ISP_FCG_MASK_CH2:
-				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_ch2_stats_phase_index_cfg_0,
 					(fcg_pr->stats_index_r |
 					fcg_pr->stats_index_g << fcg_index_shift));
-				CAM_SFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_ch2_stats_phase_index_cfg_1,
 					fcg_pr->stats_index_b);
 				CAM_DBG(CAM_SFE,

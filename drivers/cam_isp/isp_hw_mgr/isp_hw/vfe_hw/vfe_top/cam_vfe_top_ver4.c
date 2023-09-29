@@ -1161,7 +1161,8 @@ static int cam_vfe_top_apply_fcg_update(
 			/* Same value as CAM_ISP_FCG_MASK_CH0/1/2 to support both VFE and MC_TFE */
 			case CAM_ISP_MULTI_CTXT0_MASK:
 				if (hw_info->fcg_mc_supported) {
-					CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+						fcg_module_info->max_reg_val_pair_size, j,
 						fcg_module_info->fcg_reg_ctxt_sel,
 						(fcg_module_info->fcg_reg_ctxt_mask &
 						(fcg_ch_ctx->fcg_ch_ctx_id <<
@@ -1173,11 +1174,13 @@ static int cam_vfe_top_apply_fcg_update(
 						(fcg_ch_ctx->fcg_ch_ctx_id <<
 						fcg_module_info->fcg_reg_ctxt_shift)));
 				}
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_phase_index_cfg_0,
-					(fcg_pr->phase_index_r |
-					(fcg_pr->phase_index_g << fcg_index_shift)));
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					fcg_pr->phase_index_r |
+					(fcg_pr->phase_index_g << fcg_index_shift));
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_phase_index_cfg_1,
 					fcg_pr->phase_index_b);
 				CAM_DBG(CAM_ISP,
@@ -1197,7 +1200,8 @@ static int cam_vfe_top_apply_fcg_update(
 					goto kfree;
 				}
 
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_reg_ctxt_sel,
 					(fcg_module_info->fcg_reg_ctxt_mask &
 					(fcg_ch_ctx->fcg_ch_ctx_id <<
@@ -1209,11 +1213,13 @@ static int cam_vfe_top_apply_fcg_update(
 					(fcg_ch_ctx->fcg_ch_ctx_id <<
 					fcg_module_info->fcg_reg_ctxt_shift)));
 
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_phase_index_cfg_0,
-					(fcg_pr->phase_index_r |
-					(fcg_pr->phase_index_g << fcg_index_shift)));
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					fcg_pr->phase_index_r |
+					(fcg_pr->phase_index_g << fcg_index_shift));
+				CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+					fcg_module_info->max_reg_val_pair_size, j,
 					fcg_module_info->fcg_phase_index_cfg_1,
 					fcg_pr->phase_index_b);
 				CAM_DBG(CAM_ISP,

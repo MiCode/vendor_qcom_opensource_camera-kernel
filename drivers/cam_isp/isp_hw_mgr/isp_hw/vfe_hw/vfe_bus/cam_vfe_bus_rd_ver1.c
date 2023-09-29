@@ -34,12 +34,6 @@ static const char drv_name[] = "vfe_bus_rd";
 #define MAX_REG_VAL_PAIR_SIZE    \
 	(MAX_BUF_UPDATE_REG_NUM * 2 * CAM_PACKET_MAX_PLANES)
 
-#define CAM_VFE_ADD_REG_VAL_PAIR(buf_array, index, offset, val)    \
-	do {                                               \
-		buf_array[(index)++] = offset;             \
-		buf_array[(index)++] = val;                \
-	} while (0)
-
 #define BUS_RD_VER1_DEFAULT_LATENCY_BUF_ALLOC 512
 
 enum cam_vfe_bus_rd_ver1_unpacker_format {
@@ -911,20 +905,23 @@ static int cam_vfe_bus_rd_update_rm(void *priv, void *cmd_args,
 		buf_size = ((rm_data->width)&(0x0000FFFF)) |
 			((rm_data->height<<16)&(0xFFFF0000));
 
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			rm_data->hw_regs->buf_size, buf_size);
 		CAM_DBG(CAM_ISP, "VFE:%d RM:%d image_size:0x%X",
 			rm_data->common_data->core_index,
 			rm_data->index, reg_val_pair[j-1]);
 
 		rm_data->stride = io_cfg->planes[i].plane_stride;
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			rm_data->hw_regs->stride, rm_data->stride);
 		CAM_DBG(CAM_ISP, "VFE:%d RM:%d image_stride:0x%X",
 			rm_data->common_data->core_index,
 			rm_data->index, reg_val_pair[j-1]);
 
-		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+		CAM_ISP_ADD_REG_VAL_PAIR(reg_val_pair,
+			MAX_REG_VAL_PAIR_SIZE, j,
 			rm_data->hw_regs->image_addr,
 			update_buf->rm_update->image_buf[i] +
 				rm_data->offset);

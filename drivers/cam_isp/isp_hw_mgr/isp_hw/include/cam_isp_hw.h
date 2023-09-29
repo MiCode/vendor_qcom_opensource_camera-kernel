@@ -36,6 +36,19 @@
 /* Access core_info of isp resource node */
 #define cam_isp_res_core_info(res) (((struct cam_hw_info *)res->hw_intf->hw_priv)->core_info)
 
+/* Add reg/val pair to buffer array and update the index */
+#define CAM_ISP_ADD_REG_VAL_PAIR(buf_array, length, index, offset, val)                      \
+	do {                                                                                 \
+		if (unlikely(index >= (length - 1))) {                                       \
+			CAM_ERR(CAM_ISP,                                                     \
+				"Exceed buf size %u when adding reg/val at index %u and %u", \
+				length, index, index+1);                                     \
+		} else {                                                                     \
+			buf_array[(index)++] = offset;                                       \
+			buf_array[(index)++] = val;                                          \
+		}                                                                            \
+	} while (0)
+
 enum cam_isp_exposure_type {
 	CAM_ISP_LAST_EXPOSURE,
 	CAM_ISP_LAST_1_EXPOSURE,
