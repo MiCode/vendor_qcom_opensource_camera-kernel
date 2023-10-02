@@ -14064,7 +14064,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 	}
 
 	/* add reg update commands */
-	if (hw_mgr->csid_rup_en)
+	if (hw_mgr->csid_aup_rup_en)
 		rc = cam_ife_mgr_csid_add_reg_update(ctx,
 			prepare, &prepare_hw_data->kmd_cmd_buff_info);
 
@@ -14073,8 +14073,8 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 			prepare, &prepare_hw_data->kmd_cmd_buff_info);
 
 	if (rc) {
-		CAM_ERR(CAM_ISP, "Add RUP fail csid_rup_en %d, ctx_idx: %u",
-			hw_mgr->csid_rup_en, ctx->ctx_index);
+		CAM_ERR(CAM_ISP, "Add RUP fail csid_aup_rup_en %d, ctx_idx: %u",
+			hw_mgr->csid_aup_rup_en, ctx->ctx_index);
 		goto end;
 	}
 
@@ -14773,13 +14773,17 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 			break;
 		case CAM_ISP_HW_MGR_CMD_CTX_TYPE:
 			if (ctx->flags.is_fe_enabled && ctx->flags.is_offline)
-				isp_hw_cmd_args->u.ctx_type =
-					CAM_ISP_CTX_OFFLINE;
+				isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_OFFLINE;
 			else if (ctx->flags.is_fe_enabled && !ctx->flags.is_offline &&
 				ctx->ctx_type != CAM_IFE_CTX_TYPE_SFE)
-				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_FS2;
+				isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_FS2;
 			else
-				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_PIX;
+				isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_PIX;
+
+			if (hw_mgr->csid_aup_rup_en)
+				isp_hw_cmd_args->u.ctx_info.bubble_recover_dis  = 1;
+			else
+				isp_hw_cmd_args->u.ctx_info.bubble_recover_dis = 0;
 			break;
 		case CAM_ISP_HW_MGR_GET_PACKET_OPCODE:
 			packet = (struct cam_packet *)
@@ -16543,8 +16547,8 @@ static int cam_ife_hw_mgr_sort_dev_with_caps(
 
 		ife_hw_mgr->csid_global_reset_en =
 			ife_hw_mgr->csid_hw_caps[i].global_reset_en;
-		ife_hw_mgr->csid_rup_en =
-			ife_hw_mgr->csid_hw_caps[i].rup_en;
+		ife_hw_mgr->csid_aup_rup_en =
+			ife_hw_mgr->csid_hw_caps[i].aup_rup_en;
 		ife_hw_mgr->csid_camif_irq_support =
 			ife_hw_mgr->csid_hw_caps[i].camif_irq_support;
 	}

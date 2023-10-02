@@ -3248,6 +3248,13 @@ static int __cam_isp_ctx_epoch_in_applied(struct cam_isp_context *ctx_isp,
 		return -EINVAL;
 	}
 
+	if (ctx_isp->bubble_recover_dis && !ctx_isp->sfe_en) {
+		CAM_INFO(CAM_ISP, "Bubble Recovery Disabled");
+		__cam_isp_ctx_send_sof_timestamp(ctx_isp, 0,
+			CAM_REQ_MGR_SOF_EVENT_SUCCESS);
+		return 0;
+	}
+
 	ctx_isp->frame_id_meta = epoch_done_event_data->frame_id_meta;
 	if (list_empty(&ctx->wait_req_list)) {
 		/*
@@ -5991,6 +5998,13 @@ static int __cam_isp_ctx_rdi_only_sof_in_bubble_applied(
 	struct cam_isp_hw_sof_event_data      *sof_event_data = evt_data;
 	uint64_t  request_id = 0;
 
+	if (ctx_isp->bubble_recover_dis && !ctx_isp->sfe_en) {
+		CAM_INFO(CAM_ISP, "Bubble Recovery Disabled");
+		__cam_isp_ctx_send_sof_timestamp(ctx_isp, 0,
+			CAM_REQ_MGR_SOF_EVENT_SUCCESS);
+		return 0;
+	}
+
 	/*
 	 * Sof in bubble applied state means, reg update not received.
 	 * before increment frame id and override time stamp value, send
@@ -6560,6 +6574,8 @@ static int __cam_isp_ctx_release_hw_in_top_state(struct cam_context *ctx,
 	ctx_isp->init_received = false;
 	ctx_isp->support_consumed_addr = false;
 	ctx_isp->aeb_enabled = false;
+	ctx_isp->sfe_en = false;
+	ctx_isp->bubble_recover_dis = false;
 	ctx_isp->req_info.last_bufdone_req_id = 0;
 	kfree(ctx_isp->vfe_bus_comp_grp);
 	kfree(ctx_isp->sfe_bus_comp_grp);
@@ -7109,7 +7125,7 @@ static int __cam_isp_ctx_acquire_dev_in_available(struct cam_context *ctx,
 		goto free_hw;
 	}
 
-	if (isp_hw_cmd_args.u.ctx_type == CAM_ISP_CTX_RDI) {
+	if (isp_hw_cmd_args.u.ctx_info.type == CAM_ISP_CTX_RDI) {
 		/*
 		 * this context has rdi only resource assign rdi only
 		 * state machine
@@ -7122,14 +7138,14 @@ static int __cam_isp_ctx_acquire_dev_in_available(struct cam_context *ctx,
 		ctx_isp->substate_machine =
 			cam_isp_ctx_rdi_only_activated_state_machine;
 		ctx_isp->rdi_only_context = true;
-	} else if (isp_hw_cmd_args.u.ctx_type == CAM_ISP_CTX_FS2) {
+	} else if (isp_hw_cmd_args.u.ctx_info.type == CAM_ISP_CTX_FS2) {
 		CAM_DBG(CAM_ISP, "FS2 Session has PIX, RD and RDI, ctx_idx: %u, link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
 		ctx_isp->substate_machine_irq =
 			cam_isp_ctx_fs2_state_machine_irq;
 		ctx_isp->substate_machine =
 			cam_isp_ctx_fs2_state_machine;
-	} else if (isp_hw_cmd_args.u.ctx_type == CAM_ISP_CTX_OFFLINE) {
+	} else if (isp_hw_cmd_args.u.ctx_info.type == CAM_ISP_CTX_OFFLINE) {
 		CAM_DBG(CAM_ISP,
 			"offline Session has PIX and RD resources, ctx_idx: %u, link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
@@ -7149,13 +7165,15 @@ static int __cam_isp_ctx_acquire_dev_in_available(struct cam_context *ctx,
 	ctx_isp->hw_acquired = true;
 	ctx_isp->split_acquire = false;
 	ctx->ctxt_to_hw_map = param.ctxt_to_hw_map;
+	ctx_isp->bubble_recover_dis = isp_hw_cmd_args.u.ctx_info.bubble_recover_dis;
 	atomic64_set(&ctx_isp->dbg_monitors.state_monitor_head, -1);
 	atomic64_set(&ctx_isp->dbg_monitors.frame_monitor_head, -1);
 	for (i = 0; i < CAM_ISP_CTX_EVENT_MAX; i++)
 		atomic64_set(&ctx_isp->dbg_monitors.event_record_head[i], -1);
 
-	CAM_INFO(CAM_ISP, "Ctx_type: %u, ctx_id: %u, hw_mgr_ctx: %u", isp_hw_cmd_args.u.ctx_type,
-		ctx->ctx_id, param.hw_mgr_ctx_id);
+	CAM_INFO(CAM_ISP, "Ctx_type: %u, ctx_id: %u, hw_mgr_ctx: %u bubble_recover %d",
+		isp_hw_cmd_args.u.ctx_info.type, ctx->ctx_id, param.hw_mgr_ctx_id,
+		isp_hw_cmd_args.u.ctx_info.bubble_recover_dis);
 	kfree(isp_res);
 	isp_res = NULL;
 
@@ -7301,7 +7319,7 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 		goto free_hw;
 	}
 
-	if (isp_hw_cmd_args.u.ctx_type == CAM_ISP_CTX_RDI) {
+	if (isp_hw_cmd_args.u.ctx_info.type == CAM_ISP_CTX_RDI) {
 		/*
 		 * this context has rdi only resource assign rdi only
 		 * state machine
@@ -7314,14 +7332,14 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 		ctx_isp->substate_machine =
 			cam_isp_ctx_rdi_only_activated_state_machine;
 		ctx_isp->rdi_only_context = true;
-	} else if (isp_hw_cmd_args.u.ctx_type == CAM_ISP_CTX_FS2) {
+	} else if (isp_hw_cmd_args.u.ctx_info.type == CAM_ISP_CTX_FS2) {
 		CAM_DBG(CAM_ISP, "FS2 Session has PIX, RD and RDI, ctx_idx: %u, link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
 		ctx_isp->substate_machine_irq =
 			cam_isp_ctx_fs2_state_machine_irq;
 		ctx_isp->substate_machine =
 			cam_isp_ctx_fs2_state_machine;
-	} else if (isp_hw_cmd_args.u.ctx_type == CAM_ISP_CTX_OFFLINE) {
+	} else if (isp_hw_cmd_args.u.ctx_info.type == CAM_ISP_CTX_OFFLINE) {
 		CAM_DBG(CAM_ISP, "Offline session has PIX and RD resources, ctx: %u, link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
 		ctx_isp->substate_machine_irq =
@@ -7349,7 +7367,7 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 	trace_cam_context_state("ISP", ctx);
 	CAM_INFO(CAM_ISP,
 		"Acquire success:session_hdl 0x%xs ctx_type %d ctx %u link: 0x%x hw_mgr_ctx: %u",
-		ctx->session_hdl, isp_hw_cmd_args.u.ctx_type, ctx->ctx_id, ctx->link_hdl,
+		ctx->session_hdl, isp_hw_cmd_args.u.ctx_info.type, ctx->ctx_id, ctx->link_hdl,
 		param.hw_mgr_ctx_id);
 	kfree(acquire_hw_info);
 	return rc;
@@ -7467,6 +7485,8 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 		(param.op_flags & CAM_IFE_CTX_AEB_EN);
 	ctx_isp->mode_switch_en =
 		(param.op_flags & CAM_IFE_CTX_DYNAMIC_SWITCH_EN);
+	ctx_isp->sfe_en =
+		(param.op_flags & CAM_IFE_CTX_SFE_EN);
 
 	/* Query the context bus comp group information */
 	ctx_isp->vfe_bus_comp_grp = kcalloc(CAM_IFE_BUS_COMP_NUM_MAX,
@@ -7534,7 +7554,7 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 
 	cmd->hw_info.valid_acquired_hw = param.valid_acquired_hw;
 
-	if (isp_hw_cmd_args.u.ctx_type == CAM_ISP_CTX_RDI) {
+	if (isp_hw_cmd_args.u.ctx_info.type == CAM_ISP_CTX_RDI) {
 		/*
 		 * this context has rdi only resource assign rdi only
 		 * state machine
@@ -7547,14 +7567,14 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 		ctx_isp->substate_machine =
 			cam_isp_ctx_rdi_only_activated_state_machine;
 		ctx_isp->rdi_only_context = true;
-	} else if (isp_hw_cmd_args.u.ctx_type == CAM_ISP_CTX_FS2) {
+	} else if (isp_hw_cmd_args.u.ctx_info.type == CAM_ISP_CTX_FS2) {
 		CAM_DBG(CAM_ISP, "FS2 Session has PIX, RD and RDI, ctx_id %u link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
 		ctx_isp->substate_machine_irq =
 			cam_isp_ctx_fs2_state_machine_irq;
 		ctx_isp->substate_machine =
 			cam_isp_ctx_fs2_state_machine;
-	} else if (isp_hw_cmd_args.u.ctx_type == CAM_ISP_CTX_OFFLINE) {
+	} else if (isp_hw_cmd_args.u.ctx_info.type == CAM_ISP_CTX_OFFLINE) {
 		CAM_DBG(CAM_ISP, "Offline Session has PIX and RD resources, ctx_id %u link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
 		ctx_isp->substate_machine_irq =
@@ -7597,7 +7617,7 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 	trace_cam_context_state("ISP", ctx);
 	CAM_INFO(CAM_ISP,
 		"Acquire success: session_hdl 0x%xs ctx_type %d ctx %u link: 0x%x hw_mgr_ctx: %u",
-		ctx->session_hdl, isp_hw_cmd_args.u.ctx_type, ctx->ctx_id, ctx->link_hdl,
+		ctx->session_hdl, isp_hw_cmd_args.u.ctx_info.type, ctx->ctx_id, ctx->link_hdl,
 		param.hw_mgr_ctx_id);
 	kfree(acquire_hw_info);
 	return rc;

@@ -298,7 +298,7 @@ int cam_ife_csid_ver1_get_hw_caps(void *hw_priv,
 	hw_caps->minor_version = csid_reg->cmn_reg->minor_version;
 	hw_caps->version_incr = csid_reg->cmn_reg->version_incr;
 	hw_caps->global_reset_en = csid_reg->cmn_reg->global_reset;
-	hw_caps->rup_en = csid_reg->cmn_reg->rup_supported;
+	hw_caps->aup_rup_en = csid_reg->cmn_reg->aup_rup_supported;
 	hw_caps->is_lite = soc_private->is_ife_csid_lite;
 
 	CAM_DBG(CAM_ISP,
