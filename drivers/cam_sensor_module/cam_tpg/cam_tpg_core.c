@@ -480,6 +480,7 @@ static int cam_tpg_validate_cmd_descriptor(
 
 	*cmd_addr = (uintptr_t)cmd_header;
 end:
+	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
 	return rc;
 }
 
@@ -678,6 +679,7 @@ static int cam_tpg_packet_parse(
 		break;
 	}
 end:
+	cam_mem_put_cpu_buf(config->packet_handle);
 	return rc;
 }
 
