@@ -1242,6 +1242,11 @@ static int cam_tfe_top_get_base(struct cam_tfe_top_priv *top_priv,
 
 	mem_base = CAM_SOC_GET_REG_MAP_CAM_BASE(
 		top_priv->common_data.soc_info, TFE_CORE_BASE_IDX);
+	if (mem_base == -1) {
+		CAM_ERR(CAM_ISP, "failed to get mem_base, index: %d num_reg_map: %u",
+			TFE_CORE_BASE_IDX, top_priv->common_data.soc_info->num_reg_map);
+		return -EINVAL;
+	}
 
 	cdm_util_ops->cdm_write_changebase(
 	cdm_args->cmd.cmd_buf_addr, mem_base);

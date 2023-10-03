@@ -64,7 +64,7 @@ enum cam_ife_ctx_master_type {
  * @rx_capture_debug_set:      If rx capture debug is set by user
  * @disable_isp_drv:           Disable ISP DRV config
  * @enable_presil_reg_dump:    Enable per req regdump in presil
- *
+ * @enable_cdm_cmd_check:      Enable invalid command check in cmd_buf
  */
 struct cam_ife_hw_mgr_debug {
 	struct dentry  *dentry;
@@ -87,6 +87,7 @@ struct cam_ife_hw_mgr_debug {
 	bool           rx_capture_debug_set;
 	bool           disable_isp_drv;
 	bool           enable_presil_reg_dump;
+	bool           enable_cdm_cmd_check;
 };
 
 /**

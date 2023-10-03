@@ -693,6 +693,12 @@ int cam_ife_csid_get_base(struct cam_hw_soc_info *soc_info,
 	}
 
 	mem_base = CAM_SOC_GET_REG_MAP_CAM_BASE(soc_info, base_id);
+	if (mem_base == -1) {
+		CAM_ERR(CAM_ISP, "failed to get mem_base, index: %d num_reg_map: %u",
+				base_id, soc_info->num_reg_map);
+		return -EINVAL;
+	}
+
 	if (cdm_args->cdm_id == CAM_CDM_RT) {
 		if (!soc_private->rt_wrapper_base) {
 			CAM_ERR(CAM_ISP, "rt_wrapper_base_addr is null");

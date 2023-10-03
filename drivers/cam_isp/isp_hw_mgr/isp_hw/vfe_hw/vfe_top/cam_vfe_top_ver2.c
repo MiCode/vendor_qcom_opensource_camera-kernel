@@ -64,6 +64,12 @@ static int cam_vfe_top_mux_get_base(struct cam_vfe_top_ver2_priv *top_priv,
 
 	mem_base = CAM_SOC_GET_REG_MAP_CAM_BASE(
 		top_priv->top_common.soc_info, VFE_CORE_BASE_IDX);
+	if (mem_base == -1) {
+		CAM_ERR(CAM_ISP, "failed to get mem_base, index: %d num_reg_map: %u",
+			VFE_CORE_BASE_IDX, top_priv->top_common.soc_info->num_reg_map);
+		return -EINVAL;
+	}
+
 	CAM_DBG(CAM_ISP, "core %d mem_base 0x%x",
 		top_priv->top_common.soc_info->index, mem_base);
 
