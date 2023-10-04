@@ -830,14 +830,14 @@ int tpg_hw_stop(struct tpg_hw *hw)
 			if (rc) {
 				CAM_ERR(CAM_TPG, "TPG[%d] hw stop failed %d",
 					hw->hw_idx, rc);
-				return rc;
+				break;
 			}
 		}
 		rc = tpg_hw_soc_disable(hw);
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] hw soc disable failed %d",
 				hw->hw_idx, rc);
-			return rc;
+			break;
 		}
 		tpg_hw_free_waiting_requests_locked(hw);
 		tpg_hw_free_active_requests_locked(hw);
@@ -966,7 +966,7 @@ static int tpg_hw_configure_init_settings(
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
 				hw->hw_idx, rc);
-			return rc;
+			break;
 		}
 
 		if (hw->hw_info->ops->init)
@@ -975,7 +975,6 @@ static int tpg_hw_configure_init_settings(
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] hw init failed %d",
 				hw->hw_idx, rc);
-			return rc;
 		}
 		break;
 	default:
@@ -1011,7 +1010,7 @@ static int tpg_hw_configure_init_settings_v3(
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
 				hw->hw_idx, rc);
-			return rc;
+			break;
 		}
 
 		if (hw->hw_info->ops->init)
@@ -1020,7 +1019,6 @@ static int tpg_hw_configure_init_settings_v3(
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] hw init failed %d",
 				hw->hw_idx, rc);
-			return rc;
 		}
 		break;
 	default:
