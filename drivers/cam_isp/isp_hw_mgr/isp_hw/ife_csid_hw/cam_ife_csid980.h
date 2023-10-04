@@ -1542,6 +1542,93 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.sof_retiming_dis_shift           = 5,
 };
 
+static struct cam_ife_csid_rx_debug_mask cam_ife_csid_980_rx_debug_mask = {
+
+	.evt_bitmap = {
+		BIT_ULL(CAM_IFE_CSID_RX_DL0_EOT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL1_EOT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL2_EOT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL3_EOT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL0_SOT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL1_SOT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL2_SOT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL3_SOT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_WARNING_ECC) |
+			BIT_ULL(CAM_IFE_CSID_RX_ERROR_CPHY_PH_CRC) |
+			BIT_ULL(CAM_IFE_CSID_RX_LANE0_FIFO_OVERFLOW) |
+			BIT_ULL(CAM_IFE_CSID_RX_LANE1_FIFO_OVERFLOW) |
+			BIT_ULL(CAM_IFE_CSID_RX_LANE2_FIFO_OVERFLOW) |
+			BIT_ULL(CAM_IFE_CSID_RX_LANE3_FIFO_OVERFLOW) |
+			BIT_ULL(CAM_IFE_CSID_RX_ERROR_CRC) |
+			BIT_ULL(CAM_IFE_CSID_RX_ERROR_ECC) |
+			BIT_ULL(CAM_IFE_CSID_RX_MMAPPED_VC_DT) |
+			BIT_ULL(CAM_IFE_CSID_RX_UNMAPPED_VC_DT) |
+			BIT_ULL(CAM_IFE_CSID_RX_STREAM_UNDERFLOW) |
+			BIT_ULL(CAM_IFE_CSID_RX_RX2_IRQ) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL0_EOT_LOST) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL1_EOT_LOST) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL2_EOT_LOST) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL3_EOT_LOST) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL0_SOT_LOST) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL1_SOT_LOST) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL2_SOT_LOST) |
+			BIT_ULL(CAM_IFE_CSID_RX_DL3_SOT_LOST),
+
+		BIT_ULL(CAM_IFE_CSID_RX_LONG_PKT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_SHORT_PKT_CAPTURED) |
+			BIT_ULL(CAM_IFE_CSID_RX_CPHY_PKT_HDR_CAPTURED),
+	},
+
+
+	.bit_pos[CAM_IFE_CSID_RX_DL0_EOT_CAPTURED] = 0,
+	.bit_pos[CAM_IFE_CSID_RX_DL1_EOT_CAPTURED] = 1,
+	.bit_pos[CAM_IFE_CSID_RX_DL2_EOT_CAPTURED] = 2,
+	.bit_pos[CAM_IFE_CSID_RX_DL3_EOT_CAPTURED] = 3,
+	.bit_pos[CAM_IFE_CSID_RX_DL0_SOT_CAPTURED] = 4,
+	.bit_pos[CAM_IFE_CSID_RX_DL1_SOT_CAPTURED] = 5,
+	.bit_pos[CAM_IFE_CSID_RX_DL2_SOT_CAPTURED] = 6,
+	.bit_pos[CAM_IFE_CSID_RX_DL3_SOT_CAPTURED] = 7,
+	.bit_pos[CAM_IFE_CSID_RX_WARNING_ECC] = 8,
+	.bit_pos[CAM_IFE_CSID_RX_LONG_PKT_CAPTURED] = 0,
+	.bit_pos[CAM_IFE_CSID_RX_SHORT_PKT_CAPTURED] = 1,
+	.bit_pos[CAM_IFE_CSID_RX_CPHY_PKT_HDR_CAPTURED] = 2,
+	.bit_pos[CAM_IFE_CSID_RX_ERROR_CPHY_PH_CRC] = 24,
+	.bit_pos[CAM_IFE_CSID_RX_LANE0_FIFO_OVERFLOW] = 20,
+	.bit_pos[CAM_IFE_CSID_RX_LANE1_FIFO_OVERFLOW] = 21,
+	.bit_pos[CAM_IFE_CSID_RX_LANE2_FIFO_OVERFLOW] = 22,
+	.bit_pos[CAM_IFE_CSID_RX_LANE3_FIFO_OVERFLOW] = 23,
+	.bit_pos[CAM_IFE_CSID_RX_ERROR_CRC] = 25,
+	.bit_pos[CAM_IFE_CSID_RX_ERROR_ECC] = 26,
+	.bit_pos[CAM_IFE_CSID_RX_MMAPPED_VC_DT] = 27,
+	.bit_pos[CAM_IFE_CSID_RX_UNMAPPED_VC_DT] = 28,
+	.bit_pos[CAM_IFE_CSID_RX_STREAM_UNDERFLOW] = 29,
+	.bit_pos[CAM_IFE_CSID_RX_RX2_IRQ] = 31,
+	.bit_pos[CAM_IFE_CSID_RX_DL0_EOT_LOST] = 12,
+	.bit_pos[CAM_IFE_CSID_RX_DL1_EOT_LOST] = 13,
+	.bit_pos[CAM_IFE_CSID_RX_DL2_EOT_LOST] = 14,
+	.bit_pos[CAM_IFE_CSID_RX_DL3_EOT_LOST] = 15,
+	.bit_pos[CAM_IFE_CSID_RX_DL0_SOT_LOST] = 16,
+	.bit_pos[CAM_IFE_CSID_RX_DL1_SOT_LOST] = 17,
+	.bit_pos[CAM_IFE_CSID_RX_DL2_SOT_LOST] = 18,
+	.bit_pos[CAM_IFE_CSID_RX_DL3_SOT_LOST] = 19,
+};
+
+static struct cam_ife_csid_top_debug_mask cam_ife_csid_980_top_debug_mask = {
+
+	.evt_bitmap = {
+		0ULL,
+
+		BIT_ULL(CAM_IFE_CSID_TOP_INFO_VOTE_UP) |
+			BIT_ULL(CAM_IFE_CSID_TOP_INFO_VOTE_DN) |
+			BIT_ULL(CAM_IFE_CSID_TOP_ERR_NO_VOTE_DN),
+	},
+
+	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_UP] = 0,
+	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_DN] = 1,
+	.bit_pos[CAM_IFE_CSID_TOP_ERR_NO_VOTE_DN] = 2,
+};
+
+
 static struct cam_ife_csid_ver2_csi2_rx_reg_info
 	cam_ife_csid_980_csi2_reg_info = {
 		.irq_status_addr                 = {0x00B4, 0x00C4},
@@ -1805,6 +1892,8 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_980_reg_info = {
 	.num_top_err_irqs    = cam_ife_csid_980_num_top_irq_desc,
 	.num_rx_err_irqs     = cam_ife_csid_980_num_rx_irq_desc,
 	.num_path_err_irqs   = ARRAY_SIZE(cam_ife_csid_980_path_irq_desc),
+	.top_debug_mask      = &cam_ife_csid_980_top_debug_mask,
+	.rx_debug_mask       = &cam_ife_csid_980_rx_debug_mask,
 	.num_top_regs        = 1,
 	.num_rx_regs         = 1,
 };

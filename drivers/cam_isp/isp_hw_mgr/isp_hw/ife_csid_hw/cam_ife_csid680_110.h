@@ -72,6 +72,8 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_680_110_reg_info = {
 	.path_irq_desc      = cam_ife_csid_680_path_irq_desc,
 	.num_top_err_irqs   = cam_ife_csid_680_num_top_irq_desc,
 	.num_rx_err_irqs    = cam_ife_csid_680_num_rx_irq_desc,
+	.top_debug_mask     = &cam_ife_csid_680_top_debug_mask,
+	.rx_debug_mask      = &cam_ife_csid_680_rx_debug_mask,
 	.num_top_regs       = 1,
 	.num_rx_regs        = 1,
 };

@@ -123,6 +123,8 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_lite_980_reg_info = {
 	.num_top_err_irqs   = cam_ife_csid_lite_880_num_top_irq_desc,
 	.num_rx_err_irqs    = cam_ife_csid_lite_880_num_rx_irq_desc,
 	.num_path_err_irqs  = ARRAY_SIZE(cam_ife_csid_lite_880_path_irq_desc),
+	.top_debug_mask     = &cam_ife_csid_lite_880_top_debug_mask,
+	.rx_debug_mask      = &cam_ife_csid_lite_880_rx_debug_mask,
 	.num_top_regs       = 1,
 	.num_rx_regs        = 1,
 };
