@@ -22,9 +22,18 @@
 #include "cam_cpas_soc.h"
 #include "cam_cpastop_hw.h"
 #include "camera_main.h"
+#include "cam_cpas_hw.h"
 
 #include <linux/soc/qcom/llcc-qcom.h>
 #include "cam_req_mgr_interface.h"
+
+#ifdef CONFIG_DYNAMIC_FD_PORT_CONFIG
+#include <linux/smcinvoke.h>
+#include <linux/IClientEnv.h>
+#include <linux/ITrustedCameraDriver.h>
+#include <linux/CTrustedCameraDriver.h>
+#define CAM_CPAS_ERROR_NOT_ALLOWED 10
+#endif
 
 #define CAM_CPAS_DEV_NAME    "cam-cpas"
 #define CAM_CPAS_INTF_INITIALIZED() (g_cpas_intf && g_cpas_intf->probe_done)
@@ -1116,6 +1125,154 @@ int cam_cpas_dump_state_monitor_info(struct cam_req_mgr_dump_info *info)
 }
 EXPORT_SYMBOL(cam_cpas_dump_state_monitor_info);
 
+#ifdef CONFIG_DYNAMIC_FD_PORT_CONFIG
+static int cam_cpas_handle_fd_port_config(uint32_t is_secure)
+{
+	int rc = 0;
+	struct Object client_env, sc_object;
+	struct cam_hw_info *cpas_hw = NULL;
+	struct cam_cpas *cpas_core;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -EINVAL;
+	}
+
+	cpas_hw = (struct cam_hw_info *) g_cpas_intf->hw_intf->hw_priv;
+	if (cpas_hw) {
+		cpas_core = (struct cam_cpas *) cpas_hw->core_info;
+		mutex_lock(&cpas_hw->hw_mutex);
+		if (cpas_core->streamon_clients > 0) {
+			CAM_ERR(CAM_CPAS,
+				"FD port config can not be updated during the session");
+			mutex_unlock(&cpas_hw->hw_mutex);
+			return -EINVAL;
+		}
+	} else {
+		CAM_ERR(CAM_CPAS, "cpas_hw handle not initialized");
+		return -EINVAL;
+	}
+
+	/* Need to vote first before enabling clocks */
+	rc = cam_cpas_util_vote_default_ahb_axi(cpas_hw, true);
+	if (rc) {
+		CAM_ERR(CAM_CPAS,
+			"failed to vote for the default ahb/axi clock, rc=%d", rc);
+		goto release_mutex;
+	}
+
+	rc = cam_cpas_soc_enable_resources(&cpas_hw->soc_info,
+		cpas_hw->soc_info.lowest_clk_level);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "failed in soc_enable_resources, rc=%d", rc);
+		goto remove_default_vote;
+	}
+
+	rc = get_client_env_object(&client_env);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed getting mink env object, rc: %d", rc);
+		goto disable_resources;
+	}
+
+	rc = IClientEnv_open(client_env, CTrustedCameraDriver_UID, &sc_object);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed getting mink sc_object, rc: %d", rc);
+		goto client_release;
+	}
+
+	rc = ITrustedCameraDriver_dynamicConfigureFDPort(sc_object, is_secure);
+	if (rc) {
+		if (rc == CAM_CPAS_ERROR_NOT_ALLOWED) {
+			CAM_ERR(CAM_CPAS, "Dynamic FD port config not allowed");
+			rc = -EPERM;
+		} else {
+			CAM_ERR(CAM_CPAS, "Mink secure call failed, rc: %d", rc);
+			rc = -EINVAL;
+		}
+		goto obj_release;
+	}
+
+	rc = Object_release(sc_object);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY, "Failed releasing secure camera object, rc: %d", rc);
+		goto client_release;
+	}
+
+	rc = Object_release(client_env);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY, "Failed releasing mink env object, rc: %d", rc);
+		goto disable_resources;
+	}
+
+	rc = cam_cpas_soc_disable_resources(&cpas_hw->soc_info, true, true);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "failed in soc_disable_resources, rc=%d", rc);
+		goto remove_default_vote;
+	}
+
+	rc = cam_cpas_util_vote_default_ahb_axi(cpas_hw, false);
+	if (rc)
+		CAM_ERR(CAM_CPAS,
+			"failed remove the vote on ahb/axi clock, rc=%d", rc);
+
+	mutex_unlock(&cpas_hw->hw_mutex);
+	return rc;
+
+obj_release:
+	Object_release(sc_object);
+client_release:
+	Object_release(client_env);
+disable_resources:
+	cam_cpas_soc_disable_resources(&cpas_hw->soc_info, true, true);
+remove_default_vote:
+	cam_cpas_util_vote_default_ahb_axi(cpas_hw, false);
+release_mutex:
+	mutex_unlock(&cpas_hw->hw_mutex);
+	return rc;
+}
+#endif
+
+static int cam_cpas_handle_custom_config_cmd(struct cam_cpas_intf *cpas_intf,
+	struct cam_custom_cmd *cmd)
+{
+	int32_t rc = 0;
+
+	if (!cmd) {
+		CAM_ERR(CAM_CPAS, "Invalid input cmd");
+		return -EINVAL;
+	}
+
+	switch (cmd->cmd_type) {
+#ifdef CONFIG_DYNAMIC_FD_PORT_CONFIG
+	case CAM_CPAS_CUSTOM_CMD_FD_PORT_CFG: {
+		struct cam_cpas_fd_port_config cfg;
+
+		if (cmd->size < sizeof(cfg))
+			return -EINVAL;
+
+		rc = copy_from_user(&cfg, u64_to_user_ptr(cmd->handle),
+			sizeof(cfg));
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Failed in copy from user, rc=%d",
+				rc);
+			rc = -EINVAL;
+			break;
+		}
+
+		rc = cam_cpas_handle_fd_port_config(cfg.is_secure);
+		break;
+	}
+#endif
+	default:
+		CAM_ERR(CAM_CPAS, "Invalid custom command %d for CPAS", cmd->cmd_type);
+		rc = -EINVAL;
+		break;
+
+	}
+
+	return rc;
+}
+
 int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 	struct cam_control *cmd)
 {
@@ -1206,6 +1363,19 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 		if (rc)
 			CAM_ERR(CAM_CPAS, "Failed in copy to user, rc=%d", rc);
 
+		break;
+	}
+	case CAM_CUSTOM_DEV_CONFIG: {
+		struct cam_custom_cmd custom_cmd;
+
+		rc = copy_from_user(&custom_cmd, u64_to_user_ptr(cmd->handle),
+			sizeof(custom_cmd));
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Failed in copy from user, rc=%d",
+				rc);
+			break;
+		}
+		rc = cam_cpas_handle_custom_config_cmd(cpas_intf, &custom_cmd);
 		break;
 	}
 	case CAM_SD_SHUTDOWN:

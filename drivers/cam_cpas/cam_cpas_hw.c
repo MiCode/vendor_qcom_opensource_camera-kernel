@@ -514,7 +514,7 @@ bus_register_fail:
 	return rc;
 }
 
-static int cam_cpas_util_vote_default_ahb_axi(struct cam_hw_info *cpas_hw,
+int cam_cpas_util_vote_default_ahb_axi(struct cam_hw_info *cpas_hw,
 	int enable)
 {
 	int rc, i = 0;
