@@ -6,6 +6,10 @@ $(info "KERNEL_ROOT is: $(KERNEL_ROOT)")
 endif
 
 # Include Architecture configurations
+ifeq ($(CONFIG_ARCH_CLIFFS), y)
+include $(CAMERA_KERNEL_ROOT)/config/cliffs.mk
+endif
+
 ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
 include $(CAMERA_KERNEL_ROOT)/config/pineapple.mk
 endif
