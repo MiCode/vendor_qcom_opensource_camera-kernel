@@ -43,7 +43,7 @@ static int __cam_cre_ctx_flush_dev_in_ready(struct cam_context *ctx,
 	flush_args.cmd = cmd;
 	flush_args.flush_active_req = false;
 
-	rc = cam_context_flush_dev_to_hw(ctx, cmd, &flush_args);
+	rc = cam_context_flush_dev_to_hw(ctx, &flush_args);
 	if (rc)
 		CAM_ERR(CAM_CRE, "Failed to flush device");
 

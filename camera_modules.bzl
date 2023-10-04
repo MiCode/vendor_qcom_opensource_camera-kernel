@@ -148,6 +148,19 @@ def _define_module(target, variant):
                     "drivers/cam_jpeg/cam_jpeg_context.c",
                 ],
             },
+            "CONFIG_SPECTRA_CRE": {
+                True: [
+                    "drivers/cam_cre/cam_cre_hw_mgr/cre_hw/cre_core.c",
+                    "drivers/cam_cre/cam_cre_hw_mgr/cre_hw/cre_soc.c",
+                    "drivers/cam_cre/cam_cre_hw_mgr/cre_hw/cre_dev.c",
+                    "drivers/cam_cre/cam_cre_hw_mgr/cre_hw/top/cre_top.c",
+                    "drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_rd/cre_bus_rd.c",
+                    "drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_wr/cre_bus_wr.c",
+                    "drivers/cam_cre/cam_cre_hw_mgr/cam_cre_hw_mgr.c",
+                    "drivers/cam_cre/cam_cre_dev.c",
+                    "drivers/cam_cre/cam_cre_context.c",
+                ],
+            },
             "CONFIG_SPECTRA_SENSOR": {
                 True: [
                     "drivers/cam_sensor_module/cam_actuator/cam_actuator_dev.c",
