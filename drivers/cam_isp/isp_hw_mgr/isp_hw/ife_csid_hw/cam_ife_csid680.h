@@ -17,7 +17,7 @@
 
 #define CAM_CSID_VERSION_V680                 0x60080000
 
-static uint32_t cam_ife_csid_680_num_top_regs[] = {0,};
+static uint32_t cam_ife_csid_680_num_top_irq_desc[] = {0,};
 
 static const struct cam_ife_csid_irq_desc cam_ife_csid_680_rx_irq_desc[][32] = {
 	{
@@ -122,6 +122,10 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_680_rx_irq_desc[][32] = {
 			.desc = "ERROR_UNBOUNDED_FRAME",
 		},
 	},
+};
+
+static const uint32_t cam_ife_csid_680_num_rx_irq_desc[] = {
+	ARRAY_SIZE(cam_ife_csid_680_rx_irq_desc[0]),
 };
 
 static const struct cam_ife_csid_irq_desc cam_ife_csid_680_path_irq_desc[] = {
@@ -1344,7 +1348,8 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_680_reg_info = {
 	.csid_cust_node_map = {0x1, 0x0, 0x2},
 	.rx_irq_desc        = &cam_ife_csid_680_rx_irq_desc,
 	.path_irq_desc      = cam_ife_csid_680_path_irq_desc,
-	.num_top_err_irqs   = cam_ife_csid_680_num_top_regs,
+	.num_top_err_irqs   = cam_ife_csid_680_num_top_irq_desc,
+	.num_rx_err_irqs    = cam_ife_csid_680_num_rx_irq_desc,
 	.num_top_regs       = 1,
 	.num_rx_regs        = 1,
 };

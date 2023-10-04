@@ -106,17 +106,19 @@ struct cam_irq_register_obj {
  *                          for Set IRQ cmd to take effect
  * @clear_all_bitmask:      Bitmask that specifies which bits should be written to clear register
  *                          when it is to be cleared forcefully
+ * @dependent_bitmap:       Bitmap to keep track of all the dependent controllers
+ * @parent_bitmap_idx:      Index of this controller in parent controller's bitmap
  * @evt_handler_list_head:  List of all event handlers
  * @th_list_head:           List of handlers sorted by priority
  * @hdl_idx:                Unique identity of handler assigned on Subscribe.
  *                          Used to Unsubscribe.
  * @th_payload:             Payload structure to be passed to top half handler
- * @is_dependent:           Flag to indicate is this controller is dependent on another controller
  * @dependent_controller:   Array of controllers that depend on this controller
- * @delayed_global_clear:   Flag to indicate if this controller issues global clear after dependent
- *                          controllers are handled
  * @lock:                   Lock to be used by controller, Use mutex lock in presil mode,
  *                          and spinlock in regular case
+ * @is_dependent:           Flag to indicate is this controller is dependent on another controller
+ * @delayed_global_clear:   Flag to indicate if this controller issues global clear after dependent
+ *                          controllers are handled
  */
 struct cam_irq_controller {
 	char                            name[CAM_IRQ_CTRL_NAME_LEN];
@@ -128,19 +130,23 @@ struct cam_irq_controller {
 	uint32_t                        global_clear_bitmask;
 	uint32_t                        global_set_bitmask;
 	uint32_t                        clear_all_bitmask;
+	uint32_t                        dependent_bitmap;
+	uint32_t                        parent_bitmap_idx;
 	struct list_head                evt_handler_list_head;
 	struct list_head                th_list_head[CAM_IRQ_PRIORITY_MAX];
 	uint32_t                        hdl_idx;
 	struct cam_irq_th_payload       th_payload;
-	bool                            is_dependent;
 	struct cam_irq_controller      *dependent_controller[CAM_IRQ_MAX_DEPENDENTS];
-	bool                            delayed_global_clear;
 
 #ifdef CONFIG_CAM_PRESIL
 	struct mutex                    lock;
 #else
 	spinlock_t                      lock;
 #endif
+
+	bool                            is_dependent;
+	bool                            delayed_global_clear;
+
 };
 
 #ifdef CONFIG_CAM_PRESIL
@@ -207,8 +213,6 @@ static inline void cam_irq_controller_unlock(struct cam_irq_controller *controll
 }
 #endif
 
-
-
 int cam_irq_controller_unregister_dependent(void *primary_controller, void *secondary_controller)
 {
 	struct cam_irq_controller *ctrl_primary, *ctrl_secondary;
@@ -222,23 +226,23 @@ int cam_irq_controller_unregister_dependent(void *primary_controller, void *seco
 
 	ctrl_primary = primary_controller;
 	ctrl_secondary = secondary_controller;
+	dep_idx = ctrl_secondary->parent_bitmap_idx;
 
-	for (i = 0; i < CAM_IRQ_MAX_DEPENDENTS; i++) {
-		if (ctrl_primary->dependent_controller[i] == ctrl_secondary)
-			break;
-	}
-	if (i == CAM_IRQ_MAX_DEPENDENTS) {
+	if (dep_idx == CAM_IRQ_MAX_DEPENDENTS) {
 		CAM_ERR(CAM_IRQ_CTRL, "could not find %s as a dependent of %s)",
 			ctrl_secondary->name, ctrl_primary->name);
 		return -EINVAL;
 	}
-	dep_idx = i;
 
 	ctrl_primary->dependent_controller[dep_idx] = NULL;
 	for (i = 0; i < ctrl_primary->num_registers; i++)
 		ctrl_primary->irq_register_arr[i].dependent_read_mask[dep_idx] = 0;
 	ctrl_secondary->is_dependent = false;
-	ctrl_primary->delayed_global_clear = false;
+
+	ctrl_primary->dependent_bitmap &= (~BIT(dep_idx));
+
+	if (!ctrl_primary->dependent_bitmap)
+		ctrl_primary->delayed_global_clear = false;
 
 	CAM_DBG(CAM_IRQ_CTRL, "successfully unregistered %s as dependent of %s",
 		ctrl_secondary->name, ctrl_primary->name);
@@ -251,6 +255,7 @@ int cam_irq_controller_register_dependent(void *primary_controller, void *second
 {
 	struct cam_irq_controller *ctrl_primary, *ctrl_secondary;
 	int i, dep_idx;
+	unsigned long dependent_bitmap;
 
 	if (!primary_controller || !secondary_controller) {
 		CAM_ERR(CAM_IRQ_CTRL, "invalid args: %pK, %pK", primary_controller,
@@ -260,22 +265,23 @@ int cam_irq_controller_register_dependent(void *primary_controller, void *second
 
 	ctrl_primary = primary_controller;
 	ctrl_secondary = secondary_controller;
+	dependent_bitmap = ctrl_primary->dependent_bitmap;
 
-	for (i = 0; i < CAM_IRQ_MAX_DEPENDENTS; i++) {
-		if (!ctrl_primary->dependent_controller[i])
-			break;
-	}
-	if (i == CAM_IRQ_MAX_DEPENDENTS) {
+	dep_idx = find_first_zero_bit(&(dependent_bitmap), CAM_IRQ_MAX_DEPENDENTS);
+
+	if (dep_idx == CAM_IRQ_MAX_DEPENDENTS) {
 		CAM_ERR(CAM_IRQ_CTRL, "reached maximum dependents (%s - %s)",
 			ctrl_primary->name, ctrl_secondary->name);
 		return -ENOMEM;
 	}
-	dep_idx = i;
 
+	ctrl_secondary->parent_bitmap_idx = dep_idx;
 	ctrl_primary->dependent_controller[dep_idx] = secondary_controller;
 	for (i = 0; i < ctrl_primary->num_registers; i++)
 		ctrl_primary->irq_register_arr[i].dependent_read_mask[dep_idx] = mask[i];
+
 	ctrl_secondary->is_dependent = true;
+	ctrl_primary->dependent_bitmap |= BIT(dep_idx);
 
 	/**
 	 * NOTE: For dependent controllers that should not issue global clear command,
@@ -986,41 +992,71 @@ static void __cam_irq_controller_sanitize_clear_registers(struct cam_irq_control
 	}
 }
 
-static void cam_irq_controller_read_registers(struct cam_irq_controller *controller)
+static void cam_irq_controller_get_need_reg_read(
+	struct      cam_irq_controller *controller,
+	bool       *need_reg_read)
 {
 	struct cam_irq_register_obj *irq_register;
-	struct cam_irq_controller *dep_controller;
-	bool need_reg_read[CAM_IRQ_MAX_DEPENDENTS] = {false};
 	int i, j;
-
-	__cam_irq_controller_read_registers(controller);
+	const unsigned long dependent_bitmap = controller->dependent_bitmap;
 
 	for (i = 0; i < controller->num_registers; i++) {
 		irq_register = &controller->irq_register_arr[i];
-		for (j = 0; j < CAM_IRQ_MAX_DEPENDENTS; j++) {
+		for_each_set_bit(j, &dependent_bitmap, CAM_IRQ_MAX_DEPENDENTS) {
 			if (irq_register->dependent_read_mask[j] & controller->irq_status_arr[i])
 				need_reg_read[j] = true;
+
 			CAM_DBG(CAM_IRQ_CTRL, "(%s) reg:%d dep:%d need_reg_read = %d",
-				controller->name, i, j, need_reg_read[j]);
+					controller->name, i, j, need_reg_read[j]);
 		}
 	}
+}
 
-	for (j = 0; j < CAM_IRQ_MAX_DEPENDENTS; j++) {
+static void cam_irq_controller_dep_reg_read(
+	struct      cam_irq_controller *controller,
+	bool       *need_reg_read)
+{
+	struct cam_irq_controller      *dep_controller;
+	int                             j;
+	const unsigned long  dependent_bitmap = controller->dependent_bitmap;
+	bool need_dep_reg_read[CAM_IRQ_MAX_DEPENDENTS] = {false};
+
+	for_each_set_bit(j, &dependent_bitmap, CAM_IRQ_MAX_DEPENDENTS) {
 		dep_controller = controller->dependent_controller[j];
-		if (!dep_controller)
+		if (!dep_controller) {
+			CAM_ERR(CAM_IRQ_CTRL, "%s[%d] is undefined", controller->name, j);
 			continue;
+		}
 
-		cam_irq_controller_lock(dep_controller);
 		if (need_reg_read[j]) {
 			CAM_DBG(CAM_IRQ_CTRL, "Reading dependent registers for %s",
-				dep_controller->name);
+					dep_controller->name);
 			__cam_irq_controller_read_registers(dep_controller);
 		} else {
 			CAM_DBG(CAM_IRQ_CTRL, "Sanitize registers for %s",
-				dep_controller->name);
+					dep_controller->name);
 			__cam_irq_controller_sanitize_clear_registers(dep_controller);
 		}
-		cam_irq_controller_unlock(dep_controller);
+
+		if (dep_controller->dependent_bitmap) {
+			cam_irq_controller_lock(dep_controller);
+			cam_irq_controller_get_need_reg_read(dep_controller, need_dep_reg_read);
+			cam_irq_controller_dep_reg_read(dep_controller, need_dep_reg_read);
+			cam_irq_controller_unlock(dep_controller);
+		}
+	}
+
+}
+
+static void cam_irq_controller_read_registers(struct cam_irq_controller *controller)
+{
+	bool need_reg_read[CAM_IRQ_MAX_DEPENDENTS] = {false};
+
+	__cam_irq_controller_read_registers(controller);
+
+	if (controller->dependent_bitmap) {
+		cam_irq_controller_get_need_reg_read(controller, need_reg_read);
+		cam_irq_controller_dep_reg_read(controller, need_reg_read);
 	}
 
 	if (controller->global_irq_cmd_offset && controller->delayed_global_clear) {
@@ -1043,6 +1079,7 @@ static void cam_irq_controller_process_th(struct cam_irq_controller *controller,
 		for (j = 0; j < CAM_IRQ_PRIORITY_MAX; j++) {
 			if (irq_register->top_half_enable_mask[j] & controller->irq_status_arr[i])
 				need_th_processing[j] = true;
+
 			CAM_DBG(CAM_IRQ_CTRL, "reg:%d priority:%d need_th_processing = %d",
 				i, j, need_th_processing[j]);
 		}

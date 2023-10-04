@@ -414,7 +414,7 @@ static struct cam_irq_controller_reg_info cam_ife_csid_980_top_irq_reg_info[] = 
 	{
 	.num_registers = 1,
 	.irq_reg_set = &cam_ife_csid_980_irq_reg_set[CAM_IFE_CSID_IRQ_REG_TOP_2],
-	.global_irq_cmd_offset = 0,
+	.global_irq_cmd_offset = 0, /* intentionally set to zero */
 	},
 
 };
@@ -1617,9 +1617,10 @@ static struct cam_ife_csid_ver2_csi2_rx_reg_info
 		.cphy_pkt_strobe_rst_shift       = 2,
 		.unmapped_pkt_strobe_rst_shift   = 3,
 		.fatal_err_mask                  = {0x27f0f000, 0x0},
-		.part_fatal_err_mask             = {0xF0000,},
-		.non_fatal_err_mask              = {0x08000000,},
-		.top_irq_mask                    = {0x4,},
+		.part_fatal_err_mask             = {0xF0000, 0x0},
+		.non_fatal_err_mask              = {0x08000000, 0x0},
+		.top_irq_mask                    = {0x4, 0x0},
+		.rx_rx2_irq_mask                 = 0x80000000,
 };
 
 static struct cam_ife_csid_ver2_common_reg_info
@@ -1636,10 +1637,10 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.offline_cmd_addr                        = 0x0024,
 	.shdr_master_slave_cfg_addr              = 0x0028,
 	.multi_sensor_mode_addr                  = 0x002C,
-	.top_irq_status_addr                     = {0x0084,},
-	.top_irq_mask_addr                       = {0x0088,},
-	.top_irq_clear_addr                      = {0x008C,},
-	.top_irq_set_addr                        = {0x0090,},
+	.top_irq_status_addr                     = {0x0084, 0x0094},
+	.top_irq_mask_addr                       = {0x0088, 0x0098},
+	.top_irq_clear_addr                      = {0x008C, 0x009C},
+	.top_irq_set_addr                        = {0x0090, 0x00A0},
 	.buf_done_irq_status_addr                = 0x00A4,
 	.buf_done_irq_mask_addr                  = 0x00A8,
 	.buf_done_irq_clear_addr                 = 0x00AC,
@@ -1702,7 +1703,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.ipp_irq_mask_all                        = 0x7FFF,
 	.rdi_irq_mask_all                        = 0x7FFF,
 	.ppp_irq_mask_all                        = 0xFFFF,
-	.top_err_irq_mask                        = {0x00000002,},
+	.top_err_irq_mask                        = {0x00000002, 0x18},
 	.rst_loc_path_only_val                   = 0x0,
 	.rst_loc_complete_csid_val               = 0x1,
 	.rst_mode_frame_boundary_val             = 0x0,
@@ -1729,6 +1730,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.capabilities                            = CAM_IFE_CSID_CAP_SPLIT_RUP_AUP |
 							CAM_IFE_CSID_CAP_SKIP_PATH_CFG1 |
 							CAM_IFE_CSID_CAP_SKIP_EPOCH_CFG,
+	.top_top2_irq_mask                       = 0x80000000,
 	.drv_rup_en_val_map = {
 		2, /*RDI0 */
 		3, /*RDI1 */

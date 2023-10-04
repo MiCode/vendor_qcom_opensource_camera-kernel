@@ -16,6 +16,8 @@
 #define IFE_CSID_VER2_TOP_INFO_VOTE_DN                BIT(17)
 #define IFE_CSID_VER2_TOP_ERR_NO_VOTE_DN              BIT(18)
 
+#define IFE_CSID_VER2_TOP_ERROR_SENSOR_HBI            BIT(5)
+
 #define IFE_CSID_VER2_RX_DL0_EOT_CAPTURED             BIT(0)
 #define IFE_CSID_VER2_RX_DL1_EOT_CAPTURED             BIT(1)
 #define IFE_CSID_VER2_RX_DL2_EOT_CAPTURED             BIT(2)
@@ -232,6 +234,7 @@ struct cam_ife_csid_ver2_csi2_rx_reg_info {
 	uint32_t non_fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
 	uint32_t debug_irq_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
 	uint32_t top_irq_mask[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
+	uint32_t rx_rx2_irq_mask;
 };
 
 /*
@@ -534,6 +537,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t hw_version_addr;
 	uint32_t cfg0_addr;
+	uint32_t cfg1_addr;
 	uint32_t global_cmd_addr;
 	uint32_t reset_cfg_addr;
 	uint32_t reset_cmd_addr;
@@ -562,7 +566,6 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t debug_sensor_hbi_irq_vcdt_addr;
 	uint32_t debug_violation_addr;
 	uint32_t debug_cfg_addr;
-
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;
 	uint32_t rst_location_shift_val;
@@ -684,6 +687,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t top_err_irq_mask[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
 	uint32_t top_reset_irq_mask[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
 	uint32_t top_buf_done_irq_mask;
+	uint32_t top_top2_irq_mask;
 	uint32_t epoch_factor;
 	uint32_t decode_format_payload_only;
 	uint32_t capabilities;
@@ -829,6 +833,7 @@ struct cam_ife_csid_ver2_hw {
 	int                                    top_info_irq_handle
 						[CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX];
 	int                                    top_mc_irq_handle;
+	int                                    top_top2_irq_handle;
 	enum cam_isp_hw_sync_mode              sync_mode;
 	uint32_t                               mup;
 	atomic_t                               discard_frame_per_path;

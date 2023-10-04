@@ -14,8 +14,6 @@
 #include "cam_ife_csid_hw_ver2.h"
 #include "cam_irq_controller.h"
 
-static uint32_t cam_ife_csid_680_110_num_top_regs[] = {0,};
-
 static struct cam_ife_csid_ver2_reg_info cam_ife_csid_680_110_reg_info = {
 	.top_irq_reg_info      = cam_ife_csid_680_top_irq_reg_info,
 	.rx_irq_reg_info       = cam_ife_csid_680_rx_irq_reg_info,
@@ -72,7 +70,8 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_680_110_reg_info = {
 	.csid_cust_node_map = {0x1, 0x0, 0x2},
 	.rx_irq_desc        = &cam_ife_csid_680_rx_irq_desc,
 	.path_irq_desc      = cam_ife_csid_680_path_irq_desc,
-	.num_top_err_irqs   = cam_ife_csid_680_110_num_top_regs,
+	.num_top_err_irqs   = cam_ife_csid_680_num_top_irq_desc,
+	.num_rx_err_irqs    = cam_ife_csid_680_num_rx_irq_desc,
 	.num_top_regs       = 1,
 	.num_rx_regs        = 1,
 };

@@ -13,7 +13,7 @@
 #include "cam_irq_controller.h"
 #include "cam_isp_hw_mgr_intf.h"
 
-static uint32_t cam_ife_csid_680_lite_num_top_regs[] = {0,};
+static uint32_t cam_ife_csid_lite_680_num_top_irq_desc[] = {0,};
 
 static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_680_rx_irq_desc[][32] = {
 	{
@@ -119,6 +119,10 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_680_rx_irq_desc[][32
 		},
 	},
 	{}
+};
+
+static const uint32_t cam_ife_csid_lite_680_num_rx_irq_desc[] = {
+	ARRAY_SIZE(cam_ife_csid_lite_680_rx_irq_desc[0]),
 };
 
 static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_680_path_irq_desc[] = {
@@ -1007,7 +1011,8 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_lite_680_reg_info = {
 	.need_top_cfg = 0,
 	.rx_irq_desc        = &cam_ife_csid_lite_680_rx_irq_desc,
 	.path_irq_desc      = cam_ife_csid_lite_680_path_irq_desc,
-	.num_top_err_irqs   = cam_ife_csid_680_lite_num_top_regs,
+	.num_top_err_irqs   = cam_ife_csid_lite_680_num_top_irq_desc,
+	.num_rx_err_irqs    = cam_ife_csid_lite_680_num_rx_irq_desc,
 	.num_top_regs       = 1,
 	.num_rx_regs        = 1,
 };
