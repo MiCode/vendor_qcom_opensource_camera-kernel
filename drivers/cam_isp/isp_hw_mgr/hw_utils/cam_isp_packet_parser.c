@@ -318,6 +318,10 @@ int cam_isp_add_command_buffers(
 		split_id, prepare->packet->num_cmd_buf);
 
 	for (i = 0; i < prepare->packet->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		num_ent = prepare->num_hw_update_entries;
 		if (!cmd_desc[i].length)
 			continue;
@@ -530,6 +534,10 @@ int cam_sfe_add_command_buffers(
 		split_id, prepare->packet->num_cmd_buf);
 
 	for (i = 0; i < prepare->packet->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		num_ent = prepare->num_hw_update_entries;
 		if (!cmd_desc[i].length)
 			continue;
@@ -1591,6 +1599,10 @@ int cam_isp_add_csid_command_buffers(
 		split_id, prepare->packet->num_cmd_buf);
 
 	for (i = 0; i < prepare->packet->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		num_ent = prepare->num_hw_update_entries;
 		if (!cmd_desc[i].length)
 			continue;
@@ -1889,6 +1901,10 @@ int cam_isp_get_cmd_buf_count(
 			prepare->packet->cmd_buf_offset);
 
 	for (i = 0; i < prepare->packet->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		if (!cmd_desc[i].length)
 			continue;
 
