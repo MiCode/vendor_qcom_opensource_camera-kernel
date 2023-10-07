@@ -128,7 +128,7 @@ struct cam_ife_csid_ver2_rx_cfg  {
 	uint32_t epd_supported;
 	uint32_t top_irq_handle;
 	uint32_t rx2_irq_handle;
-	uint32_t irq_handle;
+	uint32_t irq_handle[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
 	uint32_t err_irq_handle[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
 	bool     dynamic_sensor_switch_en;
 };

@@ -1894,7 +1894,7 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_980_reg_info = {
 	.num_path_err_irqs   = ARRAY_SIZE(cam_ife_csid_980_path_irq_desc),
 	.top_debug_mask      = &cam_ife_csid_980_top_debug_mask,
 	.rx_debug_mask       = &cam_ife_csid_980_rx_debug_mask,
-	.num_top_regs        = 1,
-	.num_rx_regs         = 1,
+	.num_top_regs        = 2,
+	.num_rx_regs         = 2,
 };
 #endif /*_CAM_IFE_CSID_980_H_ */
