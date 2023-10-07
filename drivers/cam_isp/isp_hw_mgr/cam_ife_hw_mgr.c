@@ -9868,8 +9868,9 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 	ctx = prepare->ctxt_to_hw_map;
 	ife_hw_mgr = ctx->hw_mgr;
 
-	CAM_DBG(CAM_ISP,
-		"csid mup value=%u, ctx_idx: %u", mup_config->mup, ctx->ctx_index);
+	CAM_INFO(CAM_ISP,
+		"csid mup value=%u, ctx_idx: %u req id %lld", mup_config->mup,
+		ctx->ctx_index, prepare->packet->header.request_id);
 
 	prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
 			prepare->priv;

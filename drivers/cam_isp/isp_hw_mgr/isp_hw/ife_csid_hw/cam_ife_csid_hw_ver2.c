@@ -2047,7 +2047,9 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(
 	cfg1 = cam_io_r_mb(base + path_reg->cfg1_addr);
 	vcdt_cfg0 = cam_io_r_mb(base + path_reg->multi_vcdt_cfg0_addr);
 
-	CAM_INFO(CAM_ISP, "cfg0 = %x cfg1 = %x vcdt_cfg0 = %x ", cfg0, cfg1, vcdt_cfg0);
+	CAM_INFO(CAM_ISP, "cfg0 = %x cfg1 = %x vcdt_cfg0 = %x vcrop %x early eof %d",
+		cfg0, cfg1, vcdt_cfg0, cam_io_r_mb(base + path_reg->vcrop_addr),
+		(cfg1 & BIT(path_reg->early_eof_en_shift_val)));
 
 	if (cid_data->vc_dt[CAM_IFE_CSID_MULTI_VC_DT_GRP_1].valid) {
 		decode_fmt = ((cfg0 >>
