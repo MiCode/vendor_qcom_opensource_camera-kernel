@@ -22,6 +22,7 @@
 #include "cam_isp_packet_parser.h"
 #include "cam_ife_hw_mgr.h"
 #include "cam_cdm_intf_api.h"
+#include "cam_cdm_util.h"
 #include "cam_packet_util.h"
 #include "cam_debug_util.h"
 #include "cam_mem_mgr.h"
@@ -7107,6 +7108,9 @@ static int cam_ife_mgr_config_hw(
 	struct cam_ife_hw_mgr *ife_hw_mgr;
 	unsigned long rem_jiffies = 0;
 	bool is_cdm_hung = false;
+	size_t len = 0;
+	uint32_t *buf_addr = NULL, *buf_start = NULL, *buf_end = NULL;
+	uint32_t cmd_type = 0;
 
 	if (!hw_mgr_priv || !config_hw_args) {
 		CAM_ERR(CAM_ISP,
@@ -7340,6 +7344,41 @@ skip_bw_clk_update:
 			cdm_cmd->cmd[i - skip].offset = cmd->offset;
 			cdm_cmd->cmd[i - skip].len = cmd->len;
 			cdm_cmd->cmd[i - skip].arbitrate = false;
+
+			if (g_ife_hw_mgr.debug_cfg.enable_cdm_cmd_check) {
+				CAM_INFO_RATE_LIMIT(CAM_ISP, "Enter cdm cmd_buf validation");
+				rc = cam_packet_util_get_cmd_mem_addr(
+					cdm_cmd->cmd[i - skip].bl_addr.mem_handle,
+					&buf_addr, &len);
+				if (rc) {
+					CAM_ERR(CAM_ISP,
+						"Failed to get buf_addr and len for mem_handle: %d ctx id: %u request id: %llu",
+						cdm_cmd->cmd[i - skip].bl_addr.mem_handle,
+						ctx->ctx_index, cfg->request_id);
+					continue;
+				}
+
+				buf_start = (uint32_t *)((uint8_t *) buf_addr +
+					cdm_cmd->cmd[i - skip].offset);
+				buf_end = (uint32_t *)((uint8_t *) buf_start +
+					cdm_cmd->cmd[i - skip].len - 1);
+				cmd_type = ((uint32_t)(*buf_start) >> CAM_CDM_COMMAND_OFFSET);
+				if ((i == 0) && (cmd_type != CAM_CDM_CMD_CHANGE_BASE)) {
+					CAM_ERR(CAM_ISP,
+						"first cmd in cmd_buf is not change_base, cmd_type: %u ctx id: %u request id: %llu",
+						cmd_type, ctx->ctx_index, cfg->request_id);
+					cam_cdm_util_dump_cmd_buf(buf_start, buf_end);
+					return -EINVAL;
+				}
+
+				if (cam_cdm_util_validate_cmd_buf(buf_start, buf_end)) {
+					CAM_ERR(CAM_ISP,
+						"found invalid cmd in cmd_buf, ctx id: %u request id: %llu",
+						ctx->ctx_index, cfg->request_id);
+					cam_cdm_util_dump_cmd_buf(buf_start, buf_end);
+					return -EINVAL;
+				}
+			}
 		}
 		cdm_cmd->cmd_arrary_count = cfg->num_hw_update_entries - skip;
 
@@ -16906,6 +16945,8 @@ static int cam_ife_hw_mgr_debug_register(void)
 		&g_ife_hw_mgr.debug_cfg.enable_presil_reg_dump);
 	debugfs_create_file("isp_irq_inject", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_isp_irq_injection);
+	debugfs_create_bool("enable_cdm_cmd_check", 0644, g_ife_hw_mgr.debug_cfg.dentry,
+		&g_ife_hw_mgr.debug_cfg.enable_cdm_cmd_check);
 end:
 	g_ife_hw_mgr.debug_cfg.enable_csid_recovery = 1;
 	return rc;
