@@ -28,7 +28,6 @@
 #include "cam_req_mgr_interface.h"
 
 #ifdef CONFIG_DYNAMIC_FD_PORT_CONFIG
-#include <linux/smcinvoke.h>
 #include <linux/IClientEnv.h>
 #include <linux/ITrustedCameraDriver.h>
 #include <linux/CTrustedCameraDriver.h>
