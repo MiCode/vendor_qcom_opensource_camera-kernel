@@ -1672,6 +1672,7 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 	uint32_t core_info_mask = 0, size;
 	int rc = 0, i;
 	enum cam_icp_hw_type hw_dev_type;
+	uint32_t *prop_ref_data;
 
 	hw_dev_type = ctx_data->device_info->hw_dev_type;
 	dev_info = ctx_data->device_info;
@@ -1723,15 +1724,16 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 	dbg_prop->size = size;
 	dbg_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	dbg_prop->num_prop = 1;
+	prop_ref_data = &dbg_prop->prop_data[0];
 
 	switch (hw_dev_type) {
 	case CAM_ICP_DEV_IPE:
 		fallthrough;
 	case CAM_ICP_DEV_BPS:
-		dbg_prop->prop_data[0] = HFI_PROP_SYS_IPEBPS_PC;
+		prop_ref_data[0] = HFI_PROP_SYS_IPEBPS_PC;
 		break;
 	case CAM_ICP_DEV_OFE:
-		dbg_prop->prop_data[0] = HFI_PROP_SYS_OFE_PC;
+		prop_ref_data[0] = HFI_PROP_SYS_OFE_PC;
 		break;
 	default:
 		CAM_ERR(CAM_ICP, "%s Invalid hw dev type: %u",
@@ -1740,8 +1742,8 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 		goto free_dbg_prop;
 	}
 
-	dbg_prop->prop_data[1] = hw_mgr->dev_pc_flag;
-	dbg_prop->prop_data[2] = core_info_mask;
+	prop_ref_data[1] = hw_mgr->dev_pc_flag;
+	prop_ref_data[2] = core_info_mask;
 
 	hfi_write_cmd(hw_mgr->hfi_handle, dbg_prop);
 
@@ -7122,6 +7124,7 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	struct cam_icp_acquire_dev_info *icp_dev_acquire_info;
 	struct cam_cmd_mem_regions cmd_mem_region;
 	enum cam_icp_hw_type hw_dev_type;
+	struct cam_icp_res_info *icp_ref_res_info;
 
 	if ((!hw_mgr_priv) || (!acquire_hw_args)) {
 		CAM_ERR(CAM_ICP, "Invalid params: %pK %pK", hw_mgr_priv,
@@ -7346,24 +7349,21 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		ctx_data->icp_dev_acquire_info->in_res.height,
 		ctx_data->icp_dev_acquire_info->in_res.fps);
 
+	icp_ref_res_info = &ctx_data->icp_dev_acquire_info->out_res[0];
 	if (ctx_data->icp_dev_acquire_info->num_out_res > 0) {
 		CAM_TRACE(CAM_ICP,
 			"%s: Acquired, out_res[0] : format=%d, widht=%d, height=%d, fps=%d",
 			ctx_data->ctx_id_string,
-			ctx_data->icp_dev_acquire_info->out_res[0].format,
-			ctx_data->icp_dev_acquire_info->out_res[0].width,
-			ctx_data->icp_dev_acquire_info->out_res[0].height,
-			ctx_data->icp_dev_acquire_info->out_res[0].fps);
+			icp_ref_res_info[0].format, icp_ref_res_info[0].width,
+			icp_ref_res_info[0].height, icp_ref_res_info[0].fps);
 	}
 
 	if (ctx_data->icp_dev_acquire_info->num_out_res > 1) {
 		CAM_TRACE(CAM_ICP,
 			"%s: Acquired, out_res[1] : format=%d, widht=%d, height=%d, fps=%d",
 			ctx_data->ctx_id_string,
-			ctx_data->icp_dev_acquire_info->out_res[1].format,
-			ctx_data->icp_dev_acquire_info->out_res[1].width,
-			ctx_data->icp_dev_acquire_info->out_res[1].height,
-			ctx_data->icp_dev_acquire_info->out_res[1].fps);
+			icp_ref_res_info[1].format, icp_ref_res_info[1].width,
+			icp_ref_res_info[1].height, icp_ref_res_info[1].fps);
 	}
 
 	return 0;
