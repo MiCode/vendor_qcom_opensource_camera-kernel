@@ -3642,7 +3642,7 @@ static void __cam_isp_get_notification_evt_params(
 	recovery_type_temp = CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 
 	if (hw_error & CAM_ISP_HW_ERROR_OVERFLOW) {
-		err_code |= CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		err_code |= CAM_REQ_MGR_ISP_ERR_OVERFLOW;
 		err_type = CAM_SYNC_ISP_EVENT_OVERFLOW;
 		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 	}
@@ -3657,12 +3657,12 @@ static void __cam_isp_get_notification_evt_params(
 		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 	}
 	if (hw_error & CAM_ISP_HW_ERROR_P2I_ERROR) {
-		err_code |= CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		err_code |= CAM_REQ_MGR_ISP_ERR_P2I;
 		err_type = CAM_SYNC_ISP_EVENT_P2I_ERROR;
 		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 	}
 	if (hw_error & CAM_ISP_HW_ERROR_VIOLATION) {
-		err_code |= CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		err_code |= CAM_REQ_MGR_ISP_ERR_VIOLATION;
 		err_type = CAM_SYNC_ISP_EVENT_VIOLATION;
 		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 	}
@@ -3672,7 +3672,7 @@ static void __cam_isp_get_notification_evt_params(
 		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 	}
 	if (hw_error & CAM_ISP_HW_ERROR_BUSIF_OVERFLOW) {
-		err_code |= CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
+		err_code |= CAM_REQ_MGR_ISP_ERR_BUSIF_OVERFLOW;
 		err_type = CAM_SYNC_ISP_EVENT_BUSIF_OVERFLOW;
 		recovery_type_temp |= CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 	}
