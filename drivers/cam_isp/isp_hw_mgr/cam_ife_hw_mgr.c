@@ -6955,7 +6955,7 @@ static int cam_isp_blob_fcg_update(
 			rc = res->hw_intf->hw_ops.process_cmd(
 				res->hw_intf->hw_priv,
 				CAM_ISP_HW_CMD_FCG_CONFIG,
-				&fcg_cmd, sizeof(struct cam_isp_hw_fcg_cmd));
+				&fcg_cmd, (uint32_t)sizeof(struct cam_isp_hw_fcg_cmd));
 			if (rc) {
 				CAM_ERR(CAM_ISP,
 					"Failed in writing FCG values to the hw update entry, rc: %d, request id: %llu",
@@ -7204,7 +7204,7 @@ static int cam_ife_mgr_config_hw(
 skip_bw_clk_update:
 	rc = cam_ife_mgr_apply_fcg_update(ctx, hw_update_data, cfg);
 	if (rc) {
-		CAM_ERR(CAM_ISP, "Failed in updating FCG values", ctx->ctx_index);
+		CAM_ERR(CAM_ISP, "Failed in updating FCG values %u", ctx->ctx_index);
 		return rc;
 	}
 
@@ -10874,7 +10874,7 @@ static int cam_isp_blob_fcg_config_prepare(
 		"Start storing FCG config in req_isp on ctx_idx: %u, hw_type: %d, request_id: %llu",
 		ctx->ctx_index, hw_type, request_id);
 
-	fcg_size = sizeof(struct cam_isp_generic_fcg_config);
+	fcg_size = (uint32_t)sizeof(struct cam_isp_generic_fcg_config);
 	fcg_size += (fcg_config_args->num_ch_ctx - 1) *
 		sizeof(struct cam_isp_ch_ctx_fcg_config);
 	fcg_size += fcg_config_args->num_ch_ctx *
@@ -12945,7 +12945,7 @@ static int cam_ife_hw_mgr_add_fcg_update(
 			rc = res->hw_intf->hw_ops.process_cmd(
 				res->hw_intf->hw_priv,
 				CAM_ISP_HW_CMD_FCG_CONFIG, &fcg_cmd,
-				sizeof(struct cam_isp_hw_fcg_cmd));
+				(uint32_t)sizeof(struct cam_isp_hw_fcg_cmd));
 			if (rc || (fcg_cmd.u.fcg_get_size.kmd_size == 0)) {
 				CAM_ERR(CAM_ISP,
 					"Failed in retrieving KMD buf size requirement, rc: %d",

@@ -4906,7 +4906,7 @@ static inline int cam_isp_context_apply_evt_injection(struct cam_context *ctx)
 
 static inline void __cam_isp_ctx_update_fcg_prediction_idx(
 	struct cam_context                      *ctx,
-	uint32_t                                 request_id,
+	uint64_t                                 request_id,
 	struct cam_isp_fcg_prediction_tracker   *fcg_tracker,
 	struct cam_isp_fcg_config_info          *fcg_info)
 {
@@ -9261,7 +9261,7 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Camera Context Base init failed, ctx_idx: %u, link: 0x%x",
 			ctx_base->ctx_id, ctx_base->link_hdl);
-		goto err;
+		goto free_mem;
 	}
 
 	/* FCG related struct setup */
@@ -9273,7 +9273,7 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
 				"Failed to allocate memory for FCG struct, ctx_idx: %u, link: %x",
 				ctx_base->ctx_id, ctx_base->link_hdl);
 			rc = -ENOMEM;
-			goto kfree;
+			goto free_mem;
 		}
 
 		list_add_tail(&skip_info->list, &ctx->fcg_tracker.skipped_list);
@@ -9300,7 +9300,7 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
 
 	return rc;
 
-kfree:
+free_mem:
 	list_for_each_entry_safe(skip_info, temp,
 		&ctx->fcg_tracker.skipped_list, list) {
 		list_del(&skip_info->list);
