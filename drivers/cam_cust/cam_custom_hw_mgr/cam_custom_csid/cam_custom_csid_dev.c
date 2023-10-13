@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -107,13 +108,19 @@ err:
 static void cam_custom_csid_component_unbind(struct device *dev,
 	struct device *master_dev, void *data)
 {
-	struct cam_hw_intf             *csid_hw_intf;
+	struct cam_hw_intf             *csid_hw_intf = NULL;
 	struct cam_hw_info             *csid_hw_info;
 	struct cam_ife_csid_core_info  *core_info = NULL;
 	struct platform_device *pdev = to_platform_device(dev);
 	const struct of_device_id      *match_dev = NULL;
 
 	csid_hw_intf = (struct cam_hw_intf *)platform_get_drvdata(pdev);
+
+	if (!csid_hw_intf) {
+		CAM_ERR(CAM_CUSTOM, "ERROR No data in csid_hw_intf");
+		return;
+	}
+
 	csid_hw_info = csid_hw_intf->hw_priv;
 	core_info = csid_hw_info->core_info;
 

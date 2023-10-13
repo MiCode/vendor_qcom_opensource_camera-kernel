@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -107,6 +108,12 @@ void cam_tfe_csid_component_unbind(struct device *dev,
 	struct platform_device *pdev = to_platform_device(dev);
 
 	csid_dev = (struct cam_tfe_csid_hw *)platform_get_drvdata(pdev);
+
+	if (!csid_dev) {
+		CAM_ERR(CAM_ISP, "Error No data in csid_dev");
+		return;
+	}
+
 	csid_hw_intf = csid_dev->hw_intf;
 	csid_hw_info = csid_dev->hw_info;
 

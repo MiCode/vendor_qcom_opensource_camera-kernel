@@ -188,6 +188,12 @@ static void cam_ipe_component_unbind(struct device *dev,
 
 	CAM_DBG(CAM_ICP, "Unbinding component: %s", pdev->name);
 	ipe_dev_intf = platform_get_drvdata(pdev);
+
+	if (!ipe_dev_intf) {
+		CAM_ERR(CAM_ICP, "Error No data in pdev");
+		return;
+	}
+
 	ipe_dev = ipe_dev_intf->hw_priv;
 	core_info = (struct cam_ipe_device_core_info *)ipe_dev->core_info;
 	cam_cpas_unregister_client(core_info->cpas_handle);
