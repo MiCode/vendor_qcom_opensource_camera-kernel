@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_ISP_TFE_H__
@@ -24,7 +25,10 @@
 #define CAM_ISP_TFE_OUT_RES_DS4                (CAM_ISP_TFE_OUT_RES_BASE + 12)
 #define CAM_ISP_TFE_OUT_RES_DS16               (CAM_ISP_TFE_OUT_RES_BASE + 13)
 #define CAM_ISP_TFE_OUT_RES_AI                 (CAM_ISP_TFE_OUT_RES_BASE + 14)
-#define CAM_ISP_TFE_OUT_RES_MAX                (CAM_ISP_TFE_OUT_RES_BASE + 15)
+#define CAM_ISP_TFE_OUT_RES_PD_LCR_STATS       (CAM_ISP_TFE_OUT_RES_BASE + 15)
+#define CAM_ISP_TFE_OUT_RES_PD_PREPROCESSED    (CAM_ISP_TFE_OUT_RES_BASE + 16)
+#define CAM_ISP_TFE_OUT_RES_PD_PARSED          (CAM_ISP_TFE_OUT_RES_BASE + 17)
+#define CAM_ISP_TFE_OUT_RES_MAX                (CAM_ISP_TFE_OUT_RES_BASE + 18)
 
 
 /* TFE input port resource type */

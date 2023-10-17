@@ -349,7 +349,7 @@ static void cam_tfe_log_error_irq_status(
 	for (i = 0; i < top_priv->common_data.common_reg->num_debug_reg; i++) {
 		val_0 = cam_io_r(mem_base  +
 			top_priv->common_data.common_reg->debug_reg[i]);
-		CAM_INFO(CAM_ISP, "Top debug [i]:0x%x", i, val_0);
+		CAM_INFO(CAM_ISP, "Top debug [%d]:0x%x", i, val_0);
 	}
 
 	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
@@ -445,7 +445,8 @@ static void cam_tfe_log_error_irq_status(
 		"TFE clock rate:%d TFE total bw applied:%lld",
 		top_priv->hw_clk_rate,
 		top_priv->total_bw_applied);
-	cam_cpas_log_votes();
+
+	cam_cpas_log_votes(false);
 }
 
 static int cam_tfe_error_irq_bottom_half(
