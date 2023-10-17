@@ -335,7 +335,7 @@ static int cam_tfe_bus_get_num_wm(
 		switch (format) {
 		case CAM_FORMAT_NV12:
 		case CAM_FORMAT_TP10:
-		case CAM_FORMAT_PD10:
+		case CAM_FORMAT_PLAIN16_10:
 			return 2;
 		default:
 			break;
@@ -874,6 +874,21 @@ static int cam_tfe_bus_acquire_wm(
 		case CAM_FORMAT_PLAIN16_10:
 			rsrc_data->pack_fmt = 0x5;
 			rsrc_data->pack_fmt |= 0x10;
+
+			/* AI port */
+			if (rsrc_data->index == 13 || rsrc_data->index == 14) {
+				rsrc_data->pack_fmt = 0x5;
+				switch (plane) {
+				case PLANE_C:
+					rsrc_data->height /= 2;
+					break;
+				case PLANE_Y:
+					break;
+				default:
+					CAM_ERR(CAM_ISP, "Invalid plane %d", plane);
+					return -EINVAL;
+				}
+			}
 			break;
 		case CAM_FORMAT_PLAIN16_12:
 			rsrc_data->pack_fmt = 0x6;
