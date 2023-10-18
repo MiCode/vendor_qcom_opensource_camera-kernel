@@ -107,6 +107,7 @@ struct cam_sensor_dev_res_info {
  * @last_flush_req: Last request to flush
  * @pipeline_delay: Sensor pipeline delay
  * @modeswitch_delay: Mode switch delay
+ * @probe_sensor_slave_addr: Slave address used for probe if not zero
  * @sensor_name: Sensor name
  * @aon_camera_id: AON Camera ID associated with this sensor
  * @last_applied_req: Last updated request id
@@ -145,6 +146,7 @@ struct cam_sensor_ctrl_t {
 	uint16_t                       pipeline_delay;
 	uint16_t                       modeswitch_delay;
 	char                           sensor_name[CAM_SENSOR_NAME_MAX_SIZE];
+	uint32_t                       probe_sensor_slave_addr;
 	uint32_t                       aon_camera_id;
 	int64_t                        last_updated_req;
 	int64_t                        last_applied_req;

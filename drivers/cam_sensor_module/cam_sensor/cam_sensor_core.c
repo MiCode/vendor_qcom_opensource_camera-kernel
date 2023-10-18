@@ -678,6 +678,8 @@ int32_t cam_sensor_update_slave_info(void *probe_info,
 
 		s_ctrl->sensor_probe_addr_type = sensor_probe_info->addr_type;
 		s_ctrl->sensor_probe_data_type = sensor_probe_info->data_type;
+
+		s_ctrl->probe_sensor_slave_addr = 0;
 	} else if (probe_ver == CAM_SENSOR_PACKET_OPCODE_SENSOR_PROBE_V2) {
 		sensor_probe_info_v2 = (struct cam_cmd_probe_v2 *)probe_info;
 		s_ctrl->sensordata->slave_info.sensor_id_reg_addr =
@@ -698,6 +700,9 @@ int32_t cam_sensor_update_slave_info(void *probe_info,
 
 		memcpy(s_ctrl->sensor_name, sensor_probe_info_v2->sensor_name,
 			CAM_SENSOR_NAME_MAX_SIZE-1);
+
+		s_ctrl->probe_sensor_slave_addr =
+			sensor_probe_info_v2->reserved[0];
 	}
 
 	CAM_DBG(CAM_SENSOR,
@@ -994,6 +999,23 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, " failed: %pK",
 			 slave_info);
 		return -EINVAL;
+	}
+
+	if (s_ctrl->io_master_info.master_type == I2C_MASTER) {
+		if (s_ctrl->probe_sensor_slave_addr != 0) {
+			CAM_DBG(CAM_SENSOR, "%s read id: 0x%x -> 0x%x", s_ctrl->sensor_name,
+				s_ctrl->io_master_info.client->addr,
+				s_ctrl->probe_sensor_slave_addr);
+			s_ctrl->io_master_info.client->addr = s_ctrl->probe_sensor_slave_addr;
+		}
+	} else if (s_ctrl->io_master_info.master_type == CCI_MASTER) {
+		if (s_ctrl->probe_sensor_slave_addr != 0) {
+			CAM_DBG(CAM_SENSOR, "%s read id: 0x%x -> 0x%x", s_ctrl->sensor_name,
+				s_ctrl->io_master_info.cci_client->sid << 1,
+				s_ctrl->probe_sensor_slave_addr);
+			s_ctrl->io_master_info.cci_client->sid =
+				s_ctrl->probe_sensor_slave_addr >> 1;
+		}
 	}
 
 	rc = camera_io_dev_read(
