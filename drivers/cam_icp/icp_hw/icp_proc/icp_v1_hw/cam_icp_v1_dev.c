@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -212,6 +212,12 @@ static void cam_icp_v1_component_unbind(struct device *dev,
 	struct platform_device *pdev = to_platform_device(dev);
 
 	icp_v1_dev_intf = platform_get_drvdata(pdev);
+
+	if (!icp_v1_dev_intf) {
+		CAM_ERR(CAM_ICP, "Error No data in pdev");
+		return;
+	}
+
 	icp_v1_dev = icp_v1_dev_intf->hw_priv;
 	core_info = (struct cam_icp_v1_device_core_info *)icp_v1_dev->core_info;
 
