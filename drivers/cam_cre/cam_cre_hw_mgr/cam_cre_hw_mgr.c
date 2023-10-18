@@ -2006,7 +2006,7 @@ static int cam_cre_mgr_release_hw(void *hw_priv, void *hw_release_args)
 	mutex_lock(&hw_mgr->hw_mgr_mutex);
 	rc = cam_cre_mgr_release_ctx(hw_mgr, ctx_id);
 	if (!hw_mgr->cre_ctx_cnt) {
-		CAM_DBG(CAM_CRE, "Last Release");
+		CAM_DBG(CAM_CRE, "Last Release #of CRE %d", cre_hw_mgr->num_cre);
 		for (i = 0; i < cre_hw_mgr->num_cre; i++) {
 			dev_intf = hw_mgr->cre_dev_intf[i];
 			irq_cb.cre_hw_mgr_cb = NULL;
