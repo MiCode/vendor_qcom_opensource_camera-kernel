@@ -622,6 +622,8 @@ static struct cam_sfe_top_common_reg_offset  sfe880_top_commong_reg  = {
 };
 
 static struct cam_sfe_fcg_module_info sfe880_fcg_module_info = {
+	.max_fcg_ch_ctx                      = 2,
+	.max_fcg_predictions                 = 3,
 	.fcg_index_shift                     = 16,
 	.max_reg_val_pair_size               = 16,
 	.fcg_type_size                       = 2,

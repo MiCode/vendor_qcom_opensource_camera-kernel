@@ -336,14 +336,12 @@ struct cam_isp_comp_record_query {
  * @pri_rdi_out_res:         Primary RDI res for RDI only cases
  */
 struct cam_ife_hw_mgr_ctx {
-	struct list_head                          list;
-	struct cam_isp_hw_mgr_ctx                 common;
-
-	uint32_t                                  ctx_index;
-	uint32_t                                  left_hw_idx;
-	uint32_t                                  right_hw_idx;
-	struct cam_ife_hw_mgr                    *hw_mgr;
-
+	struct list_head                           list;
+	struct cam_isp_hw_mgr_ctx                  common;
+	uint32_t                                   ctx_index;
+	uint32_t                                   left_hw_idx;
+	uint32_t                                   right_hw_idx;
+	struct cam_ife_hw_mgr                     *hw_mgr;
 	struct cam_isp_hw_mgr_res                  res_list_ife_in;
 	struct list_head                           res_list_ife_csid;
 	struct list_head                           res_list_ife_src;
@@ -405,7 +403,26 @@ struct cam_ife_hw_mgr_ctx {
 };
 
 /**
- * struct cam_isp_bus_hw_caps - BUS capabilities
+ * struct cam_isp_fcg_caps - IFE/SFE/MC_TFE FCG capabilities
+ *
+ * @max_ife_fcg_ch_ctx:      Maximum number of IFE FCG channels/TFE FCG contexts
+ * @max_sfe_fcg_ch_ctx:      Maximum number of SFE FCG channels
+ * @max_ife_fcg_predictions: Maximum number of IFE FCG predictions
+ * @max_sfe_fcg_predictions: Maximum number of SFE FCG predictions
+ * @ife_fcg_supported:       Indicate whether FCG is supported by IFE hw
+ * @sfe_fcg_supported:       Indicate whether FCG is supported by SFE hw
+ */
+struct cam_isp_fcg_caps {
+	uint32_t     max_ife_fcg_ch_ctx;
+	uint32_t     max_sfe_fcg_ch_ctx;
+	uint32_t     max_ife_fcg_predictions;
+	uint32_t     max_sfe_fcg_predictions;
+	bool         ife_fcg_supported;
+	bool         sfe_fcg_supported;
+};
+
+/**
+ * struct cam_isp_ife_sfe_hw_caps - IFE/SFE hw capabilities
  *
  * @max_vfe_out_res_type  :  max ife out res type value from hw
  * @max_sfe_out_res_type  :  max sfe out res type value from hw
@@ -414,11 +431,12 @@ struct cam_ife_hw_mgr_ctx {
  * @support_consumed_addr :  indicate whether hw supports last consumed address
  */
 struct cam_isp_ife_sfe_hw_caps {
-	uint32_t     max_vfe_out_res_type;
-	uint32_t     max_sfe_out_res_type;
-	uint32_t     num_ife_perf_counters;
-	uint32_t     num_sfe_perf_counters;
-	bool         support_consumed_addr;
+	struct cam_isp_fcg_caps fcg_caps;
+	uint32_t                max_vfe_out_res_type;
+	uint32_t                max_sfe_out_res_type;
+	uint32_t                num_ife_perf_counters;
+	uint32_t                num_sfe_perf_counters;
+	bool                    support_consumed_addr;
 };
 
 /*

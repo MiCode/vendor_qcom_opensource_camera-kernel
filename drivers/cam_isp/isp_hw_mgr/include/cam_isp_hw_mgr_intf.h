@@ -62,16 +62,6 @@
  */
 #define CAM_ISP_SFE_CTX_CFG_MAX                 40
 
-/* Maximum number of channels/contexts for FCG modules */
-#define CAM_ISP_MAX_FCG_CH_CTXS        3
-#define CAM_ISP_IFE_MAX_FCG_CH_CTXS    3
-#define CAM_ISP_SFE_MAX_FCG_CHANNELS   2
-
-/* Maximum number of predicitons for FCG config */
-#define CAM_ISP_MAX_FCG_PREDICTIONS       3
-#define CAM_ISP_IFE_MAX_FCG_PREDICTIONS   CAM_ISP_MAX_FCG_PREDICTIONS
-#define CAM_ISP_SFE_MAX_FCG_PREDICTIONS   CAM_ISP_MAX_FCG_PREDICTIONS
-
 /**
  *  enum cam_isp_hw_event_type - Collection of the ISP hardware events
  */
@@ -280,8 +270,7 @@ struct cam_isp_predict_fcg_config_internal {
 struct cam_isp_ch_ctx_fcg_config_internal {
 	uint32_t                                      fcg_ch_ctx_id;
 	uint32_t                                      fcg_enable_mask;
-	struct cam_isp_predict_fcg_config_internal    predicted_fcg_configs[
-							CAM_ISP_MAX_FCG_PREDICTIONS];
+	struct cam_isp_predict_fcg_config_internal   *predicted_fcg_configs;
 };
 
 /**
@@ -297,8 +286,7 @@ struct cam_isp_fcg_config_internal {
 	uint32_t                                      num_ch_ctx;
 	uint32_t                                      num_predictions;
 	uint32_t                                      num_types;
-	struct cam_isp_ch_ctx_fcg_config_internal     ch_ctx_fcg_configs[
-							CAM_ISP_MAX_FCG_CH_CTXS];
+	struct cam_isp_ch_ctx_fcg_config_internal    *ch_ctx_fcg_configs;
 };
 
 /**

@@ -1061,6 +1061,65 @@ static int __cam_isp_ctx_enqueue_request_in_order(
 	return 0;
 }
 
+static void __cam_isp_ctx_copy_fcg_ch_ctx(
+	struct cam_isp_fcg_config_internal *fcg_config_old,
+	struct cam_isp_fcg_config_internal *fcg_config_new)
+{
+	struct cam_isp_ch_ctx_fcg_config_internal  *fcg_ch_ctx_old, *fcg_ch_ctx_new;
+	int i, j;
+
+	fcg_config_new->num_types = fcg_config_old->num_types;
+	fcg_config_new->num_predictions = fcg_config_old->num_predictions;
+	fcg_config_new->num_ch_ctx = fcg_config_old->num_ch_ctx;
+
+	fcg_ch_ctx_new = fcg_config_new->ch_ctx_fcg_configs;
+	fcg_ch_ctx_old = fcg_config_old->ch_ctx_fcg_configs;
+
+	for (i = 0; i < fcg_config_new->num_ch_ctx; i++) {
+		fcg_ch_ctx_new[i].fcg_ch_ctx_id =
+			fcg_ch_ctx_old[i].fcg_ch_ctx_id;
+		fcg_ch_ctx_new[i].fcg_enable_mask =
+			fcg_ch_ctx_old[i].fcg_enable_mask;
+
+		for (j = 0; j < fcg_config_new->num_predictions; j++)
+			memcpy(&fcg_ch_ctx_old->predicted_fcg_configs[j],
+				&fcg_ch_ctx_new->predicted_fcg_configs[j],
+				sizeof(struct cam_isp_predict_fcg_config_internal));
+	}
+}
+
+static inline void __cam_isp_ctx_copy_fcg_params(
+	struct cam_isp_prepare_hw_update_data *hw_update_data,
+	struct cam_isp_ctx_req                *req_isp_old,
+	struct cam_isp_ctx_req                *req_isp_new)
+{
+	struct cam_isp_fcg_config_info *fcg_info_new, *fcg_info_old;
+
+	fcg_info_new = &hw_update_data->fcg_info;
+	fcg_info_old = &req_isp_old->hw_update_data.fcg_info;
+	fcg_info_old->use_current_cfg = true;
+
+	if (fcg_info_new->ife_fcg_online) {
+		fcg_info_old->ife_fcg_online = true;
+		fcg_info_old->ife_fcg_entry_idx =
+			req_isp_old->num_cfg +
+			fcg_info_new->ife_fcg_entry_idx;
+
+		__cam_isp_ctx_copy_fcg_ch_ctx(&fcg_info_old->ife_fcg_config,
+			&fcg_info_new->ife_fcg_config);
+	}
+
+	if (fcg_info_new->sfe_fcg_online) {
+		fcg_info_old->sfe_fcg_online = true;
+		fcg_info_old->sfe_fcg_entry_idx =
+			req_isp_old->num_cfg +
+			fcg_info_new->sfe_fcg_entry_idx;
+
+		__cam_isp_ctx_copy_fcg_ch_ctx(&fcg_info_old->sfe_fcg_config,
+			&fcg_info_new->sfe_fcg_config);
+	}
+}
+
 static int __cam_isp_ctx_enqueue_init_request(
 	struct cam_context *ctx, struct cam_ctx_request *req)
 {
@@ -1071,8 +1130,6 @@ static int __cam_isp_ctx_enqueue_init_request(
 	struct cam_isp_prepare_hw_update_data *req_update_old;
 	struct cam_isp_prepare_hw_update_data *req_update_new;
 	struct cam_isp_prepare_hw_update_data *hw_update_data;
-	struct cam_isp_fcg_config_info        *fcg_info_old;
-	struct cam_isp_fcg_config_info        *fcg_info_new;
 
 	spin_lock_bh(&ctx->lock);
 	if (list_empty(&ctx->pending_req_list)) {
@@ -1155,29 +1212,9 @@ static int __cam_isp_ctx_enqueue_init_request(
 			}
 
 			/* Copy FCG HW update params */
-			fcg_info_new = &hw_update_data->fcg_info;
-			fcg_info_old = &req_isp_old->hw_update_data.fcg_info;
-			fcg_info_old->use_current_cfg = true;
+			__cam_isp_ctx_copy_fcg_params(hw_update_data,
+				req_isp_old, req_isp_new);
 
-			if (fcg_info_new->ife_fcg_online) {
-				fcg_info_old->ife_fcg_online = true;
-				fcg_info_old->ife_fcg_entry_idx =
-					req_isp_old->num_cfg +
-					fcg_info_new->ife_fcg_entry_idx;
-				memcpy(&fcg_info_old->ife_fcg_config,
-					&fcg_info_new->ife_fcg_config,
-					sizeof(struct cam_isp_fcg_config_internal));
-			}
-
-			if (fcg_info_new->sfe_fcg_online) {
-				fcg_info_old->sfe_fcg_online = true;
-				fcg_info_old->sfe_fcg_entry_idx =
-					req_isp_old->num_cfg +
-					fcg_info_new->sfe_fcg_entry_idx;
-				memcpy(&fcg_info_old->sfe_fcg_config,
-					&fcg_info_new->sfe_fcg_config,
-					sizeof(struct cam_isp_fcg_config_internal));
-			}
 			req_isp_old->num_cfg += req_isp_new->num_cfg;
 			req_old->request_id = req->request_id;
 			list_splice_init(&req->buf_tracker, &req_old->buf_tracker);
@@ -4774,10 +4811,15 @@ static inline void __cam_isp_ctx_update_fcg_prediction_idx(
 	struct cam_isp_fcg_prediction_tracker   *fcg_tracker,
 	struct cam_isp_fcg_config_info          *fcg_info)
 {
-	struct cam_isp_context *ctx_isp = ctx->ctx_priv;
+	struct cam_isp_context  *ctx_isp = ctx->ctx_priv;
+	struct cam_isp_fcg_caps *fcg_caps = fcg_tracker->fcg_caps;
+	uint32_t                 max_fcg_predictions;
+
+	/* Max FCG predictions in SFE/IFE/MC_TFE are the same, use one of them here */
+	max_fcg_predictions = fcg_caps->max_ife_fcg_predictions;
 
 	if ((fcg_tracker->sum_skipped == 0) ||
-		(fcg_tracker->sum_skipped > CAM_ISP_MAX_FCG_PREDICTIONS)) {
+		(fcg_tracker->sum_skipped > max_fcg_predictions)) {
 		fcg_info->use_current_cfg = true;
 		CAM_DBG(CAM_ISP,
 			"Apply req: %llu, Use current FCG value, frame_id: %llu, ctx_id: %u",
@@ -6509,8 +6551,52 @@ static int __cam_isp_ctx_flush_dev_in_top_state(struct cam_context *ctx,
 		cam_req_mgr_workq_flush(ctx_isp->workq);
 }
 
+static inline void __cam_isp_ctx_free_fcg_config(
+	struct cam_isp_context *ctx_isp,
+	struct cam_isp_ctx_req *req_isp)
+{
+	struct cam_isp_fcg_caps                    *fcg_caps;
+	struct cam_isp_fcg_config_info             *fcg_info;
+	struct cam_isp_ch_ctx_fcg_config_internal  *fcg_ch_ctx_internal;
+	uint32_t                                    max_fcg_ch_ctx;
+	int                                         i;
+
+	fcg_caps = ctx_isp->fcg_tracker.fcg_caps;
+	fcg_info = &req_isp->hw_update_data.fcg_info;
+
+	/* Free IFE/MC_TFE related FCG config */
+	max_fcg_ch_ctx = fcg_caps->max_ife_fcg_ch_ctx;
+
+	fcg_ch_ctx_internal = fcg_info->ife_fcg_config.ch_ctx_fcg_configs;
+	if (fcg_ch_ctx_internal) {
+		for (i = 0; i < max_fcg_ch_ctx; i++) {
+			kfree(fcg_ch_ctx_internal[i].predicted_fcg_configs);
+			fcg_ch_ctx_internal[i].predicted_fcg_configs = NULL;
+		}
+
+		kfree(fcg_info->ife_fcg_config.ch_ctx_fcg_configs);
+		fcg_info->ife_fcg_config.ch_ctx_fcg_configs = NULL;
+	}
+
+	/* Free SFE related FCG config */
+	max_fcg_ch_ctx = fcg_caps->max_sfe_fcg_ch_ctx;
+
+	fcg_ch_ctx_internal = fcg_info->sfe_fcg_config.ch_ctx_fcg_configs;
+	if (fcg_ch_ctx_internal) {
+		for (i = 0; i < max_fcg_ch_ctx; i++) {
+			kfree(fcg_ch_ctx_internal[i].predicted_fcg_configs);
+			fcg_ch_ctx_internal[i].predicted_fcg_configs = NULL;
+		}
+
+		kfree(fcg_info->sfe_fcg_config.ch_ctx_fcg_configs);
+		fcg_info->sfe_fcg_config.ch_ctx_fcg_configs = NULL;
+	}
+}
+
 static void __cam_isp_ctx_free_mem_hw_entries(struct cam_context *ctx)
 {
+	struct cam_isp_context *ctx_isp;
+	struct cam_isp_ctx_req *req_isp;
 	int  i;
 
 	if (ctx->out_map_entries) {
@@ -6546,6 +6632,13 @@ static void __cam_isp_ctx_free_mem_hw_entries(struct cam_context *ctx)
 	ctx->max_out_map_entries = 0;
 	ctx->max_in_map_entries = 0;
 	ctx->max_hw_update_entries = 0;
+
+	/* Free memory for FCG channel/context */
+	ctx_isp = (struct cam_isp_context *)ctx->ctx_priv;
+	for (i = 0; i < CAM_ISP_CTX_REQ_MAX; i++) {
+		req_isp = &ctx_isp->req_isp[i];
+		__cam_isp_ctx_free_fcg_config(ctx_isp, req_isp);
+	}
 }
 
 static int __cam_isp_ctx_release_hw_in_top_state(struct cam_context *ctx,
@@ -6715,6 +6808,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	struct cam_hw_cmd_args           hw_cmd_args;
 	struct cam_isp_hw_cmd_args       isp_hw_cmd_args;
 	uint32_t                         packet_opcode = 0;
+	struct cam_isp_ch_ctx_fcg_config_internal *sfe_ch_ctx_fcg, *ife_ch_ctx_fcg;
 
 	CAM_DBG(CAM_ISP, "get free request object......ctx_idx: %u, link: 0x%x",
 		ctx->ctx_id, ctx->link_hdl);
@@ -6788,7 +6882,16 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	cfg.num_out_map_entries = 0;
 	cfg.num_in_map_entries = 0;
 	cfg.buf_tracker = &req->buf_tracker;
+	sfe_ch_ctx_fcg = req_isp->hw_update_data.fcg_info.sfe_fcg_config.ch_ctx_fcg_configs;
+	ife_ch_ctx_fcg = req_isp->hw_update_data.fcg_info.ife_fcg_config.ch_ctx_fcg_configs;
 	memset(&req_isp->hw_update_data, 0, sizeof(req_isp->hw_update_data));
+
+	/* Restore FCG related info */
+	req_isp->hw_update_data.fcg_info.sfe_fcg_config.ch_ctx_fcg_configs
+		= sfe_ch_ctx_fcg;
+	req_isp->hw_update_data.fcg_info.ife_fcg_config.ch_ctx_fcg_configs
+		= ife_ch_ctx_fcg;
+
 	memset(req_isp->fence_map_out, 0, sizeof(struct cam_hw_fence_map_entry)
 		* ctx->max_out_map_entries);
 
@@ -6917,6 +7020,65 @@ free_req:
 	return rc;
 }
 
+static inline int __cam_isp_ctx_allocate_mem_fcg_config(
+	struct cam_isp_fcg_caps *fcg_caps,
+	struct cam_isp_ctx_req  *req_isp,
+	bool sfe_en)
+{
+	struct cam_isp_fcg_config_info             *fcg_info;
+	struct cam_isp_ch_ctx_fcg_config_internal  *fcg_ch_ctx_internal;
+	uint32_t                                    max_fcg_ch_ctx, max_fcg_predictions;
+	int                                         i;
+
+	fcg_info = &req_isp->hw_update_data.fcg_info;
+
+	if (fcg_caps->ife_fcg_supported) {
+		max_fcg_ch_ctx = fcg_caps->max_ife_fcg_ch_ctx;
+		max_fcg_predictions = fcg_caps->max_ife_fcg_predictions;
+
+		fcg_info->ife_fcg_config.ch_ctx_fcg_configs =
+			kcalloc(max_fcg_ch_ctx,
+				sizeof(struct cam_isp_ch_ctx_fcg_config_internal),
+				GFP_KERNEL);
+		if (!fcg_info->ife_fcg_config.ch_ctx_fcg_configs)
+			return -ENOMEM;
+
+		fcg_ch_ctx_internal = fcg_info->ife_fcg_config.ch_ctx_fcg_configs;
+		for (i = 0; i < max_fcg_ch_ctx; i++) {
+			fcg_ch_ctx_internal[i].predicted_fcg_configs =
+				kcalloc(max_fcg_predictions,
+					sizeof(struct cam_isp_predict_fcg_config_internal),
+					GFP_KERNEL);
+			if (!fcg_ch_ctx_internal[i].predicted_fcg_configs)
+				return -ENOMEM;
+		}
+	}
+
+	if (fcg_caps->sfe_fcg_supported && sfe_en) {
+		max_fcg_ch_ctx = fcg_caps->max_sfe_fcg_ch_ctx;
+		max_fcg_predictions = fcg_caps->max_sfe_fcg_predictions;
+
+		fcg_info->sfe_fcg_config.ch_ctx_fcg_configs =
+			kcalloc(max_fcg_ch_ctx,
+				sizeof(struct cam_isp_ch_ctx_fcg_config_internal),
+				GFP_KERNEL);
+		if (!fcg_info->sfe_fcg_config.ch_ctx_fcg_configs)
+			return -ENOMEM;
+
+		fcg_ch_ctx_internal = fcg_info->sfe_fcg_config.ch_ctx_fcg_configs;
+		for (i = 0; i < max_fcg_ch_ctx; i++) {
+			fcg_ch_ctx_internal[i].predicted_fcg_configs =
+				kcalloc(max_fcg_predictions,
+					sizeof(struct cam_isp_predict_fcg_config_internal),
+					GFP_KERNEL);
+			if (!fcg_ch_ctx_internal[i].predicted_fcg_configs)
+				return -ENOMEM;
+		}
+	}
+
+	return 0;
+}
+
 static int __cam_isp_ctx_allocate_mem_hw_entries(
 	struct cam_context *ctx,
 	struct cam_hw_acquire_args *param)
@@ -6927,6 +7089,8 @@ static int __cam_isp_ctx_allocate_mem_hw_entries(
 	struct cam_ctx_request          *req;
 	struct cam_ctx_request          *temp_req;
 	struct cam_isp_ctx_req          *req_isp;
+	struct cam_isp_context          *ctx_isp = ctx->ctx_priv;
+	struct cam_isp_fcg_caps         *fcg_caps;
 
 	if (!param->op_params.param_list[0])
 		max_res = CAM_ISP_CTX_RES_MAX;
@@ -7012,6 +7176,8 @@ static int __cam_isp_ctx_allocate_mem_hw_entries(
 		}
 	}
 
+	fcg_caps = ctx_isp->fcg_tracker.fcg_caps;
+
 	list_for_each_entry_safe(req, temp_req,
 		&ctx->free_req_list, list) {
 		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
@@ -7019,7 +7185,28 @@ static int __cam_isp_ctx_allocate_mem_hw_entries(
 		req_isp->cfg = ctx->hw_update_entry[req->index];
 		req_isp->fence_map_in = ctx->in_map_entries[req->index];
 		req_isp->fence_map_out = ctx->out_map_entries[req->index];
+
+		/* Allocate memory for FCG related hw update data */
+
+		if (!fcg_caps->ife_fcg_supported && !fcg_caps->sfe_fcg_supported)
+			continue;
+
+		rc = __cam_isp_ctx_allocate_mem_fcg_config(fcg_caps, req_isp,
+			param->op_flags & CAM_IFE_CTX_SFE_EN);
+		if (rc) {
+			CAM_ERR(CAM_CTXT,
+				"No sufficient memory for FCG channel/context in %s, ctx_id: %u, link: 0x%x",
+				ctx->dev_name, ctx->ctx_id, ctx->link_hdl);
+			rc = -ENOMEM;
+			goto end;
+		}
 	}
+
+	CAM_DBG(CAM_ISP,
+		"Finish allocating FCG related structure, ctx_id: %u, FCG IFE/MC_TFE supported: %d, FCG SFE supported: %d, SFE_EN: %d",
+		ctx->ctx_id, fcg_caps->ife_fcg_supported,
+		fcg_caps->sfe_fcg_supported,
+		(bool)(param->op_flags & CAM_IFE_CTX_SFE_EN));
 
 	return rc;
 
@@ -7465,6 +7652,15 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 	if (rc != 0) {
 		CAM_ERR(CAM_ISP, "Acquire device failed, ctx_id %u link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
+		goto free_res;
+	}
+
+	/* Deliver FCG caps */
+	ctx_isp->fcg_tracker.fcg_caps = (struct cam_isp_fcg_caps *)param.op_params.fcg_caps;
+	if (!ctx_isp->fcg_tracker.fcg_caps) {
+		CAM_ERR(CAM_ISP, "Failed in getting FCG caps, ctx_id: %u, link: 0x%x",
+			ctx->ctx_id, ctx->link_hdl);
+		rc = -EFAULT;
 		goto free_res;
 	}
 

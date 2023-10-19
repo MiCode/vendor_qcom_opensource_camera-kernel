@@ -155,6 +155,8 @@ struct cam_vfe_top_ver4_debug_reg_info {
 
 
 struct cam_vfe_ver4_fcg_module_info {
+	uint32_t max_fcg_ch_ctx;
+	uint32_t max_fcg_predictions;
 	uint32_t fcg_index_shift;
 	uint32_t max_reg_val_pair_size;
 	uint32_t fcg_type_size;

@@ -1465,13 +1465,22 @@ int cam_sfe_top_process_cmd(void *priv, uint32_t cmd_type,
 		break;
 	case CAM_ISP_HW_CMD_QUERY_CAP: {
 		struct cam_isp_hw_cap *sfe_cap;
+		struct cam_sfe_fcg_module_info *fcg_module_info;
 
 		sfe_cap = (struct cam_isp_hw_cap *) cmd_args;
 		sfe_cap->num_perf_counters =
 			top_priv->common_data.common_reg->num_perf_counters;
-		rc = 0;
+		if (top_priv->hw_info->modules_hw_info->fcg_supported) {
+			fcg_module_info =
+				top_priv->hw_info->modules_hw_info->fcg_module_info;
+			sfe_cap->fcg_supported = true;
+			sfe_cap->max_fcg_ch_ctx =
+				fcg_module_info->max_fcg_ch_ctx;
+			sfe_cap->max_fcg_predictions =
+				fcg_module_info->max_fcg_predictions;
+		}
 	}
-	break;
+		break;
 	default:
 		CAM_ERR(CAM_SFE, "Invalid cmd type: %d", cmd_type);
 		rc = -EINVAL;

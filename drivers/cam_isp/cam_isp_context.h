@@ -325,6 +325,7 @@ struct cam_isp_skip_frame_info {
  *                             normal frames
  */
 struct cam_isp_fcg_prediction_tracker {
+	struct cam_isp_fcg_caps              *fcg_caps;
 	uint32_t                              num_skipped;
 	uint32_t                              sum_skipped;
 	struct list_head                      skipped_list;

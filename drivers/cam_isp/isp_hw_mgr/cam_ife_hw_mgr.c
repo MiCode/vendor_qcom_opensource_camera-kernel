@@ -1307,7 +1307,7 @@ static int cam_ife_hw_mgr_init_hw(
 	}
 
 	CAM_DBG(CAM_ISP, "INIT IFE csid ... in ctx id:%u",
-	ctx->ctx_index);
+		ctx->ctx_index);
 
 	/* INIT IFE BUS RD */
 	CAM_DBG(CAM_ISP, "INIT IFE BUS RD in ctx id:%u",
@@ -6025,6 +6025,8 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	acquire_args->op_params.param_list[0] = max_ife_out_res;
 	acquire_args->op_params.param_list[1] = max_sfe_out_res;
 	acquire_args->hw_mgr_ctx_id = ife_ctx->ctx_index;
+	acquire_args->op_params.fcg_caps =
+		&g_ife_hw_mgr.isp_caps.fcg_caps;
 
 	cam_ife_hw_mgr_print_acquire_info(ife_ctx, total_pix_port,
 		total_pd_port, total_rdi_port, rc);
@@ -12167,6 +12169,15 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_IFE_FCG_CFG: {
 		struct cam_isp_generic_fcg_config *fcg_config_args;
+		struct cam_isp_fcg_caps           *fcg_caps =
+			&g_ife_hw_mgr.isp_caps.fcg_caps;
+
+		if (!fcg_caps->ife_fcg_supported) {
+			CAM_ERR(CAM_ISP,
+				"FCG is not supported by IFE/MC_TFE hardware, ctx_idx: %u",
+				ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
 
 		if (blob_size <
 			sizeof(struct cam_isp_generic_fcg_config)) {
@@ -12181,8 +12192,8 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 			(struct cam_isp_generic_fcg_config *)blob_data;
 
 		rc = cam_isp_validate_fcg_configs(fcg_config_args,
-			CAM_ISP_IFE_MAX_FCG_CH_CTXS,
-			CAM_ISP_IFE_MAX_FCG_PREDICTIONS,
+			fcg_caps->max_ife_fcg_ch_ctx,
+			fcg_caps->max_ife_fcg_predictions,
 			ife_mgr_ctx);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Failed in validating FCG configs, ctx_idx: %u",
@@ -12900,6 +12911,14 @@ static int cam_sfe_packet_generic_blob_handler(void *user_data,
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_FCG_CFG: {
 		struct cam_isp_generic_fcg_config *fcg_config_args;
+		struct cam_isp_fcg_caps           *fcg_caps =
+			&g_ife_hw_mgr.isp_caps.fcg_caps;
+
+		if (!fcg_caps->sfe_fcg_supported) {
+			CAM_ERR(CAM_ISP, "FCG is not supported by SFE hardware, ctx_idx: %u",
+				ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
 
 		if (blob_size <
 			sizeof(struct cam_isp_generic_fcg_config)) {
@@ -12914,8 +12933,8 @@ static int cam_sfe_packet_generic_blob_handler(void *user_data,
 			(struct cam_isp_generic_fcg_config *)blob_data;
 
 		rc = cam_isp_validate_fcg_configs(fcg_config_args,
-			CAM_ISP_SFE_MAX_FCG_CHANNELS,
-			CAM_ISP_SFE_MAX_FCG_PREDICTIONS,
+			fcg_caps->max_sfe_fcg_ch_ctx,
+			fcg_caps->max_sfe_fcg_predictions,
 			ife_mgr_ctx);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Failed in validating FCG configs, ctx_idx: %u",
@@ -17822,8 +17841,10 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
 					&isp_cap,
 					sizeof(struct cam_isp_hw_cap));
 				CAM_DBG(CAM_ISP,
-					"max VFE out resources: 0x%x num perf counters: 0x%x",
-					isp_cap.max_out_res_type, isp_cap.num_perf_counters);
+					"max VFE out resources: 0x%x num perf counters: 0x%x; IFE/MC_TFE: max FCG channels/contexts: %u, max FCG predictions: %u, FCG supported: %u",
+					isp_cap.max_out_res_type, isp_cap.num_perf_counters,
+					isp_cap.max_fcg_ch_ctx, isp_cap.max_fcg_predictions,
+					isp_cap.fcg_supported);
 
 				ife_device->hw_ops.process_cmd(
 					vfe_hw,
@@ -17859,6 +17880,12 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
 		isp_cap.max_out_res_type;
 	g_ife_hw_mgr.isp_caps.num_ife_perf_counters =
 		isp_cap.num_perf_counters;
+	g_ife_hw_mgr.isp_caps.fcg_caps.max_ife_fcg_ch_ctx =
+		isp_cap.max_fcg_ch_ctx;
+	g_ife_hw_mgr.isp_caps.fcg_caps.max_ife_fcg_predictions =
+		isp_cap.max_fcg_predictions;
+	g_ife_hw_mgr.isp_caps.fcg_caps.ife_fcg_supported =
+		isp_cap.fcg_supported;
 	max_ife_out_res =
 		g_ife_hw_mgr.isp_caps.max_vfe_out_res_type & 0xFF;
 	memset(&isp_cap, 0x0, sizeof(struct cam_isp_hw_cap));
@@ -17899,13 +17926,21 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
 					&isp_cap,
 					sizeof(struct cam_isp_hw_cap));
 				CAM_DBG(CAM_ISP,
-					"max SFE out resources: 0x%x num_perf_counters: 0x%x",
-					isp_cap.max_out_res_type, isp_cap.num_perf_counters);
+					"max SFE out resources: 0x%x num_perf_counters: 0x%x; SFE: max FCG channels: %u, max FCG predictions: %u, FCG supported: %d",
+					isp_cap.max_out_res_type, isp_cap.num_perf_counters,
+					isp_cap.max_fcg_ch_ctx, isp_cap.max_fcg_predictions,
+					isp_cap.fcg_supported);
 				if (!rc) {
 					g_ife_hw_mgr.isp_caps.max_sfe_out_res_type =
 						isp_cap.max_out_res_type;
 					g_ife_hw_mgr.isp_caps.num_sfe_perf_counters =
 						isp_cap.num_perf_counters;
+					g_ife_hw_mgr.isp_caps.fcg_caps.max_sfe_fcg_ch_ctx =
+						isp_cap.max_fcg_ch_ctx;
+					g_ife_hw_mgr.isp_caps.fcg_caps.max_sfe_fcg_predictions =
+						isp_cap.max_fcg_predictions;
+					g_ife_hw_mgr.isp_caps.fcg_caps.sfe_fcg_supported =
+						isp_cap.fcg_supported;
 					max_sfe_out_res =
 						g_ife_hw_mgr.isp_caps.max_sfe_out_res_type & 0xFF;
 				}

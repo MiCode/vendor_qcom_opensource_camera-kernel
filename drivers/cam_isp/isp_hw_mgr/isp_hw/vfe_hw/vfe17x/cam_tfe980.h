@@ -793,6 +793,8 @@ static struct cam_vfe_top_ver4_debug_reg_info tfe980_dbg_reg_info[CAM_TFE_980_NU
 };
 
 static struct cam_vfe_ver4_fcg_module_info tfe980_fcg_module_info = {
+	.max_fcg_ch_ctx                      = 3,
+	.max_fcg_predictions                 = 3,
 	.fcg_index_shift                     = 16,
 	.max_reg_val_pair_size               = 6,
 	.fcg_type_size                       = 2,

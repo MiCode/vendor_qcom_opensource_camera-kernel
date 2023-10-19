@@ -144,11 +144,13 @@ struct cam_hw_done_event_data {
  * struct cam_hw_acquire_stream_caps - Any HW caps info from HW mgr to ctx
  *                                     Params to be interpreted by the
  *                                     respective drivers
+ * @fcg_caps         : SFE/IFE/MC_TFE FCG capabilities during hw acquire
  * @num_valid_params : Number of valid params
  * @param_list       : List of params interpreted by the driver
  *
  */
 struct cam_hw_acquire_stream_caps {
+	void             *fcg_caps;
 	uint32_t          num_valid_params;
 	uint32_t          param_list[4];
 };
@@ -166,7 +168,7 @@ struct cam_hw_acquire_stream_caps {
  * @num_acq:               Total number of acquire in the payload
  * @acquire_info:          Acquired resource array pointer
  * @ctxt_to_hw_map:        HW context (returned)
- * @hw_mgr_ctx_id          HWMgr context id(returned)
+ * @hw_mgr_ctx_id:         HWMgr context id(returned)
  * @op_flags:              Used as bitwise params from hw_mgr to ctx
  *                         See xxx_hw_mgr_intf.h for definitions
  * @acquired_hw_id:        Acquired hardware mask
@@ -189,11 +191,9 @@ struct cam_hw_acquire_args {
 	void                        *ctxt_to_hw_map;
 	uint32_t                     hw_mgr_ctx_id;
 	uint32_t                     op_flags;
-
-	uint32_t    acquired_hw_id[CAM_MAX_ACQ_RES];
-	uint32_t    acquired_hw_path[CAM_MAX_ACQ_RES][CAM_MAX_HW_SPLIT];
-	uint32_t    valid_acquired_hw;
-
+	uint32_t                     acquired_hw_id[CAM_MAX_ACQ_RES];
+	uint32_t                     acquired_hw_path[CAM_MAX_ACQ_RES][CAM_MAX_HW_SPLIT];
+	uint32_t                     valid_acquired_hw;
 	struct cam_hw_acquire_stream_caps op_params;
 	cam_ctx_mini_dump_cb_func    mini_dump_cb;
 };

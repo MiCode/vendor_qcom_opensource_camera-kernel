@@ -1442,6 +1442,14 @@ int cam_vfe_top_ver4_process_cmd(void *device_priv, uint32_t cmd_type,
 		ife_cap = (struct cam_isp_hw_cap *) cmd_args;
 		ife_cap->num_perf_counters =
 			top_priv->common_data.common_reg->num_perf_counters;
+		if (top_priv->common_data.hw_info->fcg_supported ||
+			top_priv->common_data.hw_info->fcg_mc_supported) {
+			ife_cap->fcg_supported = true;
+			ife_cap->max_fcg_ch_ctx =
+			    top_priv->common_data.hw_info->fcg_module_info->max_fcg_ch_ctx;
+			ife_cap->max_fcg_predictions =
+			    top_priv->common_data.hw_info->fcg_module_info->max_fcg_predictions;
+		}
 	}
 		break;
 	case CAM_ISP_HW_CMD_IFE_DEBUG_CFG: {

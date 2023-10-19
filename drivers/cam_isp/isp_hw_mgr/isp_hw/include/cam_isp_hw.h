@@ -620,12 +620,18 @@ struct cam_isp_hw_intf_data {
  *
  * @max_out_res_type:       Maximum value of out resource type supported by hw
  * @num_perf_counters:      Number of perf counters supported
+ * @max_fcg_ch_ctx:         Maximum number of channels/contexts in FCG config provided by hw header
+ * @max_fcg_predictions:    Maximum number of predictions in FCG config provided by hw header
+ * @fcg_supported:          Indicate whether FCG config is supported by the hw
  * @support_consumed_addr:  Indicate whether HW has last consumed addr reg
  *
  */
 struct cam_isp_hw_cap {
 	uint32_t                max_out_res_type;
 	uint32_t                num_perf_counters;
+	uint32_t                max_fcg_ch_ctx;
+	uint32_t                max_fcg_predictions;
+	bool                    fcg_supported;
 	bool                    support_consumed_addr;
 };
 

@@ -119,6 +119,8 @@ struct cam_sfe_top_common_reg_offset {
 };
 
 struct cam_sfe_fcg_module_info {
+	uint32_t max_fcg_ch_ctx;
+	uint32_t max_fcg_predictions;
 	uint32_t fcg_index_shift;
 	uint32_t max_reg_val_pair_size;
 	uint32_t fcg_type_size;
