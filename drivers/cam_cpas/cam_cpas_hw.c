@@ -1403,6 +1403,11 @@ static int cam_cpas_update_axi_vote_bw(
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 
+	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
+		CAM_WARN(CAM_UTIL, "Bypass update axi vote bw");
+		return 0;
+	}
+
 	axi_port_idx = cpas_tree_node->axi_port_idx_arr[ddr_drv_idx];
 
 	if ((axi_port_idx < 0) || (axi_port_idx >= CAM_CPAS_MAX_AXI_PORTS)) {

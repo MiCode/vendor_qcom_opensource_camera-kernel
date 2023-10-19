@@ -9,9 +9,7 @@
 #include <linux/of_address.h>
 #include <linux/slab.h>
 
-#include <soc/qcom/rpmh.h>
 #include <soc/qcom/socinfo.h>
-
 #include "cam_compat.h"
 #include "cam_debug_util.h"
 #include "cam_cpas_api.h"
@@ -20,6 +18,8 @@
 #include "cam_eeprom_core.h"
 
 #if IS_ENABLED(CONFIG_SPECTRA_USE_RPMH_DRV_API)
+#include <soc/qcom/rpmh.h>
+
 #define CAM_RSC_DRV_IDENTIFIER "cam_rsc"
 
 const struct device *cam_cpas_get_rsc_dev_for_drv(uint32_t index)

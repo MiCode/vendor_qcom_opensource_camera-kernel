@@ -1374,6 +1374,11 @@ static int cam_soc_util_set_clk_rate(struct cam_hw_soc_info *soc_info,
 	long clk_rate_round = -1;
 	bool set_rate = false;
 
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass set clk rate");
+		return rc;
+	}
+
 	if (!clk_name) {
 		CAM_ERR(CAM_UTIL, "Invalid input clk %pK clk_name %pK",
 			clk, clk_name);
@@ -1588,6 +1593,11 @@ static struct clk *cam_soc_util_option_clk_get(struct device_node *np,
 	struct of_phandle_args clkspec;
 	struct clk *clk;
 	int rc;
+
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass option clk get");
+		return (struct clk *)BYPASS_VALUE;
+	}
 
 	if (index < 0)
 		return ERR_PTR(-EINVAL);
@@ -1881,6 +1891,11 @@ int cam_soc_util_clk_enable_default(struct cam_hw_soc_info *soc_info,
 {
 	int                          i, rc = 0;
 	enum cam_vote_level          apply_level;
+
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass clk enable default");
+		return rc;
+	}
 
 	if ((soc_info->num_clk == 0) ||
 		(soc_info->num_clk >= CAM_SOC_MAX_CLK)) {

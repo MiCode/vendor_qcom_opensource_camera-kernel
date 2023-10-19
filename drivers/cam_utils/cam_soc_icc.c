@@ -82,6 +82,11 @@ int cam_soc_bus_client_update_request(void *client, unsigned int idx)
 	struct cam_soc_bus_client_data *bus_client_data =
 		(struct cam_soc_bus_client_data *) bus_client->client_data;
 
+	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
+		CAM_WARN(CAM_UTIL, "Bypass icc set bw");
+		return rc;
+	}
+
 	if (idx >= bus_client->common_data->num_usecases) {
 		CAM_ERR(CAM_UTIL, "Invalid vote level=%d, usecases=%d", idx,
 			bus_client->common_data->num_usecases);

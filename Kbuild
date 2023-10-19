@@ -7,7 +7,11 @@ endif
 
 # Include Architecture configurations
 ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
+ifeq ($(CONFIG_ARCH_QTI_VM), y)
+include $(CAMERA_KERNEL_ROOT)/config/pineapple_tuivm.mk
+else
 include $(CAMERA_KERNEL_ROOT)/config/pineapple.mk
+endif
 endif
 
 ifeq ($(CONFIG_ARCH_KALAMA), y)
