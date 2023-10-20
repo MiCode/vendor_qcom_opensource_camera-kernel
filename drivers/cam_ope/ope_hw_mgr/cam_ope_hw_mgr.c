@@ -437,6 +437,10 @@ static int cam_ope_mgr_put_cmd_buf(struct cam_packet *packet)
 		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
 
 	for (i = 0; i < packet->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		if (cmd_desc[i].type != CAM_CMD_BUF_GENERIC ||
 			cmd_desc[i].meta_data == OPE_CMD_META_GENERIC_BLOB)
 			continue;
@@ -558,6 +562,10 @@ static int cam_ope_dump_frame_process(struct cam_packet *packet,
 	cmd_desc = (struct cam_cmd_buf_desc *)
 		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
 	for (i = 0; i < packet->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		if (cmd_desc[i].type != CAM_CMD_BUF_GENERIC ||
 			cmd_desc[i].meta_data == OPE_CMD_META_GENERIC_BLOB)
 			continue;
@@ -2229,8 +2237,6 @@ static int cam_ope_mgr_process_cmd_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 					ope_request->ope_kmd_buf.cpu_addr,
 					ope_request->ope_kmd_buf.iova_addr,
 					ope_request->ope_kmd_buf.iova_cdm_addr);
-					cam_mem_put_cpu_buf(cmd_buf->mem_handle);
-					break;
 				} else if (cmd_buf->cmd_buf_usage ==
 					OPE_CMD_BUF_DEBUG) {
 					ope_request->ope_debug_buf.cpu_addr =
@@ -2245,8 +2251,6 @@ static int cam_ope_mgr_process_cmd_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 						cmd_buf->offset;
 					CAM_DBG(CAM_OPE, "dbg buf = %x",
 					ope_request->ope_debug_buf.cpu_addr);
-					cam_mem_put_cpu_buf(cmd_buf->mem_handle);
-					break;
 				}
 				cam_mem_put_cpu_buf(cmd_buf->mem_handle);
 				break;
@@ -2307,11 +2311,15 @@ static int cam_ope_mgr_process_cmd_desc(struct cam_ope_hw_mgr *hw_mgr,
 
 	*ope_cmd_buf_addr = 0;
 	for (i = 0; i < packet->num_cmd_buf; i++, num_cmd_buf++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		if (cmd_desc[i].type != CAM_CMD_BUF_GENERIC ||
 			cmd_desc[i].meta_data == OPE_CMD_META_GENERIC_BLOB)
 			continue;
-
-		rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle, &cpu_addr, &len);
+		rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle,
+			&cpu_addr, &len);
 		if (rc || !cpu_addr) {
 			CAM_ERR(CAM_OPE, "get cmd buf failed %x",
 				hw_mgr->iommu_hdl);
@@ -3216,16 +3224,20 @@ static int cam_ope_process_generic_cmd_buffer(
 		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
 
 	for (i = 0; i < packet->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		if (!cmd_desc[i].length)
 			continue;
 
-	if (cmd_desc[i].meta_data != OPE_CMD_META_GENERIC_BLOB)
-		continue;
+		if (cmd_desc[i].meta_data != OPE_CMD_META_GENERIC_BLOB)
+			continue;
 
-	rc = cam_packet_util_process_generic_cmd_buffer(&cmd_desc[i],
-		cam_ope_packet_generic_blob_handler, &cmd_generic_blob);
-	if (rc)
-		CAM_ERR(CAM_OPE, "Failed in processing blobs %d", rc);
+		rc = cam_packet_util_process_generic_cmd_buffer(&cmd_desc[i],
+			cam_ope_packet_generic_blob_handler, &cmd_generic_blob);
+		if (rc)
+			CAM_ERR(CAM_OPE, "Failed in processing blobs %d", rc);
 	}
 
 	return rc;
@@ -4212,6 +4224,7 @@ static void cam_ope_mgr_dump_pf_data(
 		CAM_INFO(CAM_OPE,
 			"PID:%d  is not matching with any OPE HW PIDs ctx id:%d",
 			pf_args->pf_smmu_info->pid, ctx_data->ctx_id);
+		cam_packet_util_put_packet_addr(pf_req_info->packet_handle);
 		return;
 	}
 
@@ -4224,7 +4237,8 @@ static void cam_ope_mgr_dump_pf_data(
 	if (rc) {
 		CAM_ERR(CAM_OPE,
 			"CAM_OPE_CMD_MATCH_PID_MID failed %d", rc);
-			return;
+		cam_packet_util_put_packet_addr(pf_req_info->packet_handle);
+		return;
 	}
 
 	*resource_type = ope_pid_mid_args.match_res;

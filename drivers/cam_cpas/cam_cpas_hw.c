@@ -514,7 +514,7 @@ bus_register_fail:
 	return rc;
 }
 
-static int cam_cpas_util_vote_default_ahb_axi(struct cam_hw_info *cpas_hw,
+int cam_cpas_util_vote_default_ahb_axi(struct cam_hw_info *cpas_hw,
 	int enable)
 {
 	int rc, i = 0;
@@ -3560,6 +3560,7 @@ static int cam_cpas_dump_state_monitor_array_info(
 	if (buf_len <= dump_info->offset) {
 		CAM_WARN(CAM_CPAS, "Dump buffer overshoot len %zu offset %zu",
 			buf_len, dump_info->offset);
+		cam_mem_put_cpu_buf(dump_info->buf_handle);
 		return -ENOSPC;
 	}
 
@@ -3598,6 +3599,7 @@ static int cam_cpas_dump_state_monitor_array_info(
 	if (remain_len < min_len) {
 		CAM_WARN(CAM_CPAS, "Dump buffer exhaust remain %zu min %u",
 			remain_len, min_len);
+		cam_mem_put_cpu_buf(dump_info->buf_handle);
 		return -ENOSPC;
 	}
 
@@ -3614,6 +3616,7 @@ static int cam_cpas_dump_state_monitor_array_info(
 			&cpas_core->monitor_entries[index].identifier_string);
 		if (rc) {
 			CAM_ERR(CAM_CPAS, "Dump state info failed, rc: %d", rc);
+			cam_mem_put_cpu_buf(dump_info->buf_handle);
 			return rc;
 		}
 
@@ -3621,6 +3624,7 @@ static int cam_cpas_dump_state_monitor_array_info(
 	}
 
 	dump_info->offset = dump_args.offset;
+	cam_mem_put_cpu_buf(dump_info->buf_handle);
 
 	return rc;
 }

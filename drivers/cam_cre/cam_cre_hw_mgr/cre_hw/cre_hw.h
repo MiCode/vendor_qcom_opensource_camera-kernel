@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_CRE_HW_H
 #define CAM_CRE_HW_H
 
 #define CRE_HW_VER_1_0_0 0x10000000
+#define CRE_HW_VER_1_1_0 0x10010000
 
 #define CRE_DEV_CRE  0
 #define CRE_DEV_MAX  1
@@ -87,6 +89,7 @@ struct cam_cre_bus_rd_client_reg {
 	uint32_t misr_cfg_0;
 	uint32_t misr_cfg_1;
 	uint32_t misr_rd_val;
+	uint32_t system_cache_cfg;
 	uint32_t debug_status_cfg;
 	uint32_t debug_status_0;
 	uint32_t debug_status_1;
@@ -109,6 +112,8 @@ struct cam_cre_bus_rd_reg {
 	uint32_t iso_cfg;
 	uint32_t iso_seed;
 	uint32_t test_bus_ctrl;
+	uint32_t cons_violation;
+	uint32_t ccif_violation;
 
 	uint32_t num_clients;
 	struct   cam_cre_bus_rd_client_reg rd_clients[MAX_CRE_RD_CLIENTS];
@@ -161,6 +166,7 @@ struct cam_cre_bus_rd_reg_val {
 	uint32_t rup_done;
 	uint32_t rd_buf_done;
 	uint32_t cons_violation;
+	uint32_t ccif_violation;
 	uint32_t static_prg;
 	uint32_t static_prg_mask;
 	uint32_t ica_en;
@@ -190,8 +196,9 @@ struct cam_cre_bus_wr_client_reg {
 	uint32_t img_cfg_0;
 	uint32_t img_cfg_1;
 	uint32_t img_cfg_2;
-	uint32_t bw_limit;
 	uint32_t packer_cfg;
+	uint32_t bw_limit;
+	uint32_t system_cache_cfg;
 	uint32_t addr_cfg;
 	uint32_t debug_status_cfg;
 	uint32_t debug_status_0;

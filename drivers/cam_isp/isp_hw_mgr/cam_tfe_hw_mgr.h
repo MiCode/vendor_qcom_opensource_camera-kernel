@@ -32,7 +32,7 @@
  * @camif_debug:               enable sensor diagnosis status
  * @enable_reg_dump:           enable reg dump on error;
  * @per_req_reg_dump:          Enable per request reg dump
- *
+ * @enable_cdm_cmd_check:      Enable invalid command check in cmd_buf
  */
 struct cam_tfe_hw_mgr_debug {
 	struct dentry  *dentry;
@@ -42,6 +42,7 @@ struct cam_tfe_hw_mgr_debug {
 	uint32_t       camif_debug;
 	uint32_t       enable_reg_dump;
 	uint32_t       per_req_reg_dump;
+	bool           enable_cdm_cmd_check;
 };
 
 /**

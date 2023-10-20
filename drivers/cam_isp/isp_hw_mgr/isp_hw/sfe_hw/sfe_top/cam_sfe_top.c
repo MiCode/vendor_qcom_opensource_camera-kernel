@@ -780,6 +780,11 @@ static int cam_sfe_top_get_base(
 	mem_base = CAM_SOC_GET_REG_MAP_CAM_BASE(
 		top_priv->common_data.soc_info,
 		SFE_CORE_BASE_IDX);
+	if (mem_base == -1) {
+		CAM_ERR(CAM_SFE, "failed to get mem_base, index: %d num_reg_map: %u",
+				SFE_CORE_BASE_IDX, top_priv->common_data.soc_info->num_reg_map);
+		return -EINVAL;
+	}
 
 	if (cdm_args->cdm_id == CAM_CDM_RT) {
 		if (!soc_private->rt_wrapper_base) {

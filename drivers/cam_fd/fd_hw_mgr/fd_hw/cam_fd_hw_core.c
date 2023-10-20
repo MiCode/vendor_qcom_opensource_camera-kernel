@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_fd_hw_core.h"
@@ -367,6 +367,13 @@ static int cam_fd_hw_util_processcmd_prestart(struct cam_hw_info *fd_hw,
 	mem_base = CAM_SOC_GET_REG_MAP_CAM_BASE(soc_info,
 		((struct cam_fd_soc_private *)soc_info->soc_private)->
 		regbase_index[CAM_FD_REG_CORE]);
+
+	if (mem_base == -1) {
+		CAM_ERR(CAM_FD, "failed to get mem_base, index: %d num_reg_map: %u",
+			((struct cam_fd_soc_private *)soc_info->soc_private)->
+			regbase_index[CAM_FD_REG_CORE], soc_info->num_reg_map);
+		return -EINVAL;
+	}
 
 	ctx_hw_private->cdm_ops->cdm_write_changebase(cmd_buf_addr, mem_base);
 	cmd_buf_addr += size;

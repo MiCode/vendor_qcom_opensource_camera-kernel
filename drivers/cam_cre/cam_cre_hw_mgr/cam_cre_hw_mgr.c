@@ -210,9 +210,17 @@ static int cam_cre_mgr_process_cmd_io_buf_req(struct cam_cre_hw_mgr *hw_mgr,
 
 				/* Width for WE has to be updated in number of pixels */
 				if (acq_io_buf->direction == CAM_BUF_OUTPUT) {
-					/* PLAIN 128/8 = 16 Bytes per pixel */
-					plane_info->width =
-						io_cfg_ptr[j].planes[k].plane_stride/16;
+					if (plane_info->format == CAM_FORMAT_PLAIN16_10) {
+						plane_info->width =
+							io_cfg_ptr[j].planes[k].plane_stride/2;
+					} else if (plane_info->format == CAM_FORMAT_PLAIN128) {
+						/* PLAIN 128/8 = 16 Bytes per pixel */
+						plane_info->width =
+							io_cfg_ptr[j].planes[k].plane_stride/16;
+					} else {
+						plane_info->width =
+							io_cfg_ptr[j].planes[k].width;
+					}
 				} else {
 					/* FE width should be in bytes */
 					plane_info->width     =
@@ -402,10 +410,6 @@ static int cam_cre_mgr_remove_bw(struct cam_cre_hw_mgr *hw_mgr, int ctx_id)
 			ctx_data->clk_info.axi_path[i].mnoc_ab_bw;
 		hw_mgr_clk_info->axi_path[path_index].mnoc_ib_bw -=
 			ctx_data->clk_info.axi_path[i].mnoc_ib_bw;
-		hw_mgr_clk_info->axi_path[path_index].ddr_ab_bw -=
-			ctx_data->clk_info.axi_path[i].ddr_ab_bw;
-		hw_mgr_clk_info->axi_path[path_index].ddr_ib_bw -=
-			ctx_data->clk_info.axi_path[i].ddr_ib_bw;
 	}
 
 	rc = cam_cre_update_cpas_vote(hw_mgr, ctx_data);
@@ -474,10 +478,6 @@ static bool cam_cre_update_bw_v2(struct cam_cre_hw_mgr *hw_mgr,
 			ctx_data->clk_info.axi_path[i].mnoc_ab_bw;
 		hw_mgr_clk_info->axi_path[path_index].mnoc_ib_bw -=
 			ctx_data->clk_info.axi_path[i].mnoc_ib_bw;
-		hw_mgr_clk_info->axi_path[path_index].ddr_ab_bw -=
-			ctx_data->clk_info.axi_path[i].ddr_ab_bw;
-		hw_mgr_clk_info->axi_path[path_index].ddr_ib_bw -=
-			ctx_data->clk_info.axi_path[i].ddr_ib_bw;
 	}
 
 	ctx_data->clk_info.num_paths =
@@ -515,10 +515,6 @@ static bool cam_cre_update_bw_v2(struct cam_cre_hw_mgr *hw_mgr,
 			ctx_data->clk_info.axi_path[i].mnoc_ab_bw;
 		hw_mgr_clk_info->axi_path[path_index].mnoc_ib_bw +=
 			ctx_data->clk_info.axi_path[i].mnoc_ib_bw;
-		hw_mgr_clk_info->axi_path[path_index].ddr_ab_bw +=
-			ctx_data->clk_info.axi_path[i].ddr_ab_bw;
-		hw_mgr_clk_info->axi_path[path_index].ddr_ib_bw +=
-			ctx_data->clk_info.axi_path[i].ddr_ib_bw;
 		CAM_DBG(CAM_CRE,
 			"Consolidate Path Vote : Dev[%s] i[%d] path_idx[%d] : [%s %s] [%lld %lld]",
 			ctx_data->cre_acquire.dev_name,
@@ -1550,6 +1546,12 @@ static int cam_cre_validate_acquire_res_info(
 					cre_acquire->in_res[i].format);
 				return -EINVAL;
 		}
+
+		if (!cre_acquire->in_res[i].width || !cre_acquire->in_res[i].height) {
+			CAM_ERR(CAM_CRE, "Invalid width %d height %d for in res %d",
+				cre_acquire->in_res[i].width, cre_acquire->in_res[i].height, i);
+			return -EINVAL;
+		}
 	}
 
 	for (i = 0; i < cre_acquire->num_out_res; i++) {
@@ -1794,8 +1796,6 @@ static int cam_cre_mgr_acquire_hw(void *hw_priv, void *hw_acquire_args)
 			hw_mgr->clk_info.axi_path[i].camnoc_bw = 0;
 			hw_mgr->clk_info.axi_path[i].mnoc_ab_bw = 0;
 			hw_mgr->clk_info.axi_path[i].mnoc_ib_bw = 0;
-			hw_mgr->clk_info.axi_path[i].ddr_ab_bw = 0;
-			hw_mgr->clk_info.axi_path[i].ddr_ib_bw = 0;
 		}
 	}
 
@@ -1843,8 +1843,6 @@ static int cam_cre_mgr_acquire_hw(void *hw_priv, void *hw_acquire_args)
 		bw_update->axi_vote.axi_path[0].camnoc_bw = 600000000;
 		bw_update->axi_vote.axi_path[0].mnoc_ab_bw = 600000000;
 		bw_update->axi_vote.axi_path[0].mnoc_ib_bw = 600000000;
-		bw_update->axi_vote.axi_path[0].ddr_ab_bw = 600000000;
-		bw_update->axi_vote.axi_path[0].ddr_ib_bw = 600000000;
 		bw_update->axi_vote.axi_path[0].transac_type =
 			CAM_AXI_TRANSACTION_WRITE;
 		bw_update->axi_vote.axi_path[0].path_data_type =
@@ -2106,20 +2104,20 @@ static int cam_cre_packet_generic_blob_handler(void *user_data,
 
 		clk_info = &ctx_data->req_list[index]->clk_info;
 		clk_info_v2 = &ctx_data->req_list[index]->clk_info_v2;
-		clk_info_v2.budget_ns = soc_req->budget_ns;
-		clk_info_v2.frame_cycles = soc_req->frame_cycles;
-		clk_info_v2.rt_flag = soc_req->rt_flag;
-		clk_info_v2.num_paths = soc_req->num_paths;
+		clk_info_v2->budget_ns = soc_req->budget_ns;
+		clk_info_v2->frame_cycles = soc_req->frame_cycles;
+		clk_info_v2->rt_flag = soc_req->rt_flag;
+		clk_info_v2->num_paths = soc_req->num_paths;
 
 		for (i = 0; i < soc_req->num_paths; i++) {
-			clk_info_v2.axi_path[i].usage_data = soc_req->axi_path[i].usage_data;
-			clk_info_v2.axi_path[i].transac_type = soc_req->axi_path[i].transac_type;
-			clk_info_v2.axi_path[i].path_data_type =
+			clk_info_v2->axi_path[i].usage_data = soc_req->axi_path[i].usage_data;
+			clk_info_v2->axi_path[i].transac_type = soc_req->axi_path[i].transac_type;
+			clk_info_v2->axi_path[i].path_data_type =
 				soc_req->axi_path[i].path_data_type;
-			clk_info_v2.axi_path[i].vote_level = 0;
-			clk_info_v2.axi_path[i].camnoc_bw = soc_req->axi_path[i].camnoc_bw;
-			clk_info_v2.axi_path[i].mnoc_ab_bw = soc_req->axi_path[i].mnoc_ab_bw;
-			clk_info_v2.axi_path[i].mnoc_ib_bw = soc_req->axi_path[i].mnoc_ib_bw;
+			clk_info_v2->axi_path[i].vote_level = 0;
+			clk_info_v2->axi_path[i].camnoc_bw = soc_req->axi_path[i].camnoc_bw;
+			clk_info_v2->axi_path[i].mnoc_ab_bw = soc_req->axi_path[i].mnoc_ab_bw;
+			clk_info_v2->axi_path[i].mnoc_ib_bw = soc_req->axi_path[i].mnoc_ib_bw;
 		}
 
 		/* Use v1 structure for clk fields */
@@ -2157,6 +2155,10 @@ static int cam_cre_process_generic_cmd_buffer(
 		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
 
 	for (i = 0; i < packet->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		if (!cmd_desc[i].length)
 			continue;
 
@@ -2288,7 +2290,6 @@ static int cam_cre_mgr_prepare_hw_update(void *hw_priv,
 
 	prepare_args->num_hw_update_entries = 1;
 	prepare_args->priv = ctx_data->req_list[request_idx];
-	cre_req->hang_data.packet = packet;
 	ktime_get_boottime_ts64(&ts);
 	ctx_data->last_req_time = (uint64_t)((ts.tv_sec * 1000000000) +
 		ts.tv_nsec);
@@ -2413,6 +2414,7 @@ config_err:
 static void cam_cre_mgr_dump_pf_data(struct cam_cre_hw_mgr  *hw_mgr,
 	struct cam_hw_cmd_pf_args *pf_cmd_args)
 {
+	int rc = 0;
 	struct cam_packet          *packet;
 	struct cam_hw_dump_pf_args *pf_args;
 	size_t                      len;
