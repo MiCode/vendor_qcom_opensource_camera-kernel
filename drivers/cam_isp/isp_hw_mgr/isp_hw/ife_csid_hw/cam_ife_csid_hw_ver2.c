@@ -8217,6 +8217,8 @@ int cam_ife_csid_ver2_irq_line_test(void *hw_priv)
 	rc = cam_irq_controller_test_irq_line(
 		csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 		"CSID:%d", csid_hw->hw_intf->hw_idx);
+	if (rc)
+		CAM_ERR(CAM_ISP, "CSID[%u] IRQ line test failed", csid_hw->hw_intf->hw_idx);
 
 	cam_ife_csid_disable_soc_resources(soc_info);
 	return rc;

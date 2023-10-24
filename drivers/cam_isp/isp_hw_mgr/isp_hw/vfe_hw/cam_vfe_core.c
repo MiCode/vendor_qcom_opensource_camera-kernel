@@ -595,7 +595,7 @@ int cam_vfe_test_irq_line(void *hw_priv)
 {
 	struct cam_hw_info *vfe_hw = hw_priv;
 	void *vfe_irq_ctrl;
-	int rc;
+	int rc = 0, local_ret;
 
 	if (!hw_priv) {
 		CAM_ERR(CAM_ISP, "invalid argument");
@@ -603,19 +603,24 @@ int cam_vfe_test_irq_line(void *hw_priv)
 	}
 
 	vfe_irq_ctrl = ((struct cam_vfe_hw_core_info *)vfe_hw->core_info)->vfe_irq_controller;
-	rc = cam_vfe_init_hw(vfe_hw, NULL, 0);
-	if (rc) {
+	local_ret = cam_vfe_init_hw(vfe_hw, NULL, 0);
+	if (local_ret) {
 		CAM_ERR(CAM_ISP, "VFE:%d failed to init hw", vfe_hw->soc_info.index);
-		return rc;
+		return local_ret;
 	}
 
-	rc = cam_irq_controller_test_irq_line(vfe_irq_ctrl, "VFE:%d", vfe_hw->soc_info.index);
-	if (rc)
+	local_ret = cam_irq_controller_test_irq_line(vfe_irq_ctrl, "VFE:%d",
+		vfe_hw->soc_info.index);
+	if (local_ret) {
 		CAM_ERR(CAM_ISP, "VFE:%d IRQ line test failed", vfe_hw->soc_info.index);
+		rc = local_ret;
+	}
 
-	rc = cam_vfe_deinit_hw(vfe_hw, NULL, 0);
-	if (rc)
+	local_ret = cam_vfe_deinit_hw(vfe_hw, NULL, 0);
+	if (local_ret) {
 		CAM_ERR(CAM_ISP, "VFE:%d failed to deinit hw", vfe_hw->soc_info.index);
+		return local_ret;
+	}
 
 	return rc;
 }

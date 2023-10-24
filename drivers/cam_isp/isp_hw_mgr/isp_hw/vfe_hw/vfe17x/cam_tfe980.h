@@ -377,7 +377,7 @@ static struct cam_irq_register_set tfe980_top_irq_reg_set = {
 	.clear_reg_offset  = 0x00000084,
 	.status_reg_offset = 0x00000088,
 	.set_reg_offset    = 0x0000008C,
-	.test_set_val      = BIT(1),
+	.test_set_val      = BIT(0),
 	.test_sub_val      = BIT(0),
 };
 
