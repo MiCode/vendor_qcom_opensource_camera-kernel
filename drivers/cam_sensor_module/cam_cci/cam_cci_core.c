@@ -1189,7 +1189,7 @@ read_again:
 
 		total_read_words += read_words;
 		while (read_words > 0) {
-			val = cam_io_r_mb(base +
+			val = cam_io_r(base +
 				CCI_I2C_M0_READ_DATA_ADDR + master * 0x100);
 			for (i = 0; (i < 4) &&
 				(index < read_cfg->num_byte); i++) {
@@ -1486,11 +1486,11 @@ static int32_t cam_cci_read(struct v4l2_subdev *sd,
 		goto rel_mutex_q;
 	}
 	index = 0;
-	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d_Q%d index: %d, num_type: %d",
+	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d_Q%d index: %d, num_bytes: %d",
 		cci_dev->soc_info.index, master, queue, index, read_cfg->num_byte);
 	first_byte = 0;
 	while (read_words > 0) {
-		val = cam_io_r_mb(base +
+		val = cam_io_r(base +
 			CCI_I2C_M0_READ_DATA_ADDR + master * 0x100);
 		CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d_Q%d read val: 0x%x",
 			cci_dev->soc_info.index, master, queue, val);
