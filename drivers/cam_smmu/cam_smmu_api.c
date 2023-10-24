@@ -1191,19 +1191,25 @@ static int cam_smmu_attach_device(int idx)
 	return rc;
 }
 
-static inline void cam_smmu_update_multiregion_dev_id(
+static inline int cam_smmu_update_multiregion_dev_id(
 	struct cam_context_bank_info *cb_info, char *name,
-	int *hdl)
+	int dev_cnt, int *hdl)
 {
 	int k;
 
 	for (k = 0; k < cb_info->num_multi_regions; k++) {
 		if (!strcmp(cb_info->multi_region_clients[k], name)) {
-			*hdl |= ((k + 1) << MULTI_CLIENT_REGION_SHIFT);
+			*hdl |= (dev_cnt << MULTI_CLIENT_REGION_SHIFT);
 			CAM_DBG(CAM_SMMU, "%s got shared multi region handle 0x%x",
 				name, *hdl);
+			return 0;
 		}
 	}
+
+	CAM_ERR(CAM_SMMU, "%s not found as client in bank: %s",
+		name, cb_info->name[0]);
+
+	return -EINVAL;
 }
 static int cam_smmu_create_add_handle_in_table(char *name,
 	int *hdl)
@@ -1236,8 +1242,7 @@ static int cam_smmu_create_add_handle_in_table(char *name,
 					iommu_cb_set.cb_info[i].device_count++;
 
 				*hdl = handle;
-				CAM_DBG(CAM_SMMU, "%s creates handle 0x%x",
-					name, handle);
+				CAM_DBG(CAM_SMMU, "%s creates handle 0x%x", name, handle);
 				mutex_unlock(&iommu_cb_set.cb_info[i].lock);
 				rc = 0;
 				goto end;
@@ -1252,18 +1257,16 @@ static int cam_smmu_create_add_handle_in_table(char *name,
 				}
 
 				if (iommu_cb_set.cb_info[i].is_mul_client) {
-					iommu_cb_set.cb_info[i].device_count++;
 					*hdl = iommu_cb_set.cb_info[i].handle;
-					if (iommu_cb_set.cb_info[i].num_multi_regions) {
-						cam_smmu_update_multiregion_dev_id(
-							&iommu_cb_set.cb_info[i], name, hdl);
-					}
-					mutex_unlock(
-						&iommu_cb_set.cb_info[i].lock);
-					CAM_DBG(CAM_SMMU,
-						"%s already got handle 0x%x cb_handle 0x%x",
-						name, *hdl, iommu_cb_set.cb_info[i].handle);
-					return 0;
+					rc = 0;
+					if (iommu_cb_set.cb_info[i].num_multi_regions)
+						rc = cam_smmu_update_multiregion_dev_id(
+							&iommu_cb_set.cb_info[i], name,
+							iommu_cb_set.cb_info[i].device_count, hdl);
+
+					iommu_cb_set.cb_info[i].device_count++;
+					mutex_unlock(&iommu_cb_set.cb_info[i].lock);
+					goto end;
 				}
 
 				CAM_ERR(CAM_SMMU,
@@ -5217,6 +5220,11 @@ static int cam_populate_smmu_context_banks(struct device *dev,
 
 	cb->num_multi_regions = of_property_count_strings(dev->of_node,
 		"multiple-same-region-clients");
+
+	/* Optional property is not set for this bank */
+	if (cb->num_multi_regions < 0)
+		cb->num_multi_regions = 0;
+
 	if (cb->num_multi_regions > CAM_SMMU_MULTI_REGION_MAX) {
 		CAM_ERR(CAM_CDM, "Invalid count of multi region clients = %d",
 			cb->num_multi_regions);

@@ -8291,6 +8291,7 @@ void cam_icp_hw_mgr_deinit(int device_idx)
 
 	cam_icp_mgr_unregister_hfi_client(hw_mgr);
 	cam_icp_mgr_destroy_wq(hw_mgr);
+	cam_smmu_destroy_handle(hw_mgr->iommu_hdl);
 	cam_icp_mgr_free_hw_devs(hw_mgr);
 	mutex_destroy(&hw_mgr->hw_mgr_mutex);
 	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
