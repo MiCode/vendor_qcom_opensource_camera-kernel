@@ -26,6 +26,10 @@
 
 #define CAM_VFE_PERF_CNT_MAX          8
 
+/* Common capabilities for VFE */
+#define CAM_VFE_COMMON_CAP_SKIP_CORE_CFG BIT(0)
+#define CAM_VFE_COMMON_CAP_CORE_MUX_CFG  BIT(1)
+
 enum cam_isp_hw_vfe_in_mux {
 	CAM_ISP_HW_VFE_IN_CAMIF       = 0,
 	CAM_ISP_HW_VFE_IN_TESTGEN     = 1,

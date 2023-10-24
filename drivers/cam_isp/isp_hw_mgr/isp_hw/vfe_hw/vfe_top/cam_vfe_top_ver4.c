@@ -1976,7 +1976,8 @@ static int cam_vfe_resource_start(
 	cam_io_w_mb(rsrc_data->reg_data->top_debug_cfg_en, rsrc_data->mem_base +
 		rsrc_data->common_reg->top_debug_cfg);
 
-	if (rsrc_data->is_lite || !rsrc_data->is_pixel_path)
+	if (rsrc_data->is_lite || !rsrc_data->is_pixel_path ||
+		(rsrc_data->common_reg->capabilities & CAM_VFE_COMMON_CAP_SKIP_CORE_CFG))
 		goto skip_core_cfg;
 
 	/* IFE top cfg programmed via CDM */
@@ -2009,6 +2010,12 @@ static int cam_vfe_resource_start(
 		rsrc_data->vbi_value, epoch_factor, val);
 
 skip_core_cfg:
+
+	if (rsrc_data->common_reg->capabilities & CAM_VFE_COMMON_CAP_CORE_MUX_CFG)
+		CAM_DBG(CAM_ISP, "VFE:%u TOP core_mux_cfg: 0x%x",
+			vfe_res->hw_intf->hw_idx,
+			cam_io_r_mb(rsrc_data->mem_base + rsrc_data->common_reg->core_mux_cfg));
+
 	vfe_res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
 
 	/* reset sof count */
@@ -2119,7 +2126,8 @@ static int cam_vfe_resource_stop(
 	vfe_priv = (struct cam_vfe_mux_ver4_data *)vfe_res->res_priv;
 	top_priv = vfe_priv->top_priv;
 
-	if (vfe_priv->is_lite || !vfe_priv->is_pixel_path)
+	if (vfe_priv->is_lite || !vfe_priv->is_pixel_path ||
+		(vfe_priv->common_reg->capabilities & CAM_VFE_COMMON_CAP_SKIP_CORE_CFG))
 		goto skip_core_decfg;
 
 	if ((vfe_priv->dsp_mode >= CAM_ISP_DSP_MODE_ONE_WAY) &&

@@ -94,6 +94,7 @@ struct cam_vfe_top_ver4_reg_offset_common {
 	uint32_t num_top_debug_reg;
 	uint32_t *top_debug;
 	uint32_t frame_timing_irq_reg_idx;
+	uint32_t capabilities;
 };
 
 struct cam_vfe_top_common_cfg {

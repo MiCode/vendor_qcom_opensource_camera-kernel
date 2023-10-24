@@ -549,6 +549,8 @@ static struct cam_vfe_top_ver4_reg_offset_common tfe980_top_common_reg = {
 	.num_top_debug_reg        = 35,
 	.top_debug = tfe980_top_debug_reg,
 	.frame_timing_irq_reg_idx = CAM_IFE_IRQ_CAMIF_REG_STATUS0,
+	.capabilities = CAM_VFE_COMMON_CAP_SKIP_CORE_CFG |
+			CAM_VFE_COMMON_CAP_CORE_MUX_CFG,
 };
 
 static struct cam_vfe_ver4_path_reg_data tfe980_ipp_common_reg_data = {
