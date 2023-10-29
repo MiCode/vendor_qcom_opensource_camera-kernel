@@ -3441,7 +3441,10 @@ static void *cam_cpas_user_dump_state_monitor_array_info(
 	*addr++ = monitor->applied_camnoc_clk.hw_client[2].low,
 	*addr++ = monitor->applied_ahb_level;
 	*addr++ = cpas_core->num_valid_camnoc;
-	*addr++ = soc_private->smart_qos_info->num_rt_wr_nius;
+
+	if (soc_private->enable_smart_qos)
+		*addr++ = soc_private->smart_qos_info->num_rt_wr_nius;
+
 	*addr++ = num_vcds;
 	*addr++ = cpas_core->num_axi_ports;
 
@@ -3488,14 +3491,16 @@ static void *cam_cpas_user_dump_state_monitor_array_info(
 		}
 	}
 
-	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
-		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
-		dst = (uint8_t *)addr;
-		hdr = (struct cam_common_hw_dump_header *)dst;
-		scnprintf(hdr->tag, CAM_COMMON_HW_DUMP_TAG_MAX_LEN, "%s:", niu_node->node_name);
-		addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
-		*addr++ = monitor->rt_wr_niu_pri_lut_high[i];
-		*addr++ = monitor->rt_wr_niu_pri_lut_low[i];
+	if (soc_private->enable_smart_qos) {
+		for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
+			niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
+			dst = (uint8_t *)addr;
+			hdr = (struct cam_common_hw_dump_header *)dst;
+			scnprintf(hdr->tag, CAM_COMMON_HW_DUMP_TAG_MAX_LEN, "%s:", niu_node->node_name);
+			addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
+			*addr++ = monitor->rt_wr_niu_pri_lut_high[i];
+			*addr++ = monitor->rt_wr_niu_pri_lut_low[i];
+		}
 	}
 
 	vcd_reg_debug_info = &monitor->vcd_reg_debug_info;
@@ -3586,9 +3591,11 @@ static int cam_cpas_dump_state_monitor_array_info(
 				min_len += sizeof(struct cam_common_hw_dump_header);
 		}
 
-		for (j = 0; j < soc_private->smart_qos_info->num_rt_wr_nius; j++)
-			min_len += sizeof(struct cam_common_hw_dump_header) +
-				CAM_CPAS_DUMP_NUM_WORDS_RT_WR_NIUS * sizeof(uint64_t);
+		if (soc_private->enable_smart_qos) {
+			for (j = 0; j < soc_private->smart_qos_info->num_rt_wr_nius; j++)
+				min_len += sizeof(struct cam_common_hw_dump_header) +
+					CAM_CPAS_DUMP_NUM_WORDS_RT_WR_NIUS * sizeof(uint64_t);
+		}
 
 		for (j = 0; j < CAM_CPAS_MAX_CESTA_VCD_NUM; j++)
 			min_len += CAM_CPAS_DUMP_NUM_WORDS_VCD_CURR_LVL * sizeof(uint64_t);
