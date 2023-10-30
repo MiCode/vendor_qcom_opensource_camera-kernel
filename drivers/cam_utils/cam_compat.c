@@ -118,7 +118,7 @@ int cam_smmu_fetch_csf_version(struct cam_csf_version *csf_version)
 	csf_version->arch_ver = 3;
 	csf_version->max_ver = 0;
 	csf_version->min_ver = 0;
-#elif defined CONFIG_DOMAIN_ID_SECURE_CAMERA
+#elif defined CONFIG_SECURE_CAMERA_25
 	struct csf_version csf_ver;
 	int rc;
 
@@ -144,7 +144,7 @@ int cam_smmu_fetch_csf_version(struct cam_csf_version *csf_version)
 
 unsigned long cam_update_dma_map_attributes(unsigned long attrs)
 {
-#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+#ifdef CONFIG_SECURE_CAMERA_25
 	attrs |= DMA_ATTR_QTI_SMMU_PROXY_MAP;
 #endif
 	return attrs;
@@ -152,7 +152,7 @@ unsigned long cam_update_dma_map_attributes(unsigned long attrs)
 
 size_t cam_align_dma_buf_size(size_t len)
 {
-#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
+#ifdef CONFIG_SECURE_CAMERA_25
 	len = ALIGN(len, SMMU_PROXY_MEM_ALIGNMENT);
 #endif
 	return len;

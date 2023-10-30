@@ -22,7 +22,7 @@ MMRM_BOARDS := taro parrot kalama pineapple
 SYNX_VENDOR_BOARDS := pineapple
 
 # List of board platforms for which SMCINVOKE_DLKM driver API should be enabled
-SMCINVOKE_DLKM_BOARDS := pineapple
+SMCINVOKE_DLKM_BOARDS := pineapple sun
 
 # List of board platforms for which SMMU_PROXY_DLKM driver API should be enabled
 SMMU_PROXY_DLKM_BOARDS := pineapple

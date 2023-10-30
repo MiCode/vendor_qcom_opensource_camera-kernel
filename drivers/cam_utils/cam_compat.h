@@ -27,7 +27,7 @@
 #include "cam_cpastop_hw.h"
 #include "cam_smmu_api.h"
 
-#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
+#ifdef CONFIG_SECURE_CAMERA_25
 #include <smmu-proxy/linux/qti-smmu-proxy.h>
 #endif
 
