@@ -2663,43 +2663,11 @@ static int cam_icp_mgr_process_ipebps_indirect_ack_msg(uint32_t *msg_ptr)
 	return rc;
 }
 
-static int cam_icp_mgr_process_ofe_indirect_ack_msg(uint32_t *msg_ptr)
+static int cam_icp_mgr_process_ofe_direct_ack_msg(uint32_t *msg_ptr)
 {
 	int rc = 0;
 
 	switch (msg_ptr[ICP_PACKET_OPCODE]) {
-	case HFI_OFE_CMD_OPCODE_CONFIG_IO: {
-		struct hfi_msg_dev_async_ack *ioconfig_ack =
-			(struct hfi_msg_dev_async_ack *)msg_ptr;
-		struct hfi_msg_ofe_config *ofe_config_ack =
-			(struct hfi_msg_ofe_config *)(ioconfig_ack->msg_data);
-		struct cam_icp_hw_ctx_data *ctx_data = NULL;
-
-		if (ofe_config_ack->rc) {
-			CAM_ERR(CAM_ICP, "rc : %u, error type: %u error: [%s] opcode :%u",
-				ofe_config_ack->rc, ioconfig_ack->err_type,
-				cam_icp_error_handle_id_to_type(ioconfig_ack->err_type),
-				ioconfig_ack->opcode);
-			return -EIO;
-		}
-		ctx_data = (struct cam_icp_hw_ctx_data *)
-			U64_TO_PTR(ioconfig_ack->user_data1);
-		if (!ctx_data) {
-			CAM_ERR(CAM_ICP, "wrong ctx data from OFE config io response");
-			return -EINVAL;
-		}
-		CAM_DBG(CAM_ICP, "%s: received OFE config io response",
-			ctx_data->ctx_id_string);
-
-		complete(&ctx_data->wait_complete);
-		break;
-	}
-	case HFI_OFE_CMD_OPCODE_FRAME_PROCESS:
-		CAM_DBG(CAM_ICP, "received OFE_FRAME_PROCESS:");
-		rc = cam_icp_mgr_process_msg_frame_process(msg_ptr);
-		if (rc)
-			return rc;
-		break;
 	case HFI_OFE_CMD_OPCODE_ABORT: {
 		struct hfi_msg_dev_async_ack *ioconfig_ack = NULL;
 		struct cam_icp_hw_ctx_data *ctx_data = NULL;
@@ -2744,6 +2712,52 @@ static int cam_icp_mgr_process_ofe_indirect_ack_msg(uint32_t *msg_ptr)
 			ctx_data->state);
 		break;
 	}
+	default:
+		CAM_ERR(CAM_ICP, "Invalid opcode : %u",
+			msg_ptr[ICP_PACKET_OPCODE]);
+		return -EINVAL;
+	}
+
+	return rc;
+}
+
+static int cam_icp_mgr_process_ofe_indirect_ack_msg(uint32_t *msg_ptr)
+{
+	int rc = 0;
+
+	switch (msg_ptr[ICP_PACKET_OPCODE]) {
+	case HFI_OFE_CMD_OPCODE_CONFIG_IO: {
+		struct hfi_msg_dev_async_ack *ioconfig_ack =
+			(struct hfi_msg_dev_async_ack *)msg_ptr;
+		struct hfi_msg_ofe_config *ofe_config_ack =
+			(struct hfi_msg_ofe_config *)(ioconfig_ack->msg_data);
+		struct cam_icp_hw_ctx_data *ctx_data = NULL;
+
+		if (ofe_config_ack->rc) {
+			CAM_ERR(CAM_ICP, "rc : %u, error type: %u error: [%s] opcode :%u",
+				ofe_config_ack->rc, ioconfig_ack->err_type,
+				cam_icp_error_handle_id_to_type(ioconfig_ack->err_type),
+				ioconfig_ack->opcode);
+			return -EIO;
+		}
+		ctx_data = (struct cam_icp_hw_ctx_data *)
+			U64_TO_PTR(ioconfig_ack->user_data1);
+		if (!ctx_data) {
+			CAM_ERR(CAM_ICP, "wrong ctx data from OFE config io response");
+			return -EINVAL;
+		}
+		CAM_DBG(CAM_ICP, "%s: received OFE config io response",
+			ctx_data->ctx_id_string);
+
+		complete(&ctx_data->wait_complete);
+		break;
+	}
+	case HFI_OFE_CMD_OPCODE_FRAME_PROCESS:
+		CAM_DBG(CAM_ICP, "received OFE_FRAME_PROCESS:");
+		rc = cam_icp_mgr_process_msg_frame_process(msg_ptr);
+		if (rc)
+			return rc;
+		break;
 	default:
 		CAM_ERR(CAM_ICP, "Invalid opcode : %u",
 			msg_ptr[ICP_PACKET_OPCODE]);
@@ -3031,8 +3045,16 @@ static int cam_icp_process_msg_pkt_type(
 			(struct hfi_msg_dev_async_ack *)msg_ptr)->size;
 		break;
 
-	case HFI_MSG_OFE_ASYNC_COMMAND_ACK:
-		CAM_DBG(CAM_ICP, "[%s] received OFE ASYNC COMMAND ACK",
+	case HFI_MSG_OFE_ASYNC_COMMAND_DIRECT_ACK:
+		CAM_DBG(CAM_ICP, "[%s] received OFE ASYNC DIRECT COMMAND ACK",
+			hw_mgr->hw_mgr_name);
+		rc = cam_icp_mgr_process_ofe_direct_ack_msg(msg_ptr);
+		size_processed = (
+			(struct hfi_msg_dev_async_ack *)msg_ptr)->size;
+		break;
+
+	case HFI_MSG_OFE_ASYNC_COMMAND_INDIRECT_ACK:
+		CAM_DBG(CAM_ICP, "[%s] received OFE ASYNC INDIRECT COMMAND ACK",
 			hw_mgr->hw_mgr_name);
 		rc = cam_icp_mgr_process_ofe_indirect_ack_msg(msg_ptr);
 		size_processed = (
@@ -4154,7 +4176,9 @@ static int cam_icp_mgr_populate_abort_cmd(struct cam_icp_hw_ctx_data *ctx_data,
 		opcode = HFI_IPEBPS_CMD_OPCODE_IPE_ABORT;
 		break;
 	case CAM_ICP_DEV_OFE:
-		pkt_type = HFI_CMD_OFE_ASYNC_COMMAND;
+		pkt_type = HFI_CMD_OFE_ASYNC_COMMAND_DIRECT;
+		packet_size = packet_size + sizeof(struct hfi_cmd_abort) -
+			sizeof(((struct hfi_cmd_dev_async *)0)->payload.direct);
 		opcode = HFI_OFE_CMD_OPCODE_ABORT;
 		break;
 	default:
@@ -4281,7 +4305,9 @@ static int cam_icp_mgr_destroy_handle(
 		opcode = HFI_IPEBPS_CMD_OPCODE_IPE_DESTROY;
 		break;
 	case CAM_ICP_DEV_OFE:
-		pkt_type = HFI_CMD_OFE_ASYNC_COMMAND;
+		pkt_type = HFI_CMD_OFE_ASYNC_COMMAND_DIRECT;
+		packet_size = packet_size + sizeof(struct hfi_cmd_destroy) -
+			sizeof(((struct hfi_cmd_dev_async *)0)->payload.direct);
 		opcode = HFI_OFE_CMD_OPCODE_DESTROY;
 		break;
 	default:
@@ -5124,7 +5150,7 @@ static int cam_icp_mgr_send_config_io(struct cam_icp_hw_ctx_data *ctx_data,
 		break;
 	case CAM_ICP_DEV_OFE:
 		ioconfig_cmd.opcode = HFI_OFE_CMD_OPCODE_CONFIG_IO;
-		ioconfig_cmd.pkt_type = HFI_CMD_OFE_ASYNC_COMMAND;
+		ioconfig_cmd.pkt_type = HFI_CMD_OFE_ASYNC_COMMAND_INDIRECT;
 		break;
 	default:
 		CAM_ERR(CAM_ICP, "%s Invalid hw dev type not supported: %u",
@@ -5316,7 +5342,7 @@ static int cam_icp_mgr_prepare_frame_process_cmd(
 		break;
 	case CAM_ICP_DEV_OFE:
 		hfi_cmd->opcode = HFI_OFE_CMD_OPCODE_FRAME_PROCESS;
-		hfi_cmd->pkt_type = HFI_CMD_OFE_ASYNC_COMMAND;
+		hfi_cmd->pkt_type = HFI_CMD_OFE_ASYNC_COMMAND_INDIRECT;
 		break;
 	default:
 		CAM_ERR(CAM_ICP, "%s: Invalid hw dev type not supported: %u",
@@ -6021,7 +6047,7 @@ static int cam_icp_mgr_process_cfg_io_cmd(
 		break;
 	case CAM_ICP_DEV_OFE:
 		ioconfig_cmd->opcode = HFI_OFE_CMD_OPCODE_CONFIG_IO;
-		ioconfig_cmd->pkt_type = HFI_CMD_OFE_ASYNC_COMMAND;
+		ioconfig_cmd->pkt_type = HFI_CMD_OFE_ASYNC_COMMAND_INDIRECT;
 		break;
 	default:
 		CAM_ERR(CAM_ICP, "%s: Invalid device type %u not supported",
