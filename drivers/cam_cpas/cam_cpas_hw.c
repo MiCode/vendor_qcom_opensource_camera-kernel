@@ -2286,7 +2286,7 @@ unlock_client:
 
 static int cam_cpas_util_create_vote_all_paths(
 	struct cam_cpas_client *cpas_client,
-	struct cam_axi_vote *axi_vote)
+	struct cam_axi_vote *axi_vote, bool is_start_vote)
 {
 	int i, j;
 	uint64_t camnoc_bw, mnoc_ab_bw, mnoc_ib_bw;
@@ -2316,6 +2316,9 @@ static int cam_cpas_util_create_vote_all_paths(
 					axi_path->vote_level = CAM_CPAS_VOTE_LEVEL_LOW;
 
 				axi_vote->num_paths++;
+
+				if (is_start_vote)
+					return 0;
 			}
 		}
 	}
@@ -2416,21 +2419,17 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 	if (rc)
 		goto error;
 
-	cam_cpas_dump_axi_vote_info(cpas_client, "CPAS Start Vote",
-		&axi_vote);
+	cam_cpas_dump_axi_vote_info(cpas_client, "CPAS Start Vote", &axi_vote);
 
-	/*
+	 /*
 	 * If client has indicated start bw to be applied on all paths
 	 * of client, apply that otherwise apply whatever the client supplies
 	 * for specific paths
 	 */
-	if (axi_vote.axi_path[0].path_data_type ==
-		CAM_CPAS_API_PATH_DATA_STD_START) {
-		rc = cam_cpas_util_create_vote_all_paths(cpas_client,
-			&axi_vote);
-	} else {
+	if (axi_vote.axi_path[0].path_data_type == CAM_CPAS_API_PATH_DATA_STD_START)
+		rc = cam_cpas_util_create_vote_all_paths(cpas_client, &axi_vote, true);
+	else
 		rc = cam_cpas_util_translate_client_paths(&axi_vote);
-	}
 
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "Unable to create or translate paths rc: %d",
@@ -2649,7 +2648,7 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		goto done;
 	}
 
-	rc = cam_cpas_util_create_vote_all_paths(cpas_client, &axi_vote);
+	rc = cam_cpas_util_create_vote_all_paths(cpas_client, &axi_vote, false);
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "Unable to create per path votes rc: %d", rc);
 		goto done;

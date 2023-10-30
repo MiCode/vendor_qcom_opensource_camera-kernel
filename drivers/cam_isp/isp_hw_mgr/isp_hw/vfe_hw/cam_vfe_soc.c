@@ -269,12 +269,10 @@ int cam_vfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 	ahb_vote.type       = CAM_VOTE_ABSOLUTE;
 	ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	axi_vote.num_paths = 1;
-	if (soc_private->is_ife_lite) {
-		axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_IFE_RDI1;
-	} else {
-		axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_IFE_VID;
+
+	axi_vote.axi_path[0].path_data_type = CAM_CPAS_API_PATH_DATA_STD_START;
+	if (!soc_private->is_ife_lite)
 		axi_vote.axi_path[0].vote_level = CAM_CPAS_VOTE_LEVEL_LOW;
-	}
 
 	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_WRITE;
 	axi_vote.axi_path[0].camnoc_bw = CAM_CPAS_DEFAULT_RT_AXI_BW;
