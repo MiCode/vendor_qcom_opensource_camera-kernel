@@ -4407,10 +4407,8 @@ static int cam_ife_csid_ver2_mc_irq_subscribe(struct cam_ife_csid_ver2_hw  *csid
 	if (csid_hw->top_mc_irq_handle >= 1)
 		return 0;
 
-	tmp_mask = csid_reg->ipp_mc_reg->comp_sof_mask |
-		csid_reg->ipp_mc_reg->comp_eof_mask |
-		csid_reg->ipp_mc_reg->comp_rup_mask |
-		csid_reg->ipp_mc_reg->comp_epoch0_mask;
+	/* For multi context cases, we only need composite epoch and eof */
+	tmp_mask = csid_reg->ipp_mc_reg->comp_eof_mask | csid_reg->ipp_mc_reg->comp_epoch0_mask;
 
 	csid_hw->top_mc_irq_handle = cam_irq_controller_subscribe_irq(
 		csid_hw->top_irq_controller[top_index],
@@ -4436,7 +4434,7 @@ static int cam_ife_csid_ver2_mc_irq_subscribe(struct cam_ife_csid_ver2_hw  *csid
 static int cam_ife_csid_ver2_path_irq_subscribe(
 	struct cam_ife_csid_ver2_hw  *csid_hw,
 	struct cam_isp_resource_node *res,
-	uint32_t irq_mask, uint32_t err_irq_mask)
+	uint32_t dbg_frm_irq_mask, uint32_t err_irq_mask)
 {
 	uint32_t top_irq_mask = 0;
 	struct cam_ife_csid_ver2_path_cfg *path_cfg = res->res_priv;
@@ -4492,7 +4490,7 @@ static int cam_ife_csid_ver2_path_irq_subscribe(
 	path_cfg->irq_handle = cam_irq_controller_subscribe_irq(
 		csid_hw->path_irq_controller[res->res_id],
 		CAM_IRQ_PRIORITY_1,
-		&irq_mask,
+		&dbg_frm_irq_mask,
 		res,
 		cam_ife_csid_ver2_path_top_half,
 		cam_ife_csid_ver2_get_path_bh(res->res_id),
@@ -4667,14 +4665,12 @@ static int cam_ife_csid_ver2_program_ipp_path(
 	const struct cam_ife_csid_ver2_reg_info *csid_reg;
 	struct cam_hw_soc_info                   *soc_info;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg = NULL;
-	uint32_t  val = 0;
+	uint32_t start_mode_val = 0, err_irq_mask = 0, dbg_frm_irq_mask = 0;
 	void __iomem *mem_base;
 	struct cam_ife_csid_ver2_path_cfg *path_cfg;
-	uint32_t irq_mask = 0;
 
 	rc = cam_ife_csid_ver2_init_config_pxl_path(
 		csid_hw, res);
-
 	if (rc) {
 		CAM_ERR(CAM_ISP,
 			"CSID:%u %s path res type:%d res_id:%d %d",
@@ -4701,27 +4697,32 @@ static int cam_ife_csid_ver2_program_ipp_path(
 		cam_io_w_mb(path_cfg->epoch_cfg << path_reg->epoch0_shift_val,
 			mem_base + path_reg->epoch_irq_cfg_addr);
 
-		CAM_DBG(CAM_ISP, "CSID[%u] frame_cfg 0x%x epoch_cfg 0x%x",
-			csid_hw->hw_intf->hw_idx,
-			val, path_cfg->epoch_cfg);
+		CAM_DBG(CAM_ISP, "CSID[%u] epoch_cfg 0x%x",
+			csid_hw->hw_intf->hw_idx, path_cfg->epoch_cfg);
 	}
 
 	path_cfg->irq_reg_idx = cam_ife_csid_convert_res_to_irq_reg(res->res_id);
 
-	val = csid_hw->debug_info.path_mask;
+	dbg_frm_irq_mask = csid_hw->debug_info.path_mask;
 
-	if (!(csid_reg->path_reg[res->res_id]->capabilities & CAM_IFE_CSID_CAP_MULTI_CTXT)) {
-		if (path_cfg->sync_mode == CAM_ISP_HW_SYNC_NONE ||
-			path_cfg->sync_mode == CAM_ISP_HW_SYNC_MASTER) {
-			val |= path_reg->rup_irq_mask;
-			if (path_cfg->handle_camif_irq)
-				val |= path_reg->sof_irq_mask | path_reg->epoch0_irq_mask |
-				path_reg->eof_irq_mask;
-		}
+	if (!(csid_reg->path_reg[res->res_id]->capabilities & CAM_IFE_CSID_CAP_MULTI_CTXT) &&
+		(path_cfg->sync_mode == CAM_ISP_HW_SYNC_NONE ||
+			path_cfg->sync_mode == CAM_ISP_HW_SYNC_MASTER)) {
+		dbg_frm_irq_mask |= path_reg->rup_irq_mask;
+		if (path_cfg->handle_camif_irq)
+			dbg_frm_irq_mask |= (path_reg->sof_irq_mask | path_reg->epoch0_irq_mask |
+				path_reg->eof_irq_mask);
 	}
 
-	irq_mask = path_reg->fatal_err_mask | path_reg->non_fatal_err_mask;
+	/* For multi context cases, listen to leading exposure sof and rup done */
+	if ((res->res_id == CAM_IFE_PIX_PATH_RES_IPP) &&
+		(csid_reg->path_reg[res->res_id]->capabilities & CAM_IFE_CSID_CAP_MULTI_CTXT)) {
+		dbg_frm_irq_mask |= path_reg->rup_irq_mask;
+		if (path_cfg->handle_camif_irq)
+			dbg_frm_irq_mask |= path_reg->sof_irq_mask;
+	}
 
+	err_irq_mask = path_reg->fatal_err_mask | path_reg->non_fatal_err_mask;
 	if (path_cfg->discard_init_frames) {
 		rc = cam_ife_csid_ver2_subscribe_sof_for_discard(
 			path_cfg, csid_hw, res,
@@ -4731,31 +4732,27 @@ static int cam_ife_csid_ver2_program_ipp_path(
 			return rc;
 	}
 
-	rc = cam_ife_csid_ver2_path_irq_subscribe(csid_hw, res, val, irq_mask);
+	rc = cam_ife_csid_ver2_path_irq_subscribe(csid_hw, res, dbg_frm_irq_mask, err_irq_mask);
 	if (rc)
 		return rc;
 
-	val = path_reg->start_master_sel_val <<
-		path_reg->start_master_sel_shift;
+	start_mode_val = path_reg->start_master_sel_val << path_reg->start_master_sel_shift;
 
 	if (path_cfg->sync_mode == CAM_ISP_HW_SYNC_MASTER) {
 		/* Set start mode as master */
-		val |= path_reg->start_mode_master  <<
-			path_reg->start_mode_shift;
+		start_mode_val |= path_reg->start_mode_master << path_reg->start_mode_shift;
 	} else if (path_cfg->sync_mode == CAM_ISP_HW_SYNC_SLAVE) {
 		/* Set start mode as slave */
-		val |= path_reg->start_mode_slave <<
-			path_reg->start_mode_shift;
+		start_mode_val |= path_reg->start_mode_slave << path_reg->start_mode_shift;
 	} else {
 		/* Default is internal halt mode */
-		val = 0;
+		start_mode_val = 0;
 	}
 
-	cam_io_w_mb(val, mem_base + path_reg->ctrl_addr);
+	cam_io_w_mb(start_mode_val, mem_base + path_reg->ctrl_addr);
 
-	CAM_DBG(CAM_ISP, "CSID:%u Pix res: %d ctrl val: 0x%x",
-		csid_hw->hw_intf->hw_idx,
-		res->res_id, val);
+	CAM_DBG(CAM_ISP, "CSID:%u Pix res: %d ctrl val: 0x%x", csid_hw->hw_intf->hw_idx,
+		res->res_id, start_mode_val);
 
 	if (path_cfg->sync_mode == CAM_ISP_HW_SYNC_MASTER ||
 		path_cfg->sync_mode == CAM_ISP_HW_SYNC_NONE)
