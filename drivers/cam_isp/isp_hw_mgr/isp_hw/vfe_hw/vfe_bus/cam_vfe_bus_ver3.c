@@ -4697,6 +4697,41 @@ static int __cam_vfe_bus_ver3_process_cmd(void *priv,
 	return cam_vfe_bus_ver3_process_cmd(priv, cmd_type, cmd_args, arg_size);
 }
 
+static uint32_t cam_vfe_bus_ver3_get_last_consumed_addr(
+	struct cam_vfe_bus_ver3_priv *bus_priv,
+	uint32_t res_type)
+{
+	uint32_t                                  last_consumed_addr = 0;
+	struct cam_isp_resource_node             *rsrc_node = NULL;
+	struct cam_vfe_bus_ver3_vfe_out_data     *rsrc_data = NULL;
+	struct cam_vfe_bus_ver3_wm_resource_data *wm_rsrc_data = NULL;
+	enum cam_vfe_bus_ver3_vfe_out_type        res_id;
+	uint32_t                                  outmap_index =
+		CAM_VFE_BUS_VER3_VFE_OUT_MAX;
+
+	res_id = cam_vfe_bus_ver3_get_out_res_id_and_index(bus_priv,
+		res_type, &outmap_index);
+	if ((res_id >= CAM_VFE_BUS_VER3_VFE_OUT_MAX) ||
+		(outmap_index >= bus_priv->num_out)) {
+		CAM_WARN(CAM_ISP,
+			"target does not support req res id :0x%x outtype:%d index:%d",
+			res_type, res_id, outmap_index);
+		return 0;
+	}
+
+	rsrc_node = &bus_priv->vfe_out[outmap_index];
+	rsrc_data = rsrc_node->res_priv;
+	wm_rsrc_data = rsrc_data->wm_res[PLANE_Y].res_priv;
+	last_consumed_addr = cam_io_r_mb(
+		wm_rsrc_data->common_data->mem_base +
+		wm_rsrc_data->hw_regs->addr_status_0);
+
+	CAM_DBG(CAM_ISP, "VFE:%u res_type:0x%x res_id:0x%x last_consumed_addr:0x%x",
+		bus_priv->common_data.core_index, res_type, res_id, last_consumed_addr);
+
+	return last_consumed_addr;
+}
+
 static int cam_vfe_bus_ver3_process_cmd(
 	struct cam_isp_resource_node *priv,
 	uint32_t cmd_type, void *cmd_args, uint32_t arg_size)
@@ -4705,7 +4740,7 @@ static int cam_vfe_bus_ver3_process_cmd(
 	struct cam_vfe_bus_ver3_priv		 *bus_priv;
 	uint32_t top_mask_0 = 0;
 	struct cam_isp_hw_cap *vfe_bus_cap;
-
+	struct cam_isp_hw_done_event_data *done;
 
 	if (!priv || !cmd_args) {
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "Invalid input arguments");
@@ -4791,6 +4826,14 @@ static int cam_vfe_bus_ver3_process_cmd(
 		vfe_bus_cap->max_out_res_type = bus_priv->max_out_res;
 		vfe_bus_cap->support_consumed_addr =
 			bus_priv->common_data.support_consumed_addr;
+		break;
+	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
+		bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
+		done = (struct cam_isp_hw_done_event_data *) cmd_args;
+		done->last_consumed_addr = cam_vfe_bus_ver3_get_last_consumed_addr(
+			bus_priv, done->resource_handle);
+		if (done->last_consumed_addr)
+			rc = 0;
 		break;
 	case CAM_ISP_HW_CMD_IFE_DEBUG_CFG: {
 		struct cam_vfe_generic_debug_config *debug_cfg;

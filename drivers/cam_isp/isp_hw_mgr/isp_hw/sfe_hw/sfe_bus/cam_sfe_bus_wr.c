@@ -3351,12 +3351,42 @@ static int cam_sfe_bus_wr_set_debug_cfg(
 	return 0;
 }
 
+static uint32_t cam_sfe_bus_get_last_consumed_addr(
+	struct cam_sfe_bus_wr_priv *bus_priv,
+	uint32_t res_type)
+{
+	uint32_t                                  last_consumed_addr;
+	struct cam_isp_resource_node             *rsrc_node = NULL;
+	struct cam_sfe_bus_wr_out_data           *rsrc_data = NULL;
+	struct cam_sfe_bus_wr_wm_resource_data   *wm_rsrc_data = NULL;
+	enum cam_sfe_bus_sfe_out_type             res_id;
+
+	res_id = cam_sfe_bus_wr_get_out_res_id(res_type);
+
+	if (res_id >= CAM_SFE_BUS_SFE_OUT_MAX) {
+		CAM_ERR(CAM_ISP, "invalid res id:%u", res_id);
+		return 0;
+	}
+
+	rsrc_node = &bus_priv->sfe_out[res_id];
+	rsrc_data = rsrc_node->res_priv;
+
+	/* All SFE out ports have single WM */
+	wm_rsrc_data = rsrc_data->wm_res->res_priv;
+	last_consumed_addr = cam_io_r_mb(
+		wm_rsrc_data->common_data->mem_base +
+		wm_rsrc_data->hw_regs->addr_status_0);
+
+	return last_consumed_addr;
+}
+
 static int cam_sfe_bus_wr_process_cmd(
 	void *priv, uint32_t cmd_type,
 	void *cmd_args, uint32_t arg_size)
 {
 	int rc = -EINVAL;
 	struct cam_sfe_bus_wr_priv *bus_priv;
+	struct cam_isp_hw_done_event_data *done;
 
 	if (!priv || !cmd_args) {
 		CAM_ERR_RATE_LIMIT(CAM_SFE, "Invalid input arguments");
@@ -3428,6 +3458,12 @@ static int cam_sfe_bus_wr_process_cmd(
 		rc = 0;
 		break;
 	}
+	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
+		bus_priv = (struct cam_sfe_bus_wr_priv *) priv;
+		done = (struct cam_isp_hw_done_event_data *) cmd_args;
+		done->last_consumed_addr = cam_sfe_bus_get_last_consumed_addr(
+			bus_priv, done->resource_handle);
+		break;
 	case CAM_ISP_HW_SFE_SYS_CACHE_WM_CONFIG:
 		rc = cam_sfe_bus_wr_cache_config(priv, cmd_args, arg_size);
 		break;
