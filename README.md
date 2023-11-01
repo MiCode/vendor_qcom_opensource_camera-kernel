@@ -5,3 +5,4 @@
 | topaz-t-oss | Redmi Note 12 | Android T | AU_LINUX_ANDROID_LA.VENDOR.13.2.1.R1.11.00.00.1008.048 |[topaz-t-oss](https://github.com/MiCode/vendor_qcom_opensource_camera-kernel/tree/topaz-t-oss) |
 | yudi-t-oss | Xiaomi Pad 6 Max 14 | Android T | qcom-S-LA.VENDOR.1.0.r1-21800-r2.0.r1_00047.0 | [yudi-t-oss](https://github.com/MiCode/vendor_qcom_opensource_camera-kernel/tree/yudi-t-oss) |
 | garnet-t-oss | Redmi Note 13 Pro | Android T | KERNEL.PLATFORM.1.0.r1-15100-kernel.0-1* |[garnet-t-oss](https://github.com/MiCode/vendor_qcom_opensource_camera-kernel/tree/garnet-t-oss) |
+| xun-t-oss | Redmi Pad SE | Android T | AU_LINUX_ANDROID_LA.VENDOR.13.2.1.R1.11.00.00.587.064 |[xun-t-oss](https://github.com/MiCode/vendor_qcom_opensource_camera-kernel/tree/xun-t-oss) |
