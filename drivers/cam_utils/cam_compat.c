@@ -732,12 +732,27 @@ void cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 
 int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
 {
-	int rc = 0;
+	int rc = 0, i;
+	struct device_node *of_node = NULL;
 
-	soc_info->irq_num[0] = platform_get_irq(soc_info->pdev, 0);
-	if (soc_info->irq_num[0] < 0) {
-		rc = soc_info->irq_num[0];
-		return rc;
+	of_node = soc_info->dev->of_node;
+
+	for (i = 0; i < soc_info->irq_count; i++) {
+		rc = of_property_read_string_index(of_node, "interrupt-names",
+			i, &soc_info->irq_name[i]);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Failed to get irq names at i = %d rc = %d",
+				i, rc);
+			return -EINVAL;
+		}
+
+		soc_info->irq_num[i] = platform_get_irq(soc_info->pdev, i);
+		if (soc_info->irq_num[i] < 0) {
+			rc = soc_info->irq_num[i];
+			CAM_ERR(CAM_UTIL, "Failed to get irq resource at i = %d rc = %d",
+				i, rc);
+			return rc;
+		}
 	}
 
 	return rc;
@@ -786,8 +801,19 @@ int cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0, i;
+	struct device_node *of_node = NULL;
+
+	of_node = soc_info->dev->of_node;
 
 	for (i = 0; i < soc_info->irq_count; i++) {
+		rc = of_property_read_string_index(of_node, "interrupt-names",
+			i, &soc_info->irq_name[i]);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Failed to get irq names at i = %d rc = %d",
+				i, rc);
+			return -EINVAL;
+		}
+
 		soc_info->irq_line[i] = platform_get_resource_byname(soc_info->pdev,
 			IORESOURCE_IRQ, soc_info->irq_name[i]);
 		if (!soc_info->irq_line[i]) {

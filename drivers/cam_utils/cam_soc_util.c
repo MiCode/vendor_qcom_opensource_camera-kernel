@@ -2691,32 +2691,28 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 		}
 
 		soc_info->irq_count = count;
-		for (i = 0; i < soc_info->irq_count; i++) {
-			rc = of_property_read_string_index(of_node, "interrupt-names",
-				i, &soc_info->irq_name[i]);
-			if (rc) {
-				CAM_ERR(CAM_UTIL, "failed to read interrupt name at %d", i);
-				return rc;
-			}
-		}
 
 		rc = cam_compat_util_get_irq(soc_info);
+		if (rc == EINVAL) {
+			CAM_ERR(CAM_UTIL, "failed to read interrupt name at %d", i);
+			return rc;
+		}
 		if (rc < 0) {
 			CAM_ERR(CAM_UTIL, "get irq resource failed: %d for: %s",
 				rc, soc_info->dev_name);
-#ifndef CONFIG_CAM_PRESIL
-			return rc;
-#else
-			/* Pre-sil for new devices not present on old */
-			for (i = 0; i < soc_info->irq_count; i++) {
-				soc_info->irq_line[i] =
-					&dummy_irq_line[next_dummy_irq_line_num++];
-				CAM_DBG(CAM_PRESIL,
-					"interrupt line for dev %s irq name %s number %d",
-					soc_info->dev_name, soc_info->irq_name[i],
-					soc_info->irq_line[i]->start);
-			}
-#endif
+			#ifndef CONFIG_CAM_PRESIL
+				return rc;
+			#else
+				/* Pre-sil for new devices not present on old */
+				for (i = 0; i < soc_info->irq_count; i++) {
+					soc_info->irq_line[i] =
+						&dummy_irq_line[next_dummy_irq_line_num++];
+					CAM_DBG(CAM_PRESIL,
+						"interrupt line for dev %s irq name %s number %d",
+						soc_info->dev_name, soc_info->irq_name[i],
+						soc_info->irq_line[i]->start);
+				}
+			#endif
 		}
 	}
 
@@ -3472,7 +3468,7 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 		soc_info->reg_map[i].size = 0;
 	}
 
-	for (i = soc_info->irq_count; i >= 0; i--) {
+	for (i = soc_info->irq_count -1; i >= 0; i--) {
 		if (soc_info->irq_num[i] > 0) {
 			if (cam_presil_mode_enabled()) {
 				if (cam_soc_util_is_presil_address_space(
