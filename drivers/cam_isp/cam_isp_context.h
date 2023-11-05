@@ -60,7 +60,7 @@
 #define CAM_ISP_CONTEXT_AEB_ERROR_CNT_MAX 6
 
 /* Debug Buffer length*/
-#define CAM_ISP_CONTEXT_DBG_BUF_LEN 300
+#define CAM_ISP_CONTEXT_DBG_BUF_LEN 1000
 
 /* AFD pipeline delay for FCG configuration */
 #define CAM_ISP_AFD_PIPELINE_DELAY 3
@@ -103,6 +103,7 @@ enum cam_isp_ctx_event {
 	CAM_ISP_CTX_EVENT_EPOCH,
 	CAM_ISP_CTX_EVENT_RUP,
 	CAM_ISP_CTX_EVENT_BUFDONE,
+	CAM_ISP_CTX_EVENT_SHUTTER,
 	CAM_ISP_CTX_EVENT_MAX
 };
 
@@ -237,6 +238,14 @@ struct cam_isp_context_req_id_info {
 	int64_t                          last_bufdone_req_id;
 };
 
+struct shutter_event {
+	uint64_t frame_id;
+	uint64_t req_id;
+	uint32_t status;
+	ktime_t  boot_ts;
+	ktime_t  sof_ts;
+};
+
 /**
  *
  *
@@ -248,8 +257,12 @@ struct cam_isp_context_req_id_info {
  *
  */
 struct cam_isp_context_event_record {
-	uint64_t                         req_id;
-	ktime_t                          timestamp;
+	uint64_t req_id;
+	ktime_t  timestamp;
+	int event_type;
+	union event {
+		struct shutter_event shutter_event;
+	} event;
 };
 
 /**
