@@ -280,6 +280,7 @@ struct cam_ife_csid_ver2_rup_aup_mask {
  * @sfe_shdr:               flag to indicate if sfe is inline shdr
  * @lcr_en:                 Flag to indicate if path is part can be input to LCR
  * @ts_comb_vcdt_en:        Indicates if Timestamp combined vcdt flag is enabled
+ * @is_aeb_en:              Flag to indicate if aeb mode is enabled
  *
  */
 struct cam_ife_csid_ver2_path_cfg {
@@ -326,6 +327,7 @@ struct cam_ife_csid_ver2_path_cfg {
 	bool                                 csid_out_unpack_msb;
 	bool                                 handle_camif_irq;
 	bool                                 ts_comb_vcdt_en;
+	bool                                 is_aeb_en;
 };
 
 struct cam_ife_csid_ver2_top_reg_info {

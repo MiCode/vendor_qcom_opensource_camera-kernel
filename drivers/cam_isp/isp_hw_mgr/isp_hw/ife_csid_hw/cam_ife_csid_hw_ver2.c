@@ -3834,6 +3834,7 @@ int cam_ife_csid_ver2_reserve(void *hw_priv,
 	csid_hw->flags.sfe_en = reserve->sfe_en;
 	path_cfg->sfe_shdr = reserve->sfe_inline_shdr;
 	path_cfg->handle_camif_irq = reserve->handle_camif_irq;
+	path_cfg->is_aeb_en = reserve->in_port->aeb_mode;
 	csid_hw->flags.offline_mode = reserve->is_offline;
 	reserve->need_top_cfg = csid_reg->need_top_cfg;
 
@@ -3931,8 +3932,7 @@ end:
 	return rc;
 }
 
-static int cam_ife_csid_ver2_res_master_slave_cfg(
-	struct cam_ife_csid_ver2_hw *csid_hw,
+static int cam_ife_csid_ver2_res_master_slave_cfg(struct cam_ife_csid_ver2_hw *csid_hw,
 	uint32_t res_id)
 {
 	struct cam_ife_csid_ver2_reg_info *csid_reg;
@@ -3940,15 +3940,12 @@ static int cam_ife_csid_ver2_res_master_slave_cfg(
 	void __iomem                      *mem_base;
 	struct cam_hw_soc_info            *soc_info;
 
-	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-			csid_hw->core_info->csid_reg;
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *) csid_hw->core_info->csid_reg;
 	soc_info = &csid_hw->hw_info->soc_info;
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
-	val = cam_io_r_mb(mem_base +
-		csid_reg->cmn_reg->shdr_master_slave_cfg_addr);
+	val = cam_io_r_mb(mem_base + csid_reg->cmn_reg->shdr_master_slave_cfg_addr);
 
 	switch (res_id) {
-
 	case CAM_IFE_PIX_PATH_RES_RDI_0:
 		val |= BIT(csid_reg->cmn_reg->shdr_master_rdi0_shift);
 		break;
@@ -3967,11 +3964,10 @@ static int cam_ife_csid_ver2_res_master_slave_cfg(
 
 	val |= BIT(csid_reg->cmn_reg->shdr_master_slave_en_shift);
 
-	cam_io_w_mb(val, mem_base +
-		csid_reg->cmn_reg->shdr_master_slave_cfg_addr);
+	cam_io_w_mb(val, mem_base + csid_reg->cmn_reg->shdr_master_slave_cfg_addr);
 
-	CAM_DBG(CAM_ISP, "CSID %d shdr cfg 0x%x", csid_hw->hw_intf->hw_idx,
-		val);
+	CAM_DBG(CAM_ISP, "CSID %d res:%s master slave cfg 0x%x", csid_hw->hw_intf->hw_idx,
+		csid_hw->path_res[res_id].res_name, val);
 
 	return 0;
 }
@@ -4142,8 +4138,7 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 			path_reg->err_recovery_cfg0_addr);
 	}
 
-	if (path_cfg->sfe_shdr ||
-		(csid_hw->flags.rdi_lcr_en &&
+	if (path_cfg->is_aeb_en || path_cfg->sfe_shdr || (csid_hw->flags.rdi_lcr_en &&
 		 res->res_id == CAM_IFE_PIX_PATH_RES_RDI_0))
 		cam_ife_csid_ver2_res_master_slave_cfg(csid_hw, res->res_id);
 
