@@ -1083,9 +1083,13 @@ static inline void cam_ife_csid_ver2_maskout_rx_irqs(
 				csid_hw->hw_intf->hw_idx, rc);
 
 		csid_hw->rx_cfg.rx2_irq_handle = 0;
-		cam_irq_controller_unregister_dependent(
+		rc = cam_irq_controller_unregister_dependent(
 			csid_hw->rx_irq_controller[CAM_IFE_CSID_RX_IRQ_STATUS_REG0],
 			csid_hw->rx_irq_controller[CAM_IFE_CSID_RX2_IRQ_STATUS_REG1]);
+		if (rc)
+			CAM_WARN(CAM_ISP,
+				"Failed to unregister rx2 dependent with rx CSID:%u rc: %d",
+				csid_hw->hw_intf->hw_idx, rc);
 
 	}
 
@@ -1099,9 +1103,13 @@ static inline void cam_ife_csid_ver2_maskout_rx_irqs(
 				csid_hw->hw_intf->hw_idx, rc);
 
 		csid_hw->rx_cfg.top_irq_handle = 0;
-		cam_irq_controller_unregister_dependent(
+		rc = cam_irq_controller_unregister_dependent(
 			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 			csid_hw->rx_irq_controller[CAM_IFE_CSID_RX_IRQ_STATUS_REG0]);
+		if (rc)
+			CAM_WARN(CAM_ISP,
+				"Failed to unregister rx dependent with top CSID:%u rc: %d",
+				csid_hw->hw_intf->hw_idx, rc);
 	}
 }
 
@@ -3190,9 +3198,13 @@ static inline void cam_ife_csid_ver2_maskout_path_irqs(
 
 		path_cfg->top_irq_handle = 0;
 
-		(void) cam_irq_controller_unregister_dependent(
+		rc = cam_irq_controller_unregister_dependent(
 			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 			csid_hw->path_irq_controller[res_id]);
+		if (rc)
+			CAM_WARN(CAM_ISP,
+				"Failed to unregister path dependent with top CSID:%u rc: %d",
+				csid_hw->hw_intf->hw_idx, rc);
 	}
 }
 
@@ -3250,9 +3262,13 @@ static inline void cam_ife_csid_ver2_disable_path_irqs_evts(
 
 		path_cfg->top_irq_handle = 0;
 
-		(void) cam_irq_controller_unregister_dependent(
+		rc =  cam_irq_controller_unregister_dependent(
 			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 			csid_hw->path_irq_controller[res_id]);
+		if (rc)
+			CAM_WARN(CAM_ISP,
+				"Failed to unregister path dependent with top CSID:%u rc: %d",
+				csid_hw->hw_intf->hw_idx, rc);
 	}
 }
 
@@ -4532,7 +4548,7 @@ unsub_top:
 			path_cfg->top_irq_handle);
 	path_cfg->top_irq_handle = 0;
 unsub_mc:
-	cam_irq_controller_unsubscribe_irq(csid_hw->top_irq_controller,
+	cam_irq_controller_unsubscribe_irq(csid_hw->top_irq_controller[top_index],
 		csid_hw->top_mc_irq_handle);
 	csid_hw->top_mc_irq_handle = 0;
 end:
@@ -6272,8 +6288,8 @@ static void cam_ife_csid_ver2_maskout_all_irqs(
 
 	/* Disable rx */
 	if (!csid_hw->flags.offline_mode)
-		cam_io_w_mb(0x0,
-			mem_base + csi2_reg->irq_mask_addr[CAM_IFE_CSID_RX_IRQ_STATUS_REG0]);
+		for (i = CAM_IFE_CSID_RX_IRQ_STATUS_REG0; i < csid_reg->num_rx_regs; i++)
+			cam_io_w_mb(0x0, (mem_base + csi2_reg->irq_mask_addr[i]));
 
 	for (i = 0; i < csid_stop->num_res; i++) {
 		res = csid_stop->node_res[i];
@@ -6291,6 +6307,11 @@ static void cam_ife_csid_ver2_maskout_all_irqs(
 	/* Disable top except rst_done */
 	cam_io_w_mb(csid_reg->cmn_reg->top_reset_irq_mask[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 		mem_base + csid_reg->cmn_reg->top_irq_mask_addr[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0]);
+
+	if (csid_reg->num_top_regs > 1) {
+		cam_io_w_mb(0x0, (mem_base +
+			csid_reg->cmn_reg->top_irq_mask_addr[CAM_IFE_CSID_TOP2_IRQ_STATUS_REG1]));
+	}
 }
 
 int cam_ife_csid_ver2_stop(void *hw_priv,
@@ -6355,7 +6376,6 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 	cam_ife_csid_ver2_maskout_all_irqs(csid_hw, csid_stop);
 
 	for (i = 0; i < csid_stop->num_res; i++) {
-
 		res = csid_stop->node_res[i];
 		rc = cam_ife_csid_ver2_disable_path(false, csid_hw, res);
 		res->res_state = CAM_ISP_RESOURCE_STATE_INIT_HW;
@@ -6405,6 +6425,10 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 			csid_hw->top_top2_irq_handle);
 		csid_hw->top_top2_irq_handle = 0;
+
+		cam_irq_controller_unregister_dependent(
+			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
+			csid_hw->top_irq_controller[CAM_IFE_CSID_TOP2_IRQ_STATUS_REG1]);
 	}
 
 	cam_ife_csid_ver2_disable_csi2(false, csid_hw);

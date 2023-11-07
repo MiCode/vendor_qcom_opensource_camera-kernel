@@ -15,7 +15,7 @@
 #include "cam_common_util.h"
 
 #define CAM_IRQ_LINE_TEST_TIMEOUT_MS 1000
-#define CAM_IRQ_MAX_DEPENDENTS 9
+#define CAM_IRQ_MAX_DEPENDENTS 13
 #define CAM_IRQ_CTRL_NAME_LEN 16
 
 /**
@@ -131,7 +131,7 @@ struct cam_irq_controller {
 	uint32_t                        global_set_bitmask;
 	uint32_t                        clear_all_bitmask;
 	uint32_t                        dependent_bitmap;
-	uint32_t                        parent_bitmap_idx;
+	int                             parent_bitmap_idx;
 	struct list_head                evt_handler_list_head;
 	struct list_head                th_list_head[CAM_IRQ_PRIORITY_MAX];
 	uint32_t                        hdl_idx;
@@ -228,7 +228,7 @@ int cam_irq_controller_unregister_dependent(void *primary_controller, void *seco
 	ctrl_secondary = secondary_controller;
 	dep_idx = ctrl_secondary->parent_bitmap_idx;
 
-	if (dep_idx == CAM_IRQ_MAX_DEPENDENTS) {
+	if ((dep_idx == -1) || (dep_idx == CAM_IRQ_MAX_DEPENDENTS)) {
 		CAM_ERR(CAM_IRQ_CTRL, "could not find %s as a dependent of %s)",
 			ctrl_secondary->name, ctrl_primary->name);
 		return -EINVAL;
@@ -237,7 +237,9 @@ int cam_irq_controller_unregister_dependent(void *primary_controller, void *seco
 	ctrl_primary->dependent_controller[dep_idx] = NULL;
 	for (i = 0; i < ctrl_primary->num_registers; i++)
 		ctrl_primary->irq_register_arr[i].dependent_read_mask[dep_idx] = 0;
+
 	ctrl_secondary->is_dependent = false;
+	ctrl_secondary->parent_bitmap_idx = -1;
 
 	ctrl_primary->dependent_bitmap &= (~BIT(dep_idx));
 
@@ -267,8 +269,15 @@ int cam_irq_controller_register_dependent(void *primary_controller, void *second
 	ctrl_secondary = secondary_controller;
 	dependent_bitmap = ctrl_primary->dependent_bitmap;
 
-	dep_idx = find_first_zero_bit(&(dependent_bitmap), CAM_IRQ_MAX_DEPENDENTS);
+	if (ctrl_secondary->parent_bitmap_idx != -1) {
+		CAM_ERR(CAM_IRQ_CTRL,
+			"Duplicate dependent register for pri_ctrl:%s sec_ctrl:%s parent_bitmap_idx:%d",
+			ctrl_primary->name, ctrl_secondary->name,
+			ctrl_secondary->parent_bitmap_idx);
+		return -EPERM;
+	}
 
+	dep_idx = find_first_zero_bit(&(dependent_bitmap), CAM_IRQ_MAX_DEPENDENTS);
 	if (dep_idx == CAM_IRQ_MAX_DEPENDENTS) {
 		CAM_ERR(CAM_IRQ_CTRL, "reached maximum dependents (%s - %s)",
 			ctrl_primary->name, ctrl_secondary->name);
@@ -328,6 +337,13 @@ int cam_irq_controller_deinit(void **irq_controller)
 
 	if (!controller) {
 		CAM_ERR(CAM_IRQ_CTRL, "Null Pointer");
+		return -EINVAL;
+	}
+
+	if (controller->dependent_bitmap) {
+		CAM_ERR(CAM_IRQ_CTRL,
+			"Unbalanced dependent unregister for controller: %s dep_bitmap:0x%x",
+			controller->name, controller->dependent_bitmap);
 		return -EINVAL;
 	}
 
@@ -432,6 +448,7 @@ int cam_irq_controller_init(const char       *name,
 	controller->clear_all_bitmask    = register_info->clear_all_bitmask;
 	controller->mem_base             = mem_base;
 	controller->is_dependent         = false;
+	controller->parent_bitmap_idx = -1;
 
 	CAM_DBG(CAM_IRQ_CTRL, "global_clear_bitmask: 0x%x",
 		controller->global_clear_bitmask);
