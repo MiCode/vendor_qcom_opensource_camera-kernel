@@ -953,3 +953,25 @@ uint16_t cam_get_named_gpio(struct cam_hw_soc_info *soc_info,
 
 	return gpio_pin;
 }
+
+inline struct icc_path *cam_icc_get_path(struct device *dev,
+		const int src_id, const int dst_id, const char *path_name, bool use_path_name)
+{
+	CAM_DBG(CAM_UTIL, "Get icc path name: %s src_id:%d dst_id:%d use_path_name:%s", path_name,
+		src_id, dst_id, CAM_BOOL_TO_YESNO(use_path_name));
+
+#if KERNEL_VERSION(6, 5, 0) <= LINUX_VERSION_CODE
+	if (!use_path_name) {
+		CAM_ERR(CAM_UTIL, "Must use path names to get icc path handle");
+		return NULL;
+	}
+
+	return of_icc_get(dev, path_name);
+#else
+	if (use_path_name)
+		return of_icc_get(dev, path_name);
+	else
+		return icc_get(dev, src_id, dst_id);
+#endif
+}
+

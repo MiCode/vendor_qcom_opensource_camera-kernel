@@ -338,15 +338,20 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 	int rc = 0, count, i;
 	bool ib_voting_needed = false, is_rt_port = false;
 	struct of_phandle_args src_args = {0}, dst_args = {0};
+	struct cam_cpas_axi_port *curr_axi_port;
 
 	ib_voting_needed = of_property_read_bool(curr_node_ptr->tree_dev_node,
 		"ib-bw-voting-needed");
 	is_rt_port = of_property_read_bool(curr_node_ptr->tree_dev_node, "rt-axi-port");
 
 	if (soc_private->bus_icc_based) {
-		count = of_property_count_strings(mnoc_node, "interconnect-names");
+		if (soc_private->use_cam_icc_path_str)
+			count = of_property_count_strings(mnoc_node, "cam-icc-path-names");
+		else
+			count = of_property_count_strings(mnoc_node, "interconnect-names");
+
 		if (count <= 0) {
-			CAM_ERR(CAM_CPAS, "no interconnect-names found");
+			CAM_ERR(CAM_ISP, "Missing icc info for camera bus nodes count: %d", count);
 			return -EINVAL;
 		} else if (count > CAM_CPAS_MAX_DRV_PORTS) {
 			CAM_ERR(CAM_CPAS, "Number of interconnects %d greater than max ports %d",
@@ -363,68 +368,78 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 				return -EINVAL;
 			}
 
-			cpas_core->axi_port[*mnoc_idx].axi_port_node = mnoc_node;
-			rc = of_property_read_string_index(mnoc_node, "interconnect-names", i,
-				&cpas_core->axi_port[*mnoc_idx].bus_client.common_data.name);
-			if (rc) {
-				CAM_ERR(CAM_CPAS, "failed to read interconnect-names rc=%d", rc);
-				return rc;
+			curr_axi_port =  &cpas_core->axi_port[*mnoc_idx];
+			curr_axi_port->axi_port_node = mnoc_node;
+
+			if (soc_private->use_cam_icc_path_str) {
+				rc = of_property_read_string_index(mnoc_node, "cam-icc-path-names",
+					i, &curr_axi_port->bus_client.common_data.name);
+				if (rc) {
+					CAM_ERR(CAM_CPAS,
+						"failed to read cam icc name strings mnoc_node: %s i: %d rc=%d",
+						curr_node_ptr->node_name, i, rc);
+					return rc;
+				}
+			} else {
+				rc = of_property_read_string_index(mnoc_node,
+					"interconnect-names", i,
+					&curr_axi_port->bus_client.common_data.name);
+				if (rc) {
+					CAM_ERR(CAM_CPAS, "failed to read interconnect-names rc=%d",
+						rc);
+					return rc;
+				}
+
+				rc = of_parse_phandle_with_args(mnoc_node, "interconnects",
+					"#interconnect-cells", (2 * i), &src_args);
+				if (rc) {
+					CAM_ERR(CAM_CPAS,
+						"failed to read axi bus src info rc=%d",
+						rc);
+					return -EINVAL;
+				}
+
+				of_node_put(src_args.np);
+				if (src_args.args_count != 1) {
+					CAM_ERR(CAM_CPAS, "Invalid number of axi src args: %d",
+						src_args.args_count);
+					return -EINVAL;
+				}
+
+				curr_axi_port->bus_client.common_data.src_id = src_args.args[0];
+
+				rc = of_parse_phandle_with_args(mnoc_node, "interconnects",
+					"#interconnect-cells", ((2 * i) + 1), &dst_args);
+				if (rc) {
+					CAM_ERR(CAM_CPAS, "failed to read axi bus dst info rc=%d",
+						rc);
+					return -EINVAL;
+				}
+
+				of_node_put(dst_args.np);
+				if (dst_args.args_count != 1) {
+					CAM_ERR(CAM_CPAS, "Invalid number of axi dst args: %d",
+						dst_args.args_count);
+					return -EINVAL;
+				}
+
+				curr_axi_port->bus_client.common_data.dst_id = dst_args.args[0];
 			}
 
-			rc = of_parse_phandle_with_args(mnoc_node, "interconnects",
-				"#interconnect-cells", (2 * i), &src_args);
-			if (rc) {
-				CAM_ERR(CAM_CPAS,
-					"failed to read axi bus src info rc=%d",
-					rc);
-				return -EINVAL;
-			}
-
-			of_node_put(src_args.np);
-			if (src_args.args_count != 1) {
-				CAM_ERR(CAM_CPAS, "Invalid number of axi src args: %d",
-					src_args.args_count);
-				return -EINVAL;
-			}
-
-			cpas_core->axi_port[*mnoc_idx].bus_client.common_data.src_id =
-				src_args.args[0];
-
-			rc = of_parse_phandle_with_args(mnoc_node, "interconnects",
-				"#interconnect-cells", ((2 * i) + 1), &dst_args);
-			if (rc) {
-				CAM_ERR(CAM_CPAS, "failed to read axi bus dst info rc=%d", rc);
-				return -EINVAL;
-			}
-
-			of_node_put(dst_args.np);
-			if (dst_args.args_count != 1) {
-				CAM_ERR(CAM_CPAS, "Invalid number of axi dst args: %d",
-					dst_args.args_count);
-				return -EINVAL;
-			}
-
-			cpas_core->axi_port[*mnoc_idx].bus_client.common_data.dst_id =
-				dst_args.args[0];
-			cpas_core->axi_port[*mnoc_idx].bus_client.common_data.num_usecases = 2;
-			cpas_core->axi_port[*mnoc_idx].axi_port_name =
-				cpas_core->axi_port[*mnoc_idx].bus_client.common_data.name;
-			cpas_core->axi_port[*mnoc_idx].drv_idx = i;
+			curr_axi_port->bus_client.common_data.num_usecases = 2;
+			curr_axi_port->axi_port_name = curr_axi_port->bus_client.common_data.name;
+			curr_axi_port->drv_idx = i;
 
 			if (i > CAM_CPAS_PORT_HLOS_DRV) {
-				cpas_core->axi_port[*mnoc_idx].bus_client.common_data.is_drv_port =
-					true;
-				cpas_core->axi_port[*mnoc_idx].curr_bw.vote_type =
-					CAM_CPAS_VOTE_TYPE_DRV;
-				cpas_core->axi_port[*mnoc_idx].applied_bw.vote_type =
-					CAM_CPAS_VOTE_TYPE_DRV;
-				cpas_core->axi_port[*mnoc_idx].cam_rsc_dev =
+				curr_axi_port->bus_client.common_data.is_drv_port = true;
+				curr_axi_port->curr_bw.vote_type = CAM_CPAS_VOTE_TYPE_DRV;
+				curr_axi_port->applied_bw.vote_type = CAM_CPAS_VOTE_TYPE_DRV;
+				curr_axi_port->cam_rsc_dev =
 					cam_cpas_get_rsc_dev_for_drv(i - CAM_CPAS_PORT_DRV_0);
-				if (!cpas_core->axi_port[*mnoc_idx].cam_rsc_dev) {
+				if (!curr_axi_port->cam_rsc_dev) {
 					CAM_ERR(CAM_CPAS,
 						"Port[%s][%d] Failed to get rsc device drv_idx:%d",
-						cpas_core->axi_port[*mnoc_idx].axi_port_name,
-						*mnoc_idx, i);
+						curr_axi_port->axi_port_name, *mnoc_idx, i);
 					rc = -ENODEV;
 					goto err;
 				}
@@ -435,12 +450,12 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 			 * with 0 pointing to hlos drv bus ID
 			 */
 			curr_node_ptr->axi_port_idx_arr[i] = *mnoc_idx;
-			cpas_core->axi_port[*mnoc_idx].ib_bw_voting_needed = ib_voting_needed;
-			cpas_core->axi_port[*mnoc_idx].is_rt = is_rt_port;
+			curr_axi_port->ib_bw_voting_needed = ib_voting_needed;
+			curr_axi_port->is_rt = is_rt_port;
 			CAM_DBG(CAM_PERF, "Adding Bus Client=[%s] : src=%d, dst=%d mnoc_idx:%d",
-				cpas_core->axi_port[*mnoc_idx].bus_client.common_data.name,
-				cpas_core->axi_port[*mnoc_idx].bus_client.common_data.src_id,
-				cpas_core->axi_port[*mnoc_idx].bus_client.common_data.dst_id,
+				curr_axi_port->bus_client.common_data.name,
+				curr_axi_port->bus_client.common_data.src_id,
+				curr_axi_port->bus_client.common_data.dst_id,
 				*mnoc_idx);
 			(*mnoc_idx)++;
 			cpas_core->num_axi_ports++;
@@ -451,9 +466,10 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 			return -EPERM;
 		}
 
-		cpas_core->axi_port[*mnoc_idx].axi_port_node = mnoc_node;
+		curr_axi_port =  &cpas_core->axi_port[*mnoc_idx];
+		curr_axi_port->axi_port_node = mnoc_node;
 		rc =  of_property_read_string(curr_node_ptr->tree_dev_node, "qcom,axi-port-name",
-			&cpas_core->axi_port[*mnoc_idx].bus_client.common_data.name);
+			&curr_axi_port->bus_client.common_data.name);
 		if (rc) {
 			CAM_ERR(CAM_CPAS,
 				"failed to read mnoc-port-name rc=%d",
@@ -461,11 +477,11 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 			return rc;
 		}
 
-		cpas_core->axi_port[*mnoc_idx].axi_port_name =
-			cpas_core->axi_port[*mnoc_idx].bus_client.common_data.name;
+		curr_axi_port->axi_port_name =
+			curr_axi_port->bus_client.common_data.name;
 		curr_node_ptr->axi_port_idx_arr[0] = *mnoc_idx;
-		cpas_core->axi_port[*mnoc_idx].ib_bw_voting_needed = ib_voting_needed;
-		cpas_core->axi_port[*mnoc_idx].is_rt = is_rt_port;
+		curr_axi_port->ib_bw_voting_needed = ib_voting_needed;
+		curr_axi_port->is_rt = is_rt_port;
 		(*mnoc_idx)++;
 		cpas_core->num_axi_ports++;
 	}
@@ -1245,37 +1261,43 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 #endif
 
 	soc_private->camnoc_axi_min_ib_bw = 0;
-	rc = of_property_read_u64(of_node,
-		"camnoc-axi-min-ib-bw",
+	rc = of_property_read_u64(of_node, "camnoc-axi-min-ib-bw",
 		&soc_private->camnoc_axi_min_ib_bw);
 	if (rc == -EOVERFLOW) {
 		soc_private->camnoc_axi_min_ib_bw = 0;
-		rc = of_property_read_u32(of_node,
-			"camnoc-axi-min-ib-bw",
+		rc = of_property_read_u32(of_node, "camnoc-axi-min-ib-bw",
 			(u32 *)&soc_private->camnoc_axi_min_ib_bw);
 	}
 
 	if (rc) {
-		CAM_DBG(CAM_CPAS,
-			"failed to read camnoc-axi-min-ib-bw rc:%d", rc);
-		soc_private->camnoc_axi_min_ib_bw =
-			CAM_CPAS_AXI_MIN_CAMNOC_IB_BW;
+		CAM_DBG(CAM_CPAS, "failed to read camnoc-axi-min-ib-bw rc:%d", rc);
+		soc_private->camnoc_axi_min_ib_bw = CAM_CPAS_AXI_MIN_CAMNOC_IB_BW;
 	}
 
-	CAM_DBG(CAM_CPAS, "camnoc-axi-min-ib-bw = %llu",
-		soc_private->camnoc_axi_min_ib_bw);
+	CAM_DBG(CAM_CPAS, "camnoc-axi-min-ib-bw = %llu", soc_private->camnoc_axi_min_ib_bw);
 
-	soc_private->client_id_based = of_property_read_bool(of_node,
-		"client-id-based");
-	soc_private->bus_icc_based = of_property_read_bool(of_node,
-		"interconnects");
+	soc_private->client_id_based = of_property_read_bool(of_node, "client-id-based");
+	soc_private->bus_icc_based = of_property_read_bool(of_node, "interconnects");
 
 	if (soc_private->bus_icc_based) {
+		soc_private->use_cam_icc_path_str = of_property_read_bool(of_node,
+			"cam-icc-path-names");
+		if (soc_private->use_cam_icc_path_str) {
+			rc = of_property_read_string(of_node, "cam-icc-path-names",
+				&cpas_core->ahb_bus_client.common_data.name);
+			if (rc) {
+				CAM_ERR(CAM_CPAS, "device %s failed to read ahb cam-icc-path-names",
+					pdev->name);
+				return rc;
+			}
+
+			goto parse_ahb_table;
+		}
+
 		rc = of_property_read_string(of_node, "interconnect-names",
 			&cpas_core->ahb_bus_client.common_data.name);
 		if (rc) {
-			CAM_ERR(CAM_CPAS,
-				"device %s failed to read interconnect-names",
+			CAM_ERR(CAM_CPAS, "device %s failed to read ahb interconnect-names",
 				pdev->name);
 			return rc;
 		}
@@ -1283,16 +1305,13 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 		rc = of_parse_phandle_with_args(of_node, "interconnects",
 			"#interconnect-cells", 0, &src_args);
 		if (rc) {
-			CAM_ERR(CAM_CPAS,
-				"device %s failed to read ahb bus src info",
-				pdev->name);
+			CAM_ERR(CAM_CPAS, "device %s failed to read ahb bus src info", pdev->name);
 			return rc;
 		}
 
 		of_node_put(src_args.np);
 		if (src_args.args_count != 1) {
-			CAM_ERR(CAM_CPAS,
-				"Invalid number of ahb src args: %d",
+			CAM_ERR(CAM_CPAS, "Invalid number of ahb src args: %d",
 				src_args.args_count);
 			return -EINVAL;
 		}
@@ -1302,22 +1321,20 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 		rc = of_parse_phandle_with_args(of_node, "interconnects",
 			"#interconnect-cells", 1, &dst_args);
 		if (rc) {
-			CAM_ERR(CAM_CPAS,
-				"device %s failed to read ahb bus dst info",
-				pdev->name);
+			CAM_ERR(CAM_CPAS, "device %s failed to read ahb bus dst info", pdev->name);
 			return rc;
 		}
 
 		of_node_put(dst_args.np);
 		if (dst_args.args_count != 1) {
-			CAM_ERR(CAM_CPAS,
-				"Invalid number of ahb dst args: %d",
+			CAM_ERR(CAM_CPAS, "Invalid number of ahb dst args: %d",
 				dst_args.args_count);
 			return -EINVAL;
 		}
 
 		cpas_core->ahb_bus_client.common_data.dst_id = dst_args.args[0];
 
+parse_ahb_table:
 		rc = of_property_read_u32(of_node, "cam-ahb-num-cases",
 			&cpas_core->ahb_bus_client.common_data.num_usecases);
 		if (rc) {
@@ -1330,13 +1347,11 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 		if (cpas_core->ahb_bus_client.common_data.num_usecases >
 			CAM_SOC_BUS_MAX_NUM_USECASES) {
 			CAM_ERR(CAM_UTIL, "Invalid number of usecases: %d",
-				cpas_core->ahb_bus_client.common_data
-				.num_usecases);
+				cpas_core->ahb_bus_client.common_data.num_usecases);
 			return -EINVAL;
 		}
 
-		num_bw_values = of_property_count_u32_elems(of_node,
-			"cam-ahb-bw-KBps");
+		num_bw_values = of_property_count_u32_elems(of_node, "cam-ahb-bw-KBps");
 		if (num_bw_values <= 0) {
 			CAM_ERR(CAM_UTIL, "Error counting ahb bw values");
 			return -EINVAL;
@@ -1347,41 +1362,32 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 
 		if (num_levels !=
 			cpas_core->ahb_bus_client.common_data.num_usecases) {
-			CAM_ERR(CAM_UTIL, "Invalid number of levels: %d",
-				num_bw_values/2);
+			CAM_ERR(CAM_UTIL, "Invalid number of levels: %d", num_bw_values/2);
 			return -EINVAL;
 		}
 
 		for (i = 0; i < num_levels; i++) {
-			rc = of_property_read_u32_index(of_node,
-				"cam-ahb-bw-KBps",
-				(i * 2),
+			rc = of_property_read_u32_index(of_node, "cam-ahb-bw-KBps", (i * 2),
 				&ahb_bus_client_ab);
 			if (rc) {
-				CAM_ERR(CAM_UTIL,
-					"Error reading ab bw value, rc=%d",
-					rc);
+				CAM_ERR(CAM_UTIL, "Error reading ab bw value, rc=%d", rc);
 				return rc;
 			}
+
 			cpas_core->ahb_bus_client.common_data.bw_pair[i].ab = ahb_bus_client_ab;
 
-			rc = of_property_read_u32_index(of_node,
-				"cam-ahb-bw-KBps",
-				((i * 2) + 1),
+			rc = of_property_read_u32_index(of_node, "cam-ahb-bw-KBps", ((i * 2) + 1),
 				&ahb_bus_client_ib);
 			if (rc) {
-				CAM_ERR(CAM_UTIL,
-					"Error reading ib bw value, rc=%d",
-					rc);
+				CAM_ERR(CAM_UTIL, "Error reading ib bw value, rc=%d", rc);
 				return rc;
 			}
+
 			cpas_core->ahb_bus_client.common_data.bw_pair[i].ib = ahb_bus_client_ib;
 
-			CAM_DBG(CAM_CPAS,
-				"AHB: Level: %d, ab_value %llu, ib_value: %llu",
-				i, cpas_core->ahb_bus_client.common_data
-				.bw_pair[i].ab, cpas_core->ahb_bus_client
-				.common_data.bw_pair[i].ib);
+			CAM_DBG(CAM_CPAS, "AHB: Level: %d, ab_value %llu, ib_value: %llu",
+				i, cpas_core->ahb_bus_client.common_data.bw_pair[i].ab,
+				cpas_core->ahb_bus_client.common_data.bw_pair[i].ib);
 		}
 	}
 
