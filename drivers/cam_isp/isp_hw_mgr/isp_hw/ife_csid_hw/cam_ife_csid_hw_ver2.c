@@ -3498,15 +3498,23 @@ static int cam_ife_csid_hw_ver2_prepare_config_path_data(
 	case CAM_IFE_PIX_PATH_RES_RDI_2:
 	case CAM_IFE_PIX_PATH_RES_RDI_3:
 	case CAM_IFE_PIX_PATH_RES_RDI_4:
-		path_cfg->csid_out_unpack_msb = cam_ife_csid_hw_ver2_need_unpack_mipi(csid_hw,
-			reserve, path_reg, path_cfg->out_format);
-
 		/*
-		 * if csid gives unpacked msb out, packing needs to be done at
-		 * WM side if needed, based on the format the decision is
-		 * taken at WM side
+		 * Skip this if we are not configuring the unpacking at stream on.
+		 * Also, we need to make sure wm parameters are not updated in this case
+		 * for wm packing.
 		 */
-		reserve->use_wm_pack = path_cfg->csid_out_unpack_msb;
+		if (!(csid_reg->cmn_reg->capabilities & CAM_IFE_CSID_CAP_SKIP_PATH_CFG1)) {
+			path_cfg->csid_out_unpack_msb =
+				cam_ife_csid_hw_ver2_need_unpack_mipi(csid_hw, reserve, path_reg,
+					path_cfg->out_format);
+
+			/*
+			 * if csid gives unpacked msb out, packing needs to be done at
+			 * WM side if needed, based on the format the decision is
+			 * taken at WM side
+			 */
+			reserve->use_wm_pack = path_cfg->csid_out_unpack_msb;
+		}
 
 		rc = cam_ife_csid_get_format_rdi(
 			path_cfg->in_format[CAM_IFE_CSID_MULTI_VC_DT_GRP_0],

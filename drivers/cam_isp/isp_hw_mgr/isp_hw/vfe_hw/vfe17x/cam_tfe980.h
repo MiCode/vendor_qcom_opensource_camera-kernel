@@ -2433,7 +2433,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 				22,
 			},
 			.name          = {
-				"STATS_BAF",
+				"STATS_CAF",
 			},
 		},
 	},

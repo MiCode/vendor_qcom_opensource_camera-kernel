@@ -3215,7 +3215,7 @@ static int cam_ife_hw_mgr_acquire_sfe_bus_rd(
 	int rc = -1, i;
 	struct cam_sfe_acquire_args           sfe_acquire;
 	struct cam_ife_hw_mgr                *ife_hw_mgr;
-	struct cam_hw_intf                   *hw_intf;
+	struct cam_hw_intf                   *hw_intf = NULL;
 	struct cam_isp_hw_mgr_res            *sfe_rd_res;
 
 	ife_hw_mgr = ife_ctx->hw_mgr;
@@ -3281,7 +3281,7 @@ static int cam_ife_hw_mgr_acquire_sfe_bus_rd(
 			&sfe_acquire, sizeof(struct cam_sfe_acquire_args));
 	}
 
-	if (!sfe_acquire.sfe_rd.rsrc_node || rc) {
+	if (!sfe_acquire.sfe_rd.rsrc_node || rc || !hw_intf) {
 		rc = -ENODEV;
 		CAM_ERR(CAM_ISP,
 			"Failed to acquire SFE RD: 0x%x, ctx_idx: %u",
@@ -3719,8 +3719,14 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 	for (i = (is_start_lower_idx) ? 0 : (CAM_IFE_CSID_HW_NUM_MAX - 1);
 		(is_start_lower_idx) ? (i < CAM_IFE_CSID_HW_NUM_MAX) : (i >= 0);
 		(is_start_lower_idx) ? i++ : i--) {
+		if ((i < 0) || (i >= CAM_IFE_CSID_HW_NUM_MAX)) {
+			CAM_ERR(CAM_ISP, "Invalid index for csid device i: %d", i);
+			return -EINVAL;
+		}
+
 		if (!ife_hw_mgr->csid_devices[i])
 			continue;
+
 		hw_intf = ife_hw_mgr->csid_devices[i];
 
 		if (ife_hw_mgr->csid_hw_caps[hw_intf->hw_idx].is_lite &&
@@ -5421,6 +5427,7 @@ static int cam_ife_mgr_acquire_get_unified_structure_v3(
 		in_port->data[i].wm_mode      = in->data[i].wm_mode;
 		in_port->data[i].hw_context_id   = in->data[i].context_id;
 		in_port->data[i].rcs_en       = in->data[i].param_mask & CAM_IFE_WM_RCS_EN;
+		in_port->data[i].use_wm_pack  = in->data[i].param_mask & CAM_IFE_USE_WM_PACK;
 	}
 
 	return 0;
