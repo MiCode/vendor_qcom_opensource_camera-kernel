@@ -1346,7 +1346,7 @@ static int cam_generic_fence_handle_dma_import(
 
 		dma_sync_create.dma_fence_row_idx = dma_fence_row_idx;
 		dma_sync_create.fd = fence_cfg->dma_fence_fd;
-		dma_sync_create.sync_created_with_dma = false;
+		dma_sync_create.sync_created_with_dma = true;
 
 		/* Create new sync object and associate dma fence */
 		rc = cam_sync_create_util(&fence_cfg->sync_obj, fence_cfg->name,
@@ -1720,14 +1720,21 @@ static int cam_sync_synx_associate_obj(int32_t sync_obj, uint32_t synx_obj,
 
 	row = sync_dev->sync_table + sync_obj;
 	spin_lock(&sync_dev->row_spinlocks[sync_obj]);
-	if (row->state != CAM_SYNC_STATE_ACTIVE) {
+
+	/* Validate if sync object already has an association */
+	if (unlikely(test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask))) {
+		CAM_ERR(CAM_SYNC,
+			"sync_obj: %s[%d] has already been associated with a synx_hdl: 0x%x",
+			row->name, sync_obj, row->synx_obj_info.synx_obj);
+		rc = -EINVAL;
+	} else if (row->state != CAM_SYNC_STATE_ACTIVE) {
 		signal_synx_obj.status = row->state;
 		signal_synx_obj.synx_obj = synx_obj;
 		*is_sync_obj_signaled = true;
 		goto signal_synx;
 	} else {
 		row->synx_obj_info.synx_obj_row_idx = synx_obj_row_idx;
-		row->synx_obj_info.sync_created_with_synx = false;
+		row->synx_obj_info.sync_created_with_synx = true;
 		row->synx_obj_info.synx_obj = synx_obj;
 		set_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask);
 		CAM_DBG(CAM_SYNX, "sync_obj: %s[%d] associated with synx_obj: %d",
@@ -1784,7 +1791,7 @@ static int cam_generic_fence_handle_synx_import(
 				&is_sync_obj_signaled);
 		} else {
 			/* Create new sync object and associate synx object */
-			synx_sync_create.sync_created_with_synx = false;
+			synx_sync_create.sync_created_with_synx = true;
 			synx_sync_create.synx_obj = fence_cfg->synx_obj;
 			synx_sync_create.synx_obj_row_idx = synx_obj_row_idx;
 
