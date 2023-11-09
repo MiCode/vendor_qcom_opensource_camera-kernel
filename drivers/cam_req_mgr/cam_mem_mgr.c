@@ -974,6 +974,12 @@ static int cam_mem_util_get_dma_buf(size_t len,
 	}
 
 	if (*buf == NULL) {
+		if (!heap) {
+			CAM_ERR(CAM_MEM,
+				"No default heap selected, flags = 0x%x", cam_flags);
+			return -ENOMEM;
+		}
+
 		*buf = dma_heap_buffer_alloc(heap, len, O_RDWR, 0);
 		if (IS_ERR(*buf)) {
 			rc = PTR_ERR(*buf);
