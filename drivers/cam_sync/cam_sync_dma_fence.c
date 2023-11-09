@@ -97,9 +97,17 @@ static void __cam_dma_fence_print_table(void)
 	struct cam_dma_fence_row *row;
 	struct dma_fence *fence;
 
-	for (i = 0; i < CAM_DMA_FENCE_MAX_FENCES; i++) {
+	/* Index zero is marked as an invalid slot */
+	for (i = 1; i < CAM_DMA_FENCE_MAX_FENCES; i++) {
 		spin_lock_bh(&g_cam_dma_fence_dev->row_spinlocks[i]);
 		row = &g_cam_dma_fence_dev->rows[i];
+
+		/* free slots starting this index */
+		if (row->state == CAM_DMA_FENCE_STATE_INVALID) {
+			spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[i]);
+			return;
+		}
+
 		fence = row->fence;
 		CAM_INFO(CAM_DMA_FENCE,
 			"Idx: %d seqno: %llu name: %s state: %d",
