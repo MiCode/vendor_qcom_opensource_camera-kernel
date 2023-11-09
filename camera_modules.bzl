@@ -227,7 +227,7 @@ def _define_module(target, variant):
                 ],
             },
         },
-        copts = ["-include", "$(location :camera_banner)"],
+        copts = ["-include", "$(location :camera_banner)", "-fstrict-flex-arrays=0"],
         deps = deps,
         kconfig = "Kconfig",
         defconfig = "{}_defconfig".format(target),
