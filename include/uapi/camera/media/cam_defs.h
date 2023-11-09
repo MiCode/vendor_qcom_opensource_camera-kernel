@@ -272,6 +272,7 @@ struct cam_iommu_handle {
 /* Register dump read type */
 #define CAM_REG_DUMP_READ_TYPE_CONT_RANGE       1
 #define CAM_REG_DUMP_READ_TYPE_DMI              2
+#define CAM_REG_DUMP_READ_TYPE_CTXT             3
 
 /* Max number of config writes to read from DMI */
 #define CAM_REG_DUMP_DMI_CONFIG_MAX             5
@@ -923,10 +924,14 @@ struct cam_dmi_read_desc {
 };
 
 /**
- * struct cam_reg_read_info - Register read info for both reg continuous read
- *                            or DMI read
+ * struct cam_reg_read_info - Register read info for  continuous read
+ *                            or DMI read or Context based reg read
  *
- * @type                 : Whether Register range read or DMI read
+ * @type                 : Whether Register range read or DMI read or Context based reg read
+ *                         For context-based reading, we have to select context ID for reading
+ *                         that particular context Registers.
+ *                         if the type will be TYPE_CTX, we will write the context id and
+ *                         read the context registers. it will be similar to dmi read.
  * @reserved             : For acquired version 3, this corresponds to context_id
  * @reg_read             : Range of registers to read
  * @dmi_read             : DMI data to read
