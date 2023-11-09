@@ -789,7 +789,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x8638, /* BPS_CRE_WR : NOC_NRT_2_NIU_URGENCY_LOW */
-			.value = 0x1003,
+			.value = 0x1030,
 		},
 		.danger_lut = {
 			.enable = false,
@@ -1080,7 +1080,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x8E38, /* IPE_WR_0 : NOC_NRT_6_NIU_URGENCY_LOW */
-			.value = 0x1003,
+			.value = 0x1030,
 		},
 		.danger_lut = {
 			.enable = false,
@@ -1157,7 +1157,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0xA438, /* IPE_WR_1 : NOC_NRT_7_NIU_URGENCY_LOW */
-			.value = 0x1003,
+			.value = 0x1030,
 		},
 		.danger_lut = {
 			.enable = false,
