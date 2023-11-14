@@ -32,6 +32,8 @@
 #define CAM_CPAS_QOS_DEFAULT_SETTINGS_MASK 0x1
 #define CAM_CPAS_QOS_CUSTOM_SETTINGS_MASK  0x2
 
+#define CAM_CPAS_SHDR_SYS_CACHE_SHDR_MAX_ID(type) (type + 1)
+
 /**
  * enum cam_cpas_regbase_types - Enum for cpas regbase available for clients
  *                             to read/write
@@ -262,38 +264,6 @@ enum cam_camnoc_irq_type {
 	CAM_CAMNOC_IRQ_OFE_RD_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_IRQ_TFE_UBWC_ENCODE_ERROR,
 	CAM_CAMNOC_IRQ_AHB_TIMEOUT,
-};
-
-
-/**
- * enum cam_sys_cache_config_types - Enum for camera llc's
- */
-enum cam_sys_cache_config_types {
-	CAM_LLCC_SMALL_1 = 0,
-	CAM_LLCC_SMALL_2 = 1,
-	CAM_LLCC_LARGE_1 = 2,
-	CAM_LLCC_LARGE_2 = 3,
-	CAM_LLCC_LARGE_3 = 4,
-	CAM_LLCC_LARGE_4 = 5,
-	CAM_LLCC_MAX     = 6,
-};
-
-/**
- * enum cam_sys_cache_llcc_staling_mode - Enum for camera llc's stalling mode
- */
-enum cam_sys_cache_llcc_staling_mode {
-	CAM_LLCC_STALING_MODE_CAPACITY,
-	CAM_LLCC_STALING_MODE_NOTIFY,
-	CAM_LLCC_STALING_MODE_MAX,
-};
-
-/**
- * enum cam_sys_cache_llcc_staling_mode - Enum for camera llc's stalling mode
- */
-enum cam_sys_cache_llcc_staling_op_type {
-	CAM_LLCC_NOTIFY_STALING_EVICT,
-	CAM_LLCC_NOTIFY_STALING_FORGET,
-	CAM_LLCC_NOTIFY_STALING_OPS_MAX
 };
 
 /**
@@ -899,7 +869,7 @@ int cam_cpas_notify_event(const char *identifier_string,
  * @return slice id, -1 for invalid id.
  *
  */
-int cam_cpas_get_scid(enum cam_sys_cache_config_types  type);
+int cam_cpas_get_scid(uint32_t type);
 
 /**
  * cam_cpas_activate_llcc()
@@ -911,7 +881,7 @@ int cam_cpas_get_scid(enum cam_sys_cache_config_types  type);
  * @return 0 for success.
  *
  */
-int cam_cpas_activate_llcc(enum cam_sys_cache_config_types type);
+int cam_cpas_activate_llcc(uint32_t type);
 
 /**
  * cam_cpas_deactivate_llcc()
@@ -923,7 +893,7 @@ int cam_cpas_activate_llcc(enum cam_sys_cache_config_types type);
  * @return 0 for success.
  *
  */
-int cam_cpas_deactivate_llcc(enum cam_sys_cache_config_types type);
+int cam_cpas_deactivate_llcc(uint32_t type);
 
 /**
  * cam_cpas_configure_staling_llcc()
@@ -931,18 +901,22 @@ int cam_cpas_deactivate_llcc(enum cam_sys_cache_config_types type);
  * @brief:  Configure cache staling mode by setting the
  *          staling_mode and corresponding params
  *
- * @type: Cache type
- * @mode_param: llcc stalling mode params
- * @operation_type: cache operation type
+ @type:    Cache type, For exacmple cache types are
+ *         CAM_LLCC_SMALL_1/CAM_LLCC_SMALL_2/CAM_LLCC_LARGE_1/ ....
+ *         CAM_LLCC_IPE_SRT_IP/CAM_LLCC_IPE_RT_RF
+ * @mode_param:  camera llcc's stalling mode params, possible allowed values
+ *               CAM_LLCC_STALING_MODE_CAPACITY/CAM_LLCC_STALING_MODE_NOTIFY
+ * @operation_type:    cache operation type, possible allowed values are
+ *                     CAM_LLCC_NOTIFY_STALING_EVICT/CAM_LLCC_NOTIFY_STALING_FORGET
  * @stalling_distance: llcc sys cache stalling distance
  *
  * @return 0 for success.
  *
  */
 int cam_cpas_configure_staling_llcc(
-	enum cam_sys_cache_config_types type,
-	enum cam_sys_cache_llcc_staling_mode mode_param,
-	enum cam_sys_cache_llcc_staling_op_type operation_type,
+	uint32_t type,
+	uint32_t mode_param,
+	uint32_t operation_type,
 	uint32_t staling_distance);
 
 /**
@@ -952,13 +926,15 @@ int cam_cpas_configure_staling_llcc(
  *         depends on what operation it does.
  *         The operation mode what we have setup in other function.
  *
- * @type: Cache type
+ @type: Cache type, For example cache types are
+ *        CAM_LLCC_SMALL_1/CAM_LLCC_SMALL_2/CAM_LLCC_LARGE_1/ ....
+ *        CAM_LLCC_IPE_SRT_IP/CAM_LLCC_IPE_RT_RF
  *
  * @return 0 for success.
  *
  */
 int cam_cpas_notif_increment_staling_counter(
-	enum cam_sys_cache_config_types type);
+	uint32_t type);
 
 /**
  * cam_cpas_dump_camnoc_buff_fill_info()

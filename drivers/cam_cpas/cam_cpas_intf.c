@@ -23,6 +23,7 @@
 #include "cam_cpastop_hw.h"
 #include "camera_main.h"
 #include "cam_cpas_hw.h"
+#include "cam_packet_util.h"
 
 #include <linux/soc/qcom/llcc-qcom.h>
 #include "cam_req_mgr_interface.h"
@@ -903,7 +904,7 @@ int cam_cpas_register_client(
 EXPORT_SYMBOL(cam_cpas_register_client);
 
 int cam_cpas_get_scid(
-	enum cam_sys_cache_config_types type)
+	uint32_t type)
 {
 	int rc;
 
@@ -983,8 +984,7 @@ int cam_cpas_prepare_subpart_info(enum cam_subparts_index idx, uint32_t num_subp
 }
 EXPORT_SYMBOL(cam_cpas_prepare_subpart_info);
 
-int cam_cpas_activate_llcc(
-	enum cam_sys_cache_config_types type)
+int cam_cpas_activate_llcc(uint32_t type)
 {
 	int rc;
 
@@ -1009,8 +1009,7 @@ int cam_cpas_activate_llcc(
 }
 EXPORT_SYMBOL(cam_cpas_activate_llcc);
 
-int cam_cpas_deactivate_llcc(
-	enum cam_sys_cache_config_types type)
+int cam_cpas_deactivate_llcc(uint32_t type)
 {
 	int rc;
 
@@ -1036,9 +1035,8 @@ int cam_cpas_deactivate_llcc(
 EXPORT_SYMBOL(cam_cpas_deactivate_llcc);
 
 int cam_cpas_configure_staling_llcc(
-	enum cam_sys_cache_config_types type,
-	enum cam_sys_cache_llcc_staling_mode mode_param,
-	enum cam_sys_cache_llcc_staling_op_type operation_type,
+	uint32_t type, uint32_t mode_param,
+	uint32_t operation_type,
 	uint32_t staling_distance)
 {
 	int rc;
@@ -1074,7 +1072,7 @@ int cam_cpas_configure_staling_llcc(
 EXPORT_SYMBOL(cam_cpas_configure_staling_llcc);
 
 int cam_cpas_notif_increment_staling_counter(
-	enum cam_sys_cache_config_types type)
+	uint32_t type)
 {
 	int rc;
 
@@ -1317,6 +1315,86 @@ static int cam_cpas_handle_custom_config_cmd(struct cam_cpas_intf *cpas_intf,
 	return rc;
 }
 
+static int cam_cpas_sys_cache_cap_populate(
+	struct cam_cpas_sys_cache_query *sys_cache_query_cap)
+{
+	int                              rc = 0, i;
+	struct cam_hw_info              *cpas_hw;
+	struct cam_cpas_private_soc     *soc_private;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+
+	cpas_hw = g_cpas_intf->hw_intf->hw_priv;
+	soc_private = (struct cam_cpas_private_soc *)
+				cpas_hw->soc_info.soc_private;
+	sys_cache_query_cap->num_cache = soc_private->num_caches;
+
+	for (i = 0; i < soc_private->num_caches; i++) {
+		sys_cache_query_cap->sys_cache_cap[i].scid_id
+			= soc_private->llcc_info[i].type;
+		sys_cache_query_cap->sys_cache_cap[i].scid_num
+			= soc_private->llcc_info[i].scid;
+		sys_cache_query_cap->sys_cache_cap[i].concur_usage
+			= soc_private->llcc_info[i].concur;
+	}
+
+	return rc;
+}
+
+static int cam_cpas_handle_generic_query_blob(
+	void *user_data,
+	uint32_t blob_type, uint32_t blob_size, uint8_t *blob_data)
+{
+	int       rc = 0;
+	uint32_t *camera_capability, num_cap_mask;
+
+	CAM_DBG(CAM_CPAS, "blob_type=%d, blob_size=%d",
+			blob_type, blob_size);
+
+	switch (blob_type) {
+	case CAM_CPAS_QUERY_BLOB_V3: {
+		struct cam_cpas_query_cap_v3 *query;
+
+		if (blob_size < sizeof(struct cam_cpas_query_cap_v3)) {
+			CAM_ERR(CAM_CPAS, "Invalid blob size %u, blob_type=%d for query cap v3",
+				blob_size, blob_type);
+			return -EINVAL;
+		}
+		query = (struct cam_cpas_query_cap_v3 *)blob_data;
+		rc = cam_cpas_get_hw_info(&query->camera_family,
+			&query->camera_version, &query->cpas_version,
+			&camera_capability, &num_cap_mask, &query->fuse_info,
+			&query->domain_id_info);
+		if (rc)
+			break;
+
+		query->camera_caps = camera_capability[0];
+		break;
+	}
+	case CAM_CPAS_QUERY_BLOB_SYSCACHE: {
+		struct cam_cpas_sys_cache_query *sys_cache_query_cap = NULL;
+
+		if (blob_size < sizeof(struct cam_cpas_sys_cache_query)) {
+			CAM_ERR(CAM_CPAS, "Invalid blob size %u, blob_type=%d for sys cache",
+				blob_size, blob_type);
+			return -EINVAL;
+		}
+		sys_cache_query_cap = (struct cam_cpas_sys_cache_query *)blob_data;
+		rc = cam_cpas_sys_cache_cap_populate(sys_cache_query_cap);
+		break;
+	}
+	default:
+		CAM_WARN(CAM_CPAS, "Unknown op code %d for CPAS", blob_type);
+		rc = 0;
+		break;
+	}
+
+	return rc;
+}
+
 int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 	struct cam_control *cmd)
 {
@@ -1420,6 +1498,36 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 			break;
 		}
 		rc = cam_cpas_handle_custom_config_cmd(cpas_intf, &custom_cmd);
+		break;
+	}
+	case CAM_QUERY_CAP_GENERIC_BLOB: {
+		void *blob_data = kzalloc(cmd->size, GFP_KERNEL);
+
+		if (blob_data) {
+			rc = copy_from_user(blob_data, u64_to_user_ptr(cmd->handle),
+				cmd->size);
+			if (rc) {
+				kfree(blob_data);
+				CAM_ERR(CAM_CPAS, "Failed in copy from user, rc=%d",
+					rc);
+				break;
+			}
+
+			rc = cam_packet_util_process_generic_blob(cmd->size, blob_data,
+					 cam_cpas_handle_generic_query_blob, NULL);
+			if (rc) {
+				kfree(blob_data);
+				break;
+			}
+			rc = copy_to_user(u64_to_user_ptr(cmd->handle), blob_data,
+				cmd->size);
+			if (rc)
+				CAM_ERR(CAM_CPAS, "Failed in copy to user, rc=%d", rc);
+			kfree(blob_data);
+		} else {
+			rc = -ENOMEM;
+			CAM_ERR(CAM_CPAS, "memory allocation is failed rc = %d", rc);
+		}
 		break;
 	}
 	case CAM_SD_SHUTDOWN:

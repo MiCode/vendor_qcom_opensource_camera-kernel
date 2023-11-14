@@ -224,7 +224,7 @@ struct cam_ife_hw_mgr_ctx_flags {
 	bool   dump_on_error;
 	bool   is_aeb_mode;
 	bool   rdi_lcr_en;
-	bool   sys_cache_usage[CAM_LLCC_MAX];
+	bool   sys_cache_usage[CAM_LLCC_LARGE_4 + 1];
 	bool   rdi_pd_context;
 };
 
@@ -450,7 +450,7 @@ struct cam_isp_ife_sfe_hw_caps {
  * @llcc_staling_support     to check llcc sys cache stalling mode supported or not
  */
 struct cam_isp_sys_cache_info {
-	enum cam_sys_cache_config_types type;
+	uint32_t                        type;
 	int32_t                         scid;
 	bool            llcc_staling_support;
 };
@@ -564,7 +564,7 @@ struct cam_ife_hw_mgr {
 	struct cam_isp_hw_path_port_map  path_port_map;
 
 	uint32_t                         num_caches_found;
-	struct cam_isp_sys_cache_info    sys_cache_info[CAM_LLCC_MAX];
+	struct cam_isp_sys_cache_info    sys_cache_info[CAM_LLCC_LARGE_4 + 1];
 	struct cam_isp_sfe_cache_info    sfe_cache_info[CAM_SFE_HW_NUM_MAX];
 	uint32_t                         isp_device_type;
 

@@ -32,6 +32,7 @@
 #define CAM_QUERY_CAP_V3                    (CAM_COMMON_OPCODE_BASE_v2 + 0x4)
 #define CAM_SYNX_TEST_TRIGGER               (CAM_COMMON_OPCODE_BASE_v2 + 0x5)
 #define CAM_CUSTOM_DEV_CONFIG               (CAM_COMMON_OPCODE_BASE_v2 + 0x6)
+#define CAM_QUERY_CAP_GENERIC_BLOB          (CAM_COMMON_OPCODE_BASE_v2 + 0x7)
 
 #define CAM_EXT_OPCODE_BASE                     0x200
 #define CAM_CONFIG_DEV_EXTERNAL                 (CAM_EXT_OPCODE_BASE + 0x1)
@@ -65,6 +66,9 @@
 #define CAM_MAX_ACQ_RES    5
 #define CAM_MAX_HW_SPLIT   3
 
+/* camera blob handle op codes */
+#define CAM_COMMON_QUERY_BLOB_BASE 0x0
+#define CAM_COMMON_QUERY_BLOB_END  0x32
 
 /**
  * enum flush_type_t - Identifies the various flush types

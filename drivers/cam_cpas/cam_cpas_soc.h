@@ -102,43 +102,52 @@ struct cam_cpas_feature_info {
 /**
  * struct cam_sys_cache_local_info : camera cache info saving locally
  *
- * @type:      cache type small/large etc.
+ * @type: Cache type, For example cache types are
+ *        CAM_LLCC_SMALL_1/CAM_LLCC_SMALL_2/CAM_LLCC_LARGE_1/ ....
+ *        CAM_LLCC_IPE_SRT_IP/CAM_LLCC_IPE_RT_RF
  * @staling_distance:       staling_distance
- * @mode:      camera llc's stalling mode
- * @op_type:      cache operation type EVICT, FORGET
+ * @mode:       llcc staling mode params, possible allowed values
+ *              CAM_LLCC_STALING_MODE_CAPACITY/CAM_LLCC_STALING_MODE_NOTIFY
+ * @op_type:    cache operation type, possible allowed values are
+ *                  CAM_LLCC_NOTIFY_STALING_EVICT/CAM_LLCC_NOTIFY_STALING_FORGET
  */
 struct cam_sys_cache_local_info {
-	enum cam_sys_cache_config_types  type;
-	uint32_t staling_distance;
-	enum cam_sys_cache_llcc_staling_mode mode;
-	enum cam_sys_cache_llcc_staling_op_type op_type;
+	uint32_t        type;
+	uint32_t        staling_distance;
+	uint32_t        mode;
+	uint32_t        op_type;
 };
 
 /**
  * struct cam_sys_cache_info : Last level camera cache info
  *
  * @ref_cnt:   Ref cnt activate/deactivate cache
- * @type:      cache type small/large etc.
+ * @type: Cache type, For example cache types are
+ *        CAM_LLCC_SMALL_1/CAM_LLCC_SMALL_2/CAM_LLCC_LARGE_1/ ....
+ *        CAM_LLCC_IPE_SRT_IP/CAM_LLCC_IPE_RT_RF
  * @uid:       Client user ID
  * @size:      Cache size
  * @scid:      Slice ID
  * @slic_desc: Slice descriptor
  * @staling_distance:       staling_distance
- * @mode:      camera llc's stalling mode
- * @op_type:      cache operation type EVICT, FORGET
+ * @mode:       camera llcc's staling mode params, possible allowed values
+ *              CAM_LLCC_STALING_MODE_CAPACITY/CAM_LLCC_STALING_MODE_NOTIFY
+ * @op_type:    cache operation type, possible allowed values are
+ *              CAM_LLCC_NOTIFY_STALING_EVICT/CAM_LLCC_NOTIFY_STALING_FORGET
+ * @concur      concurrent usage is supported or not for a scid
  */
 struct cam_sys_cache_info {
 	uint32_t                         ref_cnt;
-	enum cam_sys_cache_config_types  type;
+	uint32_t                         type;
 	uint32_t                         uid;
 	size_t                           size;
 	int32_t                          scid;
 	const char                      *name;
 	struct llcc_slice_desc          *slic_desc;
-	uint32_t staling_distance;
-	enum cam_sys_cache_llcc_staling_mode mode;
-	enum cam_sys_cache_llcc_staling_op_type op_type;
-
+	uint32_t                         staling_distance;
+	int32_t                          mode;
+	int32_t                          op_type;
+	uint32_t                         concur;
 };
 
 

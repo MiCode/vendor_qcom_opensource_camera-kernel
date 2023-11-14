@@ -99,6 +99,7 @@
 #define CAM_ICP_CMD_GENERIC_BLOB_FW_MEM_UNMAP     0x4
 #define CAM_ICP_CMD_GENERIC_BLOB_CLK_V2           0x5
 #define CAM_ICP_CMD_GENERIC_BLOB_PRESIL_HANGDUMP  0x6
+#define CAM_ICP_CMD_GENERIC_BLOB_SYSCACHE_CONFIG  0x7
 
 /* Max number of device types supported per ICP instance */
 #define CAM_ICP_MAX_NUM_OF_DEV_TYPES              0x5

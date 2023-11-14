@@ -205,4 +205,16 @@ int cam_presil_retrieve_buffers_from_packet(struct cam_packet *packet, int iommu
 int cam_presil_send_buffers_from_packet(struct cam_packet *packet, int img_iommu_hdl,
 	int cdm_iommu_hdl);
 
+/**
+ * @brief : API to handle the blob data to get blob type and size
+ *
+ * @length :            length of the blob
+ * @blob_ptr:           blob base address
+ * @blob_handler_cb:    blob handler call back
+ * @user_data:          user data information
+ */
+int cam_packet_util_process_generic_blob(uint32_t length, uint32_t *blob_ptr,
+	cam_packet_generic_blob_handler blob_handler_cb, void *user_data);
+
+
 #endif /* _CAM_PACKET_UTIL_H_ */

@@ -66,6 +66,8 @@
 
 #define CAM_ICP_CTX_MAX_CMD_BUFFERS 0x2
 
+#define CAM_ICP_SYS_CACHE_TYPE_MAX  5
+
 /* Current appliacble vote paths, based on number of UAPI definitions */
 #define CAM_ICP_MAX_PER_PATH_VOTES 12
 
@@ -234,6 +236,37 @@ struct cam_icp_hw_ctx_dev_info {
 };
 
 /**
+ * struct cam_icp_scid_cfg -
+ *        sys cache config information
+ *
+ * @scid_id                cache scid id
+ * @staling_distance       staling distance used for notification
+ * @llcc_staling_mode      staling mode evict/forget
+ * @llcc_staling_op_type   operation type capacity/notify
+ * @activated              maintain the state of scid
+ */
+struct cam_icp_scid_cfg {
+	uint32_t                  scid_id;
+	uint32_t                  staling_distance;
+	uint32_t                  llcc_staling_mode;
+	uint32_t                  llcc_staling_op_type;
+	bool                      activated;
+};
+
+/**
+ * struct cam_icp_sys_cache_cfg -
+ *        sys cache config request information
+ *
+ * @num            num of cache need to configure
+ * @scid_cfg       cache config information
+ */
+struct cam_icp_sys_cache_cfg {
+	uint32_t      num;
+	struct cam_icp_scid_cfg scid_cfg[CAM_ICP_SYS_CACHE_TYPE_MAX];
+};
+
+
+/**
  * struct hfi_frame_process_info
  * @hfi_frame_cmd: Frame process command info
  * @bitmap: Bitmap for hfi_frame_cmd
@@ -379,6 +412,7 @@ struct cam_icp_hw_device_info {
  * @perf_stats: performance statistics info
  * @evt_inject_params: Event injection data for hw_mgr_ctx
  * @abort_timed_out: Indicates if abort timed out
+ * @sys_cache_cfg: sys cache config information
  */
 struct cam_icp_hw_ctx_data {
 	void *context_priv;
@@ -404,6 +438,7 @@ struct cam_icp_hw_ctx_data {
 	struct cam_icp_ctx_perf_stats perf_stats;
 	struct cam_hw_inject_evt_param evt_inject_params;
 	bool abort_timed_out;
+	struct cam_icp_sys_cache_cfg sys_cache_cfg;
 };
 
 /**
