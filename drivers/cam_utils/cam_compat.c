@@ -930,7 +930,7 @@ int16_t cam_get_gpio_counts(struct cam_hw_soc_info *soc_info)
 	of_node = soc_info->dev->of_node;
 #if KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE
 	gpio_array_size = of_count_phandle_with_args(
-		of_node, soc_info->compatible, NULL);
+		of_node, "gpios", "#gpio-cells");
 #else
 	gpio_array_size = of_gpio_count(of_node);
 #endif
@@ -946,7 +946,7 @@ uint16_t cam_get_named_gpio(struct cam_hw_soc_info *soc_info,
 
 	of_node = soc_info->dev->of_node;
 #if KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE
-	gpio_pin = of_get_named_gpio(of_node, soc_info->compatible, index);
+	gpio_pin = of_get_named_gpio(of_node, "gpios", index);
 #else
 	gpio_pin = of_get_gpio(of_node, index);
 #endif
