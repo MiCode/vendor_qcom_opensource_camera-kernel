@@ -1872,6 +1872,7 @@ static int __cam_isp_ctx_handle_buf_done_for_req_list(
 					CAM_REQ_MGR_SOF_EVENT_SUCCESS);
 			}
 		}
+
 		list_del_init(&req->list);
 		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		list_add_tail(&req->list, &ctx->free_req_list);
@@ -1889,6 +1890,7 @@ static int __cam_isp_ctx_handle_buf_done_for_req_list(
 			ctx_isp->bubble_frame_cnt = 0;
 			req_isp->bubble_detected = false;
 		}
+
 		CAM_DBG(CAM_REQ,
 			"Move active request %lld to free list(cnt = %d) [all fences done], ctx %u link: 0x%x",
 			buf_done_req_id, ctx_isp->active_req_cnt, ctx->ctx_id, ctx->link_hdl);
@@ -1935,8 +1937,7 @@ static int __cam_isp_ctx_handle_buf_done_for_request(
 	done_next_req->timestamp = done->timestamp;
 
 	for (i = 0; i < req_isp->num_fence_map_out; i++) {
-		if (done->resource_handle ==
-			req_isp->fence_map_out[i].resource_handle)
+		if (done->resource_handle == req_isp->fence_map_out[i].resource_handle)
 			break;
 	}
 
@@ -1991,10 +1992,18 @@ static int __cam_isp_ctx_handle_buf_done_for_request(
 		goto check_deferred;
 	}
 
+	/*
+	 * Compare hw ctxt id as well if applicable, because comp group record will have
+	 * multiple entries with the same resource id.
+	 */
 	for (i = 0; i < comp_grp->num_res; i++) {
 		for (j = 0; j < req_isp->num_fence_map_out; j++) {
-			if (comp_grp->res_id[i] ==
-				req_isp->fence_map_out[j].resource_handle)
+			if (((!comp_grp->hw_ctxt_id[i]) &&
+				(comp_grp->res_id[i] == req_isp->fence_map_out[j].resource_handle))
+				|| (comp_grp->hw_ctxt_id[i] &&
+				(comp_grp->res_id[i] == req_isp->fence_map_out[j].resource_handle)
+				&&
+				(comp_grp->hw_ctxt_id[i] == req_isp->fence_map_out[j].hw_ctxt_id)))
 				break;
 		}
 
@@ -2043,9 +2052,11 @@ static int __cam_isp_ctx_handle_buf_done_for_request(
 
 		if (!req_isp->bubble_detected) {
 			CAM_DBG(CAM_ISP,
-				"Sync with success: req %lld res 0x%x fd 0x%x, ctx %u link: 0x%x",
+				"Sync with success: req %lld res 0x%x %s fd 0x%x, ctx %u link: 0x%x",
 				req->request_id,
 				req_isp->fence_map_out[j].resource_handle,
+				__cam_isp_resource_handle_id_to_type(ctx_isp->isp_device_type,
+						req_isp->fence_map_out[j].resource_handle),
 				req_isp->fence_map_out[j].sync_id,
 				ctx->ctx_id, ctx->link_hdl);
 
@@ -2060,9 +2071,11 @@ static int __cam_isp_ctx_handle_buf_done_for_request(
 					 rc, ctx->ctx_id, ctx->link_hdl);
 		} else if (!req_isp->bubble_report) {
 			CAM_DBG(CAM_ISP,
-				"Sync with failure: req %lld res 0x%x fd 0x%x, ctx %u link: 0x%x",
+				"Sync with failure: req %lld res 0x%x %s fd 0x%x, ctx %u link: 0x%x",
 				req->request_id,
 				req_isp->fence_map_out[j].resource_handle,
+				__cam_isp_resource_handle_id_to_type(ctx_isp->isp_device_type,
+						req_isp->fence_map_out[j].resource_handle),
 				req_isp->fence_map_out[j].sync_id,
 				ctx->ctx_id, ctx->link_hdl);
 
@@ -2256,8 +2269,7 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 	unhandled_done.timestamp = done->timestamp;
 
 	for (i = 0; i < req_isp->num_fence_map_out; i++) {
-		if (done->resource_handle ==
-			req_isp->fence_map_out[i].resource_handle) {
+		if (done->resource_handle == req_isp->fence_map_out[i].resource_handle) {
 			cmp_addr = cam_smmu_is_expanded_memory() ? CAM_36BIT_INTF_GET_IOVA_BASE(
 				req_isp->fence_map_out[i].image_buf_addr[0]) :
 				req_isp->fence_map_out[i].image_buf_addr[0];
@@ -2331,12 +2343,15 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 				CAM_36BIT_INTF_GET_IOVA_BASE(
 				req_isp->fence_map_out[k].image_buf_addr[0]) :
 				req_isp->fence_map_out[k].image_buf_addr[0];
-			CAM_DBG(CAM_ISP, "Get res %s last_consumed_addr:0x%x cmp_addr:0x%x",
+			CAM_DBG(CAM_ISP,
+				"Get res %s comp_grp_rec_idx:%d fence_map_idx:%d last_consumed_addr:0x%x cmp_addr:0x%x",
 				__cam_isp_resource_handle_id_to_type(
-				ctx_isp->isp_device_type, done->resource_handle),
+				ctx_isp->isp_device_type, done->resource_handle), j, k,
 				done->last_consumed_addr, cmp_addr);
 			if (done->last_consumed_addr == cmp_addr) {
-				CAM_INFO(CAM_ISP, "found...");
+				CAM_DBG(CAM_ISP, "Consumed addr compare success for res:%s ",
+					__cam_isp_resource_handle_id_to_type(
+				ctx_isp->isp_device_type, done->resource_handle));
 				not_found = false;
 				break;
 			}
@@ -2364,10 +2379,18 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 		goto check_deferred;
 	}
 
+	/*
+	 * Compare hw ctxt id as well if applicable, because comp group record will have
+	 * multiple entries with the same resource id.
+	 */
 	for (i = 0; i < comp_grp->num_res; i++) {
 		for (j = 0; j < req_isp->num_fence_map_out; j++) {
-			if (comp_grp->res_id[i] ==
-				req_isp->fence_map_out[j].resource_handle)
+			if (((!comp_grp->hw_ctxt_id[i]) &&
+				(comp_grp->res_id[i] == req_isp->fence_map_out[j].resource_handle))
+				|| (comp_grp->hw_ctxt_id[i] &&
+				(comp_grp->res_id[i] == req_isp->fence_map_out[j].resource_handle)
+				&&
+				(comp_grp->hw_ctxt_id[i] == req_isp->fence_map_out[j].hw_ctxt_id)))
 				break;
 		}
 
@@ -2465,9 +2488,11 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 			continue;
 		} else if (!req_isp->bubble_detected) {
 			CAM_DBG(CAM_ISP,
-				"Sync with success: req %lld res 0x%x fd 0x%x, ctx:%u link[0x%x]",
+				"Sync with success: req %lld res 0x%x %s fd 0x%x, ctx:%u link[0x%x]",
 				req->request_id,
 				req_isp->fence_map_out[j].resource_handle,
+				__cam_isp_resource_handle_id_to_type(ctx_isp->isp_device_type,
+						req_isp->fence_map_out[j].resource_handle),
 				req_isp->fence_map_out[j].sync_id,
 				ctx->ctx_id, ctx->link_hdl);
 
@@ -2494,9 +2519,11 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 		} else if (!req_isp->bubble_report) {
 
 			CAM_DBG(CAM_ISP,
-				"Sync with failure: req %lld res 0x%x fd 0x%x, ctx:%u link[0x%x]",
+				"Sync with failure: req %lld res 0x%x %s fd 0x%x, ctx:%u link[0x%x]",
 				req->request_id,
 				req_isp->fence_map_out[j].resource_handle,
+				__cam_isp_resource_handle_id_to_type(ctx_isp->isp_device_type,
+					req_isp->fence_map_out[j].resource_handle),
 				req_isp->fence_map_out[j].sync_id,
 				ctx->ctx_id, ctx->link_hdl);
 
@@ -2868,13 +2895,9 @@ static int __cam_isp_ctx_handle_buf_done_verify_addr(
 			struct cam_ctx_request, list);
 
 	if (ctx_isp->active_req_cnt > 1) {
-		next_req = list_last_entry(
-			&ctx->active_req_list,
-			struct cam_ctx_request, list);
-
+		next_req = list_last_entry(&ctx->active_req_list, struct cam_ctx_request, list);
 		if (next_req->request_id != req->request_id)
-			__cam_isp_ctx_buf_done_match_req(next_req, done,
-				&irq_delay_detected);
+			__cam_isp_ctx_buf_done_match_req(next_req, done, &irq_delay_detected);
 		else
 			CAM_WARN(CAM_ISP,
 				"Req %lld only active request, spurious buf_done rxd, ctx: %u link: 0x%x",
@@ -2886,8 +2909,7 @@ static int __cam_isp_ctx_handle_buf_done_verify_addr(
 	 * the consumed address for current req, otherwise, we
 	 * can't verify the consumed address.
 	 */
-	rc = __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
-		ctx_isp, req, done, bubble_state,
+	rc = __cam_isp_ctx_handle_buf_done_for_request_verify_addr(ctx_isp, req, done, bubble_state,
 		!irq_delay_detected, false);
 
 	/*
@@ -2896,8 +2918,7 @@ static int __cam_isp_ctx_handle_buf_done_verify_addr(
 	 * req, then we can't signal this event for next req.
 	 */
 	if (!rc && irq_delay_detected)
-		rc = __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
-			ctx_isp, next_req, done,
+		rc = __cam_isp_ctx_handle_buf_done_for_request_verify_addr(ctx_isp, next_req, done,
 			bubble_state, true, false);
 
 	return rc;

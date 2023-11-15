@@ -75,6 +75,7 @@ struct cam_isp_hw_mgr {
  * @num_children:        number of the child resource node.
  * @use_wm_pack:         Flag to indicate if WM is to be used for packing
  * @hw_ctxt_id:          HW context ID mask corresponding to this resource
+ * @comp_grp_id:         Composite group ID corresponding to this resource
  *
  */
 struct cam_isp_hw_mgr_res {
@@ -87,6 +88,7 @@ struct cam_isp_hw_mgr_res {
 	uint32_t                         num_children;
 	bool                             use_wm_pack;
 	uint32_t                         hw_ctxt_id_mask;
+	uint32_t                         comp_grp_id;
 };
 
 

@@ -56,7 +56,7 @@
 /* Max sensor switch out of sync threshold */
 #define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         6
 
-#define CAM_CSID_IRQ_CTRL_NAME_LEN                     10
+#define CAM_CSID_IRQ_CTRL_NAME_LEN                     20
 
 char *cam_ife_csid_ver2_top_reg_name[] = {
 	"top",
@@ -3854,6 +3854,8 @@ int cam_ife_csid_ver2_reserve(void *hw_priv,
 	csid_hw->tasklet  = reserve->tasklet;
 	csid_hw->token  = reserve->cb_priv;
 	reserve->buf_done_controller = csid_hw->buf_done_irq_controller;
+	reserve->mc_comp_buf_done_controller =
+		csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0];
 	res->cdm_ops = reserve->cdm_ops;
 	csid_hw->flags.sfe_en = reserve->sfe_en;
 	path_cfg->sfe_shdr = reserve->sfe_inline_shdr;
@@ -5686,10 +5688,6 @@ static int cam_ife_csid_ver2_enable_hw(
 
 	buf_done_irq_mask = csid_reg->cmn_reg->top_buf_done_irq_mask;
 
-	if (csid_reg->ipp_mc_reg)
-		buf_done_irq_mask |= csid_reg->ipp_mc_reg->comp_subgrp0_mask |
-			csid_reg->ipp_mc_reg->comp_subgrp2_mask;
-
 	csid_hw->buf_done_irq_handle = cam_irq_controller_subscribe_irq(
 		csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 		CAM_IRQ_PRIORITY_4,
@@ -5700,8 +5698,6 @@ static int cam_ife_csid_ver2_enable_hw(
 		NULL,
 		NULL,
 		CAM_IRQ_EVT_GROUP_0);
-
-
 	if (csid_hw->buf_done_irq_handle < 1) {
 		CAM_ERR(CAM_ISP, "CSID[%u] buf done irq subscribe fail",
 			csid_hw->hw_intf->hw_idx);
@@ -8117,7 +8113,6 @@ static int cam_ife_csid_hw_init_irq(
 	snprintf(name, CAM_CSID_IRQ_CTRL_NAME_LEN, "csid%d_buf_done", csid_hw->hw_intf->hw_idx);
 	rc = cam_irq_controller_init(name, mem_base, csid_reg->buf_done_irq_reg_info,
 		&csid_hw->buf_done_irq_controller);
-
 	if (rc) {
 		CAM_ERR(CAM_ISP, "CSID:%u Failed to init CSID buf_done irq controller rc = %d",
 			csid_hw->hw_intf->hw_idx, rc);

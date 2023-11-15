@@ -2242,7 +2242,6 @@ static int cam_ife_hw_mgr_acquire_res_ife_out_pixel(
 	struct cam_isp_hw_mgr_res                *ife_out_res;
 	struct cam_hw_intf                       *hw_intf;
 	struct cam_isp_context_comp_record       *comp_grp = NULL;
-	uint32_t                                  index;
 	bool                                      is_ife_out_in_list;
 
 	for (i = 0; i < in_port->num_out_res; i++) {
@@ -2299,6 +2298,7 @@ static int cam_ife_hw_mgr_acquire_res_ife_out_pixel(
 			g_ife_hw_mgr.debug_cfg.disable_ubwc_comp;
 		vfe_acquire.event_cb = cam_ife_hw_mgr_event_handler;
 		vfe_acquire.buf_done_controller = ife_ctx->buf_done_controller;
+		vfe_acquire.mc_comp_buf_done_controller = ife_ctx->mc_comp_buf_done_controller;
 
 		for (j = 0; j < CAM_ISP_HW_SPLIT_MAX; j++) {
 			if (!ife_src_res->hw_res[j])
@@ -2337,19 +2337,35 @@ static int cam_ife_hw_mgr_acquire_res_ife_out_pixel(
 			}
 
 			ife_out_res->hw_res[j] = vfe_acquire.vfe_out.rsrc_node;
-			if ((j == CAM_ISP_HW_SPLIT_LEFT) && (!is_ife_out_in_list)) {
-				index = vfe_acquire.vfe_out.comp_grp_id;
-				comp_grp = &ife_ctx->vfe_bus_comp_grp[index];
+
+			/*
+			 * Here, isp mgr resource is unique for a output resource in case of
+			 * multi-context cases, but comp group record can have multiple entries
+			 * with different conetxt IDs.
+			 */
+			if (j == CAM_ISP_HW_SPLIT_LEFT) {
+				if (!is_ife_out_in_list)
+					ife_out_res->comp_grp_id = vfe_acquire.vfe_out.comp_grp_id;
+
+				comp_grp = &ife_ctx->vfe_bus_comp_grp[ife_out_res->comp_grp_id];
 				comp_grp->res_id[comp_grp->num_res] =
 					ife_out_res->hw_res[j]->res_id;
+
+				if ((in_port->major_ver == 3) && vfe_acquire.vfe_out.use_hw_ctxt)
+					comp_grp->hw_ctxt_id[comp_grp->num_res] =
+						vfe_acquire.vfe_out.out_port_info->hw_context_id;
+				else
+					comp_grp->hw_ctxt_id[comp_grp->num_res] = 0x0;
+
 				comp_grp->num_res++;
 			}
 
 			CAM_DBG(CAM_ISP, "resource type:0x%x res id:0x%x comp grp id:%d ctx:%u",
 				ife_out_res->hw_res[j]->res_type,
 				ife_out_res->hw_res[j]->res_id,
-				vfe_acquire.vfe_out.comp_grp_id, ife_ctx->ctx_index);
+				ife_out_res->comp_grp_id, ife_ctx->ctx_index);
 		}
+
 		ife_out_res->res_type = CAM_ISP_RESOURCE_VFE_OUT;
 		ife_out_res->res_id = out_port->res_type;
 		ife_out_res->hw_ctxt_id_mask |= vfe_acquire.vfe_out.out_port_info->hw_context_id;
@@ -3900,6 +3916,8 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 			ife_ctx->left_hw_idx = hw_intf->hw_idx;
 			ife_ctx->buf_done_controller =
 				csid_acquire.buf_done_controller;
+			ife_ctx->mc_comp_buf_done_controller =
+				csid_acquire.mc_comp_buf_done_controller;
 		} else {
 			ife_ctx->right_hw_idx = hw_intf->hw_idx;
 		}
@@ -5647,6 +5665,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->left_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ife_ctx->right_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ife_ctx->buf_done_controller = NULL;
+	ife_ctx->mc_comp_buf_done_controller = NULL;
 	ife_ctx->common.event_cb = acquire_args->event_cb;
 	ife_ctx->hw_mgr = ife_hw_mgr;
 	ife_ctx->cdm_ops =  cam_cdm_publish_ops();
@@ -8455,6 +8474,7 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 
 	ctx->ctx_type = CAM_IFE_CTX_TYPE_NONE;
 	ctx->buf_done_controller = NULL;
+	ctx->mc_comp_buf_done_controller = NULL;
 	kfree(ctx->scratch_buf_info.sfe_scratch_config);
 	kfree(ctx->scratch_buf_info.ife_scratch_config);
 	ctx->scratch_buf_info.sfe_scratch_config = NULL;
@@ -16367,10 +16387,11 @@ static int cam_ife_hw_mgr_handle_hw_buf_done(
 	buf_done_event_data.resource_handle = 0;
 
 	CAM_DBG(CAM_ISP,
-		"Buf done for %s: %d res_id: 0x%x last consumed addr: 0x%x ctx: %u",
+		"Buf done for %s: %d res_id: 0x%x last consumed addr: 0x%x ctx: %u is_hw_ctxt_comp: %s",
 		((event_info->hw_type == CAM_ISP_HW_TYPE_SFE) ? "SFE" : "IFE"),
 		event_info->hw_idx, event_info->res_id,
-		bufdone_evt_info->last_consumed_addr, ife_hw_mgr_ctx->ctx_index);
+		bufdone_evt_info->last_consumed_addr, ife_hw_mgr_ctx->ctx_index,
+		CAM_BOOL_TO_YESNO(bufdone_evt_info->is_hw_ctxt_comp));
 
 	/* Check scratch for sHDR/FS use-cases */
 	if (ife_hw_mgr_ctx->flags.is_sfe_fs || ife_hw_mgr_ctx->flags.is_sfe_shdr) {

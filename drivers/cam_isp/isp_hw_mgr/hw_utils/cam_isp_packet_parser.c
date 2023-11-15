@@ -809,9 +809,9 @@ static int cam_isp_io_buf_get_entries_util(
 	}
 
 	if (buf_info->fill_fence) {
-		if (io_cfg->direction == CAM_BUF_OUTPUT &&
-			(buf_info->prepare->num_out_map_entries <
-				 buf_info->prepare->max_out_map_entries)) {
+		if (io_cfg->direction == CAM_BUF_OUTPUT && (buf_info->prepare->num_out_map_entries <
+			buf_info->prepare->max_out_map_entries)) {
+
 			num_entries = buf_info->prepare->num_out_map_entries;
 			map_entries = &buf_info->prepare->out_map_entries[num_entries];
 			buf_info->prepare->num_out_map_entries++;
@@ -831,8 +831,13 @@ static int cam_isp_io_buf_get_entries_util(
 				buf_info->prepare->num_out_map_entries);
 			return -EINVAL;
 		}
+
 		map_entries->resource_handle = io_cfg->resource_type;
 		map_entries->sync_id = io_cfg->fence;
+		if (buf_info->major_version == 3)
+			map_entries->hw_ctxt_id = io_cfg->flag;
+		else
+			map_entries->hw_ctxt_id = 0x0;
 	}
 
 	return 0;

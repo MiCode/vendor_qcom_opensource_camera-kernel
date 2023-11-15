@@ -243,6 +243,7 @@ struct cam_vfe_bus_ver3_vfe_out_hw_info {
  * @constraint_error_list: Static list of all constraint errors
  * @num_comp_grp:          Number of composite groups
  * @comp_done_mask:        Mask shift for comp done mask
+ * @mc_comp_done_mask:     Mask shift for hw multi-context comp done irq
  * @top_irq_shift:         Mask shift for top level BUS WR irq
  * @support_consumed_addr: Indicate if bus support consumed address
  * @max_out_res:           Max vfe out resource value supported for hw
@@ -268,6 +269,7 @@ struct cam_vfe_bus_ver3_hw_info {
 	struct cam_vfe_bus_ver3_err_irq_desc *bus_err_desc_1;
 	uint32_t num_comp_grp;
 	uint32_t comp_done_mask[CAM_VFE_BUS_VER3_COMP_GRP_MAX];
+	uint32_t mc_comp_done_mask[CAM_VFE_BUS_VER3_COMP_GRP_MAX];
 	uint32_t top_irq_shift;
 	bool support_consumed_addr;
 	uint32_t max_out_res;

@@ -21,8 +21,8 @@
 /* maximum context numbers */
 #define CAM_CTX_MAX                         8
 
-/* maximum buf done irqs */
-#define CAM_NUM_OUT_PER_COMP_IRQ_MAX        12
+/* maximum buf done irqs, multiplied by 3 hw context entries per resource */
+#define CAM_NUM_OUT_PER_COMP_IRQ_MAX        36
 
 /* Maximum reg dump cmd buffer entries in a context */
 #define CAM_REG_DUMP_MAX_BUF_ENTRIES        10
@@ -106,6 +106,7 @@ struct cam_hw_update_entry {
  * struct cam_hw_fence_map_entry - Entry for the resource to sync id map
  *
  * @resrouce_handle:       Resource port id for the buffer
+ * @hw_ctxt_id:            Hw ctxt id for multi-context capable targets
  * @sync_id:               Sync id
  * @image_buf_addr:        Image buffer address array
  * @buffer_tracker:        Some buffers with fences have buf dones come
@@ -117,6 +118,7 @@ struct cam_hw_update_entry {
  */
 struct cam_hw_fence_map_entry {
 	uint32_t                        resource_handle;
+	uint32_t                        hw_ctxt_id;
 	int32_t                         sync_id;
 	dma_addr_t                      image_buf_addr[CAM_PACKET_MAX_PLANES];
 	struct cam_smmu_buffer_tracker *buffer_tracker;

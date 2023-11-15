@@ -365,12 +365,14 @@ struct cam_isp_hw_error_event_info {
  * @res_id:             Resource IDs to report buf dones
  * @comp_grp_id:        Bus comp group id
  * @last_consumed_addr: Last consumed addr for resource ID at that index
+ * @is_hw_ctxt_comp:    Indicates if the buf done event is hw context composite
  *
  */
 struct cam_isp_hw_bufdone_event_info {
 	uint32_t res_id;
 	uint32_t comp_grp_id;
 	uint32_t last_consumed_addr;
+	bool     is_hw_ctxt_comp;
 };
 
 /*

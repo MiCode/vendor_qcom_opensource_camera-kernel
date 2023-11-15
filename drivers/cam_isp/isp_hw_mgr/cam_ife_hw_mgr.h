@@ -246,12 +246,13 @@ struct cam_ife_cdm_user_data {
  *
  * @num_res:            Number of valid resource IDs in this record
  * @res_id:             Resource IDs to report buf dones
- * @last_consumed_addr: Last consumed addr for resource ID at that index
+ * @hw_ctxt_id:         Hw ctxt id corresponding to the res_id entry
  *
  */
 struct cam_isp_context_comp_record {
 	uint32_t num_res;
 	uint32_t res_id[CAM_NUM_OUT_PER_COMP_IRQ_MAX];
+	uint32_t hw_ctxt_id[CAM_NUM_OUT_PER_COMP_IRQ_MAX];
 };
 
 /**
@@ -317,6 +318,7 @@ struct cam_isp_comp_record_query {
  * @ts                      captured timestamp when the ctx is acquired
  * @hw_enabled              Array to indicate active HW
  * @buf_done_controller     Buf done controller.
+ * @mc_comp_buf_done_controller: Buf done controller for hw context composite buf dones
  * @scratch_buf_info        Scratch buf [SFE/IFE] info pertaining to this stream
  * @flags                   Flags pertainting to this ctx
  * @bw_config_version       BW Config version
@@ -382,6 +384,7 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                   ctx_config;
 	struct timespec64                          ts;
 	void                                      *buf_done_controller;
+	void                                      *mc_comp_buf_done_controller;
 	struct cam_ife_hw_mgr_ctx_scratch_buf_info scratch_buf_info;
 	struct cam_ife_hw_mgr_ctx_flags            flags;
 	struct cam_ife_hw_mgr_ctx_pf_info          pf_info;

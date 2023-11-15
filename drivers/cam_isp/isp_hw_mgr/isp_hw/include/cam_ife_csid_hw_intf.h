@@ -258,6 +258,7 @@ struct cam_csid_hw_reserve_resource_args {
 	bool                                      need_top_cfg;
 	void                                     *tasklet;
 	void                                     *buf_done_controller;
+	void                                     *mc_comp_buf_done_controller;
 	void                                     *cdm_ops;
 	cam_hw_mgr_event_cb_func                  event_cb;
 	uint32_t                                  phy_sel;

@@ -216,6 +216,7 @@ struct cam_vfe_hw_vfe_in_acquire_args {
  * @priv:                    Context data
  * @event_cb:                Callback function to hw mgr in case of hw events
  * @buf_done_controller:     Buf done controller for isp
+ * @mc_comp_buf_done_controller: Hw context composite buf done controller for isp
  * @vfe_out:                 Acquire args for VFE_OUT
  * @vfe_bus_rd               Acquire args for VFE_BUS_READ
  * @vfe_in:                  Acquire args for VFE_IN
@@ -226,6 +227,7 @@ struct cam_vfe_acquire_args {
 	void                                *priv;
 	cam_hw_mgr_event_cb_func             event_cb;
 	void                                *buf_done_controller;
+	void                                *mc_comp_buf_done_controller;
 	union {
 		struct cam_vfe_hw_vfe_out_acquire_args     vfe_out;
 		struct cam_vfe_hw_vfe_bus_rd_acquire_args  vfe_bus_rd;
@@ -330,6 +332,7 @@ struct cam_vfe_top_irq_evt_payload {
  * @error_type:              Identify different errors
  * @ts:                      Timestamp
  * @last_consumed_addr:      Last consumed addr for resource
+ * @is_hw_ctxt_comp_done:    Indicates if the buf done is hw context composited
  */
 struct cam_vfe_bus_irq_evt_payload {
 	struct list_head            list;
@@ -342,6 +345,7 @@ struct cam_vfe_bus_irq_evt_payload {
 	uint32_t                    irq_reg_val[CAM_IFE_BUS_IRQ_REGISTERS_MAX];
 	struct cam_isp_timestamp    ts;
 	uint32_t                    last_consumed_addr;
+	bool                        is_hw_ctxt_comp_done;
 };
 
 /**
