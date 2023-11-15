@@ -278,7 +278,7 @@ static void cam_sfe_top_print_cc_test_bus(
 	uint32_t dbg_testbus_reg = common_data->common_reg->top_debug_testbus_reg;
 	uint32_t size = 0, reg_val = 0, val = 0, i = 0;
 	size_t   len = 0;
-	uint8_t  log_buf[1024];
+	uint8_t  log_buf[1024] = {0};
 
 	reg_val =  cam_io_r(mem_base +
 		common_data->common_reg->top_debug[dbg_testbus_reg]);
@@ -289,7 +289,7 @@ static void cam_sfe_top_print_cc_test_bus(
 			size = top_priv->hw_info->test_bus_info[i].size;
 			testbus_info =
 				top_priv->hw_info->test_bus_info[i].testbus;
-		       break;
+			break;
 		}
 	}
 
