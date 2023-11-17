@@ -288,6 +288,7 @@
 #define HFI_MEM_REGION_ID_SYNX_HW_MUTEX           1
 #define HFI_MEM_REGION_ID_GLOBAL_ATOMIC_HW_MUTEX  2
 #define HFI_MEM_REGION_ID_GLOBAL_CNTR             3
+#define HFI_MEM_REGION_ID_LLCC_REGISTER           4
 
 /* Type of the new regions */
 #define HFI_MEM_REGION_TYPE_CACHED       0

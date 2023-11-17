@@ -1109,6 +1109,41 @@ bool cam_cpas_is_notif_staling_supported(void)
 }
 EXPORT_SYMBOL(cam_cpas_is_notif_staling_supported);
 
+bool cam_cpas_is_fw_based_sys_caching_supported(void)
+{
+	struct cam_hw_info *cpas_hw = NULL;
+	struct cam_cpas_private_soc *soc_private = NULL;
+	int i;
+	bool supported = false;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return false;
+	}
+
+	cpas_hw = (struct cam_hw_info *) g_cpas_intf->hw_intf->hw_priv;
+	soc_private =
+		(struct cam_cpas_private_soc *)cpas_hw->soc_info.soc_private;
+	for (i = 0; i < soc_private->num_caches; i++) {
+		switch (soc_private->llcc_info[i].type) {
+		case CAM_LLCC_OFE_IP:
+		case CAM_LLCC_IPE_RT_IP:
+		case CAM_LLCC_IPE_SRT_IP:
+		case CAM_LLCC_IPE_RT_RF:
+		case CAM_LLCC_IPE_SRT_RF:
+			supported = true;
+			break;
+		default:
+			supported = false;
+			break;
+		}
+	}
+
+	return supported;
+}
+EXPORT_SYMBOL(cam_cpas_is_fw_based_sys_caching_supported);
+
+
 bool cam_cpas_query_domain_id_security_support(void)
 {
 	struct cam_hw_info *cpas_hw = NULL;

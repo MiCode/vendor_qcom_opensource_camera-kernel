@@ -901,7 +901,7 @@ int cam_cpas_deactivate_llcc(uint32_t type);
  * @brief:  Configure cache staling mode by setting the
  *          staling_mode and corresponding params
  *
- @type:    Cache type, For exacmple cache types are
+ @type:    Cache type, For example cache types are
  *         CAM_LLCC_SMALL_1/CAM_LLCC_SMALL_2/CAM_LLCC_LARGE_1/ ....
  *         CAM_LLCC_IPE_SRT_IP/CAM_LLCC_IPE_RT_RF
  * @mode_param:  camera llcc's stalling mode params, possible allowed values
@@ -1022,5 +1022,13 @@ bool cam_cpas_is_notif_staling_supported(void);
  * @return 0 on success
  */
 int cam_cpas_dump_state_monitor_info(struct cam_req_mgr_dump_info *info);
+
+/**
+ * cam_cpas_is_fw_based_sys_caching_supported()
+ *
+ * @brief: API to return true if feature is supported
+ * @return true or false
+ */
+bool cam_cpas_is_fw_based_sys_caching_supported(void);
 
 #endif /* _CAM_CPAS_API_H_ */
