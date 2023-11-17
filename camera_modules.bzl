@@ -226,6 +226,9 @@ def _define_module(target, variant):
                     "drivers/cam_utils/cam_io_util.c",
                 ],
             },
+            "CONFIG_SPECTRA_VMRM": {
+                True: ["drivers/cam_vmrm/qrtr/cam_qrtr_comms.c"],
+            },
         },
         copts = ["-include", "$(location :camera_banner)", "-fstrict-flex-arrays=0"],
         deps = deps,

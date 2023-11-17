@@ -112,6 +112,8 @@ driver_includes = [
     "drivers/cam_smmu",
     "drivers/cam_sync",
     "drivers/cam_utils",
+    "drivers/cam_vmrm",
+    "drivers/cam_vmrm/qrtr",
 ]
 
 ddk_headers(

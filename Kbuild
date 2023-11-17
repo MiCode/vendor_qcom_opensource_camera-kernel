@@ -311,6 +311,9 @@ camera-$(CONFIG_SPECTRA_TFE) += \
 	drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid.o \
 	drivers/cam_isp/isp_hw_mgr/cam_tfe_hw_mgr.o
 
+camera-$(CONFIG_SPECTRA_VMRM) += \
+	drivers/cam_vmrm/qrtr/cam_qrtr_comms.o
+
 camera-y += drivers/camera_main.o
 
 obj-m += camera.o
