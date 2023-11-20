@@ -2002,7 +2002,7 @@ int cam_sensor_bob_pwm_mode_switch(struct cam_hw_soc_info *soc_info,
 
 	if (soc_info->rgltr[bob_reg_idx] != NULL) {
 		rc = cam_wrapper_regulator_set_load(soc_info->rgltr[bob_reg_idx],
-			op_current);
+			op_current, soc_info->rgltr_name[bob_reg_idx]);
 		if (rc)
 			CAM_WARN(CAM_SENSOR_UTIL,
 				"BoB PWM SetLoad failed rc: %d", rc);

@@ -257,7 +257,8 @@ int cam_icp_v1_init_hw(void *device_priv, void *args,
 		if (send_freq_info) {
 			int32_t clk_rate = 0;
 
-			clk_rate = cam_wrapper_clk_get_rate(soc_info->clk[soc_info->src_clk_idx]);
+			clk_rate = cam_wrapper_clk_get_rate(soc_info->clk[soc_info->src_clk_idx],
+				soc_info->clk_name[soc_info->src_clk_idx]);
 			hfi_send_freq_info(core_info->hfi_handle, clk_rate);
 		}
 	}

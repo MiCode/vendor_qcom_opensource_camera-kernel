@@ -97,7 +97,7 @@ int cam_bps_transfer_gdsc_control(struct cam_hw_soc_info *soc_info)
 
 	for (i = 0; i < soc_info->num_rgltr; i++) {
 		rc = cam_wrapper_regulator_set_mode(soc_info->rgltr[i],
-			REGULATOR_MODE_FAST);
+			REGULATOR_MODE_FAST, soc_info->rgltr_name[i]);
 		if (rc) {
 			CAM_ERR(CAM_ICP, "Regulator set mode %s failed",
 				soc_info->rgltr_name[i]);
@@ -110,7 +110,7 @@ rgltr_set_mode_failed:
 	for (i = i - 1; i >= 0; i--)
 		if (soc_info->rgltr[i])
 			cam_wrapper_regulator_set_mode(soc_info->rgltr[i],
-					REGULATOR_MODE_NORMAL);
+					REGULATOR_MODE_NORMAL, soc_info->rgltr_name[i]);
 
 	return rc;
 }
@@ -122,7 +122,7 @@ int cam_bps_get_gdsc_control(struct cam_hw_soc_info *soc_info)
 
 	for (i = 0; i < soc_info->num_rgltr; i++) {
 		rc = cam_wrapper_regulator_set_mode(soc_info->rgltr[i],
-			REGULATOR_MODE_NORMAL);
+			REGULATOR_MODE_NORMAL, soc_info->rgltr_name[i]);
 		if (rc) {
 			CAM_ERR(CAM_ICP, "Regulator set mode %s failed",
 				soc_info->rgltr_name[i]);
@@ -135,7 +135,7 @@ rgltr_set_mode_failed:
 	for (i = i - 1; i >= 0; i--)
 		if (soc_info->rgltr[i])
 			cam_wrapper_regulator_set_mode(soc_info->rgltr[i],
-					REGULATOR_MODE_FAST);
+					REGULATOR_MODE_FAST, soc_info->rgltr_name[i]);
 
 	return rc;
 }

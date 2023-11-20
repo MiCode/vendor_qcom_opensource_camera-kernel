@@ -905,9 +905,11 @@ const char *cam_soc_util_get_string_from_level(enum cam_vote_level level);
  *
  * @clk:       Clock
  *
+ * @name:      Name of the clock
+ *
  * @return:    Clock rate
  */
-inline unsigned long cam_wrapper_clk_get_rate(struct clk *clk);
+inline unsigned long cam_wrapper_clk_get_rate(struct clk *clk, const char *name);
 
 /**
  * cam_wrapper_regulator_set_load()
@@ -918,10 +920,12 @@ inline unsigned long cam_wrapper_clk_get_rate(struct clk *clk);
  *
  * @uA_load:   Load current
  *
+ * @name:      Name of the regulator
+ *
  * @return:    Success or failure
  */
 inline int cam_wrapper_regulator_set_load(
-	struct regulator *regulator, int uA_load);
+	struct regulator *regulator, int uA_load, const char *name);
 
 /**
  * cam_wrapper_regulator_set_mode()
@@ -932,10 +936,12 @@ inline int cam_wrapper_regulator_set_load(
  *
  * @mode:      Mode
  *
+ * @name:      Name of the regulator
+ *
  * @return:    Success or failure
  */
 inline int cam_wrapper_regulator_set_mode(
-	struct regulator *regulator, unsigned int mode);
+	struct regulator *regulator, unsigned int mode, const char *name);
 
 /**
  * cam_soc_util_set_bypass_drivers()
