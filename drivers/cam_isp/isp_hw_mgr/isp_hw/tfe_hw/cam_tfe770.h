@@ -1,17 +1,17 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
-#ifndef _CAM_TFE640_H_
-#define _CAM_TFE640_H_
+#ifndef _CAM_TFE770_H_
+#define _CAM_TFE770_H_
+#include <media/cam_isp_tfe.h>
 #include "cam_tfe_core.h"
 #include "cam_tfe_bus.h"
 
 
-static struct cam_tfe_top_reg_offset_common  tfe640_top_commong_reg  = {
+static struct cam_tfe_top_reg_offset_common  tfe770_top_commong_reg  = {
 	.hw_version                             = 0x00001800,
 	.hw_capability                          = 0x00001804,
 	.lens_feature                           = 0x00001808,
@@ -19,6 +19,7 @@ static struct cam_tfe_top_reg_offset_common  tfe640_top_commong_reg  = {
 	.zoom_feature                           = 0x00001810,
 	.global_reset_cmd                       = 0x00001814,
 	.core_cgc_ctrl_0                        = 0x00001818,
+	.core_cgc_ctrl_1                        = 0x0000181C,
 	.ahb_cgc_ctrl                           = 0x0000181C,
 	.core_cfg_0                             = 0x00001824,
 	.reg_update_cmd                         = 0x0000182C,
@@ -29,7 +30,7 @@ static struct cam_tfe_top_reg_offset_common  tfe640_top_commong_reg  = {
 	.violation_status                       = 0x00001870,
 	.stats_throttle_cnt_cfg_0               = 0x00001874,
 	.stats_throttle_cnt_cfg_1               = 0x00001878,
-	.num_debug_reg                          = 10,
+	.num_debug_reg                          = 12,
 	.debug_reg = {
 		0x000018A0,
 		0x000018A4,
@@ -41,6 +42,8 @@ static struct cam_tfe_top_reg_offset_common  tfe640_top_commong_reg  = {
 		0x000018BC,
 		0x000018C0,
 		0x000018C4,
+		0x000018C8,
+		0x000018CC,
 	},
 	.debug_cfg                              = 0x000018DC,
 	.num_perf_cfg                           = 2,
@@ -62,31 +65,14 @@ static struct cam_tfe_top_reg_offset_common  tfe640_top_commong_reg  = {
 			.perf_count_status      = 0x0000190C,
 		},
 	},
+	.diag_sensor_frame_cnt_status_1         = 0x00001920,
 	.diag_min_hbi_error_shift               = 15,
 	.diag_neq_hbi_shift                     = 14,
 	.diag_sensor_hbi_mask                   = 0x3FFF,
 	.serializer_supported                   = true,
-	.pp_camif_violation_bit                 = BIT(0),
-	.pp_violation_bit                       = BIT(1),
-	.rdi0_camif_violation_bit               = BIT(2),
-	.rdi1_camif_violation_bit               = BIT(3),
-	.rdi2_camif_violation_bit               = BIT(4),
-	.diag_violation_bit                     = BIT(5),
-	.pp_frame_drop_bit                      = BIT(8),
-	.rdi0_frame_drop_bit                    = BIT(9),
-	.rdi1_frame_drop_bit                    = BIT(10),
-	.rdi2_frame_drop_bit                    = BIT(11),
-	.pp_overflow_bit                        = BIT(16),
-	.rdi0_overflow_bit                      = BIT(17),
-	.rdi1_overflow_bit                      = BIT(18),
-	.rdi2_overflow_bit                      = BIT(19),
-	.mup_shift_val                          = 0,
-	.mup_supported                          = false,
-	.height_shift                           = 16,
-	.epoch_shift_val                        = 16,
 };
 
-static struct cam_tfe_camif_reg  tfe640_camif_reg = {
+static struct cam_tfe_camif_reg  tfe770_camif_reg = {
 	.hw_version                   = 0x00001C00,
 	.hw_status                    = 0x00001C04,
 	.module_cfg                   = 0x00001C60,
@@ -104,7 +90,7 @@ static struct cam_tfe_camif_reg  tfe640_camif_reg = {
 	.reg_update_cmd               = 0x0000182C,
 };
 
-static struct cam_tfe_camif_reg_data tfe640_camif_reg_data = {
+static struct cam_tfe_camif_reg_data tfe770_camif_reg_data = {
 	.extern_reg_update_mask       = 0x00000001,
 	.dual_tfe_pix_en_shift        = 0x00000001,
 	.extern_reg_update_shift      = 0x0,
@@ -144,7 +130,7 @@ static struct cam_tfe_camif_reg_data tfe640_camif_reg_data = {
 	.ds4_c_srl_en_shift           = 9,
 };
 
-static struct cam_tfe_rdi_reg  tfe640_rdi0_reg = {
+static struct cam_tfe_rdi_reg  tfe770_rdi0_reg = {
 	.rdi_hw_version              = 0x00001E00,
 	.rdi_hw_status               = 0x00001E04,
 	.rdi_module_config           = 0x00001E60,
@@ -158,7 +144,7 @@ static struct cam_tfe_rdi_reg  tfe640_rdi0_reg = {
 	.reg_update_cmd              = 0x0000182C,
 };
 
-static struct cam_tfe_rdi_reg_data tfe640_rdi0_reg_data = {
+static struct cam_tfe_rdi_reg_data tfe770_rdi0_reg_data = {
 	.reg_update_cmd_data         = 0x2,
 	.epoch_line_cfg              = 0x00140014,
 	.pixel_pattern_shift         = 24,
@@ -181,7 +167,7 @@ static struct cam_tfe_rdi_reg_data tfe640_rdi0_reg_data = {
 	.diag_sensor_shift           = 0x1,
 };
 
-static struct cam_tfe_rdi_reg  tfe640_rdi1_reg = {
+static struct cam_tfe_rdi_reg  tfe770_rdi1_reg = {
 	.rdi_hw_version              = 0x00002000,
 	.rdi_hw_status               = 0x00002004,
 	.rdi_module_config           = 0x00002060,
@@ -195,7 +181,7 @@ static struct cam_tfe_rdi_reg  tfe640_rdi1_reg = {
 	.reg_update_cmd              = 0x0000182C,
 };
 
-static struct cam_tfe_rdi_reg_data tfe640_rdi1_reg_data = {
+static struct cam_tfe_rdi_reg_data tfe770_rdi1_reg_data = {
 	.reg_update_cmd_data         = 0x4,
 	.epoch_line_cfg              = 0x00140014,
 	.pixel_pattern_shift         = 24,
@@ -218,7 +204,7 @@ static struct cam_tfe_rdi_reg_data tfe640_rdi1_reg_data = {
 	.diag_sensor_shift           = 0x1,
 };
 
-static struct cam_tfe_rdi_reg  tfe640_rdi2_reg = {
+static struct cam_tfe_rdi_reg  tfe770_rdi2_reg = {
 	.rdi_hw_version              = 0x00002200,
 	.rdi_hw_status               = 0x00002204,
 	.rdi_module_config           = 0x00002260,
@@ -232,7 +218,7 @@ static struct cam_tfe_rdi_reg  tfe640_rdi2_reg = {
 	.reg_update_cmd              = 0x0000182C,
 };
 
-static struct cam_tfe_rdi_reg_data tfe640_rdi2_reg_data = {
+static struct cam_tfe_rdi_reg_data tfe770_rdi2_reg_data = {
 	.reg_update_cmd_data         = 0x8,
 	.epoch_line_cfg              = 0x00140014,
 	.pixel_pattern_shift         = 24,
@@ -253,9 +239,41 @@ static struct cam_tfe_rdi_reg_data tfe640_rdi2_reg_data = {
 	.enable_diagnostic_hw        = 0x1,
 	.diag_sensor_sel             = 0x3,
 	.diag_sensor_shift           = 0x1,
+
 };
 
-static struct cam_tfe_clc_hw_status  tfe640_clc_hw_info[CAM_TFE_MAX_CLC] = {
+static struct cam_tfe_ppp_reg  tfe770_ppp_reg = {
+	.ppp_hw_version              = 0x00002400,
+	.ppp_hw_status               = 0x00002404,
+	.ppp_module_config           = 0x00002460,
+	.ppp_skip_period             = 0x00002468,
+	.ppp_irq_subsample_pattern   = 0x0000246C,
+	.ppp_epoch_irq               = 0x00002470,
+	.ppp_debug_1                 = 0x000025F0,
+	.ppp_debug_0                 = 0x000025F4,
+	.ppp_test_bus_ctrl           = 0x000025F8,
+	.ppp_spare                   = 0x000025FC,
+	.reg_update_cmd              = 0x0000182C,
+};
+
+static struct cam_tfe_ppp_reg_data tfe770_ppp_reg_data = {
+	.sof_irq_mask                = 0x00000000,
+	.epoch0_irq_mask             = 0x00000000,
+	.epoch1_irq_mask             = 0x00000000,
+	.eof_irq_mask                = 0x00000000,
+	.subscribe_irq_mask          = {
+		0x00000000,
+		0x00000000,
+		0x00000000,
+	},
+	.enable_diagnostic_hw        = 0x1,
+	.diag_sensor_sel             = 0x4,
+	.diag_sensor_shift           = 0x1,
+	.pdaf_path_en_shift          = 24,
+	.lcr_dis_en_shift            = 23,
+};
+
+static struct cam_tfe_clc_hw_status  tfe770_clc_hw_info[CAM_TFE_MAX_CLC] = {
 	{
 		.name = "CLC_CAMIF",
 		.hw_status_reg = 0x1C04,
@@ -271,6 +289,14 @@ static struct cam_tfe_clc_hw_status  tfe640_clc_hw_info[CAM_TFE_MAX_CLC] = {
 	{
 		.name = "CLC_RDI2_CAMIF",
 		.hw_status_reg = 0x2204,
+	},
+	{
+		.name = "CLC_PD_CAMIF",
+		.hw_status_reg = 0x2404,
+	},
+	{
+		.name = "CLC_PDAF_LITE",
+		.hw_status_reg = 0x2A04,
 	},
 	{
 		.name = "CLC_CHANNEL_GAIN",
@@ -414,31 +440,36 @@ static struct cam_tfe_clc_hw_status  tfe640_clc_hw_info[CAM_TFE_MAX_CLC] = {
 	},
 };
 
-static struct  cam_tfe_top_hw_info tfe640_top_hw_info = {
-	.common_reg = &tfe640_top_commong_reg,
+static struct  cam_tfe_top_hw_info tfe770_top_hw_info = {
+	.common_reg = &tfe770_top_commong_reg,
 	.camif_hw_info = {
-		.camif_reg = &tfe640_camif_reg,
-		.reg_data  = &tfe640_camif_reg_data,
+		.camif_reg = &tfe770_camif_reg,
+		.reg_data  = &tfe770_camif_reg_data,
 	},
 	.rdi_hw_info  = {
 		{
-			.rdi_reg  = &tfe640_rdi0_reg,
-			.reg_data = &tfe640_rdi0_reg_data,
+			.rdi_reg  = &tfe770_rdi0_reg,
+			.reg_data = &tfe770_rdi0_reg_data,
 		},
 		{
-			.rdi_reg  = &tfe640_rdi1_reg,
-			.reg_data = &tfe640_rdi1_reg_data,
+			.rdi_reg  = &tfe770_rdi1_reg,
+			.reg_data = &tfe770_rdi1_reg_data,
 		},
 		{
-			.rdi_reg  = &tfe640_rdi2_reg,
-			.reg_data = &tfe640_rdi2_reg_data,
+			.rdi_reg  = &tfe770_rdi2_reg,
+			.reg_data = &tfe770_rdi2_reg_data,
 		},
+	},
+	.ppp_hw_info = {
+		.ppp_reg = &tfe770_ppp_reg,
+		.reg_data  = &tfe770_ppp_reg_data,
 	},
 	.in_port = {
 		CAM_TFE_CAMIF_VER_1_0,
 		CAM_TFE_RDI_VER_1_0,
 		CAM_TFE_RDI_VER_1_0,
-		CAM_TFE_RDI_VER_1_0
+		CAM_TFE_RDI_VER_1_0,
+		CAM_TFE_PDLIB_VER_1_0
 	},
 	.reg_dump_data  = {
 		.num_reg_dump_entries    = 19,
@@ -541,9 +572,15 @@ static struct  cam_tfe_top_hw_info tfe640_top_hw_info = {
 			},
 		},
 	},
+	.num_path_port_map = 3,
+	.path_port_map = {
+		{CAM_ISP_HW_TFE_IN_PDLIB, CAM_ISP_TFE_OUT_RES_PD_LCR_STATS},
+		{CAM_ISP_HW_TFE_IN_PDLIB, CAM_ISP_TFE_OUT_RES_PD_PREPROCESSED},
+		{CAM_ISP_HW_TFE_IN_PDLIB, CAM_ISP_TFE_OUT_RES_PD_PARSED},
+	},
 };
 
-static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
+static struct cam_tfe_bus_hw_info  tfe770_bus_hw_info = {
 	.common_reg = {
 		.hw_version  = 0x00003000,
 		.cgc_ovd     = 0x00003008,
@@ -601,7 +638,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 		.violation_shift  = 30,
 		.image_size_violation = 31,
 	},
-	.num_client = 16,
+	.num_client = 19,
 	.bus_client_reg = {
 		/* BUS Client 0 BAYER */
 		{
@@ -621,6 +658,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003234,
 			.framedrop_period      = 0x00003238,
 			.framedrop_pattern     = 0x0000323C,
+			.system_cache_cfg      = 0x00003260,
 			.addr_status_0         = 0x00003268,
 			.addr_status_1         = 0x0000326C,
 			.addr_status_2         = 0x00003270,
@@ -649,6 +687,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003334,
 			.framedrop_period      = 0x00003338,
 			.framedrop_pattern     = 0x0000333C,
+			.system_cache_cfg      = 0x00003360,
 			.addr_status_0         = 0x00003368,
 			.addr_status_1         = 0x0000336C,
 			.addr_status_2         = 0x00003370,
@@ -677,6 +716,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003434,
 			.framedrop_period      = 0x00003438,
 			.framedrop_pattern     = 0x0000343C,
+			.system_cache_cfg      = 0x00003460,
 			.addr_status_0         = 0x00003468,
 			.addr_status_1         = 0x0000346C,
 			.addr_status_2         = 0x00003470,
@@ -705,6 +745,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003534,
 			.framedrop_period      = 0x00003538,
 			.framedrop_pattern     = 0x0000353C,
+			.system_cache_cfg      = 0x00003560,
 			.addr_status_0         = 0x00003568,
 			.addr_status_1         = 0x0000356C,
 			.addr_status_2         = 0x00003570,
@@ -733,6 +774,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003634,
 			.framedrop_period      = 0x00003638,
 			.framedrop_pattern     = 0x0000363C,
+			.system_cache_cfg      = 0x00003660,
 			.addr_status_0         = 0x00003668,
 			.addr_status_1         = 0x0000366C,
 			.addr_status_2         = 0x00003670,
@@ -761,6 +803,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003734,
 			.framedrop_period      = 0x00003738,
 			.framedrop_pattern     = 0x0000373C,
+			.system_cache_cfg      = 0x00003760,
 			.addr_status_0         = 0x00003768,
 			.addr_status_1         = 0x0000376C,
 			.addr_status_2         = 0x00003770,
@@ -789,6 +832,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003834,
 			.framedrop_period      = 0x00003838,
 			.framedrop_pattern     = 0x0000383C,
+			.system_cache_cfg      = 0x00003860,
 			.addr_status_0         = 0x00003868,
 			.addr_status_1         = 0x0000386C,
 			.addr_status_2         = 0x00003870,
@@ -817,6 +861,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003934,
 			.framedrop_period      = 0x00003938,
 			.framedrop_pattern     = 0x0000393C,
+			.system_cache_cfg      = 0x00003960,
 			.addr_status_0         = 0x00003968,
 			.addr_status_1         = 0x0000396C,
 			.addr_status_2         = 0x00003970,
@@ -845,6 +890,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003A34,
 			.framedrop_period      = 0x00003A38,
 			.framedrop_pattern     = 0x00003A3C,
+			.system_cache_cfg      = 0x00003A60,
 			.addr_status_0         = 0x00003A68,
 			.addr_status_1         = 0x00003A6C,
 			.addr_status_2         = 0x00003A70,
@@ -873,6 +919,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003B34,
 			.framedrop_period      = 0x00003B38,
 			.framedrop_pattern     = 0x00003B3C,
+			.system_cache_cfg      = 0x00003B60,
 			.addr_status_0         = 0x00003B68,
 			.addr_status_1         = 0x00003B6C,
 			.addr_status_2         = 0x00003B70,
@@ -901,6 +948,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003C34,
 			.framedrop_period      = 0x00003C38,
 			.framedrop_pattern     = 0x00003C3C,
+			.system_cache_cfg      = 0x00003C60,
 			.addr_status_0         = 0x00003C68,
 			.addr_status_1         = 0x00003C6C,
 			.addr_status_2         = 0x00003C70,
@@ -929,6 +977,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003D34,
 			.framedrop_period      = 0x00003D38,
 			.framedrop_pattern     = 0x00003D3C,
+			.system_cache_cfg      = 0x00003D60,
 			.addr_status_0         = 0x00003D68,
 			.addr_status_1         = 0x00003D6C,
 			.addr_status_2         = 0x00003D70,
@@ -957,6 +1006,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003E34,
 			.framedrop_period      = 0x00003E38,
 			.framedrop_pattern     = 0x00003E3C,
+			.system_cache_cfg      = 0x00003E60,
 			.addr_status_0         = 0x00003E68,
 			.addr_status_1         = 0x00003E6C,
 			.addr_status_2         = 0x00003E70,
@@ -985,6 +1035,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003F34,
 			.framedrop_period      = 0x00003F38,
 			.framedrop_pattern     = 0x00003F3C,
+			.system_cache_cfg      = 0x00003F60,
 			.addr_status_0         = 0x00003F68,
 			.addr_status_1         = 0x00003F6C,
 			.addr_status_2         = 0x00003F70,
@@ -1013,6 +1064,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00004034,
 			.framedrop_period      = 0x00004038,
 			.framedrop_pattern     = 0x0000403C,
+			.system_cache_cfg      = 0x00004060,
 			.addr_status_0         = 0x00004068,
 			.addr_status_1         = 0x0000406C,
 			.addr_status_2         = 0x00004070,
@@ -1041,6 +1093,7 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.irq_subsample_pattern = 0x00004134,
 			.framedrop_period      = 0x00004138,
 			.framedrop_pattern     = 0x0000413C,
+			.system_cache_cfg      = 0x00004160,
 			.addr_status_0         = 0x00004168,
 			.addr_status_1         = 0x0000416C,
 			.addr_status_2         = 0x00004170,
@@ -1051,8 +1104,95 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.comp_group            = CAM_TFE_BUS_COMP_GRP_10,
 			.client_name           = "STATS RS",
 		},
+		/* BUS Client 16 PDAF 0 STAT LCR */
+		{
+			.cfg                   = 0x00004200,
+			.image_addr            = 0x00004204,
+			.frame_incr            = 0x00004208,
+			.image_cfg_0           = 0x0000420C,
+			.image_cfg_1           = 0x00004210,
+			.image_cfg_2           = 0x00004214,
+			.packer_cfg            = 0x00004218,
+			.bw_limit              = 0x0000421C,
+			.frame_header_addr     = 0x00004220,
+			.frame_header_incr     = 0x00004224,
+			.frame_header_cfg      = 0x00004228,
+			.line_done_cfg         = 0x0000422C,
+			.irq_subsample_period  = 0x00004230,
+			.irq_subsample_pattern = 0x00004234,
+			.framedrop_period      = 0x00004238,
+			.framedrop_pattern     = 0x0000423C,
+			.system_cache_cfg      = 0x00004260,
+			.addr_status_0         = 0x00004268,
+			.addr_status_1         = 0x0000426C,
+			.addr_status_2         = 0x00004270,
+			.addr_status_3         = 0x00004274,
+			.debug_status_cfg      = 0x00004278,
+			.debug_status_0        = 0x0000427C,
+			.debug_status_1        = 0x00004280,
+			.comp_group            = CAM_TFE_BUS_COMP_GRP_11,
+			.client_name           = "STAT LCR",
+		},
+		/* BUS Client 17 PDAF 1 PD PREPROCESSED*/
+		{
+			.cfg                   = 0x00004300,
+			.image_addr            = 0x00004304,
+			.frame_incr            = 0x00004308,
+			.image_cfg_0           = 0x0000430C,
+			.image_cfg_1           = 0x00004310,
+			.image_cfg_2           = 0x00004314,
+			.packer_cfg            = 0x00004318,
+			.bw_limit              = 0x0000431C,
+			.frame_header_addr     = 0x00004320,
+			.frame_header_incr     = 0x00004324,
+			.frame_header_cfg      = 0x00004328,
+			.line_done_cfg         = 0x00000000,
+			.irq_subsample_period  = 0x00004330,
+			.irq_subsample_pattern = 0x00004334,
+			.framedrop_period      = 0x00004338,
+			.framedrop_pattern     = 0x0000433C,
+			.system_cache_cfg      = 0x00004360,
+			.addr_status_0         = 0x00004368,
+			.addr_status_1         = 0x0000436C,
+			.addr_status_2         = 0x00004370,
+			.addr_status_3         = 0x00004374,
+			.debug_status_cfg      = 0x00004378,
+			.debug_status_0        = 0x0000437C,
+			.debug_status_1        = 0x00004380,
+			.comp_group            = CAM_TFE_BUS_COMP_GRP_11,
+			.client_name           = "PD PREPROCESSED",
+		},
+		/* BUS Client 18 PDAF 2 PD PARSED*/
+		{
+			.cfg                   = 0x00004400,
+			.image_addr            = 0x00004404,
+			.frame_incr            = 0x00004408,
+			.image_cfg_0           = 0x0000440C,
+			.image_cfg_1           = 0x00004410,
+			.image_cfg_2           = 0x00004414,
+			.packer_cfg            = 0x00004418,
+			.bw_limit              = 0x0000441C,
+			.frame_header_addr     = 0x00004420,
+			.frame_header_incr     = 0x00004424,
+			.frame_header_cfg      = 0x00004428,
+			.line_done_cfg         = 0x00000000,
+			.irq_subsample_period  = 0x00004430,
+			.irq_subsample_pattern = 0x00004434,
+			.framedrop_period      = 0x00004438,
+			.framedrop_pattern     = 0x0000443C,
+			.system_cache_cfg      = 0x00004460,
+			.addr_status_0         = 0x00004468,
+			.addr_status_1         = 0x0000446C,
+			.addr_status_2         = 0x00004470,
+			.addr_status_3         = 0x00004474,
+			.debug_status_cfg      = 0x00004478,
+			.debug_status_0        = 0x0000447C,
+			.debug_status_1        = 0x00004480,
+			.comp_group            = CAM_TFE_BUS_COMP_GRP_11,
+			.client_name           = "PD PARSED",
+		},
 	},
-	.num_out  = 15,
+	.num_out  = 18,
 	.tfe_out_hw_info = {
 		{
 			.tfe_out_id       = CAM_TFE_BUS_TFE_OUT_RDI0,
@@ -1175,8 +1315,32 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 			.mid[0]              = 24,
 			.mid[1]              = 25,
 		},
+		{
+			.tfe_out_id       = CAM_TFE_BUS_TFE_OUT_PD_LCR_STATS,
+			.max_width        = -1,
+			.max_height       = -1,
+			.composite_group  = CAM_TFE_BUS_COMP_GRP_11,
+			.rup_group_id     = CAM_TFE_BUS_RUP_GRP_4,
+			.mid[0]           = 21,
+		},
+		{
+			.tfe_out_id       = CAM_TFE_BUS_TFE_OUT_PD_PREPROCESSED,
+			.max_width        = -1,
+			.max_height       = -1,
+			.composite_group  = CAM_TFE_BUS_COMP_GRP_11,
+			.rup_group_id     = CAM_TFE_BUS_RUP_GRP_4,
+			.mid[0]           = 20,
+		},
+		{
+			.tfe_out_id       = CAM_TFE_BUS_TFE_OUT_PD_PARSED,
+			.max_width        = -1,
+			.max_height       = -1,
+			.composite_group  = CAM_TFE_BUS_COMP_GRP_11,
+			.rup_group_id     = CAM_TFE_BUS_RUP_GRP_4,
+			.mid[0]           = 22,
+		},
 	},
-	.num_comp_grp             = 11,
+	.num_comp_grp             = 12,
 	.max_wm_per_comp_grp      = 3,
 	.comp_done_shift          = 8,
 	.top_bus_wr_irq_shift     = 1,
@@ -1189,14 +1353,9 @@ static struct cam_tfe_bus_hw_info  tfe640_bus_hw_info = {
 	.support_consumed_addr = true,
 	.pdaf_rdi2_mux_en = false,
 	.rdi_width = 128,
-	.max_bw_counter_limit  = 0xFF,
-	.counter_limit_shift   = 1,
-	.counter_limit_mask    = 0xF,
-	.en_cfg_shift = 16,
-	.height_shift = 16,
 };
 
-struct cam_tfe_hw_info cam_tfe640 = {
+struct cam_tfe_hw_info cam_tfe770 = {
 	.top_irq_mask = {
 		0x00001834,
 		0x00001838,
@@ -1239,9 +1398,9 @@ struct cam_tfe_hw_info cam_tfe640 = {
 		0x00000000,
 	},
 	.error_irq_mask = {
-		0x000F0F00,
+		0x001F1F00,
 		0x00000000,
-		0x0000003F,
+		0x000000FF,
 	},
 	.bus_reg_irq_mask = {
 		0x00000002,
@@ -1253,12 +1412,12 @@ struct cam_tfe_hw_info cam_tfe640 = {
 	},
 
 	.num_clc = 39,
-	.clc_hw_status_info            = tfe640_clc_hw_info,
+	.clc_hw_status_info            = tfe770_clc_hw_info,
 	.bus_version                   = CAM_TFE_BUS_1_0,
-	.bus_hw_info                   = &tfe640_bus_hw_info,
+	.bus_hw_info                   = &tfe770_bus_hw_info,
 
 	.top_version                   = CAM_TFE_TOP_1_0,
-	.top_hw_info                   = &tfe640_top_hw_info,
+	.top_hw_info                   = &tfe770_top_hw_info,
 };
 
-#endif /* _CAM_TFE640__H_ */
+#endif /* _CAM_TFE770__H_ */

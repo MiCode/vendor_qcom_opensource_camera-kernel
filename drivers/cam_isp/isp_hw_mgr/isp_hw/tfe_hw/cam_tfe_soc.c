@@ -45,6 +45,11 @@ int cam_tfe_init_soc_resources(struct cam_hw_soc_info *soc_info,
 		goto free_soc_private;
 	}
 
+	soc_private->is_tfe_lite = false;
+	if (strnstr(soc_info->compatible, "lite",
+		strlen(soc_info->compatible)) != NULL)
+		soc_private->is_tfe_lite = true;
+
 	/* set some default values */
 	soc_private->num_pid = 0;
 

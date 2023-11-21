@@ -19,6 +19,7 @@ enum cam_isp_hw_tfe_in {
 	CAM_ISP_HW_TFE_IN_RDI0        = 1,
 	CAM_ISP_HW_TFE_IN_RDI1        = 2,
 	CAM_ISP_HW_TFE_IN_RDI2        = 3,
+	CAM_ISP_HW_TFE_IN_PDLIB       = 4,
 	CAM_ISP_HW_TFE_IN_MAX,
 };
 
@@ -35,6 +36,7 @@ enum cam_tfe_hw_irq_status {
 	CAM_TFE_IRQ_STATUS_OVERFLOW,
 	CAM_TFE_IRQ_STATUS_P2I_ERROR,
 	CAM_TFE_IRQ_STATUS_VIOLATION,
+	CAM_TFE_IRQ_STATUS_OUT_OF_SYNC,
 	CAM_TFE_IRQ_STATUS_MAX,
 };
 
@@ -120,6 +122,7 @@ struct cam_tfe_hw_tfe_out_acquire_args {
  * @in_port:                 Input port details to acquire
  * @camif_pd_enable          Camif pd enable or disable
  * @dual_tfe_sync_sel_idx    Dual tfe master hardware index
+ * @lcr_enable               LCR enable field
  */
 struct cam_tfe_hw_tfe_in_acquire_args {
 	struct cam_isp_resource_node            *rsrc_node;
@@ -129,6 +132,7 @@ struct cam_tfe_hw_tfe_in_acquire_args {
 	enum cam_isp_hw_sync_mode                sync_mode;
 	bool                                     camif_pd_enable;
 	uint32_t                                 dual_tfe_sync_sel_idx;
+	bool                                     lcr_enable;
 };
 
 /*

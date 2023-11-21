@@ -12791,7 +12791,7 @@ static int cam_ife_mgr_isp_add_reg_update(struct cam_ife_hw_mgr_ctx *ctx,
 		rc = cam_isp_add_reg_update(prepare,
 			&ctx->res_list_ife_src,
 			ctx->base[i].idx, kmd_buf,
-			!ctx->flags.internal_cdm);
+			!ctx->flags.internal_cdm, NULL);
 
 		if (rc) {
 			CAM_ERR(CAM_ISP,

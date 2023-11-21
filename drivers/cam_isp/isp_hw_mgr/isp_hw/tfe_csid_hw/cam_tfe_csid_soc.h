@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_TFE_CSID_SOC_H_
@@ -16,9 +17,11 @@
  * @cpas_handle:             Handle returned on registering with CPAS driver.
  *                           This handle is used for all further interface
  *                           with CPAS.
+ * @is_tfe_csid_lite:        Flag to indicate if it is CSID lite HW
  */
 struct cam_tfe_csid_soc_private {
 	uint32_t cpas_handle;
+	bool     is_tfe_csid_lite;
 };
 
 /**

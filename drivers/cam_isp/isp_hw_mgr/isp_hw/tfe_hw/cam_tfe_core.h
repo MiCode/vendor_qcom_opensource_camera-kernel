@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -15,20 +16,22 @@
 
 #define CAM_TFE_CAMIF_VER_1_0        0x10
 #define CAM_TFE_RDI_VER_1_0          0x1000
+#define CAM_TFE_PDLIB_VER_1_0        0x10000
 #define CAM_TFE_TOP_1_0              0x1000
-#define CAM_TFE_TOP_IN_PORT_MAX      4
+#define CAM_TFE_TOP_IN_PORT_MAX      5
 #define CAM_TFE_RDI_MAX              4
 
 #define CAMIF_DEBUG_ENABLE_SENSOR_DIAG_STATUS      BIT(0)
 #define CAM_TFE_EVT_MAX                            256
 
-#define CAM_TFE_MAX_REG_DUMP_ENTRIES  20
-#define CAM_TFE_MAX_LUT_DUMP_ENTRIES  10
+#define CAM_TFE_MAX_REG_DUMP_ENTRIES        20
+#define CAM_TFE_MAX_LUT_DUMP_ENTRIES        10
 
-#define CAM_TFE_MAX_CLC               40
-#define CAM_TFE_CLC_NAME_LENGTH_MAX   32
-#define CAM_TFE_MAX_DEBUG_REG         10
-#define CAM_TFE_MAX_PERF_CNT           2
+#define CAM_TFE_MAX_CLC                     42
+#define CAM_TFE_CLC_NAME_LENGTH_MAX         32
+#define CAM_TFE_LITE_MAX_CLC                4
+#define CAM_TFE_MAX_DEBUG_REG               12
+#define CAM_TFE_MAX_PERF_CNT                2
 
 /*we take each word as uint32_t, for dumping uint64_t count as 2 words
  * soc index
@@ -85,7 +88,8 @@ struct cam_tfe_top_reg_offset_common {
 	uint32_t stats_feature;
 	uint32_t zoom_feature;
 	uint32_t global_reset_cmd;
-	uint32_t core_cgc_ctrl;
+	uint32_t core_cgc_ctrl_0;
+	uint32_t core_cgc_ctrl_1;
 	uint32_t ahb_cgc_ctrl;
 	uint32_t core_cfg_0;
 	uint32_t core_cfg_1;
@@ -102,14 +106,41 @@ struct cam_tfe_top_reg_offset_common {
 	uint32_t debug_cfg;
 	uint32_t num_perf_cfg;
 	struct   cam_tfe_top_reg_perf_cfg perf_cfg[CAM_TFE_MAX_PERF_CNT];
+	uint32_t diag_sensor_frame_cnt_status_1;
 
 	/*reg data */
 	uint32_t diag_min_hbi_error_shift;
 	uint32_t diag_neq_hbi_shift;
 	uint32_t diag_sensor_hbi_mask;
+	uint32_t mup_shift_val;
+
+	/* error bit data */
+	uint32_t pp_camif_violation_bit;
+	uint32_t pp_violation_bit;
+	uint32_t ppp_camif_violation_bit;
+	uint32_t ppp_violation_bit;
+	uint32_t rdi0_camif_violation_bit;
+	uint32_t rdi1_camif_violation_bit;
+	uint32_t rdi2_camif_violation_bit;
+	uint32_t diag_violation_bit;
+	uint32_t dyamanic_switch_violation_bit;
+	uint32_t pp_frame_drop_bit;
+	uint32_t ppp_frame_drop_bit;
+	uint32_t rdi0_frame_drop_bit;
+	uint32_t rdi1_frame_drop_bit;
+	uint32_t rdi2_frame_drop_bit;
+	uint32_t pp_overflow_bit;
+	uint32_t ppp_overflow_bit;
+	uint32_t rdi0_overflow_bit;
+	uint32_t rdi1_overflow_bit;
+	uint32_t rdi2_overflow_bit;
+	uint32_t out_of_sync_frame_drop_bit;
+	uint32_t height_shift;
+	uint32_t epoch_shift_val;
 
 	/* configuration */
 	bool serializer_supported;
+	bool mup_supported;
 };
 
 struct cam_tfe_camif_reg {
@@ -211,6 +242,34 @@ struct cam_tfe_rdi_reg_data {
 	uint32_t     diag_sensor_shift;
 };
 
+struct cam_tfe_ppp_reg {
+	uint32_t     ppp_hw_version;
+	uint32_t     ppp_hw_status;
+	uint32_t     ppp_module_config;
+	uint32_t     ppp_skip_period;
+	uint32_t     ppp_irq_subsample_pattern;
+	uint32_t     ppp_epoch_irq;
+	uint32_t     ppp_debug_1;
+	uint32_t     ppp_debug_0;
+	uint32_t     ppp_test_bus_ctrl;
+	uint32_t     ppp_spare;
+	uint32_t     reg_update_cmd;
+};
+
+struct cam_tfe_ppp_reg_data {
+	uint32_t     sof_irq_mask;
+	uint32_t     epoch0_irq_mask;
+	uint32_t     epoch1_irq_mask;
+	uint32_t     eof_irq_mask;
+	uint32_t     subscribe_irq_mask[CAM_TFE_TOP_IRQ_REG_NUM];
+	uint32_t     enable_diagnostic_hw;
+	uint32_t     diag_sensor_sel;
+	uint32_t     diag_sensor_shift;
+
+	uint32_t     pdaf_path_en_shift;
+	uint32_t     lcr_dis_en_shift;
+};
+
 struct cam_tfe_clc_hw_status {
 	uint8_t     name[CAM_TFE_CLC_NAME_LENGTH_MAX];
 	uint32_t    hw_status_reg;
@@ -221,12 +280,20 @@ struct cam_tfe_rdi_hw_info {
 	struct cam_tfe_rdi_reg_data         *reg_data;
 };
 
+struct cam_tfe_ppp_hw_info {
+	struct cam_tfe_ppp_reg              *ppp_reg;
+	struct cam_tfe_ppp_reg_data         *reg_data;
+};
+
 struct cam_tfe_top_hw_info {
 	struct cam_tfe_top_reg_offset_common  *common_reg;
 	struct cam_tfe_camif_hw_info           camif_hw_info;
 	struct cam_tfe_rdi_hw_info             rdi_hw_info[CAM_TFE_RDI_MAX];
+	struct cam_tfe_ppp_hw_info             ppp_hw_info;
 	uint32_t in_port[CAM_TFE_TOP_IN_PORT_MAX];
 	struct cam_tfe_reg_dump_data           reg_dump_data;
+	uint32_t                               num_path_port_map;
+	uint32_t path_port_map[CAM_ISP_HW_PATH_PORT_MAP_MAX][2];
 };
 
 struct cam_tfe_hw_info {

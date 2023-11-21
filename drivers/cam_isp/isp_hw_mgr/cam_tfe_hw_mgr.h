@@ -126,6 +126,9 @@ struct cam_tfe_cdm_user_data {
  * @bw_config_version          BW Config version
  * @tfe_bus_comp_grp          pointer to tfe comp group info
  * @cdm_userdata               CDM user data
+ * @try_recovery_cnt          Retry count for overflow recovery
+ * @current_mup               Current MUP val
+ * @recovery_req_id           The request id on which overflow recovery happens
  */
 struct cam_tfe_hw_mgr_ctx {
 	struct list_head                list;
@@ -170,6 +173,9 @@ struct cam_tfe_hw_mgr_ctx {
 	uint32_t                        bw_config_version;
 	struct cam_tfe_hw_comp_record  *tfe_bus_comp_grp;
 	struct cam_tfe_cdm_user_data    cdm_userdata;
+	uint32_t                        current_mup;
+	uint32_t                        try_recovery_cnt;
+	uint64_t                        recovery_req_id;
 };
 
 /**
@@ -190,6 +196,7 @@ struct cam_tfe_hw_mgr_ctx {
  * @tfe_dev_caps           tfe device capability per core
  * @work q                 work queue for TFE hw manager
  * @debug_cfg              debug configuration
+ * @path_port_map          Mapping of outport to TFE mux
  * @support_consumed_addr  indicate whether hw supports last consumed address
  * @ctx_lock               Spinlock for HW manager
  */
@@ -209,6 +216,7 @@ struct cam_tfe_hw_mgr {
 	struct cam_tfe_hw_get_hw_cap   tfe_dev_caps[CAM_TFE_HW_NUM_MAX];
 	struct cam_req_mgr_core_workq *workq;
 	struct cam_tfe_hw_mgr_debug    debug_cfg;
+	struct cam_isp_hw_path_port_map  path_port_map;
 	bool                           support_consumed_addr;
 	spinlock_t                     ctx_lock;
 };

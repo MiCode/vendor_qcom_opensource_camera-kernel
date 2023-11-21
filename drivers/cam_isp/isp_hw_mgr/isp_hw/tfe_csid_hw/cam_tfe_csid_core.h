@@ -56,11 +56,14 @@
 #define TFE_CSID_PATH_ERROR_PIX_COUNT                 BIT(13)
 #define TFE_CSID_PATH_ERROR_LINE_COUNT                BIT(14)
 #define TFE_CSID_PATH_IPP_ERROR_CCIF_VIOLATION        BIT(15)
-#define TFE_CSID_PATH_IPP_OVERFLOW_IRQ                BIT(16)
-#define TFE_CSID_PATH_IPP_FRAME_DROP                  BIT(17)
+#define TFE_CSID_PATH_IPP_FRAME_DROP                  BIT(16)
+#define TFE_CSID_PATH_IPP_OVERFLOW_IRQ                BIT(17)
+#define TFE_CSID_PATH_PPP_ERROR_CCIF_VIOLATION        BIT(15)
+#define TFE_CSID_PATH_PPP_FRAME_DROP                  BIT(16)
+#define TFE_CSID_PATH_PPP_OVERFLOW_IRQ                BIT(17)
+#define TFE_CSID_PATH_RDI_ERROR_CCIF_VIOLATION        BIT(15)
 #define TFE_CSID_PATH_RDI_FRAME_DROP                  BIT(16)
 #define TFE_CSID_PATH_RDI_OVERFLOW_IRQ                BIT(17)
-#define TFE_CSID_PATH_RDI_ERROR_CCIF_VIOLATION        BIT(18)
 
 /*
  * Debug values enable the corresponding interrupts and debug logs provide
@@ -95,6 +98,14 @@ enum cam_tfe_csid_path_halt_mode {
 	TFE_CSID_HALT_MODE_SLAVE,
 };
 
+/* enum cam_csid_path_halt_master select the path halt master control */
+enum cam_tfe_csid_path_halt_master_sel {
+	TFE_CSID_HALT_CMD_SOURCE_EXTERNAL,
+	TFE_CSID_HALT_CMD_SOURCE_NONE,
+	TFE_CSID_HALT_CMD_SOURCE_INTERNAL2,
+	TFE_CSID_HALT_CMD_SOURCE_INTERNAL1,
+};
+
 /**
  *enum cam_csid_path_timestamp_stb_sel - select the sof/eof strobes used to
  *        capture the timestamp
@@ -116,11 +127,20 @@ struct cam_tfe_csid_pxl_reg_offset {
 	uint32_t csid_pxl_cfg0_addr;
 	uint32_t csid_pxl_cfg1_addr;
 	uint32_t csid_pxl_ctrl_addr;
+	uint32_t csid_pxl_frame_drop_pattern;
+	uint32_t csid_pxl_frame_drop_period;
+	uint32_t csid_pxl_irq_subsample_pattern;
+	uint32_t csid_pxl_irq_subsample_period;
 	uint32_t csid_pxl_hcrop_addr;
 	uint32_t csid_pxl_vcrop_addr;
 	uint32_t csid_pxl_rst_strobes_addr;
 	uint32_t csid_pxl_status_addr;
 	uint32_t csid_pxl_misr_val_addr;
+	uint32_t csid_pxl_format_measure_cfg0_addr;
+	uint32_t csid_pxl_format_measure_cfg1_addr;
+	uint32_t csid_pxl_format_measure0_addr;
+	uint32_t csid_pxl_format_measure1_addr;
+	uint32_t csid_pxl_format_measure2_addr;
 	uint32_t csid_pxl_timestamp_curr0_sof_addr;
 	uint32_t csid_pxl_timestamp_curr1_sof_addr;
 	uint32_t csid_pxl_timestamp_perv0_sof_addr;
@@ -129,15 +149,11 @@ struct cam_tfe_csid_pxl_reg_offset {
 	uint32_t csid_pxl_timestamp_curr1_eof_addr;
 	uint32_t csid_pxl_timestamp_perv0_eof_addr;
 	uint32_t csid_pxl_timestamp_perv1_eof_addr;
+	uint32_t csid_pxl_ppp_sparse_pd_ext_cfg0;
 	uint32_t csid_pxl_err_recovery_cfg0_addr;
 	uint32_t csid_pxl_err_recovery_cfg1_addr;
 	uint32_t csid_pxl_err_recovery_cfg2_addr;
 	uint32_t csid_pxl_multi_vcdt_cfg0_addr;
-	uint32_t csid_pxl_format_measure_cfg0_addr;
-	uint32_t csid_pxl_format_measure_cfg1_addr;
-	uint32_t csid_pxl_format_measure0_addr;
-	uint32_t csid_pxl_format_measure1_addr;
-	uint32_t csid_pxl_format_measure2_addr;
 
 	/* configuration */
 	uint32_t pix_store_en_shift_val;
@@ -164,10 +180,21 @@ struct cam_tfe_csid_rdi_reg_offset {
 	uint32_t csid_rdi_cfg0_addr;
 	uint32_t csid_rdi_cfg1_addr;
 	uint32_t csid_rdi_ctrl_addr;
+	uint32_t csid_rdi_frame_drop_pattern;
+	uint32_t csid_rdi_frame_drop_period;
+	uint32_t csid_rdi_irq_subsample_pattern;
+	uint32_t csid_rdi_irq_subsample_period;
 	uint32_t csid_rdi_rst_strobes_addr;
 	uint32_t csid_rdi_status_addr;
 	uint32_t csid_rdi_misr_val0_addr;
 	uint32_t csid_rdi_misr_val1_addr;
+	uint32_t csid_rdi_misr_val2_addr;
+	uint32_t csid_rdi_misr_val3_addr;
+	uint32_t csid_rdi_format_measure_cfg0_addr;
+	uint32_t csid_rdi_format_measure_cfg1_addr;
+	uint32_t csid_rdi_format_measure0_addr;
+	uint32_t csid_rdi_format_measure1_addr;
+	uint32_t csid_rdi_format_measure2_addr;
 	uint32_t csid_rdi_timestamp_curr0_sof_addr;
 	uint32_t csid_rdi_timestamp_curr1_sof_addr;
 	uint32_t csid_rdi_timestamp_prev0_sof_addr;
@@ -182,11 +209,6 @@ struct cam_tfe_csid_rdi_reg_offset {
 	uint32_t csid_rdi_byte_cntr_ping_addr;
 	uint32_t csid_rdi_byte_cntr_pong_addr;
 	uint32_t csid_rdi_multi_vcdt_cfg0_addr;
-	uint32_t csid_rdi_format_measure_cfg0_addr;
-	uint32_t csid_rdi_format_measure_cfg1_addr;
-	uint32_t csid_rdi_format_measure0_addr;
-	uint32_t csid_rdi_format_measure1_addr;
-	uint32_t csid_rdi_format_measure2_addr;
 
 	/* configuration */
 	uint32_t packing_format;
@@ -259,10 +281,12 @@ struct cam_tfe_csid_common_reg_offset {
 	uint32_t version_incr;
 	uint32_t num_rdis;
 	uint32_t num_pix;
+	uint32_t num_ppp;
 	uint32_t csid_reg_rst_stb;
 	uint32_t csid_rst_stb;
 	uint32_t csid_rst_stb_sw_all;
 	uint32_t ipp_path_rst_stb_all;
+	uint32_t ppp_path_rst_stb_all;
 	uint32_t rdi_path_rst_stb_all;
 	uint32_t path_rst_done_shift_val;
 	uint32_t path_en_shift_val;
@@ -278,6 +302,7 @@ struct cam_tfe_csid_common_reg_offset {
 	uint32_t crop_h_en_shift_val;
 	uint32_t crop_shift;
 	uint32_t ipp_irq_mask_all;
+	uint32_t ppp_irq_mask_all;
 	uint32_t rdi_irq_mask_all;
 	uint32_t top_tfe2_pix_pipe_fuse_reg;
 	uint32_t top_tfe2_fuse_reg;
@@ -301,6 +326,7 @@ struct cam_tfe_csid_reg_offset {
 	const struct cam_tfe_csid_common_reg_offset   *cmn_reg;
 	const struct cam_tfe_csid_csi2_rx_reg_offset  *csi2_reg;
 	const struct cam_tfe_csid_pxl_reg_offset      *ipp_reg;
+	const struct cam_tfe_csid_pxl_reg_offset      *ppp_reg;
 	const struct cam_tfe_csid_rdi_reg_offset *rdi_reg[CAM_TFE_CSID_RDI_MAX];
 };
 
@@ -453,13 +479,14 @@ struct cam_csid_evt_payload {
  * @in_res_id:                csid in resource type
  * @csi2_rx_cfg:              csi2 rx decoder configuration for csid
  * @csi2_rx_reserve_cnt:      csi2 reservations count value
+ * pxl_pipe_enable:           flag to specify if the hardware has IPP
  * @ipp_res:                  image pixel path resource
+ * @ppp_res:                  PD pixel path resource
  * @rdi_res:                  raw dump image path resources
  * @cid_res:                  cid resources values
  * @csid_top_reset_complete:  csid top reset completion
  * @csid_csi2_reset_complete: csi2 reset completion
  * @csid_ipp_reset_complete:  ipp reset completion
- * @csid_ppp_complete:        ppp reset completion
  * @csid_rdin_reset_complete: rdi n completion
  * @csid_debug:               csid debug information to enable the SOT, EOT,
  *                            SOF, EOF, measure etc in the csid hw
@@ -495,11 +522,13 @@ struct cam_tfe_csid_hw {
 	uint32_t                            csi2_reserve_cnt;
 	uint32_t                            pxl_pipe_enable;
 	struct cam_isp_resource_node        ipp_res;
+	struct cam_isp_resource_node        ppp_res;
 	struct cam_isp_resource_node        rdi_res[CAM_TFE_CSID_RDI_MAX];
 	struct cam_tfe_csid_cid_data        cid_res[CAM_TFE_CSID_CID_MAX];
 	struct completion                   csid_top_complete;
 	struct completion                   csid_csi2_complete;
 	struct completion                   csid_ipp_complete;
+	struct completion                   csid_ppp_complete;
 	struct completion     csid_rdin_complete[CAM_TFE_CSID_RDI_MAX];
 	uint64_t                            csid_debug;
 	uint64_t                            clk_rate;
