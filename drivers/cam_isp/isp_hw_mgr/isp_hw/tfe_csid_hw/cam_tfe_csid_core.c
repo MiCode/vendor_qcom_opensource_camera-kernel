@@ -23,6 +23,7 @@
 #include "cam_common_util.h"
 #include "cam_tfe_csid_hw_intf.h"
 #include <dt-bindings/msm-camera.h>
+#include "cam_cpas_hw_intf.h"
 
 /* Timeout value in msec */
 #define TFE_CSID_TIMEOUT                               1000
@@ -993,6 +994,13 @@ static int cam_tfe_csid_enable_csi2(
 		csid_reg->csi2_reg->csi2_rx_phy_num_mask) << 20;
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
 		csid_reg->csi2_reg->csid_csi2_rx_cfg0_addr);
+
+	if (csid_hw->in_res_id >= CAM_ISP_TFE_IN_RES_CPHY_TPG_0 &&
+		csid_hw->in_res_id <= CAM_ISP_TFE_IN_RES_CPHY_TPG_2 &&
+		csid_reg->csi2_reg->need_to_sel_tpg_mux) {
+		cam_cpas_enable_tpg_mux_sel(csid_hw->in_res_id -
+			CAM_ISP_TFE_IN_RES_CPHY_TPG_0);
+	}
 
 	/* rx cfg1 */
 	val = (1 << csid_reg->csi2_reg->csi2_misr_enable_shift_val);
@@ -2279,6 +2287,7 @@ static int cam_tfe_csid_get_hw_caps(void *hw_priv,
 	hw_caps->major_version = csid_reg->cmn_reg->major_version;
 	hw_caps->minor_version = csid_reg->cmn_reg->minor_version;
 	hw_caps->version_incr = csid_reg->cmn_reg->version_incr;
+	hw_caps->sync_clk = csid_reg->cmn_reg->sync_clk;
 
 	CAM_DBG(CAM_ISP,
 		"CSID:%d No rdis:%d, no pix:%d, major:%d minor:%d ver :%d",
@@ -2871,6 +2880,53 @@ static int cam_tfe_csid_set_csid_clock(
 	return 0;
 }
 
+static int cam_tfe_csid_dump_csid_clock(
+	struct cam_tfe_csid_hw *csid_hw, void *cmd_args)
+{
+	struct cam_hw_soc_info   *soc_info;
+
+	if (!csid_hw)
+		return -EINVAL;
+
+	soc_info = &csid_hw->hw_info->soc_info;
+
+	CAM_INFO(CAM_ISP, "CSID:%d sw_client clk rate:%lu ",
+		csid_hw->hw_intf->hw_idx,
+		soc_info->applied_src_clk_rates.sw_client);
+
+	return 0;
+}
+
+static int cam_tfe_csid_set_csid_clock_dynamically(
+	struct cam_tfe_csid_hw *csid_hw, void *cmd_args)
+{
+	struct cam_hw_soc_info   *soc_info;
+	unsigned long            *clk_rate;
+	int rc = 0;
+
+	soc_info = &csid_hw->hw_info->soc_info;
+	clk_rate = (unsigned long *)cmd_args;
+
+	CAM_DBG(CAM_ISP, "CSID[%u] clock rate requested: %llu curr: %llu",
+		csid_hw->hw_intf->hw_idx, *clk_rate, soc_info->applied_src_clk_rates.sw_client);
+
+	if (*clk_rate <= soc_info->applied_src_clk_rates.sw_client)
+		goto end;
+
+	rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX, *clk_rate, 0);
+	if (rc) {
+		CAM_ERR(CAM_ISP,
+			"unable to set clock dynamically rate:%llu", *clk_rate);
+		return rc;
+	}
+end:
+	*clk_rate = soc_info->applied_src_clk_rates.sw_client;
+	CAM_DBG(CAM_ISP, "CSID[%u] new clock rate %llu",
+		csid_hw->hw_intf->hw_idx, soc_info->applied_src_clk_rates.sw_client);
+
+	return rc;
+}
+
 static int cam_tfe_csid_get_regdump(struct cam_tfe_csid_hw *csid_hw,
 	void *cmd_args)
 {
@@ -3141,6 +3197,9 @@ static int cam_tfe_csid_process_cmd(void *hw_priv,
 	case CAM_ISP_HW_CMD_CSID_CLOCK_UPDATE:
 		rc = cam_tfe_csid_set_csid_clock(csid_hw, cmd_args);
 		break;
+	case CAM_ISP_HW_CMD_CSID_CLOCK_DUMP:
+		rc = cam_tfe_csid_dump_csid_clock(csid_hw, cmd_args);
+		break;
 	case CAM_TFE_CSID_CMD_GET_REG_DUMP:
 		rc = cam_tfe_csid_get_regdump(csid_hw, cmd_args);
 		break;
@@ -3152,6 +3211,9 @@ static int cam_tfe_csid_process_cmd(void *hw_priv,
 		break;
 	case CAM_TFE_CSID_LOG_ACQUIRE_DATA:
 		rc = cam_tfe_csid_log_acquire_data(csid_hw, cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_DYNAMIC_CLOCK_UPDATE:
+		rc = cam_tfe_csid_set_csid_clock_dynamically(csid_hw, cmd_args);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",
@@ -3794,9 +3856,23 @@ handle_fatal_error:
 		}
 	}
 
-	if (is_error_irq || log_en)
+	if (is_error_irq || log_en) {
+		CAM_ERR_RATE_LIMIT(CAM_ISP,
+			"CSID %d irq status TOP: 0x%x RX: 0x%x IPP: 0x%x",
+			csid_hw->hw_intf->hw_idx,
+			irq_status[TFE_CSID_IRQ_REG_TOP],
+			irq_status[TFE_CSID_IRQ_REG_RX],
+			irq_status[TFE_CSID_IRQ_REG_IPP]);
+		CAM_ERR_RATE_LIMIT(CAM_ISP,
+			"RDI0: 0x%x RDI1: 0x%x RDI2: 0x%x CSID clk:%d",
+			irq_status[TFE_CSID_IRQ_REG_RDI0],
+			irq_status[TFE_CSID_IRQ_REG_RDI1],
+			irq_status[TFE_CSID_IRQ_REG_RDI2],
+			soc_info->applied_src_clk_rates.sw_client);
+
 		cam_tfe_csid_handle_hw_err_irq(csid_hw,
 			CAM_ISP_HW_ERROR_NONE, irq_status);
+	}
 
 	if (csid_hw->irq_debug_cnt >= CAM_TFE_CSID_IRQ_SOF_DEBUG_CNT_MAX) {
 		cam_tfe_csid_sof_irq_debug(csid_hw, &sof_irq_debug_en);

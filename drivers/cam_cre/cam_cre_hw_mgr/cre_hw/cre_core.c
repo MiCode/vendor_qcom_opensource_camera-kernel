@@ -233,6 +233,11 @@ int cam_cre_deinit_hw(void *device_priv,
 		CAM_ERR(CAM_CRE, "soc disable is failed : %d", rc);
 	core_info->clk_enable = false;
 
+	if (cam_cpas_stop(core_info->cpas_handle))
+		CAM_ERR(CAM_CRE, "cpas stop is failed");
+	else
+		core_info->cpas_start = false;
+
 	return rc;
 }
 

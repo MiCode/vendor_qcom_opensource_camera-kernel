@@ -573,5 +573,11 @@ static struct cam_cpas_info cam640_cpas200_cpas_info = {
 	.num_qchannel = 1,
 };
 
+static struct cam_cpas_top_regs cam640_cpas200_cpas_top_info = {
+	.tpg_mux_sel_enabled = true,
+	.tpg_mux_sel_shift   = 0x0,
+	.tpg_mux_sel         = 0x1C,
+};
+
 #endif /* _CPASTOP_V640_200_H_ */
 

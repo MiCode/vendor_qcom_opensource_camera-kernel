@@ -349,7 +349,7 @@ static void cam_tfe_log_error_irq_status(
 	for (i = 0; i < top_priv->common_data.common_reg->num_debug_reg; i++) {
 		val_0 = cam_io_r(mem_base  +
 			top_priv->common_data.common_reg->debug_reg[i]);
-		CAM_INFO(CAM_ISP, "Top debug [i]:0x%x", i, val_0);
+		CAM_INFO(CAM_ISP, "Top debug [%d]:0x%x", i, val_0);
 	}
 
 	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
@@ -446,6 +446,7 @@ static void cam_tfe_log_error_irq_status(
 		top_priv->hw_clk_rate,
 		top_priv->total_bw_applied);
 
+	cam_cpas_log_votes(false);
 }
 
 static int cam_tfe_error_irq_bottom_half(
@@ -967,6 +968,41 @@ static int cam_tfe_top_set_hw_clk_rate(
 	else
 		CAM_ERR(CAM_ISP, "TFE:%d set src clock rate:%lld failed, rc=%d",
 		top_priv->common_data.soc_info->index, max_clk_rate,  rc);
+
+	return rc;
+}
+
+static int cam_tfe_top_dynamic_clock_update(
+	struct cam_tfe_top_priv  *top_priv,
+	void                     *cmd_args,
+	uint32_t                 arg_size)
+{
+	struct cam_hw_soc_info   *soc_info;
+	unsigned long            *clk_rate;
+	int rc = 0;
+
+	soc_info = top_priv->common_data.soc_info;
+	clk_rate = (unsigned long *)cmd_args;
+	CAM_DBG(CAM_ISP, "TFE[%u] clock rate requested: %llu curr: %llu",
+		top_priv->common_data.hw_intf->hw_idx, *clk_rate,
+		soc_info->applied_src_clk_rates.sw_client);
+
+	if (*clk_rate <= top_priv->hw_clk_rate)
+		goto end;
+
+	rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX, *clk_rate, 0);
+	if (!rc) {
+		top_priv->hw_clk_rate = *clk_rate;
+	} else {
+		CAM_ERR(CAM_ISP,
+			"unable to set clock dynamically rate: %llu",
+			*clk_rate);
+		return rc;
+	}
+end:
+	*clk_rate = soc_info->applied_src_clk_rates.sw_client;
+	CAM_DBG(CAM_ISP, "TFE[%u] new clock rate %llu",
+		top_priv->common_data.hw_intf->hw_idx, soc_info->applied_src_clk_rates.sw_client);
 
 	return rc;
 }
@@ -2920,6 +2956,10 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		rc = cam_tfe_set_top_debug(core_info, cmd_args,
 			arg_size);
 		break;
+	case CAM_ISP_HW_CMD_DYNAMIC_CLOCK_UPDATE:
+		rc = cam_tfe_top_dynamic_clock_update(core_info->top_priv, cmd_args,
+			arg_size);
+		break;
 	case CAM_ISP_HW_CMD_GET_BUF_UPDATE:
 	case CAM_ISP_HW_CMD_GET_HFR_UPDATE:
 	case CAM_ISP_HW_CMD_STRIPE_UPDATE:
@@ -2930,6 +2970,7 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_DUMP_BUS_INFO:
 	case CAM_ISP_HW_CMD_IS_PDAF_RDI2_MUX_EN:
 	case CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG:
+	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
 		rc = core_info->tfe_bus->hw_ops.process_cmd(
 			core_info->tfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);

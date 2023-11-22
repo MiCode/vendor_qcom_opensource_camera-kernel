@@ -116,6 +116,12 @@ static void cam_ife_csid_component_unbind(struct device *dev,
 	const struct of_device_id      *match_dev = NULL;
 
 	hw_intf = (struct cam_hw_intf *)platform_get_drvdata(pdev);
+
+	if (!hw_intf) {
+		CAM_ERR(CAM_ISP, "Error No data in hw_intf");
+		return;
+	}
+
 	hw_info = hw_intf->hw_priv;
 
 	CAM_DBG(CAM_ISP, "CSID:%d component unbind",

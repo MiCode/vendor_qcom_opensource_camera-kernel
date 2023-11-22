@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -108,6 +109,12 @@ static void cam_ppi_component_unbind(struct device *dev,
 	struct platform_device *pdev = to_platform_device(dev);
 
 	ppi_dev = (struct cam_csid_ppi_hw *)platform_get_drvdata(pdev);
+
+	if (!ppi_dev) {
+		CAM_ERR(CAM_ISP, "Error No data in ppi_dev");
+		return;
+	}
+
 	ppi_hw_intf = ppi_dev->hw_intf;
 	ppi_hw_info = ppi_dev->hw_info;
 
