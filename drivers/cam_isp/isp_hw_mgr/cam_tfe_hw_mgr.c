@@ -1251,6 +1251,9 @@ static int cam_tfe_hw_mgr_acquire_res_tfe_csid_pxl(
 				out_port->secure_mode == 1))
 				continue;
 
+			csid_acquire.sync_mode = ((i == CAM_ISP_HW_SPLIT_LEFT) ?
+				CAM_ISP_HW_SYNC_MASTER : CAM_ISP_HW_SYNC_SLAVE);
+
 			hw_intf = csid_res_iterator->hw_res[i]->hw_intf;
 			csid_acquire.master_idx = hw_intf->hw_idx;
 

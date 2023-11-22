@@ -821,9 +821,11 @@ static int cam_tfe_csid_cid_reserve(struct cam_tfe_csid_hw *csid_hw,
 	}
 
 	csid_hw->csi2_reserve_cnt++;
-	CAM_DBG(CAM_ISP, "CSID:%d CID:%d acquired reserv cnt:%d",
+	CAM_DBG(CAM_ISP, "CSID:%d CID:%d acquired reserv cnt:%d phy_sel: %d res_id: %d",
 		csid_hw->hw_intf->hw_idx, *cid_value,
-		csid_hw->csi2_reserve_cnt);
+		csid_hw->csi2_reserve_cnt,
+		csid_hw->csi2_rx_cfg.phy_sel,
+		cid_reserv->in_port->res_id);
 
 end:
 	return rc;
@@ -1134,7 +1136,7 @@ static int cam_tfe_csid_enable_csi2(
 	 */
 	ppi_index = csid_hw->csi2_rx_cfg.phy_sel - csid_reg->csi2_reg->phy_sel_base;
 
-	if (csid_hw->ppi_hw_intf[ppi_index] && csid_hw->ppi_enable) {
+	if (csid_hw->ppi_enable && csid_hw->ppi_hw_intf[ppi_index]) {
 		ppi_lane_cfg.lane_type = csid_hw->csi2_rx_cfg.lane_type;
 		ppi_lane_cfg.lane_num  = csid_hw->csi2_rx_cfg.lane_num;
 		ppi_lane_cfg.lane_cfg  = csid_hw->csi2_rx_cfg.lane_cfg;
@@ -1178,7 +1180,7 @@ static int cam_tfe_csid_disable_csi2(
 		csid_reg->csi2_reg->csid_csi2_rx_cfg1_addr);
 
 	ppi_index = csid_hw->csi2_rx_cfg.phy_sel - csid_reg->csi2_reg->phy_sel_base;
-	if (csid_hw->ppi_hw_intf[ppi_index] && csid_hw->ppi_enable) {
+	if (csid_hw->ppi_enable && csid_hw->ppi_hw_intf[ppi_index]) {
 		/* De-Initialize the PPI bridge */
 		CAM_DBG(CAM_ISP, "ppi_index to de-init %d\n", ppi_index);
 		rc = csid_hw->ppi_hw_intf[ppi_index]->hw_ops.deinit(
@@ -1652,7 +1654,7 @@ static int cam_tfe_csid_enable_pxl_path(
 		val = (TFE_CSID_HALT_MODE_SLAVE << pxl_reg->halt_mode_shift);
 	else
 		/* Default is internal halt mode */
-		val = 0;
+		val = 1 << pxl_reg->halt_master_sel_shift;
 
 	/*
 	 * Resume at frame boundary if Master or No Sync.
@@ -1866,7 +1868,17 @@ static int cam_tfe_csid_enable_ppp_path(
 			ppp_reg->halt_master_sel_shift);
 	else
 		/* Default is internal halt mode */
-		val = 0;
+		val = (TFE_CSID_HALT_MODE_SLAVE  << ppp_reg->halt_mode_shift) |
+			(ppp_reg->halt_master_sel_master_val <<
+			ppp_reg->halt_master_sel_shift);
+
+	/*
+	 * Resume at frame boundary if Master or No Sync.
+	 * Slave will get resume command from Master.
+	 */
+	if (path_data->sync_mode == CAM_ISP_HW_SYNC_MASTER ||
+		path_data->sync_mode == CAM_ISP_HW_SYNC_NONE)
+		val |= CAM_TFE_CSID_RESUME_AT_FRAME_BOUNDARY;
 
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base + ppp_reg->csid_pxl_ctrl_addr);
 
