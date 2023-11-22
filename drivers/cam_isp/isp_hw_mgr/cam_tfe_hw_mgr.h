@@ -176,6 +176,8 @@ struct cam_tfe_hw_mgr_ctx {
 	uint32_t                        current_mup;
 	uint32_t                        try_recovery_cnt;
 	uint64_t                        recovery_req_id;
+	enum cam_cdm_id                 cdm_id;
+	bool                            is_shdr_slave;
 };
 
 /**

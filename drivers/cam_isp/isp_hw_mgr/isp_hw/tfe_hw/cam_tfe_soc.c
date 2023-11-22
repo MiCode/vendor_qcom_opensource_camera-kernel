@@ -50,6 +50,15 @@ int cam_tfe_init_soc_resources(struct cam_hw_soc_info *soc_info,
 		strlen(soc_info->compatible)) != NULL)
 		soc_private->is_tfe_lite = true;
 
+	rc = of_property_read_u32(soc_info->pdev->dev.of_node, "rt-wrapper-base",
+		&soc_private->rt_wrapper_base);
+	if (rc) {
+		soc_private->rt_wrapper_base = 0;
+		CAM_DBG(CAM_ISP, "rc: %d Error reading rt_wrapper_base for core_idx: %u",
+			rc, soc_info->index);
+		rc = 0;
+	}
+
 	/* set some default values */
 	soc_private->num_pid = 0;
 
