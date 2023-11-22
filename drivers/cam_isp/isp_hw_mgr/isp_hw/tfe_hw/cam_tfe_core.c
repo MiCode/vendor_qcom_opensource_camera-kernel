@@ -125,6 +125,7 @@ struct cam_tfe_ppp_data {
 	uint32_t                                     left_last_pixel;
 	uint32_t                                     first_line;
 	uint32_t                                     last_line;
+	uint32_t                                     core_cfg;
 	bool                                         lcr_enable;
 };
 
@@ -2229,6 +2230,7 @@ int cam_tfe_top_reserve(void *device_priv,
 					acquire_args->in_port->line_end;
 				ppp_data->lcr_enable =
 					acquire_args->lcr_enable;
+				ppp_data->core_cfg = acquire_args->in_port->core_cfg;
 			} else {
 				rdi_data = (struct cam_tfe_rdi_data      *)
 					top_priv->in_rsrc[i].res_priv;
@@ -2475,14 +2477,12 @@ static int cam_tfe_ppp_resource_start(
 
 	rsrc_data = (struct cam_tfe_ppp_data  *)ppp_res->res_priv;
 
+	val = cam_io_r_mb(rsrc_data->mem_base + rsrc_data->common_reg->core_cfg_0);
+
 	/* Config tfe core */
-	val = (1 << rsrc_data->reg_data->pdaf_path_en_shift);
+	val |= (1 << rsrc_data->reg_data->pdaf_path_en_shift);
 
-	if (!rsrc_data->lcr_enable)
-		val = (1 << rsrc_data->reg_data->lcr_dis_en_shift);
-
-	if (rsrc_data->sync_mode != CAM_ISP_HW_SYNC_NONE)
-		val = (1 << rsrc_data->reg_data->lcr_dis_en_shift);
+	val |= (rsrc_data->core_cfg & (1 << rsrc_data->reg_data->lcr_dis_en_shift));
 
 	cam_io_w_mb(val, rsrc_data->mem_base +
 		rsrc_data->common_reg->core_cfg_0);
