@@ -7,11 +7,13 @@
 #include <linux/slab.h>
 #include <linux/mod_devicetable.h>
 #include <linux/of_device.h>
+#include <dt-bindings/msm-camera.h>
 #include "cam_tfe_csid_core.h"
 #include "cam_tfe_csid_dev.h"
 #include "cam_tfe_csid_hw_intf.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
+#include "cam_cpas_api.h"
 
 static struct cam_hw_intf *cam_tfe_csid_hw_list[CAM_TFE_CSID_HW_NUM_MAX] = {
 	0, 0, 0};
@@ -31,6 +33,14 @@ static int cam_tfe_csid_component_bind(struct device *dev,
 
 	CAM_DBG(CAM_ISP, "probe called");
 
+	/* get tfe csid hw index */
+	of_property_read_u32(pdev->dev.of_node, "cell-index", &csid_dev_idx);
+
+	if (!cam_cpas_is_feature_supported(CAM_CPAS_ISP_LITE_FUSE, BIT(csid_dev_idx), NULL)) {
+		CAM_DBG(CAM_ISP, "CSID:%d is not supported", csid_dev_idx);
+		goto err;
+	}
+
 	csid_hw_intf = kzalloc(sizeof(*csid_hw_intf), GFP_KERNEL);
 	if (!csid_hw_intf) {
 		rc = -ENOMEM;
@@ -49,8 +59,6 @@ static int cam_tfe_csid_component_bind(struct device *dev,
 		goto free_hw_info;
 	}
 
-	/* get tfe csid hw index */
-	of_property_read_u32(pdev->dev.of_node, "cell-index", &csid_dev_idx);
 	/* get tfe csid hw information */
 	match_dev = of_match_device(pdev->dev.driver->of_match_table,
 		&pdev->dev);

@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
 #include <linux/mod_devicetable.h>
 #include <linux/of_device.h>
+#include <dt-bindings/msm-camera.h>
 #include "cam_tfe_dev.h"
 #include "cam_tfe_core.h"
 #include "cam_tfe_soc.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
+#include "cam_cpas_api.h"
 
 static struct cam_isp_hw_intf_data  cam_tfe_hw_list[CAM_TFE_HW_NUM_MAX];
 
@@ -25,16 +28,24 @@ static int cam_tfe_component_bind(struct device *dev,
 	struct cam_tfe_soc_private        *tfe_soc_priv;
 	int                                rc = 0;
 	struct platform_device *pdev = to_platform_device(dev);
+	uint32_t tfe_hw_idx = 0;
 	uint32_t  i;
+
+	CAM_DBG(CAM_ISP, "probe called");
+
+	of_property_read_u32(pdev->dev.of_node,
+		"cell-index", &tfe_hw_idx);
+
+	if (!cam_cpas_is_feature_supported(CAM_CPAS_ISP_LITE_FUSE, BIT(tfe_hw_idx), NULL)) {
+		CAM_DBG(CAM_ISP, "TFE:%d is not supported", tfe_hw_idx);
+		goto end;
+	}
 
 	tfe_hw_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!tfe_hw_intf) {
 		rc = -ENOMEM;
 		goto end;
 	}
-
-	of_property_read_u32(pdev->dev.of_node,
-		"cell-index", &tfe_hw_intf->hw_idx);
 
 	tfe_hw = kzalloc(sizeof(struct cam_hw_info), GFP_KERNEL);
 	if (!tfe_hw) {
@@ -46,6 +57,7 @@ static int cam_tfe_component_bind(struct device *dev,
 	tfe_hw->soc_info.dev = &pdev->dev;
 	tfe_hw->soc_info.dev_name = pdev->name;
 	tfe_hw_intf->hw_priv = tfe_hw;
+	tfe_hw_intf->hw_idx = tfe_hw_idx;
 	tfe_hw_intf->hw_ops.get_hw_caps = cam_tfe_get_hw_caps;
 	tfe_hw_intf->hw_ops.init = cam_tfe_init_hw;
 	tfe_hw_intf->hw_ops.deinit = cam_tfe_deinit_hw;
