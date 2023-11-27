@@ -70,6 +70,8 @@ static struct cam_tfe_top_reg_offset_common  tfe_lite770_top_commong_reg  = {
 	.diag_neq_hbi_shift                     = 14,
 	.diag_sensor_hbi_mask                   = 0x3FFF,
 	.serializer_supported                   = true,
+	.height_shift                           = 16,
+	.epoch_shift_val                        = 16,
 };
 
 static struct cam_tfe_rdi_reg  tfe_lite770_rdi0_reg = {
@@ -400,7 +402,7 @@ static struct cam_tfe_bus_hw_info  tfe_lite770_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003934,
 			.framedrop_period      = 0x00003938,
 			.framedrop_pattern     = 0x0000393C,
-			.system_cache_cfg     = 0x00003960,
+			.system_cache_cfg      = 0x00003960,
 			.addr_status_0         = 0x00003968,
 			.addr_status_1         = 0x0000396C,
 			.addr_status_2         = 0x00003970,
@@ -408,7 +410,7 @@ static struct cam_tfe_bus_hw_info  tfe_lite770_bus_hw_info = {
 			.debug_status_cfg      = 0x00003978,
 			.debug_status_0        = 0x0000397C,
 			.debug_status_1        = 0x00003980,
-			.comp_group            = CAM_TFE_BUS_COMP_GRP_0,
+			.comp_group            = CAM_TFE_BUS_COMP_GRP_5,
 			.client_name           = "RDI0",
 		},
 		/* BUS Client 8 RDI1 */
@@ -429,7 +431,7 @@ static struct cam_tfe_bus_hw_info  tfe_lite770_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003A34,
 			.framedrop_period      = 0x00003A38,
 			.framedrop_pattern     = 0x00003A3C,
-			.system_cache_cfg     = 0x00003A60,
+			.system_cache_cfg      = 0x00003A60,
 			.addr_status_0         = 0x00003A68,
 			.addr_status_1         = 0x00003A6C,
 			.addr_status_2         = 0x00003A70,
@@ -437,7 +439,7 @@ static struct cam_tfe_bus_hw_info  tfe_lite770_bus_hw_info = {
 			.debug_status_cfg      = 0x00003A78,
 			.debug_status_0        = 0x00003A7C,
 			.debug_status_1        = 0x00003A80,
-			.comp_group            = CAM_TFE_BUS_COMP_GRP_1,
+			.comp_group            = CAM_TFE_BUS_COMP_GRP_6,
 			.client_name           = "RDI1",
 		},
 		/* BUS Client 9 RDI2 */
@@ -458,7 +460,7 @@ static struct cam_tfe_bus_hw_info  tfe_lite770_bus_hw_info = {
 			.irq_subsample_pattern = 0x00003B34,
 			.framedrop_period      = 0x00003B38,
 			.framedrop_pattern     = 0x00003B3C,
-			.system_cache_cfg     = 0x00003B60,
+			.system_cache_cfg      = 0x00003B60,
 			.addr_status_0         = 0x00003B68,
 			.addr_status_1         = 0x00003B6C,
 			.addr_status_2         = 0x00003B70,
@@ -466,7 +468,7 @@ static struct cam_tfe_bus_hw_info  tfe_lite770_bus_hw_info = {
 			.debug_status_cfg      = 0x00003B78,
 			.debug_status_0        = 0x00003B7C,
 			.debug_status_1        = 0x00003B80,
-			.comp_group            = CAM_TFE_BUS_COMP_GRP_2,
+			.comp_group            = CAM_TFE_BUS_COMP_GRP_7,
 			.client_name           = "RDI2",
 		},
 	},
@@ -510,6 +512,8 @@ static struct cam_tfe_bus_hw_info  tfe_lite770_bus_hw_info = {
 	.support_consumed_addr = true,
 	.pdaf_rdi2_mux_en = false,
 	.rdi_width = 128,
+	.mode_cfg_shift = 16,
+	.height_shift = 16,
 };
 
 struct cam_tfe_hw_info cam_tfe_lite770 = {
