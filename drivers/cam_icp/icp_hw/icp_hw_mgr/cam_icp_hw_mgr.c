@@ -6399,7 +6399,7 @@ static int cam_icp_mgr_config_stream_settings(
 
 	rc = cam_packet_util_validate_cmd_desc(cmd_desc);
 	if (rc)
-		return rc;
+		goto end;
 
 	if (!cmd_desc[0].length ||
 		cmd_desc[0].meta_data != CAM_ICP_CMD_META_GENERIC_BLOB) {
