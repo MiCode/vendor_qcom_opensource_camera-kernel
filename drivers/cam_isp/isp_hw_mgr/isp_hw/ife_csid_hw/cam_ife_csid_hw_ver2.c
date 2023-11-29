@@ -58,6 +58,9 @@
 
 #define CAM_CSID_IRQ_CTRL_NAME_LEN                     20
 
+/* Trustedvm domain id 0x08 for all CSID path */
+#define CAM_IFE_CSID_PATH_DOMAIN_ID                    0x08080808
+
 char *cam_ife_csid_ver2_top_reg_name[] = {
 	"top",
 	"top2"
@@ -252,6 +255,8 @@ static int cam_ife_csid_ver2_set_debug(
 		sizeof(struct cam_ife_csid_ver2_debug_info));
 	csid_hw->debug_info.debug_val = debug_args->csid_debug;
 	csid_hw->debug_info.test_bus_val = debug_args->csid_testbus_debug;
+	csid_hw->debug_info.set_domain_id_enabled = debug_args->set_domain_id_enabled;
+	csid_hw->debug_info.domain_id_value = debug_args->domain_id_value;
 
 	evt_bitmap = csid_reg->rx_debug_mask->evt_bitmap;
 	dbg_bit_pos = csid_reg->rx_debug_mask->bit_pos;
@@ -5615,6 +5620,8 @@ static int cam_ife_csid_ver2_enable_hw(
 	uint32_t top_err_irq_mask = 0;
 	uint32_t buf_done_irq_mask = 0;
 	uint32_t top_info_irq_mask = 0;
+	uint32_t value = 0;
+	uint32_t index = 0;
 
 	if (csid_hw->flags.device_enabled) {
 		CAM_DBG(CAM_ISP, "CSID[%u] hw has already been enabled",
@@ -5681,6 +5688,51 @@ static int cam_ife_csid_ver2_enable_hw(
 
 	/* Read hw version */
 	val = cam_io_r_mb(mem_base + csid_reg->cmn_reg->hw_version_addr);
+
+	/*
+	 * Set CSID path domain id enable, used for debug purpose only,
+	 * register access is restricted in normal builds, disable by default,
+	 * and we can setup domain id value through debugfs, such as we want to
+	 * set CSID path as TVM non-secure(0x08), we can echo value 0x08080808.
+	 */
+	CAM_DBG(CAM_ISP, "Set CSID:%u force set enabled: %d domain id value: 0x%x",
+		csid_hw->hw_intf->hw_idx,
+		csid_hw->debug_info.set_domain_id_enabled,
+		csid_hw->debug_info.domain_id_value);
+
+	if (csid_hw->debug_info.set_domain_id_enabled) {
+		value = CAM_IFE_CSID_PATH_DOMAIN_ID;
+
+		if (csid_hw->debug_info.domain_id_value)
+			value = csid_hw->debug_info.domain_id_value;
+
+		rc = cam_common_util_get_string_index(soc_info->mem_block_name,
+			soc_info->num_mem_block, "csid_sec", &index);
+
+		if ((rc == 0) && (index < CAM_IFE_CSID_MAX_MEM_BASE_ID)) {
+			CAM_DBG(CAM_ISP, "regbase found for CSID SEC, rc: %d, index: %d",
+				rc, index);
+
+			cam_io_w_mb(value,
+				soc_info->reg_map[index].mem_base +
+				csid_reg->cmn_reg->path_domain_id_cfg0);
+			cam_io_w_mb(value,
+				soc_info->reg_map[index].mem_base +
+				csid_reg->cmn_reg->path_domain_id_cfg1);
+
+			/* Some target may have 3 such registers, check and set cfg2 */
+			if (csid_reg->cmn_reg->path_domain_id_cfg2)
+				cam_io_w_mb(value,
+					soc_info->reg_map[index].mem_base +
+					csid_reg->cmn_reg->path_domain_id_cfg2);
+
+			CAM_DBG(CAM_ISP, "Set CSID:%u domain id value: 0x%x",
+				csid_hw->hw_intf->hw_idx, value);
+		} else {
+			CAM_WARN(CAM_ISP, "regbase not found for CSID SEC, rc: %d, index: %d",
+				rc, index);
+		}
+	}
 
 	buf_done_irq_mask = csid_reg->cmn_reg->top_buf_done_irq_mask;
 
@@ -8322,6 +8374,8 @@ int cam_ife_csid_hw_ver2_init(struct cam_hw_intf *hw_intf,
 	}
 	csid_hw->debug_info.debug_val = 0;
 	csid_hw->counters.error_irq_count = 0;
+	csid_hw->debug_info.set_domain_id_enabled = false;
+	csid_hw->debug_info.domain_id_value = 0;
 
 	return 0;
 

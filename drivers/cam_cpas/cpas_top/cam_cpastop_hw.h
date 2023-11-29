@@ -524,16 +524,30 @@ struct cam_cpas_camnoc_qchannel {
 };
 
 /**
+ * struct cam_cpas_secure_info : Cpas secure info
+ *
+ * @secure_access_ctrl_offset: Offset value of secure access ctrl register
+ * @seurec_access_ctrl_value:  Value to set for core secure access
+ *
+ */
+struct cam_cpas_secure_info {
+	uint32_t secure_access_ctrl_offset;
+	uint32_t secure_access_ctrl_value;
+};
+
+/**
  * struct cam_cpas_info: CPAS information
  *
  * @qchannel_info: CPAS qchannel info
  * @hw_cap_info: CPAS Hardware capability information
+ * @hw_caps_secure_info: CPAS Hardware secure information
  * @num_qchannel: Number of qchannel
  */
 struct cam_cpas_info {
 	struct cam_cpas_camnoc_qchannel *qchannel_info[CAM_CAMNOC_HW_TYPE_MAX];
 	struct cam_cpas_hw_cap_info hw_caps_info;
 	uint8_t num_qchannel;
+	struct cam_cpas_secure_info *hw_caps_secure_info;
 };
 
 /**

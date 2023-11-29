@@ -85,6 +85,8 @@ struct cam_ife_csid_ver2_debug_info {
 	uint32_t                              test_bus_val;
 	bool                                  rx_capture_debug_set;
 	bool                                  test_bus_enabled;
+	bool                                  set_domain_id_enabled;
+	uint32_t                              domain_id_value;
 };
 
 struct cam_ife_csid_ver2_top_cfg {
@@ -641,6 +643,9 @@ struct cam_ife_csid_ver2_common_reg_info {
 	bool     ts_comb_vcdt_en;
 	uint32_t drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_MAX];
 	uint32_t drv_path_idle_en_val_map[CAM_ISP_MAX_PATHS];
+	uint32_t path_domain_id_cfg0;
+	uint32_t path_domain_id_cfg1;
+	uint32_t path_domain_id_cfg2;
 
 	/* Masks */
 	uint32_t ts_comb_vcdt_mask;

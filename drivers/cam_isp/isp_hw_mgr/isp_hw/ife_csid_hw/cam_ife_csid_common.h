@@ -89,6 +89,8 @@ extern int64_t qtime_to_boottime;
 enum cam_ife_csid_mem_base_id {
 	CAM_IFE_CSID_CLC_MEM_BASE_ID,
 	CAM_IFE_CSID_TOP_MEM_BASE_ID,
+	CAM_IFE_CSID_SEC_MEM_BASE_ID,
+	CAM_IFE_CSID_MAX_MEM_BASE_ID,
 };
 
 /* enum cam_ife_csid_path_multi_vc_dt_grp: for multi vc dt suppot */

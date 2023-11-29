@@ -4573,6 +4573,9 @@ static int cam_cpas_util_create_debugfs(struct cam_cpas *cpas_core)
 	debugfs_create_bool("force_cesta_sw_client", 0644,
 		cpas_core->dentry, &cpas_core->force_cesta_sw_client);
 
+	debugfs_create_bool("force_core_secure", 0644,
+		cpas_core->dentry, &cpas_core->force_core_secure);
+
 end:
 	return rc;
 }
@@ -4731,6 +4734,7 @@ int cam_cpas_hw_probe(struct platform_device *pdev,
 	cpas_core->ahb_bus_scaling_disable = false;
 	cpas_core->full_state_dump = false;
 	cpas_core->smart_qos_dump = false;
+	cpas_core->force_core_secure = false;
 
 	atomic64_set(&cpas_core->monitor_head, -1);
 

@@ -411,6 +411,7 @@ struct cam_cpas_monitor {
  * @smmu_fault_handled: Handled address decode error, on fault at SMMU
  * @force_hlos_drv: Whether to force disable DRV voting
  * @force_cesta_sw_client: Whether to force voting through cesta sw client
+ * @force_core_secure: Whether to force ife and cdm core to secure access mode
  */
 struct cam_cpas {
 	struct cam_cpas_hw_caps hw_caps;
@@ -448,6 +449,7 @@ struct cam_cpas {
 	bool smmu_fault_handled;
 	bool force_hlos_drv;
 	bool force_cesta_sw_client;
+	bool force_core_secure;
 };
 
 int cam_camsstop_get_internal_ops(struct cam_cpas_internal_ops *internal_ops);

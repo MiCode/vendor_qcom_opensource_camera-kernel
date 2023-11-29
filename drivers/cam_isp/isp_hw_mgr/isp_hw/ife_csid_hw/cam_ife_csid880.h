@@ -1485,6 +1485,8 @@ static struct cam_ife_csid_ver2_common_reg_info
 		BIT(9), //CAM_ISP_RDI3_PATH
 		BIT(10), //CAM_ISP_RDI4_PATH
 	},
+	.path_domain_id_cfg0                     = 0x0,
+	.path_domain_id_cfg1                     = 0x4,
 };
 
 static struct cam_ife_csid_ver2_top_reg_info

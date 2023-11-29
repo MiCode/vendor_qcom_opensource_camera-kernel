@@ -1634,6 +1634,16 @@ static struct cam_cpas_camnoc_qchannel cam980_cpas100_qchannel_info_nrt = {
 	.qchannel_status = 0xF8,
 };
 
+/*
+ * struct cam_cpas_secure_info: CPAS secure information are used only for
+ * debug purpose, Register access is restricted in normal builds.
+ *
+ */
+static struct cam_cpas_secure_info cam980_cpas100_secure_info = {
+	.secure_access_ctrl_offset = 0x1C,
+	.secure_access_ctrl_value = 0xFFFFFFFF,
+};
+
 static struct cam_cpas_info cam980_cpas100_cpas_info = {
 	.hw_caps_info = {
 		.num_caps_registers = 2,
@@ -1642,6 +1652,7 @@ static struct cam_cpas_info cam980_cpas100_cpas_info = {
 	.qchannel_info = {&cam980_cpas100_qchannel_info_rt,
 		&cam980_cpas100_qchannel_info_nrt},
 	.num_qchannel = 2,
+	.hw_caps_secure_info = &cam980_cpas100_secure_info,
 };
 
 #endif /* _CPASTOP_V980_100_H_ */

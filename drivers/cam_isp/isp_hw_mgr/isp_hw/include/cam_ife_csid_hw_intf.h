@@ -559,16 +559,20 @@ struct cam_ife_csid_discard_init_frame_args {
 /*
  * struct cam_ife_csid_debug_cfg_args:
  *
- * @csid_debug: CSID debug val
- * @csid_rx_capture_debug: CSID rx capture debug val
- * @csid_testbus_debug: CSID test bus val
- * @rx_capture_debug_set: CSID rx capture debug set;
+ * @csid_debug:                CSID debug val
+ * @csid_rx_capture_debug:     CSID rx capture debug val
+ * @csid_testbus_debug:        CSID test bus val
+ * @rx_capture_debug_set:      CSID rx capture debug set;
+ * @set_domain_id_enabled:     Set domain id enabled
+ * @domain_id_value:           Value of domain id
  */
 struct cam_ife_csid_debug_cfg_args {
 	uint64_t                          csid_debug;
 	uint32_t                          csid_rx_capture_debug;
 	uint32_t                          csid_testbus_debug;
 	bool                              rx_capture_debug_set;
+	bool                              set_domain_id_enabled;
+	uint32_t                          domain_id_value;
 };
 
 /*

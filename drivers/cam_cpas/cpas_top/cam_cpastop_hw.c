@@ -474,6 +474,19 @@ static int cam_cpastop_setup_regbase_indices(struct cam_hw_soc_info *soc_info,
 		regbase_index[CAM_CPAS_REG_CESTA] = -1;
 	}
 
+	/* optional - secure register map */
+	rc = cam_common_util_get_string_index(soc_info->mem_block_name,
+		soc_info->num_mem_block, "cam_cpas_secure", &index);
+	if ((rc == 0) && (index < num_reg_map)) {
+		regbase_index[CAM_CPAS_REG_SECURE] = index;
+		CAM_DBG(CAM_CPAS, "regbase found for secure, rc=%d, %d %d",
+			rc, index, num_reg_map);
+	} else {
+		CAM_DBG(CAM_CPAS, "regbase not found for secure, rc=%d, %d %d",
+			rc, index, num_reg_map);
+		regbase_index[CAM_CPAS_REG_SECURE] = -1;
+	}
+
 	return 0;
 }
 
@@ -983,6 +996,8 @@ static int cam_cpastop_poweron(struct cam_hw_info *cpas_hw)
 	struct cam_cpas_hw_errata_wa *errata_wa;
 	struct cam_cpas *cpas_core = cpas_hw->core_info;
 	bool errata_enabled = false;
+	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
+	int index;
 
 	for (i = 0; i < cpas_core->num_valid_camnoc; i++)
 		cam_cpastop_reset_irq(0x0, cpas_hw, i);
@@ -1030,6 +1045,29 @@ static int cam_cpastop_poweron(struct cam_hw_info *cpas_hw)
 					errata_enabled = true;
 				}
 			}
+		}
+	}
+
+	/*
+	 * Force set ife and cdm core to secure mode, used for debug only,
+	 * register access is restricted in normal builds.
+	 */
+	if (cpas_core->force_core_secure) {
+		index = cpas_core->regbase_index[CAM_CPAS_REG_SECURE];
+
+		if (index != -1) {
+			CAM_DBG(CAM_CPAS,
+				"Set reg offset: 0x%x value: 0x%x with regbase index: %d for secure",
+				cpas_info->hw_caps_secure_info->secure_access_ctrl_offset,
+				cpas_info->hw_caps_secure_info->secure_access_ctrl_value,
+				index);
+
+			cam_io_w_mb(cpas_info->hw_caps_secure_info->secure_access_ctrl_value,
+				soc_info->reg_map[index].mem_base +
+				cpas_info->hw_caps_secure_info->secure_access_ctrl_offset);
+		} else {
+			CAM_WARN(CAM_CPAS, "Invalid CPAS secure regbase index: %d",
+				index);
 		}
 	}
 

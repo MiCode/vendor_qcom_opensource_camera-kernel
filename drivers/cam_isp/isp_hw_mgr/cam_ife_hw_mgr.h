@@ -65,6 +65,8 @@ enum cam_ife_ctx_master_type {
  * @disable_isp_drv:           Disable ISP DRV config
  * @enable_presil_reg_dump:    Enable per req regdump in presil
  * @enable_cdm_cmd_check:      Enable invalid command check in cmd_buf
+ * @enable_csid_set_domain_id: Enable CSID force set per path domain id
+ * @csid_domain_id_value:      Value of domain id to set on CSID
  */
 struct cam_ife_hw_mgr_debug {
 	struct dentry  *dentry;
@@ -88,6 +90,8 @@ struct cam_ife_hw_mgr_debug {
 	bool           disable_isp_drv;
 	bool           enable_presil_reg_dump;
 	bool           enable_cdm_cmd_check;
+	bool           enable_csid_set_domain_id;
+	uint32_t       csid_domain_id_value;
 };
 
 /**
