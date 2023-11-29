@@ -114,7 +114,11 @@ int cam_cpas_drv_channel_switch_for_dev(const struct device *dev)
 
 int cam_smmu_fetch_csf_version(struct cam_csf_version *csf_version)
 {
-#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
+#ifdef CONFIG_ARCH_QTI_VM
+	csf_version->arch_ver = 3;
+	csf_version->max_ver = 0;
+	csf_version->min_ver = 0;
+#elif defined CONFIG_DOMAIN_ID_SECURE_CAMERA
 	struct csf_version csf_ver;
 	int rc;
 
