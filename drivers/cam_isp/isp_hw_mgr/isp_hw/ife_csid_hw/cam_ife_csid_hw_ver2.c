@@ -2436,7 +2436,7 @@ static int cam_ife_csid_ver2_top_err_irq_bottom_half(
 	}
 
 	cam_ife_csid_ver2_top_err_process_bottom_half(csid_hw, payload->irq_reg_val,
-		CAM_IFE_CSID_TOP2_IRQ_STATUS_REG1);
+		CAM_IFE_CSID_TOP_IRQ_STATUS_REG0);
 
 	cam_ife_csid_ver2_put_evt_payload(csid_hw, &payload,
 		&csid_hw->path_free_payload_list,
@@ -4894,11 +4894,7 @@ static int cam_ife_csid_ver2_program_ppp_path(
 		return rc;
 	}
 
-	path_cfg->irq_reg_idx = cam_ife_csid_get_rt_irq_idx(
-				CAM_IFE_CSID_IRQ_REG_PPP,
-				csid_reg->cmn_reg->num_pix,
-				csid_reg->cmn_reg->num_ppp,
-				csid_reg->cmn_reg->num_rdis);
+	path_cfg->irq_reg_idx = cam_ife_csid_convert_res_to_irq_reg(res->res_id);
 
 	/* for dual case
 	 * set ppp as slave

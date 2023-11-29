@@ -513,9 +513,7 @@ static void cam_vfe_top_ver4_print_debug_reg_status(
 	cam_vfe_top_dump_perf_counters("ERROR", "", top_priv);
 }
 
-int cam_vfe_top_ver4_dump_timestamps(
-	struct cam_vfe_top_ver4_priv *top_priv,
-	int  res_id)
+int cam_vfe_top_ver4_dump_timestamps(struct cam_vfe_top_ver4_priv *top_priv, int  res_id)
 {
 	uint32_t                           i;
 	struct cam_vfe_mux_ver4_data      *vfe_priv = NULL;
@@ -552,29 +550,25 @@ int cam_vfe_top_ver4_dump_timestamps(
 		}
 	}
 
-	if (i ==  top_priv->top_common.num_mux || !vfe_priv) {
-		CAM_ERR_RATE_LIMIT(CAM_ISP, "VFE[%u] invalid res_id %d",
-			top_priv->common_data.hw_intf->hw_idx, res_id);
+	ktime_get_boottime_ts64(&ts);
+
+	CAM_INFO(CAM_ISP, "VFE[%u] res: %u current_ts: %lld:%lld",
+		top_priv->common_data.hw_intf->hw_idx, res_id, ts.tv_sec, ts.tv_nsec);
+
+	if (i == top_priv->top_common.num_mux || !vfe_priv) {
+		CAM_DBG(CAM_ISP, "VFE[%u] invalid res_id %d i:%d",
+			top_priv->common_data.hw_intf->hw_idx, res_id, i);
 		return 0;
 	}
 
-	ktime_get_boottime_ts64(&ts);
-
 	CAM_INFO(CAM_ISP,
-		"VFE[%u] res: %u current_ts: %lld:%lld epoch_factor: %u%%",
-		vfe_priv->hw_intf->hw_idx, res_id, ts.tv_sec, ts.tv_nsec,
+		"VFE[%u] CAMIF Error timestamp:[%lld.%09lld] SOF timestamp:[%lld.%09lld] EPOCH timestamp:[%lld.%09lld] EOF timestamp:[%lld.%09lld] epoch_factor: %u%%",
+		vfe_priv->hw_intf->hw_idx,
+		vfe_priv->error_ts.tv_sec, vfe_priv->error_ts.tv_nsec,
+		vfe_priv->sof_ts.tv_sec, vfe_priv->sof_ts.tv_nsec,
+		vfe_priv->epoch_ts.tv_sec, vfe_priv->epoch_ts.tv_nsec,
+		vfe_priv->eof_ts.tv_sec, vfe_priv->eof_ts.tv_nsec,
 		vfe_priv->epoch_factor);
-
-	CAM_INFO(CAM_ISP,
-		"VFE[%u] CAMIF Error timestamp:[%lld.%09lld] SOF timestamp:[%lld.%09lld] EPOCH timestamp:[%lld.%09lld] EOF timestamp:[%lld.%09lld]",
-		vfe_priv->hw_intf->hw_idx, vfe_priv->error_ts.tv_sec,
-		vfe_priv->error_ts.tv_nsec,
-		vfe_priv->sof_ts.tv_sec,
-		vfe_priv->sof_ts.tv_nsec,
-		vfe_priv->epoch_ts.tv_sec,
-		vfe_priv->epoch_ts.tv_nsec,
-		vfe_priv->eof_ts.tv_sec,
-		vfe_priv->eof_ts.tv_nsec);
 
 	return 0;
 }

@@ -1694,10 +1694,9 @@ static void __cam_isp_ctx_handle_buf_done_fail_log(
 	struct cam_context *ctx = ctx_isp->base;
 	const char *handle_type;
 
-	if (req_isp->num_fence_map_out >= CAM_ISP_CTX_RES_MAX) {
-		CAM_ERR(CAM_ISP,
-			"Num Resources exceed mMAX %d >= %d ",
-			req_isp->num_fence_map_out, CAM_ISP_CTX_RES_MAX);
+	if (req_isp->num_fence_map_out >= ctx_isp->base->max_out_map_entries) {
+		CAM_ERR(CAM_ISP, "Num Resources exceed mMAX %d >= %d",
+			req_isp->num_fence_map_out, ctx_isp->base->max_out_map_entries);
 		return;
 	}
 

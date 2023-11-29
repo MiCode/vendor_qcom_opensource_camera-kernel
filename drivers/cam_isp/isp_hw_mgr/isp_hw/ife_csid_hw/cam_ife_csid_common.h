@@ -510,10 +510,6 @@ int cam_ife_csid_check_in_port_args(
 
 int cam_ife_csid_is_vc_full_width(struct cam_ife_csid_cid_data *cid_data);
 
-int cam_ife_csid_get_rt_irq_idx(
-	uint32_t irq_reg, uint32_t num_ipp,
-	uint32_t num_ppp, uint32_t num_rdi);
-
 int cam_ife_csid_convert_res_to_irq_reg(uint32_t res_id);
 
 int cam_ife_csid_get_base(struct cam_hw_soc_info *soc_info,
