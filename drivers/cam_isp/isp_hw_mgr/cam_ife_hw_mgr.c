@@ -12954,16 +12954,17 @@ static inline bool cam_isp_sfe_validate_for_scratch_buf_config(
 	if (res_idx >= ctx->scratch_buf_info.num_fetches)
 		return true;
 
-	if (default_settings)
-		curr_num_exp = ctx->curr_num_exp;
-	else
-		curr_num_exp = ctx->scratch_buf_info.sfe_scratch_config->updated_num_exp;
+	/* check for num exposures for shdr dynamic mode */
+	if ((ctx->flags.is_sfe_shdr) &&
+		(ctx->ctx_config & CAM_IFE_CTX_CFG_DYNAMIC_SWITCH_ON)) {
+		if (default_settings)
+			curr_num_exp = ctx->curr_num_exp;
+		else
+			curr_num_exp = ctx->scratch_buf_info.sfe_scratch_config->updated_num_exp;
 
-	/* check for num exposures for dynamic mode */
-	if ((ctx->ctx_config &
-		CAM_IFE_CTX_CFG_DYNAMIC_SWITCH_ON) &&
-		(res_idx >= curr_num_exp))
-		return true;
+		if (res_idx >= curr_num_exp)
+			return true;
+	}
 
 	return false;
 }
