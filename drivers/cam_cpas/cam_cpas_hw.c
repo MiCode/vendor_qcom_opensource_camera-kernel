@@ -4839,8 +4839,14 @@ int cam_cpas_hw_probe(struct platform_device *pdev,
 
 	rc = cam_get_subpart_info(&soc_private->part_info, CAM_CPAS_CAMERA_INSTANCES);
 	if (rc) {
+#ifndef CONFIG_ARCH_QTI_VM
 		CAM_ERR(CAM_CPAS, "Failed to get subpart_info, rc = %d", rc);
 		goto disable_soc_res;
+#else
+		CAM_WARN(CAM_CPAS, "subparts info is not available");
+		cpas_core->cam_subpart_info = NULL;
+		rc = 0;
+#endif
 	}
 
 	rc = cam_cpas_soc_disable_resources(&cpas_hw->soc_info, true, true);
