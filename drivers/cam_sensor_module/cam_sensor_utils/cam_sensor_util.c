@@ -1096,8 +1096,13 @@ int32_t msm_camera_fill_vreg_params(
 	num_vreg = soc_info->num_rgltr;
 
 	if ((num_vreg <= 0) || (num_vreg > CAM_SOC_MAX_REGULATOR)) {
-		CAM_ERR(CAM_SENSOR_UTIL, "failed: num_vreg %d", num_vreg);
-		return -EINVAL;
+		if (debug_bypass_drivers & CAM_BYPASS_RGLTR)
+			CAM_DBG(CAM_SENSOR_UTIL, "Bypass parameter check num_vreg %d",
+				num_vreg);
+		else {
+			CAM_ERR(CAM_SENSOR_UTIL, "failed: num_vreg %d", num_vreg);
+			return -EINVAL;
+		}
 	}
 
 	for (i = 0; i < power_setting_size; i++) {
@@ -2105,8 +2110,13 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 	num_vreg = soc_info->num_rgltr;
 
 	if ((num_vreg <= 0) || (num_vreg > CAM_SOC_MAX_REGULATOR)) {
-		CAM_ERR(CAM_SENSOR_UTIL, "failed: num_vreg %d", num_vreg);
-		return -EINVAL;
+		if (debug_bypass_drivers & CAM_BYPASS_RGLTR)
+			CAM_DBG(CAM_SENSOR_UTIL, "Bypass parameter check num_vreg %d",
+				num_vreg);
+		else {
+			CAM_ERR(CAM_SENSOR_UTIL, "failed: num_vreg %d", num_vreg);
+			return -EINVAL;
+		}
 	}
 
 	ret = msm_camera_pinctrl_init(&(ctrl->pinctrl_info), ctrl->dev);
@@ -2147,6 +2157,11 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 
 		switch (power_setting->seq_type) {
 		case SENSOR_MCLK:
+			if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+				CAM_DBG(CAM_SENSOR_UTIL, "Bypass mclk enable");
+				continue;
+			}
+
 			if (power_setting->seq_val >= soc_info->num_clk) {
 				CAM_ERR(CAM_SENSOR_UTIL, "clk index %d >= max %u",
 					power_setting->seq_val,
@@ -2240,6 +2255,12 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 		case SENSOR_VAF_PWDM:
 		case SENSOR_CUSTOM_REG1:
 		case SENSOR_CUSTOM_REG2:
+			if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+				CAM_DBG(CAM_SENSOR_UTIL, "Bypass regulator enable seq_type %d",
+					power_setting->seq_type);
+				continue;
+			}
+
 			if (power_setting->seq_val == INVALID_VREG)
 				break;
 
@@ -2335,6 +2356,11 @@ power_up_failed:
 			power_setting->seq_type);
 		switch (power_setting->seq_type) {
 		case SENSOR_MCLK:
+			if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+				CAM_DBG(CAM_SENSOR_UTIL, "Bypass mclk disable");
+				continue;
+			}
+
 			for (i = soc_info->num_clk - 1; i >= 0; i--) {
 				cam_soc_util_clk_disable(soc_info, CAM_CLK_SW_CLIENT_IDX, false, i);
 			}
@@ -2366,6 +2392,12 @@ power_up_failed:
 		case SENSOR_VAF_PWDM:
 		case SENSOR_CUSTOM_REG1:
 		case SENSOR_CUSTOM_REG2:
+			if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+				CAM_DBG(CAM_SENSOR_UTIL, "Bypass regulator disable seq_type %d",
+					power_setting->seq_type);
+				continue;
+			}
+
 			if (power_setting->seq_val < num_vreg) {
 				CAM_DBG(CAM_SENSOR_UTIL, "Disable Regulator");
 				vreg_idx = power_setting->seq_val;
@@ -2468,8 +2500,13 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 	num_vreg = soc_info->num_rgltr;
 
 	if ((num_vreg <= 0) || (num_vreg > CAM_SOC_MAX_REGULATOR)) {
-		CAM_ERR(CAM_SENSOR_UTIL, "failed: num_vreg %d", num_vreg);
-		return -EINVAL;
+		if (debug_bypass_drivers & CAM_BYPASS_RGLTR)
+			CAM_DBG(CAM_SENSOR_UTIL, "Bypass parameter check num_vreg %d",
+				num_vreg);
+		else {
+			CAM_ERR(CAM_SENSOR_UTIL, "failed: num_vreg %d", num_vreg);
+			return -EINVAL;
+		}
 	}
 
 	if (ctrl->power_down_setting_size > MAX_POWER_CONFIG) {
@@ -2491,6 +2528,11 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 		CAM_DBG(CAM_SENSOR_UTIL, "seq_type %d",  pd->seq_type);
 		switch (pd->seq_type) {
 		case SENSOR_MCLK:
+			if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+				CAM_DBG(CAM_SENSOR_UTIL, "Bypass mclk disable");
+				continue;
+			}
+
 			for (i = soc_info->num_clk - 1; i >= 0; i--) {
 				cam_soc_util_clk_disable(soc_info, CAM_CLK_SW_CLIENT_IDX, false, i);
 			}
@@ -2524,6 +2566,12 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 		case SENSOR_VAF_PWDM:
 		case SENSOR_CUSTOM_REG1:
 		case SENSOR_CUSTOM_REG2:
+			if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+				CAM_DBG(CAM_SENSOR_UTIL, "Bypass regulator disable seq_type %d",
+					pd->seq_type);
+				continue;
+			}
+
 			if (pd->seq_val == INVALID_VREG)
 				break;
 
