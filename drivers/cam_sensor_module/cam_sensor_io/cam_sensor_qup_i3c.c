@@ -50,7 +50,7 @@ static int cam_qup_i3c_rxdata(struct i3c_device *dev_client, unsigned char *rxda
 }
 
 static inline void cam_qup_i3c_txdata_fill(struct camera_io_master *dev_client,
-	unsigned char *txdata, int length,
+	unsigned char *txdata, uint16_t length,
 	struct i3c_priv_xfer *msgs, int curr_mindx)
 {
 	msgs[curr_mindx].rnw = 0;
@@ -59,7 +59,7 @@ static inline void cam_qup_i3c_txdata_fill(struct camera_io_master *dev_client,
 }
 
 static int cam_qup_i3c_txdata(struct camera_io_master *dev_client, unsigned char *txdata,
-	int length)
+	uint16_t length)
 {
 	int rc;
 	uint32_t us = 0;
@@ -262,9 +262,9 @@ static inline int32_t cam_qup_i3c_write_optimized(struct camera_io_master *clien
 	unsigned char *buf)
 {
 	int32_t rc = 0;
-	uint8_t len = 0;
+	uint16_t len = 0;
 	struct cam_sensor_i2c_reg_array *reg_setting_previous = NULL;
-	uint32_t offset = 0;
+	uint16_t offset = 0;
 	struct cam_sensor_i2c_reg_array *reg_setting;
 	enum camera_sensor_i2c_type addr_type;
 	enum camera_sensor_i2c_type data_type;
@@ -456,7 +456,7 @@ static int cam_qup_i3c_write_burst(struct camera_io_master *client,
 {
 	int i;
 	int rc;
-	uint32_t len = 0;
+	uint16_t len = 0;
 	unsigned char *buf;
 	struct cam_sensor_i2c_reg_array *reg_setting;
 	enum camera_sensor_i2c_type addr_type;
