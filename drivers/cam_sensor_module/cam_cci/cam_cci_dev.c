@@ -70,6 +70,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	void __iomem *base = soc_info->reg_map[0].mem_base;
 	unsigned long flags;
 	bool rd_done_th_assert = false;
+	struct cam_cci_master_info *cci_master_info;
 
 	irq_status0 = cam_io_r_mb(base + CCI_IRQ_STATUS_0_ADDR);
 	irq_status1 = cam_io_r_mb(base + CCI_IRQ_STATUS_1_ADDR);
@@ -180,6 +181,50 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		(!rd_done_th_assert)) {
 		cci_dev->cci_master_info[MASTER_0].status = 0;
 		complete(&cci_dev->cci_master_info[MASTER_0].th_complete);
+	}
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M1_Q0_THRESHOLD)
+	{
+		cci_master_info = &cci_dev->cci_master_info[MASTER_1];
+		spin_lock_irqsave(
+			&cci_master_info->lock_q[QUEUE_0],
+			flags);
+		complete(&cci_master_info->th_burst_complete[QUEUE_0]);
+		spin_unlock_irqrestore(
+			&cci_master_info->lock_q[QUEUE_0],
+			flags);
+	}
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M1_Q1_THRESHOLD)
+	{
+		cci_master_info = &cci_dev->cci_master_info[MASTER_1];
+		spin_lock_irqsave(
+			&cci_master_info->lock_q[QUEUE_1],
+			flags);
+		complete(&cci_master_info->th_burst_complete[QUEUE_1]);
+		spin_unlock_irqrestore(
+			&cci_master_info->lock_q[QUEUE_1],
+			flags);
+	}
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M0_Q0_THRESHOLD)
+	{
+		cci_master_info = &cci_dev->cci_master_info[MASTER_0];
+		spin_lock_irqsave(
+			&cci_master_info->lock_q[QUEUE_0],
+			flags);
+		complete(&cci_master_info->th_burst_complete[QUEUE_0]);
+		spin_unlock_irqrestore(
+			&cci_master_info->lock_q[QUEUE_0],
+			flags);
+	}
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M0_Q1_THRESHOLD)
+	{
+		cci_master_info = &cci_dev->cci_master_info[MASTER_0];
+		spin_lock_irqsave(
+			&cci_master_info->lock_q[QUEUE_1],
+			flags);
+		complete(&cci_master_info->th_burst_complete[QUEUE_1]);
+		spin_unlock_irqrestore(
+			&cci_master_info->lock_q[QUEUE_1],
+			flags);
 	}
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK) {
 		struct cam_cci_master_info *cci_master_info;
@@ -378,10 +423,16 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 static int cam_cci_irq_routine(struct v4l2_subdev *sd, u32 status,
 	bool *handled)
 {
-	struct cci_device *cci_dev = v4l2_get_subdevdata(sd);
+	struct cci_device *cci_dev = NULL;
 	irqreturn_t ret;
 	struct cam_hw_soc_info *soc_info = NULL;
 
+	if (!sd) {
+		CAM_ERR(CAM_CCI, "Error No data in subdev");
+		return -EINVAL;
+	}
+
+	cci_dev = v4l2_get_subdevdata(sd);
 	if (!cci_dev) {
 		CAM_ERR(CAM_CCI, "cci_dev NULL");
 		return -EINVAL;
@@ -560,13 +611,14 @@ static void cam_cci_component_unbind(struct device *dev,
 	struct platform_device *pdev = to_platform_device(dev);
 
 	struct v4l2_subdev *subdev = platform_get_drvdata(pdev);
-	struct cci_device *cci_dev = cci_dev = v4l2_get_subdevdata(subdev);
+	struct cci_device *cci_dev = NULL;
 
 	if (!subdev) {
 		CAM_ERR(CAM_CCI, "Error No data in subdev");
 		return;
 	}
 
+	cci_dev = v4l2_get_subdevdata(subdev);
 	if (!cci_dev) {
 		CAM_ERR(CAM_CCI, "Error No data in cci_dev");
 		return;

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CCI_DEV_H_
@@ -46,6 +46,7 @@
 #define NUM_QUEUES 2
 
 #define MSM_CCI_WRITE_DATA_PAYLOAD_SIZE_11 11
+#define MSM_CCI_WRITE_DATA_PAYLOAD_SIZE_WORDS ((MSM_CCI_WRITE_DATA_PAYLOAD_SIZE_11 + 1) / 4)
 #define BURST_MIN_FREE_SIZE 8
 
 /* Max bytes that can be read per CCI read transaction */
@@ -141,6 +142,10 @@ struct cam_cci_master_info {
 	struct mutex freq_cnt_lock;
 	uint16_t freq_ref_cnt;
 	bool is_initilized;
+	struct completion th_burst_complete[NUM_QUEUES];
+	uint32_t th_irq_ref_cnt[NUM_QUEUES];
+	bool is_burst_enable[NUM_QUEUES];
+	uint32_t num_words_exec[NUM_QUEUES];
 };
 
 struct cam_cci_clk_params_t {
