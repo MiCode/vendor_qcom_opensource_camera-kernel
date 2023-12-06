@@ -2599,8 +2599,10 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 		csid_hw->event_cb(csid_hw->token, CAM_ISP_HW_EVENT_EPOCH, (void *)&evt_info);
 	}
 
-	if (payload->is_mc)
+	if (payload->is_mc) {
+		payload->is_mc = false;
 		goto end;
+	}
 
 	if (irq_status_ipp & IFE_CSID_VER2_PATH_SENSOR_SWITCH_OUT_OF_SYNC_FRAME_DROP) {
 		atomic_inc(&path_cfg->switch_out_of_sync_cnt);
