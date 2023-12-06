@@ -19,7 +19,7 @@ LOCAL_MODULE_DDK_BUILD := true
 MMRM_BOARDS := taro parrot kalama pineapple
 
 # List of board platforms for which Synx V2 vendor driver API should be enabled
-SYNX_VENDOR_BOARDS := pineapple
+SYNX_VENDOR_BOARDS := pineapple sun
 
 # List of board platforms for which SMCINVOKE_DLKM driver API should be enabled
 SMCINVOKE_DLKM_BOARDS := pineapple sun
