@@ -231,6 +231,14 @@
 #define CAM_IFE_DECODE_FORMAT_SHIFT_VAL 8
 
 /*
+ * to indicate if EPD mode is to be enabled for CSI2 RX
+ * in CSID. This reserves the input info param_mask for
+ * cam_isp_in_port_csid_info for acquire v3
+ *
+ */
+#define CAM_IFE_CSID_EPD_MODE_EN               BIT(0)
+
+/*
  * to indicate if packing is to be done at Bus side.
  * CSID gives the plain data and packed at bus.
  * This mask reserves the param_mask for cam_isp_out_port_info_v3.

@@ -5395,6 +5395,7 @@ static int cam_ife_mgr_acquire_get_unified_structure_v3(
 	in_port->lane_num        =  in->phy_info.lane_num;
 	in_port->lane_cfg        =  in->phy_info.lane_cfg;
 	in_port->num_valid_vc_dt =  in->csid_info.num_valid_vc_dt;
+	in_port->epd_supported   =  in->csid_info.param_mask & CAM_IFE_CSID_EPD_MODE_EN;
 
 	if (in_port->num_valid_vc_dt == 0 || in_port->num_valid_vc_dt >= CAM_ISP_VC_DT_CFG) {
 		CAM_ERR(CAM_ISP, "Invalid i/p arg invalid vc-dt: %d", in_port->num_valid_vc_dt);
