@@ -1883,7 +1883,8 @@ static int cam_ife_hw_mgr_release_hw_for_ctx(
 	ife_ctx->common.cb_priv = NULL;
 	ife_ctx->common.event_cb = NULL;
 
-	ife_ctx->flags.need_csid_top_cfg = false;
+	/* Reset all stream flags */
+	memset(&ife_ctx->flags, 0, sizeof(struct cam_ife_hw_mgr_ctx_flags));
 
 	CAM_DBG(CAM_ISP, "release context completed ctx id:%u",
 		ife_ctx->ctx_index);
@@ -8490,7 +8491,6 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	ctx->vfe_bus_comp_grp = NULL;
 	ctx->sfe_bus_comp_grp = NULL;
 
-	memset(&ctx->flags, 0, sizeof(struct cam_ife_hw_mgr_ctx_flags));
 	atomic_set(&ctx->overflow_pending, 0);
 	for (i = 0; i < CAM_IFE_HW_NUM_MAX; i++) {
 		ctx->sof_cnt[i] = 0;
