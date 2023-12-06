@@ -1294,6 +1294,25 @@ static int cam_soc_util_get_clk_level_to_apply(
 	return 0;
 }
 
+int cam_soc_util_get_valid_clk_rate(
+	struct cam_hw_soc_info *soc_info, enum cam_vote_level req_level,
+	int64_t *apply_rate)
+{
+	int rc = 0;
+	enum cam_vote_level valid_clk_lvl;
+
+	rc = cam_soc_util_get_clk_level_to_apply(soc_info, req_level,
+		&valid_clk_lvl);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "Failed to get clk level to apply rc: %d", rc);
+		return rc;
+	}
+
+	*apply_rate = soc_info->clk_rate[valid_clk_lvl][soc_info->src_clk_idx];
+
+	return rc;
+}
+
 int cam_soc_util_irq_enable(struct cam_hw_soc_info *soc_info)
 {
 	int i, rc = 0;

@@ -61,6 +61,7 @@ enum cam_cpas_hw_cmd_process {
 	CAM_CPAS_HW_CMD_REG_READ,
 	CAM_CPAS_HW_CMD_AHB_VOTE,
 	CAM_CPAS_HW_CMD_AXI_VOTE,
+	CAM_CPAS_HW_AXI_FLOOR_LVL,
 	CAM_CPAS_HW_CMD_LOG_VOTE,
 	CAM_CPAS_HW_CMD_SELECT_QOS,
 	CAM_CPAS_HW_CMD_LOG_EVENT,
@@ -133,6 +134,18 @@ struct cam_cpas_hw_cmd_ahb_vote {
 struct cam_cpas_hw_cmd_axi_vote {
 	uint32_t client_handle;
 	struct cam_axi_vote *axi_vote;
+};
+
+/**
+ * struct cam_cpas_hw_axi_floor_lvl : CPAS struct for AXI floor level
+ *
+ * @client_handle: Client handle
+ * @floor_lvl: axi floor level
+ *
+ */
+struct cam_cpas_hw_axi_floor_lvl {
+	uint32_t client_handle;
+	enum cam_vote_level floor_lvl;
 };
 
 /**

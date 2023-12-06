@@ -220,6 +220,7 @@ struct cam_cpas_reg {
  * @tree_node_valid: Indicates whether tree node has at least one valid node
  * @is_drv_dyn: Indicates whether this client is DRV dynamic voting client
  * @ahb_level: Determined/Applied ahb level for the client
+ * @axi_level: Determined/Applied axi level for the client
  * @axi_vote: Determined/Applied axi vote for the client
  * @axi_port: Client's parent axi port
  * @tree_node: All granular path voting nodes for the client
@@ -232,6 +233,7 @@ struct cam_cpas_client {
 	bool tree_node_valid;
 	bool is_drv_dyn;
 	enum cam_vote_level ahb_level;
+	enum cam_vote_level axi_level;
 	struct cam_axi_vote axi_vote;
 	struct cam_cpas_axi_port *axi_port;
 	struct cam_cpas_tree_node *tree_node[CAM_CPAS_PATH_DATA_MAX]
@@ -412,6 +414,8 @@ struct cam_cpas_monitor {
  * @force_hlos_drv: Whether to force disable DRV voting
  * @force_cesta_sw_client: Whether to force voting through cesta sw client
  * @force_core_secure: Whether to force ife and cdm core to secure access mode
+ * @hlos_axi_floor_lvl: Determined hlos axi floor level across all clients
+ * @hlos_axi_clk_lvl: Determined/applied hlos axi clk level
  */
 struct cam_cpas {
 	struct cam_cpas_hw_caps hw_caps;
@@ -450,6 +454,8 @@ struct cam_cpas {
 	bool force_hlos_drv;
 	bool force_cesta_sw_client;
 	bool force_core_secure;
+	enum cam_vote_level hlos_axi_floor_lvl;
+	enum cam_vote_level hlos_axi_bw_calc_lvl;
 };
 
 int cam_camsstop_get_internal_ops(struct cam_cpas_internal_ops *internal_ops);

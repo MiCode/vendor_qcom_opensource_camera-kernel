@@ -788,6 +788,9 @@ int cam_soc_util_clk_enable_default(struct cam_hw_soc_info *soc_info, int cesta_
 int cam_soc_util_get_clk_level(struct cam_hw_soc_info *soc_info,
 	int64_t clk_rate, int clk_idx, int32_t *clk_lvl);
 
+int cam_soc_util_get_valid_clk_rate(struct cam_hw_soc_info *soc_info,
+	enum cam_vote_level req_level, int64_t *apply_rate);
+
 /* Callback to get reg space data for specific HW */
 typedef int (*cam_soc_util_regspace_data_cb)(uint32_t reg_base_type,
 	void *ctx, struct cam_hw_soc_info **soc_info_ptr,

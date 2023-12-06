@@ -451,9 +451,21 @@ int cam_ipe_process_cmd(void *device_priv, uint32_t cmd_type,
 			clk_upd_cmd->clk_level = clk_level;
 			ahb_vote.type = CAM_VOTE_ABSOLUTE;
 			ahb_vote.vote.level = clk_level;
-			cam_cpas_update_ahb_vote(
-				core_info->cpas_handle,
-				&ahb_vote);
+
+			rc = cam_cpas_update_ahb_vote(core_info->cpas_handle, &ahb_vote);
+			if (rc) {
+				CAM_ERR(CAM_PERF, "failed at updating ahb vote level rc: %d",
+					rc);
+				return rc;
+			}
+
+			rc = cam_cpas_update_axi_floor_lvl(core_info->cpas_handle,
+				clk_level);
+			if (rc) {
+				CAM_ERR(CAM_PERF, "failed at updating axi vote level clk_level: %d rc: %d",
+					clk_level, rc);
+				return rc;
+			}
 		}
 		break;
 	}

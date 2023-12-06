@@ -669,6 +669,20 @@ int cam_cpas_update_axi_vote(
 	struct cam_axi_vote *axi_vote);
 
 /**
+ * cam_cpas_update_axi_floor_lvl()
+ *
+ * @brief: API to update AXI vote requirement from all clients.
+ *
+ *
+ * @client_handle : Client cpas handle
+ * @axi_floor_lvl : Core clock level
+ *
+ * @return 0 on success.
+ *
+ */
+int cam_cpas_update_axi_floor_lvl(uint32_t client_handle, int32_t axi_floor_lvl);
+
+/**
  * cam_cpas_reg_write()
  *
  * @brief: API to write a register value in CPAS register space

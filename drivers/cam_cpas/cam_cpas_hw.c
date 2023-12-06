@@ -1165,6 +1165,39 @@ static int cam_cpas_util_set_camnoc_axi_drv_clk_rate(struct cam_hw_soc_info *soc
 
 	return rc;
 }
+static int cam_cpas_util_set_max_camnoc_axi_clk_rate(struct cam_cpas *cpas_core,
+	struct cam_hw_soc_info *soc_info)
+{
+	int rc, highest_level = 0;
+	int64_t applied_rate = 0;
+
+	CAM_DBG(CAM_CPAS, "Finding max of hlos axi floor lvl: %d and hlos axi lvl: %d",
+		cpas_core->hlos_axi_floor_lvl, cpas_core->hlos_axi_bw_calc_lvl);
+
+	highest_level = max(cpas_core->hlos_axi_floor_lvl, cpas_core->hlos_axi_bw_calc_lvl);
+	rc = cam_soc_util_get_valid_clk_rate(soc_info, highest_level, &applied_rate);
+	if (rc) {
+		CAM_ERR(CAM_CPAS,
+			"Failed in getting valid clk rate to apply rc: %d", rc);
+		return rc;
+	}
+
+	CAM_DBG(CAM_CPAS, "Highest valid lvl: %d, applying corresponding rate %lld",
+		highest_level, applied_rate);
+
+	rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX,
+			applied_rate, 0);
+	if (rc) {
+		CAM_ERR(CAM_CPAS,
+			"Failed in setting camnoc axi clk applied rate:[%lld] rc:%d",
+			applied_rate, rc);
+		return rc;
+	}
+
+	cpas_core->applied_camnoc_axi_rate.sw_client = applied_rate;
+
+	return rc;
+}
 
 static int cam_cpas_util_set_camnoc_axi_hlos_clk_rate(struct cam_hw_soc_info *soc_info,
 	struct cam_cpas_private_soc *soc_private, struct cam_cpas *cpas_core)
@@ -1172,6 +1205,7 @@ static int cam_cpas_util_set_camnoc_axi_hlos_clk_rate(struct cam_hw_soc_info *so
 	struct cam_cpas_tree_node *tree_node = NULL;
 	uint64_t req_hlos_camnoc_bw = 0, intermediate_hlos_result = 0;
 	int64_t hlos_clk_rate = 0;
+	int32_t clk_lvl = 0;
 	int i, rc = 0;
 	const struct camera_debug_settings *cam_debug = NULL;
 
@@ -1220,21 +1254,29 @@ static int cam_cpas_util_set_camnoc_axi_hlos_clk_rate(struct cam_hw_soc_info *so
 	CAM_DBG(CAM_PERF, "Setting camnoc axi HLOS clk rate[BW Clk] : [%llu %lld]",
 		req_hlos_camnoc_bw, hlos_clk_rate);
 
+	rc = cam_soc_util_get_clk_level(soc_info, hlos_clk_rate,
+		soc_info->src_clk_idx, &clk_lvl);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "failed to get clk lvl: %d, src clk idx: %d, hlos clk rate %lld",
+			rc, soc_info->src_clk_idx, hlos_clk_rate);
+		return rc;
+	}
+
+	cpas_core->hlos_axi_bw_calc_lvl = clk_lvl;
+
 	/*
 	 * CPAS hw is not powered on for the first client.
 	 * Also, clk_rate will be overwritten with default
 	 * value while power on. So, skipping this for first
 	 * client.
 	 */
+
 	if (cpas_core->streamon_clients) {
-		rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX,
-			hlos_clk_rate, 0);
+		rc = cam_cpas_util_set_max_camnoc_axi_clk_rate(cpas_core, soc_info);
 		if (rc)
 			CAM_ERR(CAM_CPAS,
 				"Failed in setting camnoc axi clk [BW Clk]:[%llu %lld] rc:%d",
 				req_hlos_camnoc_bw, hlos_clk_rate, rc);
-
-		cpas_core->applied_camnoc_axi_rate.sw_client = hlos_clk_rate;
 	}
 
 	return rc;
@@ -2120,6 +2162,55 @@ unlock_client:
 	return rc;
 }
 
+static int cam_cpas_hw_update_axi_floor_lvl(struct cam_hw_info *cpas_hw,
+	uint32_t client_handle, enum cam_vote_level floor_lvl, bool locked)
+{
+	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
+	uint32_t client_indx = CAM_CPAS_GET_CLIENT_IDX(client_handle);
+	struct cam_cpas_client *cpas_client = cpas_core->cpas_client[client_indx];
+	enum cam_vote_level required_level = floor_lvl;
+	enum cam_vote_level highest_level;
+	int i, rc = 0;
+
+	if (!locked) {
+		mutex_lock(&cpas_hw->hw_mutex);
+		mutex_lock(&cpas_core->client_mutex[client_indx]);
+	}
+
+	if (cpas_client->axi_level == required_level)
+		goto end;
+
+	CAM_DBG(CAM_CPAS, "CPAS client: %s curr lvl: %d required lvl: %d",
+			cpas_client->data.identifier, cpas_client->axi_level,
+			required_level);
+
+	cpas_client->axi_level = required_level;
+
+	highest_level = required_level;
+	for (i = 0; i < cpas_core->num_clients; i++) {
+		if (cpas_core->cpas_client[i] &&
+			(highest_level < cpas_core->cpas_client[i]->axi_level))
+			highest_level = cpas_core->cpas_client[i]->axi_level;
+	}
+
+	CAM_DBG(CAM_CPAS, "Required highest_level[%d]", highest_level);
+	cpas_core->hlos_axi_floor_lvl = highest_level;
+
+	rc = cam_cpas_util_set_max_camnoc_axi_clk_rate(cpas_core,
+		&cpas_hw->soc_info);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed in scaling clock rate level %d for AXI",
+			highest_level);
+	}
+
+end:
+	if (!locked) {
+		mutex_unlock(&cpas_core->client_mutex[client_indx]);
+		mutex_unlock(&cpas_hw->hw_mutex);
+	}
+	return rc;
+}
+
 static int cam_cpas_util_get_ahb_level(struct cam_hw_info *cpas_hw,
 	struct device *dev, unsigned long freq, enum cam_vote_level *req_level)
 {
@@ -2662,9 +2753,17 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 
 	rc = cam_cpas_util_apply_client_axi_vote(cpas_hw, cpas_client, &axi_vote,
 		CAM_CPAS_APPLY_TYPE_STOP);
-	if (rc)
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed in apply client axi vote rc: %d", rc);
 		goto done;
+	}
 
+	rc = cam_cpas_hw_update_axi_floor_lvl(cpas_hw, cmd_hw_stop->client_handle,
+		0, true);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed in update AXI floor lvl rc: %d", rc);
+		goto done;
+	}
 	cpas_client->started = false;
 
 	if (debug_drv && (cpas_core->streamon_clients == 1)) {
@@ -2742,6 +2841,9 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 		rc = cam_cpas_util_validate_stop_bw(soc_private, cpas_core);
 		if (rc)
 			CAM_ERR(CAM_CPAS, "Invalid applied bw at stop rc: %d", rc);
+
+		CAM_DBG(CAM_CPAS, "hlos axi floor lvl: %d, hlos axi clk lvl: %d",
+			cpas_core->hlos_axi_floor_lvl, cpas_core->hlos_axi_bw_calc_lvl);
 
 		cpas_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
 	}
@@ -4289,6 +4391,21 @@ static int cam_cpas_hw_process_cmd(void *hw_priv,
 		cmd_axi_vote = (struct cam_cpas_hw_cmd_axi_vote *)cmd_args;
 		rc = cam_cpas_hw_update_axi_vote(hw_priv,
 			cmd_axi_vote->client_handle, cmd_axi_vote->axi_vote);
+		break;
+	}
+	case CAM_CPAS_HW_AXI_FLOOR_LVL: {
+		struct cam_cpas_hw_axi_floor_lvl *floor_lvl_info;
+
+		if (sizeof(struct cam_cpas_hw_axi_floor_lvl) != arg_size) {
+			CAM_ERR(CAM_CPAS, "cmd_type %d, size mismatch %d",
+				cmd_type, arg_size);
+			break;
+		}
+
+		floor_lvl_info = (struct cam_cpas_hw_axi_floor_lvl *)cmd_args;
+		rc = cam_cpas_hw_update_axi_floor_lvl(hw_priv,
+			floor_lvl_info->client_handle, floor_lvl_info->floor_lvl,
+			false);
 		break;
 	}
 	case CAM_CPAS_HW_CMD_LOG_VOTE: {

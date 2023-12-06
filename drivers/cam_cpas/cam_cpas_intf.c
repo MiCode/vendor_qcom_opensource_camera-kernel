@@ -617,6 +617,38 @@ int cam_cpas_reg_read(uint32_t client_handle, enum cam_cpas_regbase_types reg_ba
 }
 EXPORT_SYMBOL(cam_cpas_reg_read);
 
+int cam_cpas_update_axi_floor_lvl(uint32_t client_handle,
+	int32_t axi_floor_lvl)
+{
+	int rc;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+
+	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
+		struct cam_cpas_hw_axi_floor_lvl floor_lvl_info;
+
+		floor_lvl_info.client_handle = client_handle;
+		floor_lvl_info.floor_lvl = axi_floor_lvl;
+
+		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
+			g_cpas_intf->hw_intf->hw_priv,
+			CAM_CPAS_HW_AXI_FLOOR_LVL, &floor_lvl_info,
+			sizeof(struct cam_cpas_hw_axi_floor_lvl));
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Failed in process_cmd CAM_CPAS_HW_AXI_FLOOR_LVL, rc=%d",
+				rc);
+	} else {
+		CAM_ERR(CAM_CPAS, "Invalid process_cmd ops");
+		rc = -EINVAL;
+	}
+
+	return rc;
+
+}
+
 int cam_cpas_update_axi_vote(uint32_t client_handle,
 	struct cam_axi_vote *axi_vote)
 {
