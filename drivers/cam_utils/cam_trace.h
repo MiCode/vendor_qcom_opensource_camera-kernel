@@ -405,6 +405,31 @@ TRACE_EVENT(cam_cdm_cb,
 	)
 );
 
+TRACE_EVENT(cam_cci_burst,
+	TP_PROTO(const int32_t idx, int32_t m,
+		int32_t q, const char *msg,
+		uint32_t val),
+	TP_ARGS(idx, m, q, msg, val),
+	TP_STRUCT__entry(
+		__field(int32_t, index)
+		__field(int32_t, master)
+		__field(int32_t, queue)
+		__string(msg, msg)
+		__field(uint32_t, value)
+	),
+	TP_fast_assign(
+		__entry->index = idx;
+		__entry->master = m;
+		__entry->queue = q;
+		__assign_str(msg, msg);
+		__entry->value = val;
+	),
+	TP_printk(
+		"CCI%d_M%d_Q%d %s : 0x%x",
+		__entry->index, __entry->master, __entry->queue, __get_str(msg), __entry->value
+	)
+);
+
 #endif /* _CAM_TRACE_H */
 
 /* This part must be outside protection */
