@@ -226,7 +226,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 		g_isp_dev.isp_device_type);
 	if (rc != 0) {
 		CAM_ERR(CAM_ISP, "Can not initialized ISP HW manager!");
-		goto kfree;
+		goto free_mem;
 	}
 
 	for (i = 0; i < g_isp_dev.max_context; i++) {
@@ -238,7 +238,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 			g_isp_dev.isp_device_type, iommu_hdl);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "ISP context init failed!");
-			goto kfree;
+			goto free_mem;
 		}
 	}
 
@@ -250,7 +250,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 
 	if (rc) {
 		CAM_ERR(CAM_ISP, "ISP node init failed!");
-		goto kfree;
+		goto free_mem;
 	}
 
 	node->sd_handler = cam_isp_subdev_close_internal;
@@ -263,7 +263,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 
 	return 0;
 
-kfree:
+free_mem:
 	kfree(g_isp_dev.ctx);
 	g_isp_dev.ctx = NULL;
 	kfree(g_isp_dev.ctx_isp);
