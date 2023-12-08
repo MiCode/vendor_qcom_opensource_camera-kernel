@@ -558,7 +558,7 @@ static int inline cam_subdev_list_cmp(struct cam_subdev *entry_1, struct cam_sub
 #if (KERNEL_VERSION(5, 18, 0) <= LINUX_VERSION_CODE)
 int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
 {
-	struct iosys_map mapping;
+	struct iosys_map mapping = {0};
 	int error_code = dma_buf_vmap(dmabuf, &mapping);
 
 	if (error_code) {
