@@ -1704,9 +1704,10 @@ static int cam_vfe_bus_ver3_handle_comp_done_bottom_half(
 	uint32_t                              *cam_ife_irq_regs;
 	uint32_t                               status_0;
 
-	if (!evt_payload)
+	if (!evt_payload || !rsrc_data) {
+		CAM_ERR(CAM_ISP, "Either evt_payload or rsrc_data is invalid");
 		return rc;
-
+	}
 	if (rsrc_data->is_dual && (!rsrc_data->is_master)) {
 		CAM_ERR(CAM_ISP, "VFE:%u Invalid comp_grp:%u is_master:%u",
 			rsrc_data->common_data->core_index, rsrc_data->comp_grp_type,
@@ -2305,6 +2306,11 @@ static int cam_vfe_bus_ver3_handle_vfe_out_done_bottom_half(
 	void                                  *ctx = NULL;
 	uint32_t                               evt_id = 0;
 	uint32_t                               comp_grp_id = 0;
+
+	if (!rsrc_data) {
+		CAM_ERR(CAM_ISP, "Invalid rsrc data pointer, returning from bottom half");
+		return rc;
+	}
 
 	rc = cam_vfe_bus_ver3_handle_comp_done_bottom_half(
 		rsrc_data, evt_payload_priv, &comp_grp_id);
