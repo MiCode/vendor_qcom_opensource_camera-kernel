@@ -124,6 +124,8 @@ static struct cam_vfe_top_ver4_hw_info vfe860_top_hw_info = {
 	.debug_reg_info                  = &vfe880_dbg_reg_info,
 	.pdaf_lcr_res_mask               = vfe880_pdaf_lcr_res_mask,
 	.num_pdaf_lcr_res                = ARRAY_SIZE(vfe880_pdaf_lcr_res_mask),
+	.fcg_module_info                 = &vfe880_fcg_module_info,
+	.fcg_supported                   = true,
 };
 
 static struct cam_vfe_hw_info cam_vfe860_hw_info = {
