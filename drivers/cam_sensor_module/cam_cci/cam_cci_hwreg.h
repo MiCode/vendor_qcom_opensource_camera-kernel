@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2015, 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CCI_HWREG_
@@ -20,6 +21,7 @@
 #define CCI_I2C_M0_SDA_CTL_2_ADDR                                   0x0000010c
 #define CCI_I2C_M0_READ_DATA_ADDR                                   0x00000118
 #define CCI_I2C_M0_MISC_CTL_ADDR                                    0x00000110
+#define CCI_I2C_M0_STATUS_ADDR                                      0x00000114
 #define CCI_I2C_M0_READ_BUF_LEVEL_ADDR                              0x0000011C
 #define CCI_HALT_REQ_ADDR                                           0x00000034
 #define CCI_M0_HALT_REQ_RMSK                                               0x1
@@ -29,6 +31,7 @@
 #define CCI_I2C_M1_SDA_CTL_1_ADDR                                   0x00000208
 #define CCI_I2C_M1_SDA_CTL_2_ADDR                                   0x0000020c
 #define CCI_I2C_M1_MISC_CTL_ADDR                                    0x00000210
+#define CCI_I2C_M1_STATUS_ADDR                                      0x00000214
 #define CCI_I2C_M0_Q0_CUR_WORD_CNT_ADDR                             0x00000304
 #define CCI_I2C_M0_Q0_CUR_CMD_ADDR                                  0x00000308
 #define CCI_I2C_M0_Q0_REPORT_STATUS_ADDR                            0x0000030c
@@ -37,7 +40,7 @@
 #define CCI_IRQ_MASK_0_ADDR                                         0x00000c04
 #define CCI_IRQ_MASK_0_RMSK                                         0x7fff7ff7
 #define CCI_IRQ_MASK_1_ADDR                                         0x00000c10
-#define CCI_IRQ_MASK_1_RMSK                                         0x00110000
+#define CCI_IRQ_MASK_1_RMSK                                         0x00DD0000
 #define CCI_IRQ_CLEAR_0_ADDR                                        0x00000c08
 #define CCI_IRQ_CLEAR_1_ADDR                                        0x00000c14
 #define CCI_IRQ_STATUS_0_ADDR                                       0x00000c0c
@@ -65,6 +68,10 @@
 #define CCI_IRQ_STATUS_0_I2C_M0_RD_DONE_BMSK                               0x1
 #define CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD                           0x10000
 #define CCI_IRQ_STATUS_1_I2C_M0_RD_PAUSE                               0x20000
+#define CCI_IRQ_STATUS_1_I2C_M1_Q0_THRESHOLD                          0x400000
+#define CCI_IRQ_STATUS_1_I2C_M1_Q1_THRESHOLD                          0x800000
+#define CCI_IRQ_STATUS_1_I2C_M0_Q0_THRESHOLD                           0x40000
+#define CCI_IRQ_STATUS_1_I2C_M0_Q1_THRESHOLD                           0x80000
 #define CCI_I2C_M0_RD_THRESHOLD_ADDR                                0x00000120
 #define CCI_I2C_M1_RD_THRESHOLD_ADDR                                0x00000220
 #define CCI_I2C_RD_THRESHOLD_VALUE                                        0x30
