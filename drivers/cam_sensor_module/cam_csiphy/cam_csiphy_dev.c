@@ -159,8 +159,6 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 	switch (message_type) {
 	case CAM_SUBDEV_MESSAGE_REG_DUMP: {
 		cam_csiphy_trigger_reg_dump(csiphy_dev);
-		cam_soc_util_print_clk_freq(&csiphy_dev->soc_info);
-
 		break;
 	}
 	case CAM_SUBDEV_MESSAGE_APPLY_CSIPHY_AUX: {

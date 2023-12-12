@@ -517,6 +517,7 @@ struct cam_isp_hw_fcg_cmd {
  * @cmd:             Command buffer information
  * @use_scratch_cfg: To indicate if it's scratch buffer config
  * @trigger_cdm_en:  Flag to indicate if cdm is trigger
+ * @reg_write:        if set use AHB to config rup/aup
  *
  */
 struct cam_isp_hw_get_cmd_update {
@@ -531,6 +532,7 @@ struct cam_isp_hw_get_cmd_update {
 		struct cam_isp_hw_get_wm_update      *rm_update;
 	};
 	bool trigger_cdm_en;
+	bool reg_write;
 };
 
 /*

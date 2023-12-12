@@ -290,6 +290,7 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info);
  * @base_idx:              Base or dev index of the IFE/VFE HW instance
  * @kmd_buf_info:          Kmd buffer to store the change base command
  * @combine:               Indicate whether combine with prev update entry
+ * @priv_data:             private data for HW driver
  * @return:                0 for success
  *                         -EINVAL for Fail
  */
@@ -298,7 +299,8 @@ int cam_isp_add_reg_update(
 	struct list_head                     *res_list_isp_src,
 	uint32_t                              base_idx,
 	struct cam_kmd_buf_info              *kmd_buf_info,
-	bool                                  combine);
+	bool                                  combine,
+	void                                 *priv_data);
 
 /*
  * cam_isp_add_comp_wait()

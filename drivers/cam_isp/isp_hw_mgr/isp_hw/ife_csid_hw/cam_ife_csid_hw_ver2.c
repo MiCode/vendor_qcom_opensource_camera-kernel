@@ -3950,7 +3950,8 @@ static int cam_ife_csid_ver2_path_irq_subscribe(
 	struct cam_isp_resource_node *res,
 	uint32_t irq_mask, uint32_t err_irq_mask)
 {
-	uint32_t top_irq_mask = 0;
+	uint32_t num_register = 0;
+	uint32_t *top_irq_mask = NULL;
 	struct cam_ife_csid_ver2_path_cfg *path_cfg = res->res_priv;
 	struct cam_ife_csid_ver2_reg_info *csid_reg = csid_hw->core_info->csid_reg;
 	int i, rc;
@@ -3969,7 +3970,15 @@ static int cam_ife_csid_ver2_path_irq_subscribe(
 		return -EINVAL;
 	}
 
-	top_irq_mask = csid_reg->path_reg[res->res_id]->top_irq_mask[top_index];
+	num_register = csid_reg->top_irq_reg_info[top_index].num_registers;
+	top_irq_mask = vmalloc(sizeof(uint32_t) * num_register);
+	if (!top_irq_mask) {
+		CAM_ERR(CAM_ISP, "csid top_irq_mask allocation failed");
+		return -ENOMEM;
+	}
+
+	top_irq_mask[0] = csid_reg->path_reg[res->res_id]->top_irq_mask[top_index];
+
 	if (csid_reg->path_reg[res->res_id]->capabilities & CAM_IFE_CSID_CAP_MULTI_CTXT) {
 		rc = cam_ife_csid_ver2_mc_irq_subscribe(csid_hw, res, top_index);
 		if (rc || csid_hw->top_mc_irq_handle < 1) {
@@ -3982,7 +3991,7 @@ static int cam_ife_csid_ver2_path_irq_subscribe(
 	path_cfg->top_irq_handle = cam_irq_controller_subscribe_irq(
 		csid_hw->top_irq_controller[top_index],
 		CAM_IRQ_PRIORITY_0,
-		&top_irq_mask,
+		top_irq_mask,
 		res,
 		cam_ife_csid_ver2_handle_path_irq,
 		NULL, NULL, NULL, CAM_IRQ_EVT_GROUP_0);
@@ -3995,7 +4004,7 @@ static int cam_ife_csid_ver2_path_irq_subscribe(
 	}
 
 	rc = cam_irq_controller_register_dependent(csid_hw->top_irq_controller[top_index],
-		csid_hw->path_irq_controller[res->res_id], &top_irq_mask);
+		csid_hw->path_irq_controller[res->res_id], top_irq_mask);
 
 	if (rc)
 		goto unsub_top;
@@ -4035,7 +4044,7 @@ static int cam_ife_csid_ver2_path_irq_subscribe(
 		rc = -EINVAL;
 		goto unsub_path;
 	}
-
+	vfree(top_irq_mask);
 	return 0;
 
 unsub_path:
@@ -4054,6 +4063,7 @@ unsub_mc:
 		csid_hw->top_mc_irq_handle);
 	csid_hw->top_mc_irq_handle = 0;
 end:
+	vfree(top_irq_mask);
 	return rc;
 }
 
@@ -4496,7 +4506,8 @@ static int cam_ife_csid_ver2_csi2_irq_subscribe(struct cam_ife_csid_ver2_hw *csi
 	uint32_t irq_mask, uint32_t err_irq_mask)
 {
 	struct cam_ife_csid_ver2_reg_info *csid_reg = csid_hw->core_info->csid_reg;
-	uint32_t top_irq_mask = 0;
+	uint32_t num_register = 0;
+	uint32_t *top_irq_mask = NULL;
 	int top_index = -1;
 	int i, rc;
 
@@ -4514,11 +4525,19 @@ static int cam_ife_csid_ver2_csi2_irq_subscribe(struct cam_ife_csid_ver2_hw *csi
 		return rc;
 	}
 
-	top_irq_mask = csid_reg->csi2_reg->top_irq_mask[top_index];
+	num_register = csid_reg->top_irq_reg_info[top_index].num_registers;
+	top_irq_mask = vmalloc(sizeof(uint32_t) * num_register);
+	if (!top_irq_mask) {
+		CAM_ERR(CAM_ISP, "csid top_irq_mask allocation failed");
+		return -ENOMEM;
+	}
+
+	top_irq_mask[0] = csid_reg->csi2_reg->top_irq_mask[top_index];
+
 	csid_hw->rx_cfg.top_irq_handle = cam_irq_controller_subscribe_irq(
 		csid_hw->top_irq_controller[top_index],
 		CAM_IRQ_PRIORITY_0,
-		&top_irq_mask,
+		top_irq_mask,
 		csid_hw,
 		cam_ife_csid_ver2_handle_rx_irq,
 		NULL, NULL, NULL, CAM_IRQ_EVT_GROUP_0);
@@ -4532,7 +4551,7 @@ static int cam_ife_csid_ver2_csi2_irq_subscribe(struct cam_ife_csid_ver2_hw *csi
 
 	rc = cam_irq_controller_register_dependent(csid_hw->top_irq_controller[top_index],
 		csid_hw->rx_irq_controller[CAM_IFE_CSID_RX_IRQ_STATUS_REG0],
-		&top_irq_mask);
+		top_irq_mask);
 
 	if (rc)
 		goto unsub_top;
@@ -4577,7 +4596,7 @@ static int cam_ife_csid_ver2_csi2_irq_subscribe(struct cam_ife_csid_ver2_hw *csi
 		rc = -EINVAL;
 		goto unsub_rx;
 	}
-
+	vfree(top_irq_mask);
 	return 0;
 
 unsub_rx:
@@ -4594,6 +4613,7 @@ unsub_top:
 			csid_hw->rx_cfg.top_irq_handle);
 	csid_hw->rx_cfg.top_irq_handle = 0;
 err:
+	vfree(top_irq_mask);
 	return rc;
 }
 
@@ -4906,8 +4926,9 @@ static int cam_ife_csid_ver2_enable_hw(
 	int i, rc;
 	void __iomem *mem_base;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg = NULL;
+	uint32_t num_register = 0;
 	uint32_t top_err_irq_mask = 0;
-	uint32_t buf_done_irq_mask = 0;
+	uint32_t *buf_done_irq_mask = NULL;
 	uint32_t top_info_irq_mask = 0;
 
 	if (csid_hw->flags.device_enabled) {
@@ -4948,16 +4969,22 @@ static int cam_ife_csid_ver2_enable_hw(
 	/* Read hw version */
 	val = cam_io_r_mb(mem_base + csid_reg->cmn_reg->hw_version_addr);
 
-	buf_done_irq_mask = csid_reg->cmn_reg->top_buf_done_irq_mask;
+	num_register = csid_reg->top_irq_reg_info[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0].num_registers;
+	buf_done_irq_mask = vmalloc(sizeof(uint32_t) * num_register);
+	if (!buf_done_irq_mask) {
+		CAM_ERR(CAM_ISP, "csid buf_done_irq_mask allocation failed");
+		return -ENOMEM;
+	}
+	buf_done_irq_mask[0] = csid_reg->cmn_reg->top_buf_done_irq_mask;
 
 	if (csid_reg->ipp_mc_reg)
-		buf_done_irq_mask |= csid_reg->ipp_mc_reg->comp_subgrp0_mask |
+		buf_done_irq_mask[0] |= csid_reg->ipp_mc_reg->comp_subgrp0_mask |
 			csid_reg->ipp_mc_reg->comp_subgrp2_mask;
 
 	csid_hw->buf_done_irq_handle = cam_irq_controller_subscribe_irq(
 		csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 		CAM_IRQ_PRIORITY_4,
-		&buf_done_irq_mask,
+		buf_done_irq_mask,
 		csid_hw,
 		cam_ife_csid_ver2_handle_buf_done_irq,
 		NULL,
@@ -4969,7 +4996,8 @@ static int cam_ife_csid_ver2_enable_hw(
 	if (csid_hw->buf_done_irq_handle < 1) {
 		CAM_ERR(CAM_ISP, "CSID[%u] buf done irq subscribe fail",
 			csid_hw->hw_intf->hw_idx);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto free_buf_done_mask;
 	}
 
 	top_err_irq_mask = csid_reg->cmn_reg->top_err_irq_mask[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0];
@@ -4994,7 +5022,7 @@ static int cam_ife_csid_ver2_enable_hw(
 
 	rc = cam_irq_controller_register_dependent(csid_hw->top_irq_controller
 		[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
-		csid_hw->buf_done_irq_controller, &buf_done_irq_mask);
+		csid_hw->buf_done_irq_controller, buf_done_irq_mask);
 
 	if (rc) {
 		cam_irq_controller_unsubscribe_irq(
@@ -5031,6 +5059,7 @@ static int cam_ife_csid_ver2_enable_hw(
 	csid_hw->flags.fatal_err_detected = false;
 	CAM_DBG(CAM_ISP, "CSID:%u CSID HW version: 0x%x",
 		csid_hw->hw_intf->hw_idx, val);
+	vfree(buf_done_irq_mask);
 	return 0;
 
 
@@ -5045,6 +5074,8 @@ unsubscribe_buf_done:
 		csid_hw->top_irq_controller[CAM_IFE_CSID_TOP_IRQ_STATUS_REG0],
 		csid_hw->buf_done_irq_handle);
 	csid_hw->buf_done_irq_handle = 0;
+free_buf_done_mask:
+	vfree(buf_done_irq_mask);
 	return rc;
 }
 

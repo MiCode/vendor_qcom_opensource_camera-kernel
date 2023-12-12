@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_CRE_HW_MGR_H
@@ -342,6 +342,20 @@ struct cam_cre_ctx {
 };
 
 /**
+ * struct cam_cre_hw_cfg_req
+ *
+ * @list:              Requests submiited to HW
+ * @req_id:            Request id
+ * ctx_id:             Ctx id
+ *
+ */
+struct cam_cre_hw_cfg_req {
+	struct list_head   list;
+	uint64_t           req_id;
+	uint32_t           ctx_id;
+};
+
+/**
  * struct cam_cre_hw_mgr
  *
  * @cre_ctx_cnt:       Open context count
@@ -367,6 +381,9 @@ struct cam_cre_ctx {
  * @clk_info:          CRE clock Info for HW manager
  * @dentry:            Pointer to CRE debugfs directory
  * @dump_req_data_enable: CRE hang dump enablement
+ * @hw_config_req_list: Requests submitted to HW
+ * @free_req_list:     Requests that are free
+ * @req_list:          Request list which is applied
  */
 struct cam_cre_hw_mgr {
 	uint32_t      cre_ctx_cnt;
@@ -395,6 +412,10 @@ struct cam_cre_hw_mgr {
 	struct cam_cre_clk_info clk_info;
 	struct dentry *dentry;
 	bool   dump_req_data_enable;
+
+	struct list_head hw_config_req_list;
+	struct list_head free_req_list;
+	struct cam_cre_hw_cfg_req req_list[CAM_CRE_HW_CFG_Q_MAX];
 };
 
 /**

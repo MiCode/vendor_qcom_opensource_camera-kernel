@@ -26,6 +26,8 @@
 #define CRE_WAIT_BUS_RD_DONE   0x3
 #define CRE_WAIT_IDLE_IRQ      0x4
 
+#define CAM_CRE_HW_CFG_Q_MAX 30
+
 struct cam_cre_top_reg {
 	void *base;
 	uint32_t offset;
