@@ -127,7 +127,7 @@ static int32_t cam_spi_tx_helper(struct camera_io_master *client,
 		ctx = tx;
 	} else {
 		txr = len;
-		vaddr_tx = vmalloc(txr);
+		vaddr_tx = kzalloc(txr, GFP_KERNEL | GFP_DMA);
 		if (!vaddr_tx) {
 			CAM_ERR(CAM_SENSOR,
 				 "Fail to allocate Memory: len: %u", txr);
@@ -142,10 +142,10 @@ static int32_t cam_spi_tx_helper(struct camera_io_master *client,
 			crx = rx;
 		} else {
 			rxr = len;
-			vaddr_rx = vmalloc(rxr);
+			vaddr_rx = kzalloc(rxr, GFP_KERNEL | GFP_DMA);
 			if (!vaddr_rx) {
 				if (!tx)
-					vfree(vaddr_tx);
+					kfree(vaddr_tx);
 				CAM_ERR(CAM_SENSOR,
 					"Fail to allocate memory: len: %u",
 					rxr);
@@ -172,11 +172,11 @@ static int32_t cam_spi_tx_helper(struct camera_io_master *client,
 
 out:
 	if (!tx) {
-		vfree(vaddr_tx);
+		kfree(vaddr_tx);
 		vaddr_tx = NULL;
 	}
 	if (!rx) {
-		vfree(vaddr_rx);
+		kfree(vaddr_rx);
 		vaddr_rx = NULL;
 	}
 	return rc;
