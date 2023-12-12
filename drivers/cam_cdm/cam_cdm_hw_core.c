@@ -1222,6 +1222,8 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 					core->bl_fifo[fifo_idx].bl_tag++;
 					core->bl_fifo[fifo_idx].bl_tag %= (bl_fifo->bl_depth - 1);
 				}
+			} else if (!req->data->flag && (i == (req->data->cmd_arrary_count - 1))) {
+				core->bl_fifo[fifo_idx].last_bl_tag_done = -1;
 			}
 		} else {
 			CAM_ERR(CAM_CDM,

@@ -56,6 +56,7 @@ enum cam_ife_ctx_master_type {
  * @sfe_cache_debug:           sfe cache debug info
  * @ife_perf_counter_val:      ife perf counter values
  * @sfe_perf_counter_val:      sfe perf counter values
+ * @csid_domain_id_value:      Value of domain id to set on CSID
  * @enable_req_dump:           Enable request dump on HW errors
  * @per_req_reg_dump:          Enable per request reg dump
  * @disable_ubwc_comp:         Disable UBWC compression
@@ -66,7 +67,7 @@ enum cam_ife_ctx_master_type {
  * @enable_presil_reg_dump:    Enable per req regdump in presil
  * @enable_cdm_cmd_check:      Enable invalid command check in cmd_buf
  * @enable_csid_set_domain_id: Enable CSID force set per path domain id
- * @csid_domain_id_value:      Value of domain id to set on CSID
+ * @per_req_wait_cdm:          Enable per req wait cdm
  */
 struct cam_ife_hw_mgr_debug {
 	struct dentry  *dentry;
@@ -81,6 +82,7 @@ struct cam_ife_hw_mgr_debug {
 	uint32_t       sfe_cache_debug[CAM_SFE_HW_NUM_MAX];
 	uint32_t      *ife_perf_counter_val;
 	uint32_t      *sfe_perf_counter_val;
+	uint32_t       csid_domain_id_value;
 	bool           enable_req_dump;
 	bool           per_req_reg_dump;
 	bool           disable_ubwc_comp;
@@ -91,7 +93,7 @@ struct cam_ife_hw_mgr_debug {
 	bool           enable_presil_reg_dump;
 	bool           enable_cdm_cmd_check;
 	bool           enable_csid_set_domain_id;
-	uint32_t       csid_domain_id_value;
+	bool           per_req_wait_cdm;
 };
 
 /**

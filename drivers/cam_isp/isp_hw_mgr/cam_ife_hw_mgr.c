@@ -7125,6 +7125,7 @@ static int cam_ife_mgr_config_hw(
 	size_t len = 0;
 	uint32_t *buf_addr = NULL, *buf_start = NULL, *buf_end = NULL;
 	uint32_t cmd_type = 0;
+	bool wait_for_cdm = false;
 
 	if (!hw_mgr_priv || !config_hw_args) {
 		CAM_ERR(CAM_ISP,
@@ -7301,14 +7302,24 @@ skip_bw_clk_update:
 		"Enter ctx id:%u num_hw_upd_entries %d request id: %llu",
 		ctx->ctx_index, cfg->num_hw_update_entries, cfg->request_id);
 
+	if (cam_presil_mode_enabled() || cfg->init_packet || hw_update_data->mup_en ||
+		g_ife_hw_mgr.debug_cfg.per_req_reg_dump ||
+		g_ife_hw_mgr.debug_cfg.per_req_wait_cdm ||
+		(ctx->ctx_config & CAM_IFE_CTX_CFG_SW_SYNC_ON))
+		wait_for_cdm = true;
+
 	if (cfg->num_hw_update_entries > 0) {
 		cdm_cmd                    = ctx->cdm_cmd;
 		cdm_cmd->type              = CAM_CDM_BL_CMD_TYPE_MEM_HANDLE;
-		cdm_cmd->flag              = true;
 		cdm_cmd->userdata          = ctx;
 		cdm_cmd->cookie            = cfg->request_id;
 		cdm_cmd->gen_irq_arb       = false;
 		cdm_cmd->genirq_buff       = &hw_update_data->kmd_cmd_buff_info;
+
+		if (wait_for_cdm)
+			cdm_cmd->flag              = true;
+		else
+			cdm_cmd->flag              = false;
 
 		for (i = 0 ; i < cfg->num_hw_update_entries; i++) {
 			cmd = (cfg->hw_update_entries + i);
@@ -7415,7 +7426,10 @@ skip_bw_clk_update:
 		ctx->applied_req_id = cfg->request_id;
 
 		CAM_DBG(CAM_ISP, "Submit to CDM, ctx_idx=%u", ctx->ctx_index);
-		atomic_set(&ctx->cdm_done, 0);
+
+		if (wait_for_cdm)
+			atomic_set(&ctx->cdm_done, 0);
+
 		rc = cam_cdm_submit_bls(ctx->cdm_handle, cdm_cmd);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
@@ -7424,8 +7438,7 @@ skip_bw_clk_update:
 			return rc;
 		}
 
-		if (cam_presil_mode_enabled() || cfg->init_packet || hw_update_data->mup_en ||
-			(ctx->ctx_config & CAM_IFE_CTX_CFG_SW_SYNC_ON)) {
+		if (wait_for_cdm) {
 			rem_jiffies = cam_common_wait_for_completion_timeout(
 				&ctx->config_done_complete,
 				msecs_to_jiffies(60));
@@ -7752,13 +7765,17 @@ static int cam_ife_mgr_stop_hw(void *hw_mgr_priv, void *stop_hw_args)
 
 	cam_ife_mgr_pause_hw(ctx);
 
-	rem_jiffies = cam_common_wait_for_completion_timeout(
-		&ctx->config_done_complete,
-		msecs_to_jiffies(10));
-	if (rem_jiffies == 0)
-		CAM_WARN(CAM_ISP,
-			"config done completion timeout for last applied req_id=%llu ctx_index %u",
-			ctx->applied_req_id, ctx->ctx_index);
+	if (!atomic_read(&ctx->cdm_done)) {
+		rem_jiffies = cam_common_wait_for_completion_timeout(
+				&ctx->config_done_complete,
+				msecs_to_jiffies(10));
+
+		if (rem_jiffies == 0)
+			CAM_WARN(CAM_ISP,
+				"config done completion timeout for last applied req_id=%llu ctx_index %u",
+				ctx->applied_req_id, ctx->ctx_index);
+
+	}
 
 	/* Reset CDM for KMD internal stop */
 	if (stop_isp->is_internal_stop) {
@@ -14914,12 +14931,14 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 			return 0;
 
 		ctx->flags.dump_on_flush = true;
-		rem_jiffies = cam_common_wait_for_completion_timeout(
-			&ctx->config_done_complete, msecs_to_jiffies(30));
-		if (rem_jiffies == 0)
-			CAM_ERR(CAM_ISP,
-				"config done completion timeout, Reg dump will be unreliable rc=%d ctx_index %u",
-				rc, ctx->ctx_index);
+		if (!atomic_read(&ctx->cdm_done)) {
+			rem_jiffies = cam_common_wait_for_completion_timeout(
+					&ctx->config_done_complete, msecs_to_jiffies(30));
+			if (rem_jiffies == 0)
+				CAM_ERR(CAM_ISP,
+					"config done completion timeout, Reg dump will be unreliable rc=%d ctx_index %u",
+					rc, ctx->ctx_index);
+		}
 
 		rc = cam_ife_mgr_handle_reg_dump(ctx, ctx->reg_dump_buf_desc,
 			ctx->num_reg_dump_buf,
@@ -17549,6 +17568,9 @@ static int cam_ife_hw_mgr_debug_register(void)
 	debugfs_create_u32("csid_domain_id_value", 0644,
 		g_ife_hw_mgr.debug_cfg.dentry,
 		&g_ife_hw_mgr.debug_cfg.csid_domain_id_value);
+	debugfs_create_bool("per_req_wait_cdm", 0644,
+		g_ife_hw_mgr.debug_cfg.dentry,
+		&g_ife_hw_mgr.debug_cfg.per_req_wait_cdm);
 end:
 	g_ife_hw_mgr.debug_cfg.enable_csid_recovery = 1;
 	return rc;
