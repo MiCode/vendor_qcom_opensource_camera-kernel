@@ -742,6 +742,11 @@ struct cam_ife_csid_ver2_reg_info {
 	const uint32_t                                    num_path_err_irqs;
 	const uint32_t                                    num_top_regs;
 	const uint32_t                                    num_rx_regs;
+	const uint32_t                                    fused_max_dualife_width[
+		   CAM_IFE_CSID_WIDTH_FUSE_VAL_MAX];
+	const uint32_t                                    fused_max_width[
+		   CAM_IFE_CSID_WIDTH_FUSE_VAL_MAX];
+	const uint32_t                                    width_fuse_max_val;
 };
 
 /*
