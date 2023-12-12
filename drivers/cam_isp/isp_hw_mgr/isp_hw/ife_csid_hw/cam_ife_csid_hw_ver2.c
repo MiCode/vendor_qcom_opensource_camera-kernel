@@ -2956,11 +2956,13 @@ static void cam_ife_csid_ver2_dump_imp_regs(
 
 	/* Dumping CSID reset cfg and dual csid cfg */
 	reset_cfg = cam_io_r_mb(mem_base + csid_reg->cmn_reg->reset_cfg_addr);
-	dual_csid_cfg = cam_io_r_mb(
-		soc_info->reg_map[CAM_IFE_CSID_TOP_MEM_BASE_ID].mem_base +
-		csid_reg->top_reg->dual_csid_cfg0_addr[hw_idx]);
-	CAM_INFO(CAM_ISP,
-		"CSID[%d] csid reset_cfg 0x%x, dual_csid_cfg 0x%x, is_dual_en %d",
+
+	if (csid_reg->top_reg)
+		dual_csid_cfg = cam_io_r_mb(
+			soc_info->reg_map[CAM_IFE_CSID_TOP_MEM_BASE_ID].mem_base +
+			csid_reg->top_reg->dual_csid_cfg0_addr[hw_idx]);
+
+	CAM_INFO(CAM_ISP, "CSID[%d] csid reset_cfg 0x%x, dual_csid_cfg 0x%x, is_dual_en %d",
 		hw_idx, reset_cfg, dual_csid_cfg, csid_hw->top_cfg.dual_en);
 
 	/* Dumping CSID Clock */
