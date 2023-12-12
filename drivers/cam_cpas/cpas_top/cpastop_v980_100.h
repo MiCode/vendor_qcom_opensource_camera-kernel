@@ -577,14 +577,14 @@ static struct cam_camnoc_specific
 			.value = 0x3,
 		},
 		.urgency = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4C38, /* NOC_RT_3_NIU_URGENCY_LOW */
 			.value = 0x0,
 		},
 		.danger_lut = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4C40, /* NOC_RT_3_NIU_DANGERLUT_LOW */
@@ -774,14 +774,14 @@ static struct cam_camnoc_specific
 		.port_name = "NRT1-IPE_WR_0",
 		.enable = true,
 		.priority_lut_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x5830, /* IPE_WR_0 : NOC_NRT_1_NIU_PRIORITYLUT_LOW */
 			.value = 0x0,
 		},
 		.priority_lut_high = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x5834, /* IPE_WR_0 : NOC_NRT_1_NIU_PRIORITYLUT_HIGH */
@@ -819,7 +819,7 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.qosgen_mainctl = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4888, /* IPE_WR_0 : NOC_NRT_1_QOSGEN_MAINCTL */
@@ -849,9 +849,9 @@ static struct cam_camnoc_specific
 	},
 	{
 		.port_name = "NRT2-OFE_WR_1-CRE_WR",
-		.enable = false,
+		.enable = true,
 		.priority_lut_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6030, /* OFE_WR_1-CRE_WR : NOC_NRT_2_NIU_PRIORITYLUT_LOW */
@@ -865,7 +865,7 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.urgency = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6038, /* OFE_WR_1-CRE_WR : NOC_NRT_2_NIU_URGENCY_LOW */
@@ -973,21 +973,21 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.qosgen_mainctl = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4988, /* OFE_WR_0 : NOC_NRT_3_QOSGEN_MAINCTL */
 			.value = 0x0,
 		},
 		.qosgen_shaping_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x49A0, /* OFE_WR_0 : NOC_NRT_3_QOSGEN_SHAPING_LOW */
 			.value = 0x0,
 		},
 		.qosgen_shaping_high = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x49A4, /* OFE_WR_0 : NOC_NRT_3_QOSGEN_SHAPING_HIGH */
@@ -1047,21 +1047,21 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.qosgen_mainctl = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4A08, /* OFE_RD : NOC_NRT_4_QOSGEN_MAINCTL */
 			.value = 0x0,
 		},
 		.qosgen_shaping_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4A20, /* OFE_RD : NOC_NRT_4_QOSGEN_SHAPING_LOW */
 			.value = 0x0,
 		},
 		.qosgen_shaping_high = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4A24, /* OFE_RD : NOC_NRT_4_QOSGEN_SHAPING_HIGH */
@@ -1111,7 +1111,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6648, /* CRE_RD : NOC_NRT_5_NIU_SAFELUT_LOW */
-			.value = 0x0,
+			.value = 0x0000FFFF,
 		},
 		.ubwc_ctl = {
 			.enable = false,
@@ -1124,25 +1124,25 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.qosgen_mainctl = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4A88, /* CRE_RD : NOC_NRT_5_QOSGEN_MAINCTL */
-			.value = 0x0,
+			.value = 0x2,
 		},
 		.qosgen_shaping_low = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4AA0, /* CRE_RD : NOC_NRT_5_QOSGEN_SHAPING_LOW */
-			.value = 0x0,
+			.value = 0x14141414,
 		},
 		.qosgen_shaping_high = {
 			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4AA4, /* CRE_RD : NOC_NRT_5_QOSGEN_SHAPING_HIGH */
-			.value = 0x0,
+			.value = 0x14141414,
 		},
 		.maxrd_low = {
 			.enable = false,
@@ -1156,14 +1156,14 @@ static struct cam_camnoc_specific
 		.port_name = "NRT6-JPEG0,1,2,3_RD_WR",
 		.enable = true,
 		.priority_lut_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6830, /* JPEG_RD_WR : NOC_NRT_6_NIU_PRIORITYLUT_LOW */
 			.value = 0x0,
 		},
 		.priority_lut_high = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6834, /* JPEG_RD_WR : NOC_NRT_6_NIU_PRIORITYLUT_HIGH */
@@ -1188,7 +1188,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6848, /* JPEG_RD_WR : NOC_NRT_6_NIU_SAFELUT_LOW */
-			.value = 0x0,
+			.value = 0xFFFF,
 		},
 		.ubwc_ctl = {
 			.enable = false,
@@ -1201,25 +1201,25 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.qosgen_mainctl = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4B08, /* JPEG_RD_WR : NOC_NRT_6_QOSGEN_MAINCTL */
-			.value = 0x0,
+			.value = 0x2,
 		},
 		.qosgen_shaping_low = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4B20, /* JPEG_RD_WR : NOC_NRT_6_QOSGEN_SHAPING_LOW */
-			.value = 0x0,
+			.value = 0x10101010,
 		},
 		.qosgen_shaping_high = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4B24, /* JPEG_RD_WR : NOC_NRT_6_QOSGEN_SHAPING_HIGH */
-			.value = 0x0,
+			.value = 0x10101010,
 		},
 		.maxwr_low = {
 			.enable = false,
@@ -1240,14 +1240,14 @@ static struct cam_camnoc_specific
 		.port_name = "NRT7-IPE_RD_1",
 		.enable = true,
 		.priority_lut_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6A30, /* IPE_WR_1 : NOC_NRT_7_NIU_PRIORITYLUT_LOW */
 			.value = 0x0,
 		},
 		.priority_lut_high = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6A34, /* IPE_WR_1 : NOC_NRT_7_NIU_PRIORITYLUT_HIGH */
@@ -1317,14 +1317,14 @@ static struct cam_camnoc_specific
 		.port_name = "NRT8-IPE_RD_0",
 		.enable = true,
 		.priority_lut_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6C30, /* IPE_RD_0 : NOC_NRT_8_NIU_PRIORITYLUT_LOW */
 			.value = 0x0,
 		},
 		.priority_lut_high = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6C34, /* IPE_RD_0 : NOC_NRT_8_NIU_PRIORITYLUT_HIGH */
@@ -1394,14 +1394,14 @@ static struct cam_camnoc_specific
 		.port_name = "NRT9-CDM_IPE_OFE",
 		.enable = true,
 		.priority_lut_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6E30, /* CDM_IPE_OFE : NOC_NRT_9_NIU_PRIORITYLUT_LOW */
 			.value = 0x0,
 		},
 		.priority_lut_high = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x6E34, /* CDM_IPE_OFE : NOC_NRT_9_NIU_PRIORITYLUT_HIGH */
@@ -1471,14 +1471,14 @@ static struct cam_camnoc_specific
 		.port_name = "ICP_0_RD_WR",
 		.enable = false,
 		.dynattr_mainctl = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x7508, /* ICP_RD_WR : NOC_XM_ICP_DYNATTR_MAINCTL */
 			.value = 0x0,
 		},
 		.qosgen_mainctl = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4D08, /* ICP_RD_WR : NOC_XM_ICP_QOSGEN_MAINCTL */
