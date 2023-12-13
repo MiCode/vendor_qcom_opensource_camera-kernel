@@ -598,11 +598,11 @@ int hfi_set_fw_dump_levels(int client_handle, uint32_t hang_dump_lvl,
 	/* Write hang dump level */
 	hfi_write_cmd(client_handle, prop);
 
-	/* Update and write ramdump level
+	/* Update and write ramdump level */
 	prop_ref_data[0] = HFI_PROP_SYS_ICP_RAMDUMP_MODE;
 	prop_ref_data[1] = ram_dump_lvl;
 
-	hfi_write_cmd(client_handle, prop);*/
+	hfi_write_cmd(client_handle, prop);
 	CAM_DBG(CAM_HFI,
 		"[%s] hfi hdl: %d prop->size = %d prop->pkt_type = %d prop->num_prop = %d hang_dump_lvl = %u ram_dump_lvl = %u",
 		hfi->client_name, client_handle, fw_dump_level_switch_prop->size,
