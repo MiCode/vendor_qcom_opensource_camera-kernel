@@ -798,6 +798,12 @@ static int32_t cam_cci_data_queue_burst(struct cci_device *cci_dev,
 		return -EINVAL;
 	}
 
+	trace_cam_cci_burst(cci_dev->soc_info.index, master, queue,
+		"cci burst write START for sid",
+		c_ctrl->cci_info->sid);
+	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d_Q%d : START for sid: 0x%x size: %d",
+		cci_dev->soc_info.index, master, queue, c_ctrl->cci_info->sid, i2c_msg->size);
+
 	addr_len = cam_cci_convert_type_to_num_bytes(i2c_msg->addr_type);
 	data_len = cam_cci_convert_type_to_num_bytes(i2c_msg->data_type);
 	len = (cmd_size * data_len + addr_len);
@@ -1005,6 +1011,10 @@ static int32_t cam_cci_data_queue_burst(struct cci_device *cci_dev,
 		cci_dev->soc_info.index, master, queue, num_word_written_to_queue,
 		cci_dev->cci_master_info[master].th_irq_ref_cnt[queue]);
 
+	trace_cam_cci_burst(cci_dev->soc_info.index, master, queue,
+		"thirq_cnt",
+		cci_dev->cci_master_info[master].th_irq_ref_cnt[queue]);
+
 	index = 0;
 	queue_start_threshold = half_queue_mark * MSM_CCI_WRITE_DATA_PAYLOAD_SIZE_WORDS;
 	num_words_in_queue = cam_io_r_mb(base +
@@ -1043,6 +1053,9 @@ static int32_t cam_cci_data_queue_burst(struct cci_device *cci_dev,
 					"wait for Threshold_IRQ, th_irq_ref_cnt[%d]:%d",
 					cci_dev->soc_info.index, master, queue, queue,
 					cci_dev->cci_master_info[master].th_irq_ref_cnt[queue]);
+				trace_cam_cci_burst(cci_dev->soc_info.index, master, queue,
+					"Q_START thirq_cnt",
+					cci_dev->cci_master_info[master].th_irq_ref_cnt[queue]);
 
 				if (!cam_common_wait_for_completion_timeout(
 					&cci_dev->cci_master_info[master].th_burst_complete[queue],
@@ -1064,6 +1077,9 @@ static int32_t cam_cci_data_queue_burst(struct cci_device *cci_dev,
 					goto ERROR;
 				}
 				cci_dev->cci_master_info[master].th_irq_ref_cnt[queue]--;
+				trace_cam_cci_burst(cci_dev->soc_info.index, master, queue,
+					"thirq raised Buflvl",
+					cci_dev->cci_master_info[master].th_irq_ref_cnt[queue]);
 				CAM_DBG(CAM_CCI,
 					"CCI%d_I2C_M%d_Q%d Threshold IRQ Raised, BufferLevel: %d",
 					cci_dev->soc_info.index, master, queue,
@@ -1132,6 +1148,12 @@ static int32_t cam_cci_data_queue_burst(struct cci_device *cci_dev,
 			cci_dev->soc_info.index, master, queue, (c_ctrl->cci_info->sid << 1), rc);
 		goto ERROR;
 	}
+	trace_cam_cci_burst(cci_dev->soc_info.index, master, queue,
+		"cci burst write Done for sid",
+		c_ctrl->cci_info->sid);
+	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d_Q%d : completed ....for sid: 0x%x size: %d",
+		cci_dev->soc_info.index, master, queue, c_ctrl->cci_info->sid, i2c_msg->size);
+
 ERROR:
 	kfree(data_queue);
 	return rc;

@@ -188,6 +188,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		spin_lock_irqsave(
 			&cci_master_info->lock_q[QUEUE_0],
 			flags);
+		trace_cam_cci_burst(cci_dev->soc_info.index, 1, 0,
+			"th_irq honoured irq1", irq_status1);
 		complete(&cci_master_info->th_burst_complete[QUEUE_0]);
 		spin_unlock_irqrestore(
 			&cci_master_info->lock_q[QUEUE_0],
@@ -199,6 +201,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		spin_lock_irqsave(
 			&cci_master_info->lock_q[QUEUE_1],
 			flags);
+		trace_cam_cci_burst(cci_dev->soc_info.index, 1, 1,
+			"th_irq honoured irq1", irq_status1);
 		complete(&cci_master_info->th_burst_complete[QUEUE_1]);
 		spin_unlock_irqrestore(
 			&cci_master_info->lock_q[QUEUE_1],
@@ -210,6 +214,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		spin_lock_irqsave(
 			&cci_master_info->lock_q[QUEUE_0],
 			flags);
+		trace_cam_cci_burst(cci_dev->soc_info.index, 0, 0,
+			"th_irq honoured irq1", irq_status1);
 		complete(&cci_master_info->th_burst_complete[QUEUE_0]);
 		spin_unlock_irqrestore(
 			&cci_master_info->lock_q[QUEUE_0],
@@ -221,6 +227,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		spin_lock_irqsave(
 			&cci_master_info->lock_q[QUEUE_1],
 			flags);
+		trace_cam_cci_burst(cci_dev->soc_info.index, 0, 1,
+			"th_irq honoured irq1", irq_status1);
 		complete(&cci_master_info->th_burst_complete[QUEUE_1]);
 		spin_unlock_irqrestore(
 			&cci_master_info->lock_q[QUEUE_1],
@@ -335,28 +343,34 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_ERROR_BMSK) {
 		cci_dev->cci_master_info[MASTER_0].status = -EINVAL;
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q0_NACK_ERROR_BMSK) {
-			if (cci_dev->is_probing)
+			if (cci_dev->is_probing) {
 				CAM_INFO(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
-			else
+			} else {
 				CAM_ERR(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+				trace_cam_cci_burst(cci_dev->soc_info.index, 0, 0,
+					"NACK_ERROR irq0", irq_status0);
+			}
 			cam_cci_dump_registers(cci_dev, MASTER_0,
 					QUEUE_0);
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
 				.report_q[QUEUE_0]);
 		}
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q1_NACK_ERROR_BMSK) {
-			if (cci_dev->is_probing)
+			if (cci_dev->is_probing) {
 				CAM_INFO(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
-			else
+			} else {
 				CAM_ERR(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+				trace_cam_cci_burst(cci_dev->soc_info.index, 0, 1,
+					"NACK_ERROR irq0", irq_status0);
+			}
 			cam_cci_dump_registers(cci_dev, MASTER_0,
 					QUEUE_1);
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
@@ -377,28 +391,34 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_ERROR_BMSK) {
 		cci_dev->cci_master_info[MASTER_1].status = -EINVAL;
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q0_NACK_ERROR_BMSK) {
-			if (cci_dev->is_probing)
+			if (cci_dev->is_probing) {
 				CAM_INFO(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
-			else
+			} else {
 				CAM_ERR(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+				trace_cam_cci_burst(cci_dev->soc_info.index, 1, 0,
+					"NACK_ERROR irq0", irq_status0);
+			}
 			cam_cci_dump_registers(cci_dev, MASTER_1,
 					QUEUE_0);
 			complete_all(&cci_dev->cci_master_info[MASTER_1]
 			.report_q[QUEUE_0]);
 		}
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q1_NACK_ERROR_BMSK) {
-			if (cci_dev->is_probing)
+			if (cci_dev->is_probing) {
 				CAM_INFO(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
-			else
+			} else {
 				CAM_ERR(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+				trace_cam_cci_burst(cci_dev->soc_info.index, 1, 1,
+					"NACK_ERROR irq0", irq_status0);
+			}
 			cam_cci_dump_registers(cci_dev, MASTER_1,
 				QUEUE_1);
 			complete_all(&cci_dev->cci_master_info[MASTER_1]
