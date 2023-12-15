@@ -1843,6 +1843,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.path_domain_id_cfg0                     = 0x0,
 	.path_domain_id_cfg1                     = 0x4,
 	.path_domain_id_cfg2                     = 0x8,
+	.phy_sel_base_idx                        = 1,
 };
 
 struct cam_ife_csid_ver2_mc_reg_info
