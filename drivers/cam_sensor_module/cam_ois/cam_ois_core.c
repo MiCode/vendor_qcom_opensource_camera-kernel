@@ -1293,24 +1293,26 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 				}
 			}
 		}
+		if (o_ctrl->i2c_init_data.is_settings_valid == 1)
+		{
+			rc = cam_ois_apply_settings(o_ctrl, &o_ctrl->i2c_init_data);
+			if ((rc == -EAGAIN) &&
+				(o_ctrl->io_master_info.master_type == CCI_MASTER)) {
+				CAM_WARN(CAM_OIS,
+					"CCI HW is restting: Reapplying INIT settings");
+				usleep_range(1000, 1010);
+				rc = cam_ois_apply_settings(o_ctrl,
+					&o_ctrl->i2c_init_data);
+			}
 
-		rc = cam_ois_apply_settings(o_ctrl, &o_ctrl->i2c_init_data);
-		if ((rc == -EAGAIN) &&
-			(o_ctrl->io_master_info.master_type == CCI_MASTER)) {
-			CAM_WARN(CAM_OIS,
-				"CCI HW is restting: Reapplying INIT settings");
-			usleep_range(1000, 1010);
-			rc = cam_ois_apply_settings(o_ctrl,
-				&o_ctrl->i2c_init_data);
-		}
-
-		if (rc < 0) {
-			CAM_ERR(CAM_OIS,
-				"Cannot apply Init settings: rc = %d",
-				rc);
-			goto pwr_dwn;
-		} else {
-			CAM_DBG(CAM_OIS, "apply Init settings success");
+			if (rc < 0) {
+				CAM_ERR(CAM_OIS,
+					"Cannot apply Init settings: rc = %d",
+					rc);
+				goto pwr_dwn;
+			} else {
+				CAM_DBG(CAM_OIS, "apply Init settings success");
+			}
 		}
 
 		if (o_ctrl->is_ois_calib) {
