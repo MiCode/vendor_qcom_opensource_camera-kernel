@@ -301,6 +301,10 @@ static int camera_init(void)
 
 	cam_debugfs_init();
 
+	rc = cam_soc_util_create_debugfs();
+	if (rc)
+		CAM_ERR(CAM_UTIL, "Failed to create soc_util debugfs directory");
+
 	/* For Probing all available submodules */
 	for (i = 0; i < ARRAY_SIZE(submodule_table); i++) {
 		num_inits = submodule_table[i].num_component;

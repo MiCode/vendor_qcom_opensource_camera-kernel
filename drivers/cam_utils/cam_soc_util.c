@@ -32,6 +32,8 @@
 #define CAM_CLK_DIRNAME "clk"
 
 #define CAM_MAX_CLK_NAME_LEN 128
+bool clk_rgltr_bus_ops_profiling;
+bool clk_ops_profiling_hw_and_sw_voting;
 
 static uint skip_mmrm_set_rate;
 module_param(skip_mmrm_set_rate, uint, 0644);
@@ -111,23 +113,45 @@ static int cam_soc_util_set_hw_client_rate_through_mmrm(
 static inline const struct device *cam_wrapper_crm_get_device(
 	const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	const struct device *temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CESTA) {
 		CAM_WARN(CAM_UTIL, "Bypass crm get device");
 		return (const struct device *)BYPASS_VALUE;
 	}
 
-	return crm_get_device(name);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = crm_get_device(name);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: crm_get_device (name, time taken in usec)", name);
+
+	return temp;
 }
 
 static inline int cam_wrapper_crm_write_pwr_states(const struct device *dev,
-	u32 drv_id, const char *identifier)
+	u32 drv_id, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CESTA) {
 		CAM_WARN(CAM_UTIL, "Bypass crm write pwr states");
 		return 0;
 	}
 
-	return crm_write_pwr_states(cam_cesta_crm_dev, drv_id);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = crm_write_pwr_states(cam_cesta_crm_dev, drv_id);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: crm_write_pwr_states (name, time taken in usec)", name);
+
+	return temp;
 }
 
 #endif
@@ -137,190 +161,379 @@ static inline int cam_wrapper_qcom_clk_crm_set_rate(struct clk *clk,
 	enum crm_drv_type client_type, u32 client_idx,
 	u32 pwr_st, unsigned long rate, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CESTA) {
 		CAM_WARN(CAM_UTIL, "Bypass qcom clk crm set rate");
 		return 0;
 	}
 
-	return qcom_clk_crm_set_rate(clk, client_type, client_idx, pwr_st, rate);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = qcom_clk_crm_set_rate(clk, client_type, client_idx, pwr_st, rate);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: qcom_clk_crm_set_rate (name, time taken in usec)", name);
+
+	return temp;
 }
 #endif
 
 static inline int cam_wrapper_clk_set_rate(struct clk *clk, unsigned long rate, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
 		CAM_WARN(CAM_UTIL, "Bypass clk set rate");
 		return 0;
 	}
 
-	return clk_set_rate(clk, rate);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = clk_set_rate(clk, rate);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: clk_set_rate (name, time taken in usec)", name);
+
+	return temp;
 }
 
 static inline long cam_wrapper_clk_round_rate(struct clk *clk, unsigned long rate, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	long temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
 		CAM_WARN(CAM_UTIL, "Bypass clk round rate");
 		return rate;
 	}
 
-	return clk_round_rate(clk, rate);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = clk_round_rate(clk, rate);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: clk_round_rate (name, time taken in usec)", name);
+
+	return temp;
 }
 
 inline unsigned long cam_wrapper_clk_get_rate(struct clk *clk, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	unsigned long temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
 		CAM_WARN(CAM_UTIL, "Bypass clk get rate");
 		return DEFAULT_CLK_VALUE;
 	}
 
-	return clk_get_rate(clk);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = clk_get_rate(clk);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: clk_get_rate (name, time taken in usec)", name);
+
+	return temp;
 }
 
 static inline struct clk *cam_wrapper_clk_get(struct device *dev, const char *id)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	struct clk *temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
 		CAM_WARN(CAM_UTIL, "Bypass clk get");
 		return (struct clk *)BYPASS_VALUE;
 	}
 
-	return clk_get(dev, id);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = clk_get(dev, id);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: clk_get (name, time taken in usec)", id);
+
+	return temp;
 }
 
 static inline void cam_wrapper_clk_put(struct clk *clk, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
 		CAM_WARN(CAM_UTIL, "Bypass clk put");
 		return;
 	}
 
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
 	clk_put(clk);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: clk_put (name, time taken in usec)", name);
 }
 
 static inline struct clk *cam_wrapper_of_clk_get_from_provider(
 	struct of_phandle_args *clkspec, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	struct clk *temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
 		CAM_WARN(CAM_UTIL, "Bypass of clk get from provider");
 		return (struct clk *)BYPASS_VALUE;
 	}
 
-	return of_clk_get_from_provider(clkspec);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = of_clk_get_from_provider(clkspec);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: of_clk_get_from_provider (name, time taken in usec)", name);
+
+	return temp;
 }
 
 static inline int cam_wrapper_clk_prepare_enable(struct clk *clk, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
 		CAM_WARN(CAM_UTIL, "Bypass clk prepare enable");
 		return 0;
 	}
 
-	return clk_prepare_enable(clk);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = clk_prepare_enable(clk);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: clk_prepare_enable (name, time taken in usec)", name);
+
+	return temp;
 }
 
 static inline void cam_wrapper_clk_disable_unprepare(struct clk *clk, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+
 	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
 		CAM_WARN(CAM_UTIL, "Bypass clk disable unprepare");
 		return;
 	}
 
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
 	clk_disable_unprepare(clk);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: clk_disable_unprepare (name, time taken in usec)", name);
 }
 
 static inline struct regulator *cam_wrapper_regulator_get(struct device *dev,
 	const char *id)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	struct regulator *temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
 		CAM_WARN(CAM_UTIL, "Bypass regulator get");
 		return (struct regulator *)BYPASS_VALUE;
 	}
 
-	return regulator_get(dev, id);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = regulator_get(dev, id);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: regulator_get (name, time taken in usec)", id);
+
+	return temp;
 }
 
 static inline void cam_wrapper_regulator_put(struct regulator *regulator, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+
 	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
 		CAM_WARN(CAM_UTIL, "Bypass regulator put");
 		return;
 	}
 
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
 	regulator_put(regulator);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: regulator_put (name, time taken in usec)", name);
 }
 
 static inline int cam_wrapper_regulator_disable(struct regulator *regulator, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
 		CAM_WARN(CAM_UTIL, "Bypass regulator disable");
 		return 0;
 	}
 
-	return regulator_disable(regulator);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = regulator_disable(regulator);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: regulator_disable (name, time taken in usec)", name);
+
+	return temp;
 }
 
 static inline int cam_wrapper_regulator_enable(struct regulator *regulator, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
 		CAM_WARN(CAM_UTIL, "Bypass regulator enable");
 		return 0;
 	}
 
-	return regulator_enable(regulator);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = regulator_enable(regulator);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: regulator_enable (name, time taken in usec)", name);
+
+	return temp;
 }
 
 static inline int cam_wrapper_regulator_set_voltage(
 	struct regulator *regulator, int min_uV, int max_uV, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
 		CAM_WARN(CAM_UTIL, "Bypass regulator set voltage");
 		return 0;
 	}
 
-	return regulator_set_voltage(regulator, min_uV, max_uV);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = regulator_set_voltage(regulator, min_uV, max_uV);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: regulator_set_voltage (name, time taken in usec)", name);
+
+	return temp;
 }
 
 static inline int cam_wrapper_regulator_count_voltages(
 	struct regulator *regulator, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
 		CAM_WARN(CAM_UTIL, "Bypass regulator count voltages");
 		return 0;
 	}
 
-	return regulator_count_voltages(regulator);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = regulator_count_voltages(regulator);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: regulator_count_voltages (name, time taken in usec)", name);
+
+	return temp;
 }
 
 inline int cam_wrapper_regulator_set_load(
 	struct regulator *regulator, int uA_load, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
 		CAM_WARN(CAM_UTIL, "Bypass regulator set load");
 		return 0;
 	}
 
-	return regulator_set_load(regulator, uA_load);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = regulator_set_load(regulator, uA_load);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: regulator_set_load (name, time taken in usec)", name);
+
+	return temp;
 }
 
 inline int cam_wrapper_regulator_set_mode(
 	struct regulator *regulator, unsigned int mode, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_RGLTR_MODE) {
 		CAM_WARN(CAM_UTIL, "Bypass regulator set mode");
 		return 0;
 }
 
-	return regulator_set_mode(regulator, mode);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = regulator_set_mode(regulator, mode);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: regulator_set_mode (name, time taken in usec)", name);
+
+	return temp;
 }
 
 static inline int cam_wrapper_regulator_is_enabled(
 	struct regulator *regulator, const char *name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
 		CAM_WARN(CAM_UTIL, "Bypass regulator is enabled");
 		return 0;
 	}
 
-	return regulator_is_enabled(regulator);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = regulator_is_enabled(regulator);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile: regulator_is_enabled (name, time taken in usec)", name);
+
+	return temp;
 }
 
 inline void cam_soc_util_set_bypass_drivers(
@@ -1553,7 +1766,8 @@ int cam_soc_util_set_src_clk_rate(struct cam_hw_soc_info *soc_info, int cesta_cl
 				clk_rate_high, clk_rate_low, cesta_client_idx, rc);
 			return rc;
 		}
-		goto end;
+		if (!clk_ops_profiling_hw_and_sw_voting)
+			goto end;
 	}
 
 	rc = cam_soc_util_set_clk_rate(soc_info, clk,
@@ -1813,17 +2027,21 @@ int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info, int cesta_client_i
 				soc_info->dev_name, cesta_client_idx, rc);
 			return rc;
 		}
-	} else {
-		rc = cam_soc_util_set_clk_rate(soc_info, clk, clk_name, clk_rate,
-			CAM_IS_BIT_SET(shared_clk_mask, clk_idx), is_src_clk, clk_id,
-			&soc_info->applied_src_clk_rates.sw_client);
-		if (rc) {
-			CAM_ERR(CAM_UTIL, "[%s] Failed in setting clk rate %ld rc:%d",
-				soc_info->dev_name, clk_rate, rc);
-			return rc;
-		}
+
+		if (!clk_ops_profiling_hw_and_sw_voting)
+			goto end;
+	}
+	rc = cam_soc_util_set_clk_rate(soc_info, clk, clk_name, clk_rate,
+		CAM_IS_BIT_SET(shared_clk_mask, clk_idx), is_src_clk, clk_id,
+		&soc_info->applied_src_clk_rates.sw_client);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "[%s] Failed in setting clk rate %ld rc:%d",
+			soc_info->dev_name, clk_rate, rc);
+		return rc;
 	}
 
+
+end:
 	CAM_DBG(CAM_UTIL, "[%s] : clk enable %s", soc_info->dev_name, clk_name);
 	rc = cam_wrapper_clk_prepare_enable(clk, clk_name);
 	if (rc) {
@@ -1885,23 +2103,27 @@ int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info, int cesta_client_
 				cesta_client_idx, rc);
 			return rc;
 		}
-	} else {
-		if (CAM_IS_BIT_SET(shared_clk_mask, clk_idx)) {
-			CAM_DBG(CAM_UTIL,
-				"Dev %s clk %s Disabling Shared clk, set 0 rate",
-				soc_info->dev_name, clk_name);
+		if (!clk_ops_profiling_hw_and_sw_voting)
+			goto end;
+
+	}
+	if (CAM_IS_BIT_SET(shared_clk_mask, clk_idx)) {
+		CAM_DBG(CAM_UTIL,
+			"Dev %s clk %s Disabling Shared clk, set 0 rate",
+			soc_info->dev_name, clk_name);
 			cam_soc_util_clk_wrapper_set_clk_rate(clk_id, soc_info, clk, 0);
-		} else if (soc_info->mmrm_handle && (!skip_mmrm_set_rate) &&
-				(soc_info->src_clk_idx == clk_idx)) {
-			CAM_DBG(CAM_UTIL, "Dev %s Disabling %s clk, set 0 rate",
-				soc_info->dev_name, clk_name);
-			cam_soc_util_set_sw_client_rate_through_mmrm(
-				soc_info->mmrm_handle,
-				soc_info->is_nrt_dev,
-				0, 0, 1);
-		}
+	} else if (soc_info->mmrm_handle && (!skip_mmrm_set_rate) &&
+		(soc_info->src_clk_idx == clk_idx)) {
+		CAM_DBG(CAM_UTIL, "Dev %s Disabling %s clk, set 0 rate",
+			soc_info->dev_name, clk_name);
+		cam_soc_util_set_sw_client_rate_through_mmrm(
+			soc_info->mmrm_handle,
+			soc_info->is_nrt_dev,
+			0, 0, 1);
 	}
 
+
+end:
 	return 0;
 }
 
@@ -2326,8 +2548,8 @@ int cam_soc_util_set_clk_rate_level(struct cam_hw_soc_info *soc_info,
 					cesta_client_idx);
 				break;
 			}
-
-			continue;
+			if (!clk_ops_profiling_hw_and_sw_voting)
+				continue;
 		}
 
 		CAM_DBG(CAM_UTIL, "Set rate for clk %s rate %d", soc_info->clk_name[i],
@@ -4386,4 +4608,23 @@ int cam_soc_util_regulators_enabled(struct cam_hw_soc_info *soc_info)
 	}
 
 	return enabled_cnt;
+}
+
+int cam_soc_util_create_debugfs(void)
+{
+	struct dentry *dbgfileptr = NULL;
+	int rc;
+
+	rc = cam_debugfs_create_subdir("soc_util", &dbgfileptr);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "DebugFS could not create directory!");
+		return -ENOENT;
+	}
+
+	debugfs_create_bool("clk_rgltr_bus_ops_profiling", 0644,
+		dbgfileptr, &clk_rgltr_bus_ops_profiling);
+	debugfs_create_bool("clk_ops_profiling_hw_and_sw_voting", 0644,
+		dbgfileptr, &clk_ops_profiling_hw_and_sw_voting);
+
+	return 0;
 }

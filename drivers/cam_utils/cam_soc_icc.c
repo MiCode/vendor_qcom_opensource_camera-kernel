@@ -8,48 +8,89 @@
 #include <dt-bindings/interconnect/qcom,icc.h>
 #include "cam_soc_bus.h"
 #include "cam_compat.h"
+#include "cam_soc_util.h"
+
+extern bool clk_rgltr_bus_ops_profiling;
 
 static inline struct icc_path *cam_wrapper_icc_get(struct device *dev,
 	const int src_id, const int dst_id, const char *name, bool use_path_name)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	struct icc_path *temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
 		CAM_WARN(CAM_UTIL, "Bypass icc get for %d %d", src_id, dst_id);
 		return (struct icc_path *)BYPASS_VALUE;
 	}
 
-	return cam_icc_get_path(dev, src_id, dst_id, name, use_path_name);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = cam_icc_get_path(dev, src_id, dst_id, name, use_path_name);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile", "icc_get (time taken in usec)");
+
+	return temp;
 }
 
 static inline void cam_wrapper_icc_put(struct icc_path *path)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+
 	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
 		CAM_WARN(CAM_UTIL, "Bypass icc put");
 		return;
 	}
 
-	return icc_put(path);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	icc_put(path);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile", "icc_put (time taken in usec)");
 }
 
 static inline int cam_wrapper_icc_set_bw(struct icc_path *path,
 	u32 avg_bw, u32 peak_bw)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+	int temp;
+
 	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
 		CAM_WARN(CAM_UTIL, "Bypass icc set bw");
 		return 0;
 	}
 
-	return icc_set_bw(path, avg_bw, peak_bw);
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
+	temp = icc_set_bw(path, avg_bw, peak_bw);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile", "icc_set_bw (time taken in usec)");
+
+	return temp;
 }
 
 static inline void cam_wrapper_icc_set_tag(struct icc_path *path,
 	u32 tag)
 {
+	struct timespec64 ts1, ts2;
+	long usec = 0;
+
 	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
 		CAM_WARN(CAM_UTIL, "Bypass icc set tag");
 		return;
 	}
 
+	CAM_SAVE_START_TIMESTAMP_IF(ts1);
+
 	icc_set_tag(path, tag);
+
+	CAM_COMPUTE_TIME_TAKEN_IF(ts1, ts2, usec,
+		"ClkRegBusOpsProfile", "icc_set_tag (time taken in usec)");
 }
 
 /**
