@@ -157,7 +157,7 @@ int cam_req_mgr_workq_enqueue_task(struct crm_workq_task *task,
 	}
 	workq = (struct cam_req_mgr_core_workq *)task->parent;
 	if (!workq) {
-		CAM_DBG(CAM_CRM, "NULL workq pointer suspect mem corruption");
+		CAM_WARN_RATE_LIMIT(CAM_CRM, "NULL workq pointer suspect mem corruption");
 		return -EINVAL;
 	}
 
