@@ -81,6 +81,9 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_860_reg_info = {
 	.num_path_err_irqs  = ARRAY_SIZE(cam_ife_csid_880_path_irq_desc),
 	.num_top_regs       = 1,
 	.num_rx_regs        = 1,
+	.width_fuse_max_val = 1,
+	.fused_max_dualife_width = {7296, 5344, UINT_MAX},
+	.fused_max_width = {7296, 7296, UINT_MAX},
 };
 
 #endif /*_CAM_IFE_CSID_860_H_ */
