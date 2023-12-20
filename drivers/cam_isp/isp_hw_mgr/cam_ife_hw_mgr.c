@@ -5680,6 +5680,7 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->pri_rdi_out_res = g_ife_hw_mgr.isp_caps.max_vfe_out_res_type;
 	ife_ctx->left_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ife_ctx->right_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
+	ife_ctx->ctx_index = acquire_args->ctx_id;
 
 	acquire_hw_info = (struct cam_isp_acquire_hw_info *) acquire_args->acquire_info;
 
@@ -8494,6 +8495,7 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	}
 
 	ctx->ctx_type = CAM_IFE_CTX_TYPE_NONE;
+	ctx->ctx_index = CAM_IFE_CTX_MAX;
 	ctx->buf_done_controller = NULL;
 	ctx->mc_comp_buf_done_controller = NULL;
 	kfree(ctx->scratch_buf_info.sfe_scratch_config);
@@ -18071,7 +18073,8 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
 				&g_ife_hw_mgr.ctx_pool[i].free_res_list);
 		}
 
-		g_ife_hw_mgr.ctx_pool[i].ctx_index = i;
+		/* ctx index will be overridden during acquire and reset during release */
+		g_ife_hw_mgr.ctx_pool[i].ctx_index = CAM_IFE_CTX_MAX;
 		g_ife_hw_mgr.ctx_pool[i].hw_mgr = &g_ife_hw_mgr;
 
 		cam_tasklet_init(&g_ife_hw_mgr.mgr_common.tasklet_pool[i],
