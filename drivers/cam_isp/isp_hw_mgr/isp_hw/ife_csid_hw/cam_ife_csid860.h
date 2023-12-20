@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_860_H_
@@ -84,6 +84,7 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_860_reg_info = {
 	.width_fuse_max_val = 1,
 	.fused_max_dualife_width = {7296, 5344, UINT_MAX},
 	.fused_max_width = {7296, 7296, UINT_MAX},
+	.is_ife_sfe_mapped = true,
 };
 
 #endif /*_CAM_IFE_CSID_860_H_ */
