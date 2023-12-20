@@ -315,7 +315,7 @@ clean_bitmap_and_mutex:
 	kfree(tbl.bitmap);
 	tbl.bitmap = NULL;
 	mutex_destroy(&tbl.m_lock);
-
+	atomic_set(&cam_mem_mgr_state, CAM_MEM_MGR_UNINITIALIZED);
 put_heaps:
 #if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
 	cam_mem_mgr_put_dma_heaps();
