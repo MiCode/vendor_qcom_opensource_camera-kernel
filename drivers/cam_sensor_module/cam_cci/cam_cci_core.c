@@ -2482,8 +2482,9 @@ int32_t cam_cci_core_cfg(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	if (!cci_ctrl) {
-		CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d CCI_CTRL IS NULL", cci_dev->soc_info.index, master);
+	if (!cci_ctrl || !cci_ctrl->cci_info) {
+		CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d CCI_CTRL OR CCI_INFO IS NULL",
+			cci_dev->soc_info.index, master);
 		return -EINVAL;
 	}
 
