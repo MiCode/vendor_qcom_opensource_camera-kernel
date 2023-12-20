@@ -1672,8 +1672,13 @@ static int cam_soc_util_set_clk_rate(struct cam_hw_soc_info *soc_info,
 
 			if (is_src_clk && soc_info->mmrm_handle &&
 				!skip_mmrm_set_rate) {
-				uint32_t idx = soc_info->src_clk_idx;
+				int32_t idx = soc_info->src_clk_idx;
 				uint32_t min_level = soc_info->lowest_clk_level;
+
+				if (idx < 0) {
+					CAM_ERR(CAM_UTIL, "Invalid src clk index");
+					return -EINVAL;
+				}
 
 				rc = cam_soc_util_set_sw_client_rate_through_mmrm(
 					soc_info->mmrm_handle,

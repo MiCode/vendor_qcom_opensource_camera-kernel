@@ -1852,7 +1852,7 @@ static int cam_sfe_top_handle_irq_bottom_half(
 	void *handler_priv, void *evt_payload_priv)
 {
 	int i;
-	uint32_t val0, val1, frame_cnt, offset0, offset1;
+	uint32_t val0, val1, frame_cnt = 0, offset0, offset1;
 	uint32_t irq_status[CAM_SFE_IRQ_REGISTERS_MAX] = {0};
 	enum cam_sfe_hw_irq_status          ret = CAM_SFE_IRQ_STATUS_MAX;
 	struct cam_isp_resource_node       *res = handler_priv;

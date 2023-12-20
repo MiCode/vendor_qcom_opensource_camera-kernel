@@ -4185,6 +4185,10 @@ static int cam_cpas_hw_csid_input_core_info_update(struct cam_hw_info *cpas_hw,
 
 	rc = cam_common_util_get_string_index(soc_private->client_name,
 		soc_private->num_clients, client_name, &client_indx);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed in getting correct client index");
+		return -EINVAL;
+	}
 
 	if (!cpas_core->cpas_client[client_indx]->is_drv_dyn)
 		return 0;
