@@ -12144,9 +12144,16 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 	}
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_IFE_FCG_CFG: {
-		struct cam_isp_generic_fcg_config *fcg_config_args;
-		struct cam_isp_fcg_caps           *fcg_caps =
+		struct cam_isp_prepare_hw_update_data *prepare_hw_data;
+		struct cam_isp_generic_fcg_config     *fcg_config_args;
+		struct cam_isp_fcg_caps               *fcg_caps =
 			&g_ife_hw_mgr.isp_caps.fcg_caps;
+
+		prepare_hw_data = (struct cam_isp_prepare_hw_update_data *) prepare->priv;
+		if (prepare_hw_data->packet_opcode_type == CAM_ISP_PACKET_INIT_DEV) {
+			CAM_WARN(CAM_ISP, "Detected IFE FCG blob in INIT packet, ignore it");
+			return 0;
+		}
 
 		if (!fcg_caps->ife_fcg_supported) {
 			CAM_ERR(CAM_ISP,
@@ -12886,9 +12893,16 @@ static int cam_sfe_packet_generic_blob_handler(void *user_data,
 	}
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_SFE_FCG_CFG: {
-		struct cam_isp_generic_fcg_config *fcg_config_args;
-		struct cam_isp_fcg_caps           *fcg_caps =
+		struct cam_isp_prepare_hw_update_data *prepare_hw_data;
+		struct cam_isp_generic_fcg_config     *fcg_config_args;
+		struct cam_isp_fcg_caps               *fcg_caps =
 			&g_ife_hw_mgr.isp_caps.fcg_caps;
+
+		prepare_hw_data = (struct cam_isp_prepare_hw_update_data *) prepare->priv;
+		if (prepare_hw_data->packet_opcode_type == CAM_ISP_PACKET_INIT_DEV) {
+			CAM_WARN(CAM_ISP, "Detected SFE FCG blob in INIT packet, ignore it");
+			return 0;
+		}
 
 		if (!fcg_caps->sfe_fcg_supported) {
 			CAM_ERR(CAM_ISP, "FCG is not supported by SFE hardware, ctx_idx: %u",
