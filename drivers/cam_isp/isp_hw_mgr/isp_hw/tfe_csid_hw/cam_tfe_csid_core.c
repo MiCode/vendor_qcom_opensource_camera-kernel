@@ -546,7 +546,6 @@ static int cam_tfe_csid_global_reset(struct cam_tfe_csid_hw *csid_hw)
 	} else
 		rc = 0;
 
-	usleep_range(3000, 3010);
 	val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 		csid_reg->csi2_reg->csid_csi2_rx_irq_mask_addr);
 	if (val != 0)

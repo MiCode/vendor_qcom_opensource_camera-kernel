@@ -167,12 +167,13 @@ struct cam_tfe_bus_reg_offset_bus_client {
  * struct cam_tfe_bus_tfe_out_hw_info:
  *
  * @Brief:           HW capability of TFE Bus Client
- * tfe_out_id        Tfe out port id
- * max_width         Max width supported by the outport
- * max_height        Max height supported by outport
- * composite_group   Out port composite group id
- * rup_group_id      Reg update group of outport id
+ * tfe_out_id:       Tfe out port id
+ * max_width:        Max width supported by the outport
+ * max_height:       Max height supported by outport
+ * composite_group:  Out port composite group id
+ * rup_group_id:     Reg update group of outport id
  * mid:              ouport mid value
+ * pid:              pid associated with mid
  */
 struct cam_tfe_bus_tfe_out_hw_info {
 	enum cam_tfe_bus_tfe_out_id         tfe_out_id;
@@ -181,6 +182,7 @@ struct cam_tfe_bus_tfe_out_hw_info {
 	uint32_t                            composite_group;
 	uint32_t                            rup_group_id;
 	uint32_t                            mid[CAM_TFE_BUS_MAX_MID_PER_PORT];
+	uint64_t                            pid_mask;
 };
 
 /*

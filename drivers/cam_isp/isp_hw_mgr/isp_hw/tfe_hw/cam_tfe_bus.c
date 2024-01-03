@@ -155,6 +155,7 @@ struct cam_tfe_bus_tfe_out_data {
 	void                            *priv;
 	cam_hw_mgr_event_cb_func         event_cb;
 	uint32_t                         mid[CAM_TFE_BUS_MAX_MID_PER_PORT];
+	uint64_t                         pid_mask;
 };
 
 struct cam_tfe_bus_priv {
@@ -1847,6 +1848,8 @@ static int cam_tfe_bus_init_tfe_out_resource(uint32_t  index,
 	for (i = 0; i < CAM_TFE_BUS_MAX_MID_PER_PORT; i++)
 		rsrc_data->mid[i] = hw_info->tfe_out_hw_info[index].mid[i];
 
+	rsrc_data->pid_mask = hw_info->tfe_out_hw_info[index].pid_mask;
+
 	tfe_out->hw_intf = bus_priv->common_data.hw_intf;
 
 	return 0;
@@ -2447,7 +2450,9 @@ static int cam_tfe_bus_get_res_id_for_mid(
 	struct cam_isp_hw_get_cmd_update   *cmd_update =
 		(struct cam_isp_hw_get_cmd_update   *)cmd_args;
 	struct cam_isp_hw_get_res_for_mid       *get_res = NULL;
+	uint32_t num_mid = 0, port_mid[CAM_TFE_BUS_TFE_OUT_MAX] = {0};
 	int i, j;
+	bool pid_found = false;
 
 	get_res = (struct cam_isp_hw_get_res_for_mid *)cmd_update->data;
 	if (!get_res) {
@@ -2465,11 +2470,23 @@ static int cam_tfe_bus_get_res_id_for_mid(
 
 		for (j = 0; j < CAM_TFE_BUS_MAX_MID_PER_PORT; j++) {
 			if (tfe_out_data->mid[j] == get_res->mid)
-				goto end;
+				port_mid[num_mid++] = i;
+
 		}
 	}
 
-	if (i == bus_priv->num_out) {
+	for (i = 0; i < num_mid; i++) {
+		tfe_out_data = (struct cam_tfe_bus_tfe_out_data  *)
+			bus_priv->tfe_out[port_mid[i]].res_priv;
+		get_res->out_res_id = bus_priv->tfe_out[port_mid[i]].res_id;
+		if (tfe_out_data->pid_mask & (1 << get_res->pid)) {
+			get_res->out_res_id = bus_priv->tfe_out[port_mid[i]].res_id;
+			pid_found = true;
+			goto end;
+		}
+	}
+
+	if (!num_mid) {
 		CAM_ERR(CAM_ISP,
 			"mid:%d does not match with any out resource",
 			get_res->mid);
@@ -2478,9 +2495,8 @@ static int cam_tfe_bus_get_res_id_for_mid(
 	}
 
 end:
-	CAM_INFO(CAM_ISP, "match mid :%d  out resource:%d found",
-		get_res->mid, bus_priv->tfe_out[i].res_id);
-	get_res->out_res_id = bus_priv->tfe_out[i].res_id;
+	CAM_INFO(CAM_ISP, "match mid :%d  out resource:%d found, is pid found %d",
+		get_res->mid, get_res->out_res_id, pid_found);
 	return 0;
 }
 
