@@ -1437,6 +1437,13 @@ static bool cam_icp_check_bw_update(struct cam_icp_hw_mgr *hw_mgr,
 	} else if (ctx_data->bw_config_version == CAM_ICP_BW_CONFIG_V2) {
 		request_clk_info_v2 = &ctx_data->hfi_frame_process.clk_info_v2[idx];
 
+		if (request_clk_info_v2->num_paths > CAM_ICP_MAX_PER_PATH_VOTES ||
+				dev_clk_info->num_paths > CAM_ICP_MAX_PER_PATH_VOTES) {
+			CAM_ERR(CAM_ICP, "Invalid num of clk path req num path:%d, dev num path:%d"
+				, request_clk_info_v2->num_paths, dev_clk_info->num_paths);
+			return false;
+		}
+
 		CAM_DBG(CAM_PERF, "%s: index=%d, num_paths=%d, ctx_data=%pK",
 			ctx_data->ctx_id_string, idx, request_clk_info_v2->num_paths, ctx_data);
 
