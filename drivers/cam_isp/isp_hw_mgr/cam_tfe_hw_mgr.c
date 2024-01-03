@@ -1395,7 +1395,7 @@ static int cam_tfe_hw_mgr_acquire_res_tfe_csid_pxl(
 		goto acquire_successful;
 
 	/* Acquire Left if not already acquired */
-	if (in_port->usage_type) {
+	if (in_port->usage_type || in_port->is_shdr_master) {
 		for (i = 0; i < CAM_TFE_CSID_HW_NUM_MAX; i++) {
 			if (!tfe_hw_mgr->csid_devices[i])
 				continue;
@@ -1650,7 +1650,7 @@ static int cam_tfe_hw_mgr_acquire_res_tfe_csid_rdi(
 		}
 
 		/* Acquire if not already acquired */
-		if (tfe_ctx->is_dual) {
+		if (tfe_ctx->is_dual || in_port->is_shdr_master) {
 			for (i = 0; i < CAM_TFE_CSID_HW_NUM_MAX; i++) {
 				if (!tfe_hw_mgr->csid_devices[i])
 					continue;
@@ -2134,6 +2134,13 @@ static int cam_tfe_mgr_acquire_get_unified_structure_v2(
 					CAM_ISP_TFE_FLAG_BAYER_BIN;
 	in_port->qcfa_bin        =  in->feature_flag &
 					CAM_ISP_TFE_FLAG_QCFA_BIN;
+	in_port->shdr_en         =  in->feature_flag &
+					CAM_ISP_TFE_FLAG_SHDR_MASTER_EN;
+	in_port->shdr_en        |=  in->feature_flag &
+					CAM_ISP_TFE_FLAG_SHDR_SLAVE_EN;
+	in_port->is_shdr_master  =  in->feature_flag &
+					CAM_ISP_TFE_FLAG_SHDR_MASTER_EN;
+
 
 	if (in_port->bayer_bin && in_port->qcfa_bin) {
 		CAM_ERR(CAM_ISP,
@@ -2274,6 +2281,8 @@ static int cam_tfe_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	struct cam_isp_tfe_acquire_hw_info *acquire_hw_info = NULL;
 	uint32_t                            input_size = 0;
 	bool                                lcr_enable = false;
+	bool                                is_shdr_en = false;
+	bool                                is_shdr_master = false;
 
 	CAM_DBG(CAM_ISP, "Enter...");
 
@@ -2359,9 +2368,17 @@ static int cam_tfe_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 
 	/* Check any inport has dual tfe usage  */
 	tfe_ctx->is_dual = false;
-	for (i = 0; i < acquire_hw_info->num_inputs; i++)
+	for (i = 0; i < acquire_hw_info->num_inputs; i++) {
 		if (in_port[i].usage_type)
 			tfe_ctx->is_dual = true;
+		if (in_port[i].shdr_en)
+			is_shdr_en = true;
+		if (in_port[i].is_shdr_master)
+			is_shdr_master = true;
+	}
+
+	if (is_shdr_en && !is_shdr_master)
+		tfe_ctx->is_shdr_slave = true;
 
 	for (i = 0; i < acquire_hw_info->num_inputs; i++) {
 		cam_tfe_hw_mgr_preprocess_port(tfe_ctx, &in_port[i], &num_pix_port_per_in,
@@ -2426,6 +2443,12 @@ static int cam_tfe_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	if (g_tfe_hw_mgr.support_consumed_addr)
 		acquire_args->op_flags |=
 			 CAM_IFE_CTX_CONSUME_ADDR_EN;
+
+	if (is_shdr_en) {
+		acquire_args->op_flags |= CAM_IFE_CTX_SHDR_EN;
+		if (is_shdr_master)
+			acquire_args->op_flags |= CAM_IFE_CTX_SHDR_IS_MASTER;
+	}
 
 	cam_tfe_hw_mgr_put_ctx(&tfe_hw_mgr->used_ctx_list, &tfe_ctx);
 
@@ -5114,6 +5137,9 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 		mup_config.mup = prepare_hw_data->mup_val;
 		mup_config.num_expoures = prepare_hw_data->num_exp;
 		mup_config.mup_en = prepare_hw_data->mup_en;
+
+		if (ctx->is_shdr_slave)
+			continue;
 
 		/*Add reg update */
 		rc = cam_isp_add_reg_update(prepare, &ctx->res_list_tfe_in,

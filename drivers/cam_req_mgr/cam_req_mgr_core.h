@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
+
 #ifndef _CAM_REQ_MGR_CORE_H_
 #define _CAM_REQ_MGR_CORE_H_
 
@@ -398,13 +399,14 @@ struct cam_req_mgr_req_data {
 /**
  * struct cam_req_mgr_connected_device
  * - Device Properties
- * @dev_hdl  : device handle
- * @dev_bit  : unique bit assigned to device in link
+ * @dev_hdl   : device handle
+ * @dev_bit   : unique bit assigned to device in link
  * - Device characteristics
- * @pd_tbl   : tracks latest available req id at this device
- * @dev_info : holds dev characteristics such as pipeline delay, dev name
- * @ops      : holds func pointer to call methods on this device
- * @parent   : pvt data - like link which this dev hdl belongs to
+ * @pd_tbl    : tracks latest available req id at this device
+ * @dev_info  : holds dev characteristics such as pipeline delay, dev name
+ * @ops       : holds func pointer to call methods on this device
+ * @parent    : pvt data - like link which this dev hdl belongs to
+ * @is_active : indicate whether device is active in auto shdr usecase
  */
 struct cam_req_mgr_connected_device {
 	int32_t                         dev_hdl;
@@ -413,6 +415,7 @@ struct cam_req_mgr_connected_device {
 	struct cam_req_mgr_device_info  dev_info;
 	struct cam_req_mgr_kmd_ops     *ops;
 	void                           *parent;
+	bool                            is_active;
 };
 
 /**
@@ -473,6 +476,8 @@ struct cam_req_mgr_connected_device {
  * @try_for_internal_recovery : If the link stalls try for RT internal recovery
  * @properties_mask      : Indicates if current link enables some special properties
  * @cont_empty_slots     : Continuous empty slots
+ * @is_shdr              : flag to indicate auto shdr usecase without SFE
+ * @wait_for_dual_trigger: Flag to indicate whether to wait for second epoch in dual trigger
  */
 struct cam_req_mgr_core_link {
 	int32_t                              link_hdl;
@@ -517,6 +522,8 @@ struct cam_req_mgr_core_link {
 	bool                                 is_sending_req;
 	uint32_t                             properties_mask;
 	uint32_t                             cont_empty_slots;
+	bool                                 is_shdr;
+	bool                                 wait_for_dual_trigger;
 };
 
 /**

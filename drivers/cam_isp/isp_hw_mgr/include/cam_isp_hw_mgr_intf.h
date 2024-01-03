@@ -49,6 +49,8 @@
 #define CAM_IFE_CTX_SFE_EN             BIT(4)
 #define CAM_IFE_CTX_AEB_EN             BIT(5)
 #define CAM_IFE_CTX_DYNAMIC_SWITCH_EN  BIT(6)
+#define CAM_IFE_CTX_SHDR_EN            BIT(7)
+#define CAM_IFE_CTX_SHDR_IS_MASTER     BIT(8)
 
 /*
  * Maximum configuration entry size  - This is based on the

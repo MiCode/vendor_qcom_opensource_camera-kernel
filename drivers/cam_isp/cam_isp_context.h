@@ -416,6 +416,8 @@ struct cam_isp_fcg_prediction_tracker {
  * @hw_idx:                    Hardware ID
  * @fcg_tracker:               FCG prediction tracker containing number of previously skipped
  *                             frames and indicates which prediction should be used
+ * @is_shdr:                   true, if usecase is sdhr
+ * @is_shdr_master:            Flag to indicate master context in shdr usecase
  *
  */
 struct cam_isp_context {
@@ -480,6 +482,8 @@ struct cam_isp_context {
 	bool                                  mode_switch_en;
 	uint32_t                              hw_idx;
 	struct cam_isp_fcg_prediction_tracker fcg_tracker;
+	bool                                  is_tfe_shdr;
+	bool                                  is_shdr_master;
 };
 
 /**

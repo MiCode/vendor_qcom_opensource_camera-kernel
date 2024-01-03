@@ -91,6 +91,8 @@ struct cam_isp_tfe_in_port_generic_info {
 	uint32_t                        ipp_count;
 	uint32_t                        rdi_count;
 	uint32_t                        secure_mode;
+	bool                            shdr_en;
+	bool                            is_shdr_master;
 	struct cam_isp_tfe_out_port_generic_info    *data;
 };
 
