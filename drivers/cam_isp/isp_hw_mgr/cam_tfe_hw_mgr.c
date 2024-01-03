@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -4200,6 +4200,39 @@ static int cam_isp_tfe_blob_csid_clock_update(
 	return rc;
 }
 
+static int cam_isp_blob_tfe_init_config_update(
+	struct cam_hw_prepare_update_args    *prepare,
+	struct cam_isp_init_config           *init_config)
+{
+	int i, rc = 0;
+	struct cam_tfe_hw_mgr_ctx             *ctx = NULL;
+	struct cam_isp_hw_init_config_update   init_cfg_update;
+	struct cam_hw_intf                    *hw_intf;
+
+	ctx = prepare->ctxt_to_hw_map;
+	init_cfg_update.init_config = init_config;
+
+	for (i = 0; i < ctx->num_base; i++) {
+		if (ctx->base[i].hw_type != CAM_ISP_HW_TYPE_TFE)
+			continue;
+
+		hw_intf = g_tfe_hw_mgr.tfe_devices[ctx->base[i].idx]->hw_intf;
+		if (hw_intf && hw_intf->hw_ops.process_cmd) {
+			CAM_DBG(CAM_ISP, "Epoch/init config update for ctx %d",
+				ctx->ctx_index);
+			rc = hw_intf->hw_ops.process_cmd(hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_INIT_CONFIG_UPDATE,
+				&init_cfg_update,
+				sizeof(struct cam_isp_hw_init_config_update));
+			if (rc)
+				CAM_ERR(CAM_ISP, "Epoch/init config failed rc %d ctx %d",
+					rc, ctx->ctx_index);
+		}
+	}
+
+	return rc;
+}
+
 static int cam_isp_tfe_blob_clock_update(
 	uint32_t                               blob_type,
 	struct cam_isp_generic_blob_info      *blob_info,
@@ -4673,8 +4706,40 @@ static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 		prepare_hw_data->num_exp = mup_config->num_expoures;
 	}
 		break;
+	case CAM_ISP_TFE_GENERIC_BLOB_TYPE_INIT_CONFIG: {
+		struct cam_isp_init_config            *init_config;
+		struct cam_isp_prepare_hw_update_data *prepare_hw_data;
+
+		prepare_hw_data = (struct cam_isp_prepare_hw_update_data *)prepare->priv;
+
+		if (prepare_hw_data->packet_opcode_type != CAM_ISP_PACKET_INIT_DEV) {
+			CAM_ERR(CAM_ISP,
+				"Epoch config blob not supported packet type: %u req: %llu Ctx %d",
+				prepare_hw_data->packet_opcode_type,
+				prepare->packet->header.request_id,
+				tfe_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		if (blob_size != sizeof(struct cam_isp_init_config)) {
+			CAM_ERR(CAM_ISP,
+				"Invalid init config blob size %u expected %u ctx %d",
+				blob_size, sizeof(struct cam_isp_init_config),
+				tfe_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		init_config = (struct cam_isp_init_config *)blob_data;
+		rc = cam_isp_blob_tfe_init_config_update(prepare, init_config);
+		if (rc)
+			CAM_ERR(CAM_ISP,
+				"Init config failed for req: %llu rc: %d ctx %d",
+				prepare->packet->header.request_id, rc, tfe_mgr_ctx->ctx_index);
+	}
+		break;
 	default:
-		CAM_WARN(CAM_ISP, "Invalid blob type %d", blob_type);
+		CAM_WARN(CAM_ISP, "Invalid blob type %d ctx %d", blob_type,
+			tfe_mgr_ctx->ctx_index);
 		break;
 	}
 
