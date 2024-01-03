@@ -543,7 +543,7 @@ static struct cam_camnoc_specific
 	{
 		.port_type = CAM_CAMNOC_CDM,
 		.port_name = "CDM",
-		.enable = false,
+		.enable = true,
 		.priority_lut_low = {
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
@@ -563,7 +563,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x8038, /* CDM_NIU_URGENCY_LOW */
-			.value = 0x33,
+			.value = 0x3,
 		},
 		.danger_lut = {
 			.enable = false,
