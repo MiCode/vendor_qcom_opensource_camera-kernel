@@ -6,13 +6,6 @@ config SPECTRA_ISP
 	  This will enable camera ISP driver to handle IFE driver.
 	  Core camera driver to handle VFE HW.
 
-config SPECTRA_TFE
-	bool "enable camera tfe modele"
-        help
-	  This is enabling camera tfe module.
-	  tfe module files will be included to enable tfe based driver,
-	  files.
-
 config SPECTRA_ICP
 	bool "enable camera ICP module"
 	help
