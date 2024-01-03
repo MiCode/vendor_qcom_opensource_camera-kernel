@@ -5171,16 +5171,7 @@ static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args)
 	if (download_fw_args)
 		icp_pc = *((bool *)download_fw_args);
 
-	if (icp_pc && hw_mgr->icp_pc_flag) {
-		rc = cam_icp_device_deint(hw_mgr);
-		if (rc)
-			CAM_ERR(CAM_ICP, "[%s] Failed in ipe bps deinit with icp_pc rc %d",
-				hw_mgr->hw_mgr_name, rc);
-
-		CAM_DBG(CAM_ICP, "[%s] deinit all clocks", hw_mgr->hw_mgr_name);
-	}
-
-	if (icp_pc)
+	if (icp_pc || !hw_mgr->icp_pc_flag)
 		return rc;
 
 	rc = cam_icp_mgr_icp_power_collapse(hw_mgr);
