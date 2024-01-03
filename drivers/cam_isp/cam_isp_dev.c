@@ -242,8 +242,12 @@ static int cam_isp_dev_component_bind(struct device *dev,
 		}
 	}
 
-	cam_common_register_evt_inject_cb(cam_isp_dev_evt_inject_cb,
-		CAM_COMMON_EVT_INJECT_HW_ISP);
+	if (g_isp_dev.isp_device_type == CAM_IFE_DEVICE_TYPE)
+		cam_common_register_evt_inject_cb(cam_isp_dev_evt_inject_cb,
+			CAM_COMMON_EVT_INJECT_HW_IFE);
+	else
+		cam_common_register_evt_inject_cb(cam_isp_dev_evt_inject_cb,
+			CAM_COMMON_EVT_INJECT_HW_TFE);
 
 	rc = cam_node_init(node, &hw_mgr_intf, g_isp_dev.ctx,
 			g_isp_dev.max_context, CAM_ISP_DEV_NAME);
