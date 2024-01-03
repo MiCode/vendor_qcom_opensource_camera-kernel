@@ -1499,7 +1499,6 @@ static int cam_tfe_top_get_reg_update(
 	struct cam_isp_resource_node         *in_res;
 	struct cam_isp_mode_switch_data      *mup_config = NULL;
 	struct cam_tfe_top_reg_offset_common *common_reg;
-	struct cam_hw_soc_info               *soc_info;
 
 	if (arg_size != sizeof(struct cam_isp_hw_get_cmd_update)) {
 		CAM_ERR(CAM_ISP, "Invalid cmd size");
