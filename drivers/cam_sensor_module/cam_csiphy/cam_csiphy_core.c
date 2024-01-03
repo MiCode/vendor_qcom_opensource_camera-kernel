@@ -507,6 +507,11 @@ static int cam_csiphy_update_secure_info(struct csiphy_device *csiphy_dev, int32
 	}
 
 	switch (cpas_version) {
+	case CAM_CPAS_TITAN_640_V200:
+	case CAM_CPAS_TITAN_770_V100:
+		bit_offset_bet_phys_in_cp_ctrl =
+			CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES + 1;
+		break;
 	case CAM_CPAS_TITAN_580_V100:
 	case CAM_CPAS_TITAN_680_V100:
 	case CAM_CPAS_TITAN_780_V100:

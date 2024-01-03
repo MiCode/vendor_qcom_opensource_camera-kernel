@@ -33,7 +33,7 @@
 #define CAM_TFE_BUS_COMP_NUM_MAX         18
 
 /* maximum context numbers for TFE */
-#define CAM_TFE_CTX_MAX      4
+#define CAM_TFE_CTX_MAX      6
 
 /* maximum context numbers for IFE */
 #define CAM_IFE_CTX_MAX      8

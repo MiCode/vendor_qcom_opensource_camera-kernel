@@ -9,11 +9,31 @@
 #include "cam_cci_soc.h"
 #include "cam_cci_core.h"
 #include "camera_main.h"
+#include "uapi/linux/sched/types.h"
+#include "linux/sched/types.h"
+#include "linux/sched.h"
 
 #define CCI_MAX_DELAY 1000000
+#define QUEUE_SIZE 100
+
+struct cci_irq_data {
+	int32_t  is_valid;
+	uint32_t irq_status0;
+	uint32_t irq_status1;
+	enum cci_i2c_master_t master;
+	enum cci_i2c_queue_t queue;
+};
 
 static struct v4l2_subdev *g_cci_subdev[MAX_CCI] = { 0 };
 static struct dentry *debugfs_root;
+static struct cci_irq_data cci_irq_queue[QUEUE_SIZE] = { 0 };
+static int32_t head;
+static int32_t tail;
+
+static inline int32_t increment_index(int32_t index)
+{
+	return (index + 1) % QUEUE_SIZE;
+}
 
 struct v4l2_subdev *cam_cci_get_subdev(int cci_dev_index)
 {
@@ -70,6 +90,9 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	void __iomem *base = soc_info->reg_map[0].mem_base;
 	unsigned long flags;
 	bool rd_done_th_assert = false;
+	struct cam_cci_master_info *cci_master_info;
+	irqreturn_t rc = IRQ_HANDLED;
+	int32_t  next_head;
 
 	irq_status0 = cam_io_r_mb(base + CCI_IRQ_STATUS_0_ADDR);
 	irq_status1 = cam_io_r_mb(base + CCI_IRQ_STATUS_1_ADDR);
@@ -181,6 +204,145 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		cci_dev->cci_master_info[MASTER_0].status = 0;
 		complete(&cci_dev->cci_master_info[MASTER_0].th_complete);
 	}
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M1_Q0_THRESHOLD)
+	{
+		cci_master_info = &cci_dev->cci_master_info[MASTER_1];
+		spin_lock_irqsave(&cci_dev->lock_status, flags);
+		trace_cam_cci_burst(cci_dev->soc_info.index, 1, 0,
+			"th_irq honoured irq1",	irq_status1);
+		CAM_DBG(CAM_CCI, "CCI%d_M1_Q0: th_irq honoured irq1: 0x%x th_irq_ref_cnt: %d",
+			cci_dev->soc_info.index, irq_status1,
+			cci_master_info->th_irq_ref_cnt[QUEUE_0]);
+		if (cci_master_info->th_irq_ref_cnt[QUEUE_0] == 1) {
+			complete(&cci_master_info->th_burst_complete[QUEUE_0]);
+		} else {
+			// Decrement Threshold irq ref count
+			cci_master_info->th_irq_ref_cnt[QUEUE_0]--;
+			next_head = increment_index(head);
+			if (next_head == tail) {
+				CAM_ERR(CAM_CCI,
+					"CCI%d_M1_Q0 CPU Scheduing Issue: "
+					"Unable to process BURST",
+					cci_dev->soc_info.index);
+				rc = IRQ_NONE;
+			} else {
+				cci_irq_queue[head].irq_status0 = irq_status0;
+				cci_irq_queue[head].irq_status1 = irq_status1;
+				cci_irq_queue[head].master = MASTER_1;
+				cci_irq_queue[head].queue = QUEUE_0;
+				cci_irq_queue[head].is_valid = 1;
+				head = next_head;
+				// wake up Threaded irq Handler
+				rc = IRQ_WAKE_THREAD;
+			}
+		}
+		spin_unlock_irqrestore(&cci_dev->lock_status, flags);
+	}
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M1_Q1_THRESHOLD)
+	{
+		cci_master_info = &cci_dev->cci_master_info[MASTER_1];
+		spin_lock_irqsave(&cci_dev->lock_status, flags);
+		trace_cam_cci_burst(cci_dev->soc_info.index, 1, 1,
+			"th_irq honoured irq1",	irq_status1);
+		CAM_DBG(CAM_CCI,
+			"CCI%d_M1_Q1: th_irq honoured irq1: 0x%x th_irq_ref_cnt: %d",
+			cci_dev->soc_info.index, irq_status1,
+			cci_master_info->th_irq_ref_cnt[QUEUE_1]);
+		if (cci_master_info->th_irq_ref_cnt[QUEUE_1] == 1) {
+			complete(&cci_master_info->th_burst_complete[QUEUE_1]);
+		} else {
+			// Decrement Threshold irq ref count
+			cci_master_info->th_irq_ref_cnt[QUEUE_1]--;
+			next_head = increment_index(head);
+			if (next_head == tail) {
+				CAM_ERR(CAM_CCI,
+					"CCI%d_M1_Q0 CPU Scheduing Issue: "
+					"Unable to process BURST",
+					cci_dev->soc_info.index);
+				rc = IRQ_NONE;
+			} else {
+				cci_irq_queue[head].irq_status0 = irq_status0;
+				cci_irq_queue[head].irq_status1 = irq_status1;
+				cci_irq_queue[head].master = MASTER_1;
+				cci_irq_queue[head].queue = QUEUE_1;
+				cci_irq_queue[head].is_valid = 1;
+				head = next_head;
+				// wake up Threaded irq Handler
+				rc = IRQ_WAKE_THREAD;
+			}
+		}
+		spin_unlock_irqrestore(&cci_dev->lock_status, flags);
+	}
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M0_Q0_THRESHOLD)
+	{
+		cci_master_info = &cci_dev->cci_master_info[MASTER_0];
+		spin_lock_irqsave(&cci_dev->lock_status, flags);
+		trace_cam_cci_burst(cci_dev->soc_info.index, 0, 0,
+			"th_irq honoured irq1",	irq_status1);
+		CAM_DBG(CAM_CCI,
+			"CCI%d_M0_Q0: th_irq honoured irq1: 0x%x th_irq_ref_cnt: %d",
+			cci_dev->soc_info.index, irq_status1,
+			cci_master_info->th_irq_ref_cnt[QUEUE_0]);
+		if (cci_master_info->th_irq_ref_cnt[QUEUE_0] == 1) {
+			complete(&cci_master_info->th_burst_complete[QUEUE_0]);
+		} else {
+			// Decrement Threshold irq ref count
+			cci_master_info->th_irq_ref_cnt[QUEUE_0]--;
+			next_head = increment_index(head);
+			if (next_head == tail) {
+				CAM_ERR(CAM_CCI,
+					"CCI%d_M1_Q0 CPU Scheduing Issue: "
+					"Unable to process BURST",
+					cci_dev->soc_info.index);
+				rc = IRQ_NONE;
+			} else {
+				cci_irq_queue[head].irq_status0 = irq_status0;
+				cci_irq_queue[head].irq_status1 = irq_status1;
+				cci_irq_queue[head].master = MASTER_0;
+				cci_irq_queue[head].queue = QUEUE_0;
+				cci_irq_queue[head].is_valid = 1;
+				head = next_head;
+				// wake up Threaded irq Handler
+				rc = IRQ_WAKE_THREAD;
+			}
+		}
+		spin_unlock_irqrestore(&cci_dev->lock_status, flags);
+	}
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M0_Q1_THRESHOLD)
+	{
+		cci_master_info = &cci_dev->cci_master_info[MASTER_0];
+		spin_lock_irqsave(&cci_dev->lock_status, flags);
+		trace_cam_cci_burst(cci_dev->soc_info.index, 0, 1,
+			"th_irq honoured irq1",	irq_status1);
+		CAM_DBG(CAM_CCI,
+			"CCI%d_M0_Q1: th_irq honoured irq1: 0x%x th_irq_ref_cnt: %d",
+			cci_dev->soc_info.index, irq_status1,
+			cci_master_info->th_irq_ref_cnt[QUEUE_1]);
+		if (cci_master_info->th_irq_ref_cnt[QUEUE_1] == 1) {
+			complete(&cci_master_info->th_burst_complete[QUEUE_1]);
+		} else {
+			// Decrement Threshold irq ref count
+			cci_master_info->th_irq_ref_cnt[QUEUE_1]--;
+			next_head = increment_index(head);
+			if (next_head == tail) {
+				CAM_ERR(CAM_CCI,
+					"CCI%d_M1_Q0 CPU Scheduing Issue: "
+					"Unable to process BURST",
+					cci_dev->soc_info.index);
+				rc = IRQ_NONE;
+			} else {
+				cci_irq_queue[head].irq_status0 = irq_status0;
+				cci_irq_queue[head].irq_status1 = irq_status1;
+				cci_irq_queue[head].master = MASTER_0;
+				cci_irq_queue[head].queue = QUEUE_1;
+				cci_irq_queue[head].is_valid = 1;
+				head = next_head;
+				// wake up Threaded irq Handler
+				rc = IRQ_WAKE_THREAD;
+			}
+		}
+		spin_unlock_irqrestore(&cci_dev->lock_status, flags);
+	}
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK) {
 		struct cam_cci_master_info *cci_master_info;
 
@@ -290,30 +452,44 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_ERROR_BMSK) {
 		cci_dev->cci_master_info[MASTER_0].status = -EINVAL;
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q0_NACK_ERROR_BMSK) {
-			if (cci_dev->is_probing)
+			if (cci_dev->is_probing) {
 				CAM_INFO(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
-			else
+			} else {
 				CAM_ERR(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+				trace_cam_cci_burst(cci_dev->soc_info.index, 0, 0,
+					"NACK_ERROR irq0", irq_status0);
+			}
 			cam_cci_dump_registers(cci_dev, MASTER_0,
 					QUEUE_0);
+			if ((cci_dev->cci_master_info[MASTER_0].th_irq_ref_cnt[QUEUE_0]) > 0) {
+				complete_all(&cci_dev->cci_master_info[MASTER_0].
+					th_burst_complete[QUEUE_0]);
+			}
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
 				.report_q[QUEUE_0]);
 		}
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q1_NACK_ERROR_BMSK) {
-			if (cci_dev->is_probing)
+			if (cci_dev->is_probing) {
 				CAM_INFO(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
-			else
+			} else {
 				CAM_ERR(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+				trace_cam_cci_burst(cci_dev->soc_info.index, 0, 1,
+					"NACK_ERROR irq0", irq_status0);
+			}
 			cam_cci_dump_registers(cci_dev, MASTER_0,
 					QUEUE_1);
+			if ((cci_dev->cci_master_info[MASTER_0].th_irq_ref_cnt[QUEUE_1]) > 0) {
+				complete_all(&cci_dev->cci_master_info[MASTER_0].
+					th_burst_complete[QUEUE_1]);
+			}
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
 			.report_q[QUEUE_1]);
 		}
@@ -332,30 +508,44 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_ERROR_BMSK) {
 		cci_dev->cci_master_info[MASTER_1].status = -EINVAL;
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q0_NACK_ERROR_BMSK) {
-			if (cci_dev->is_probing)
+			if (cci_dev->is_probing) {
 				CAM_INFO(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
-			else
+			} else {
 				CAM_ERR(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+				trace_cam_cci_burst(cci_dev->soc_info.index, 1, 0,
+					"NACK_ERROR irq0", irq_status0);
+			}
 			cam_cci_dump_registers(cci_dev, MASTER_1,
 					QUEUE_0);
+			if ((cci_dev->cci_master_info[MASTER_1].th_irq_ref_cnt[QUEUE_0]) > 0) {
+				complete_all(&cci_dev->cci_master_info[MASTER_1].
+					th_burst_complete[QUEUE_0]);
+			}
 			complete_all(&cci_dev->cci_master_info[MASTER_1]
 			.report_q[QUEUE_0]);
 		}
 		if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q1_NACK_ERROR_BMSK) {
-			if (cci_dev->is_probing)
+			if (cci_dev->is_probing) {
 				CAM_INFO(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
-			else
+			} else {
 				CAM_ERR(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+				trace_cam_cci_burst(cci_dev->soc_info.index, 1, 1,
+					"NACK_ERROR irq0", irq_status0);
+			}
 			cam_cci_dump_registers(cci_dev, MASTER_1,
 				QUEUE_1);
+			if ((cci_dev->cci_master_info[MASTER_1].th_irq_ref_cnt[QUEUE_1]) > 0) {
+				complete_all(&cci_dev->cci_master_info[MASTER_1].
+					th_burst_complete[QUEUE_1]);
+			}
 			complete_all(&cci_dev->cci_master_info[MASTER_1]
 			.report_q[QUEUE_1]);
 		}
@@ -372,16 +562,52 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		cam_io_w_mb(CCI_M1_RESET_RMSK, base + CCI_RESET_CMD_ADDR);
 	}
 
+	return rc;
+}
+
+irqreturn_t cam_cci_threaded_irq(int irq_num, void *data)
+{
+	struct cci_device *cci_dev = data;
+	struct cam_hw_soc_info *soc_info =
+		&cci_dev->soc_info;
+	struct cci_irq_data cci_data;
+	unsigned long flags;
+	uint32_t triggerHalfQueue = 1;
+	struct task_struct *task = current;
+
+	CAM_INFO(CAM_CCI, "CCI%d: nice: %d rt-Priority: %d cci_dev: %p",
+		soc_info->index, task_nice(current), task->rt_priority, cci_dev);
+	spin_lock_irqsave(&cci_dev->lock_status, flags);
+	if (tail != head) {
+		cci_data = cci_irq_queue[tail];
+		tail = increment_index(tail);
+		/*
+		 * "head" and "tail" variables are shared across
+		 * Top half and Bottom Half routines, Hence place a
+		 * lock while accessing these variables.
+		 */
+		spin_unlock_irqrestore(&cci_dev->lock_status, flags);
+		cam_cci_data_queue_burst_apply(cci_dev,
+			cci_data.master, cci_data.queue, triggerHalfQueue);
+		spin_lock_irqsave(&cci_dev->lock_status, flags);
+	}
+	spin_unlock_irqrestore(&cci_dev->lock_status, flags);
 	return IRQ_HANDLED;
 }
 
 static int cam_cci_irq_routine(struct v4l2_subdev *sd, u32 status,
 	bool *handled)
 {
-	struct cci_device *cci_dev = v4l2_get_subdevdata(sd);
+	struct cci_device *cci_dev = NULL;
 	irqreturn_t ret;
 	struct cam_hw_soc_info *soc_info = NULL;
 
+	if (!sd) {
+		CAM_ERR(CAM_CCI, "Error No data in subdev");
+		return -EINVAL;
+	}
+
+	cci_dev = v4l2_get_subdevdata(sd);
 	if (!cci_dev) {
 		CAM_ERR(CAM_CCI, "cci_dev NULL");
 		return -EINVAL;
@@ -543,6 +769,8 @@ static int cam_cci_component_bind(struct device *dev,
 		CAM_WARN(CAM_CCI, "debugfs creation failed");
 		rc = 0;
 	}
+	head = 0;
+	tail = 0;
 	CAM_DBG(CAM_CCI, "Component bound successfully");
 	return rc;
 
@@ -560,13 +788,14 @@ static void cam_cci_component_unbind(struct device *dev,
 	struct platform_device *pdev = to_platform_device(dev);
 
 	struct v4l2_subdev *subdev = platform_get_drvdata(pdev);
-	struct cci_device *cci_dev = cci_dev = v4l2_get_subdevdata(subdev);
+	struct cci_device *cci_dev = NULL;
 
 	if (!subdev) {
 		CAM_ERR(CAM_CCI, "Error No data in subdev");
 		return;
 	}
 
+	cci_dev = v4l2_get_subdevdata(subdev);
 	if (!cci_dev) {
 		CAM_ERR(CAM_CCI, "Error No data in cci_dev");
 		return;
