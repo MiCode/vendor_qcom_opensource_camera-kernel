@@ -117,6 +117,9 @@ static bool cam_ife_csid_ver2_disable_sof_retime(
 	if (!(path_reg->capabilities & CAM_IFE_CSID_CAP_SOF_RETIME_DIS))
 		return false;
 
+	if (path_reg->disable_sof_retime_default)
+		return true;
+
 	if (path_cfg->sfe_shdr || path_cfg->lcr_en)
 		return true;
 
@@ -3967,13 +3970,63 @@ end:
 	return rc;
 }
 
-static int cam_ife_csid_ver2_res_master_slave_cfg(struct cam_ife_csid_ver2_hw *csid_hw,
+static bool cam_ife_csid_hw_ver2_use_master_slave_cfg(
+		struct cam_ife_csid_ver2_hw *csid_hw,
+		uint32_t res_id)
+{
+	struct cam_ife_csid_ver2_reg_info *csid_reg;
+	bool                               ret = false;
+	const struct cam_ife_csid_ver2_path_reg_info *path_reg = NULL;
+	struct cam_ife_csid_ver2_path_cfg *path_cfg;
+	struct cam_isp_resource_node    *res = NULL;
+	struct cam_isp_resource_node    *ppp_res = NULL;
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)csid_hw->core_info->csid_reg;
+	path_reg = csid_reg->path_reg[res_id];
+	res = &csid_hw->path_res[res_id];
+	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+
+	switch (res_id) {
+	case CAM_IFE_PIX_PATH_RES_RDI_0:
+		if (path_cfg->is_aeb_en || path_cfg->sfe_shdr || csid_hw->flags.rdi_lcr_en)
+			ret = true;
+
+		if (path_reg->use_master_slave_default) {
+			ppp_res = &csid_hw->path_res[CAM_IFE_PIX_PATH_RES_PPP];
+			ret = ppp_res->res_state > CAM_ISP_RESOURCE_STATE_AVAILABLE ? true : false;
+		}
+
+		break;
+	case CAM_IFE_PIX_PATH_RES_RDI_1:
+	case CAM_IFE_PIX_PATH_RES_RDI_2:
+	case CAM_IFE_PIX_PATH_RES_RDI_3:
+		if (path_cfg->is_aeb_en || path_cfg->sfe_shdr)
+			ret = true;
+		break;
+	case CAM_IFE_PIX_PATH_RES_PPP:
+		if (csid_hw->flags.rdi_lcr_en || path_reg->use_master_slave_default)
+			ret = true;
+		break;
+	default:
+		break;
+	}
+
+	CAM_DBG(CAM_ISP, "CSID[%u] %s use master slave cfg %s", csid_hw->hw_intf->hw_idx,
+		res->res_name, CAM_BOOL_TO_YESNO(ret));
+	return ret;
+}
+
+static void cam_ife_csid_ver2_res_master_slave_cfg(struct cam_ife_csid_ver2_hw *csid_hw,
 	uint32_t res_id)
 {
 	struct cam_ife_csid_ver2_reg_info *csid_reg;
 	uint32_t val;
 	void __iomem                      *mem_base;
 	struct cam_hw_soc_info            *soc_info;
+
+
+	if (!cam_ife_csid_hw_ver2_use_master_slave_cfg(csid_hw, res_id))
+		return;
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *) csid_hw->core_info->csid_reg;
 	soc_info = &csid_hw->hw_info->soc_info;
@@ -4003,8 +4056,6 @@ static int cam_ife_csid_ver2_res_master_slave_cfg(struct cam_ife_csid_ver2_hw *c
 
 	CAM_DBG(CAM_ISP, "CSID %d res:%s master slave cfg 0x%x", csid_hw->hw_intf->hw_idx,
 		csid_hw->path_res[res_id].res_name, val);
-
-	return 0;
 }
 
 static int cam_ife_csid_ver2_init_config_rdi_path(
@@ -4173,9 +4224,7 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 			path_reg->err_recovery_cfg0_addr);
 	}
 
-	if (path_cfg->is_aeb_en || path_cfg->sfe_shdr || (csid_hw->flags.rdi_lcr_en &&
-		 res->res_id == CAM_IFE_PIX_PATH_RES_RDI_0))
-		cam_ife_csid_ver2_res_master_slave_cfg(csid_hw, res->res_id);
+	cam_ife_csid_ver2_res_master_slave_cfg(csid_hw, res->res_id);
 
 	if (csid_hw->debug_info.debug_val &
 		CAM_IFE_CSID_DEBUG_ENABLE_HBI_VBI_INFO) {
@@ -4365,8 +4414,7 @@ static int cam_ife_csid_ver2_init_config_pxl_path(
 			mem_base + path_reg->format_measure_cfg0_addr);
 	}
 
-	if (csid_hw->flags.rdi_lcr_en && res->res_id == CAM_IFE_PIX_PATH_RES_PPP)
-		cam_ife_csid_ver2_res_master_slave_cfg(csid_hw, res->res_id);
+	cam_ife_csid_ver2_res_master_slave_cfg(csid_hw, res->res_id);
 
 	res->res_state = CAM_ISP_RESOURCE_STATE_INIT_HW;
 	return rc;

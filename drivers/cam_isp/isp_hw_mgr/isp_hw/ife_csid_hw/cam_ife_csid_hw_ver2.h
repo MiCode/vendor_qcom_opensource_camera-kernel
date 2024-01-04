@@ -516,6 +516,8 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t capabilities;
 	uint32_t default_out_format;
 	bool     crop_drop_enable;
+	bool     disable_sof_retime_default;
+	bool     use_master_slave_default;
 };
 
 struct cam_ife_csid_ver2_common_reg_info {

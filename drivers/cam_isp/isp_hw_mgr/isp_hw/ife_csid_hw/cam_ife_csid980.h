@@ -631,6 +631,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.top_irq_mask                     = {0x100,},
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
+		.disable_sof_retime_default       = true,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -735,6 +736,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.aup_mask                         = 0x2,
 		.rup_aup_set_mask                 = 0x1,
 		.top_irq_mask                     = {0x100,},
+		.disable_sof_retime_default       = true,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -839,6 +841,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.aup_mask                         = 0x4,
 		.rup_aup_set_mask                 = 0x1,
 		.top_irq_mask                     = {0x100,},
+		.disable_sof_retime_default       = true,
 };
 
 
@@ -956,6 +959,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.epoch0_shift_val                 = 16,
 		.epoch1_shift_val                 = 0,
 		.sof_retiming_dis_shift           = 5,
+		.disable_sof_retime_default       = true,
+		.use_master_slave_default         = true,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
@@ -1075,6 +1080,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.pix_store_en_shift_val           = 0,
 		.sof_retiming_dis_shift           = 5,
 		.default_out_format               = CAM_FORMAT_PLAIN16_16,
+		.disable_sof_retime_default       = true,
+		.use_master_slave_default         = true,
 };
 
 static struct cam_ife_csid_ver2_path_reg_info
