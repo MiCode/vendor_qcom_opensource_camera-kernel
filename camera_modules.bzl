@@ -250,12 +250,12 @@ def _define_module(target, variant):
         copts = ["-include", "$(location :camera_banner)"],
         deps = deps,
         kconfig = "Kconfig",
-        defconfig = "{}_defconfig".format(tv),
+        defconfig = "{}_defconfig".format(target),
         kernel_build = "//msm-kernel:{}".format(tv),
     )
 
     copy_to_dist_dir(
-	name = "{}_camera_dist".format(target),
+	name = "{}_camera_dist".format(tv),
         data = [":{}_camera".format(tv)],
         dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(target),
         flat = True,
