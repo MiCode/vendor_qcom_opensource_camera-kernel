@@ -407,7 +407,7 @@ static void cam_tfe_log_error_irq_status(
 	for (i = 0; i < common_reg->num_debug_reg; i++) {
 		val_0 = cam_io_r(mem_base  +
 			common_reg->debug_reg[i]);
-		CAM_INFO(CAM_ISP, "Top debug [i]:0x%x", i, val_0);
+		CAM_INFO(CAM_ISP, "Top debug [%d]:0x%x", i, val_0);
 	}
 
 	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
@@ -3443,6 +3443,7 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
 	case CAM_ISP_HW_CMD_BUS_WM_DISABLE:
 	case CAM_ISP_HW_CMD_BUFFER_ALIGNMENT_UPDATE:
+	case CAM_ISP_HW_CMD_WM_CONFIG_UPDATE:
 		rc = core_info->tfe_bus->hw_ops.process_cmd(
 			core_info->tfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);
