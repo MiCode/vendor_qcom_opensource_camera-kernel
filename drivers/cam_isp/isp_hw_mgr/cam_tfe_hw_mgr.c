@@ -2371,8 +2371,10 @@ static int cam_tfe_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	for (i = 0; i < acquire_hw_info->num_inputs; i++) {
 		if (in_port[i].usage_type)
 			tfe_ctx->is_dual = true;
-		if (in_port[i].shdr_en)
+		if (in_port[i].shdr_en) {
 			is_shdr_en = true;
+			tfe_ctx->is_shdr = true;
+		}
 		if (in_port[i].is_shdr_master)
 			is_shdr_master = true;
 	}
@@ -2448,7 +2450,13 @@ static int cam_tfe_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		acquire_args->op_flags |= CAM_IFE_CTX_SHDR_EN;
 		if (is_shdr_master)
 			acquire_args->op_flags |= CAM_IFE_CTX_SHDR_IS_MASTER;
+		g_tfe_hw_mgr.session_data[tfe_ctx->base[0].idx].is_shdr = true;
+
+		CAM_DBG(CAM_ISP, "ctx %d TFE index %d link hdl %x",
+			tfe_ctx->ctx_index, tfe_ctx->base[0].idx, acquire_args->link_hdl);
 	}
+
+	g_tfe_hw_mgr.session_data[tfe_ctx->base[0].idx].link_hdl = acquire_args->link_hdl;
 
 	cam_tfe_hw_mgr_put_ctx(&tfe_hw_mgr->used_ctx_list, &tfe_ctx);
 
@@ -3583,7 +3591,7 @@ static int cam_tfe_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 	struct cam_tfe_hw_mgr_ctx        *ctx;
 	struct cam_isp_hw_mgr_res        *hw_mgr_res;
 	struct cam_hw_intf               *hw_intf;
-	uint32_t                          i;
+	uint32_t                          i, j, hw_index = 0;
 	bool                              res_rdi_context_set = false;
 	uint32_t                          primary_rdi_in_res;
 	uint32_t                          primary_rdi_out_res;
@@ -3654,6 +3662,25 @@ static int cam_tfe_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 				&g_tfe_hw_mgr.debug_cfg.camif_debug,
 				sizeof(g_tfe_hw_mgr.debug_cfg.camif_debug));
 			hw_id[hw_intf->hw_idx] = true;
+
+			if (ctx->is_shdr) {
+				for (j = 0; j < CAM_TFE_HW_NUM_MAX; j++) {
+					if (g_tfe_hw_mgr.session_data[j].link_hdl ==
+						g_tfe_hw_mgr.session_data[ctx->base[0].idx].link_hdl
+						&& (j != ctx->base[0].idx) &&
+						g_tfe_hw_mgr.session_data[j].is_shdr) {
+						hw_index = j;
+						break;
+					}
+				}
+
+				rc = hw_intf->hw_ops.process_cmd(
+					hw_intf->hw_priv,
+					CAM_ISP_HW_CMD_SET_SYNC_HW_IDX,
+					&hw_index,
+					sizeof(hw_index));
+				CAM_DBG(CAM_ISP, "TFE: %d sync idx %d", ctx->base[0].idx, hw_index);
+			}
 		}
 	}
 
@@ -4007,6 +4034,11 @@ static int cam_tfe_mgr_release_hw(void *hw_mgr_priv,
 	CAM_DBG(CAM_ISP, "Enter...ctx id:%d",
 		ctx->ctx_index);
 
+	if (ctx->is_shdr) {
+		g_tfe_hw_mgr.session_data[ctx->base[0].idx].link_hdl = 0;
+		g_tfe_hw_mgr.session_data[ctx->base[0].idx].is_shdr = false;
+	}
+
 	if (ctx->init_done)
 		cam_tfe_hw_mgr_deinit_hw(ctx);
 
@@ -4032,6 +4064,8 @@ static int cam_tfe_mgr_release_hw(void *hw_mgr_priv,
 	ctx->last_cdm_done_req = 0;
 	kfree(ctx->tfe_bus_comp_grp);
 	ctx->tfe_bus_comp_grp = NULL;
+	ctx->is_shdr = false;
+	ctx->is_shdr_slave = false;
 	atomic_set(&ctx->overflow_pending, 0);
 
 	for (i = 0; i < ctx->last_submit_bl_cmd.bl_count; i++) {
@@ -6745,6 +6779,8 @@ int cam_tfe_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 			j++;
 
 			g_tfe_hw_mgr.cdm_reg_map[i] = &soc_info->reg_map[0];
+			g_tfe_hw_mgr.session_data[i].link_hdl = 0;
+			g_tfe_hw_mgr.session_data[i].is_shdr = false;
 			CAM_DBG(CAM_ISP,
 				"reg_map: mem base = %pK cam_base = 0x%llx",
 				(void __iomem *)soc_info->reg_map[0].mem_base,

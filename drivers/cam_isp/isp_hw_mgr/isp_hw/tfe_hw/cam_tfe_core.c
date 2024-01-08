@@ -31,6 +31,7 @@ static const char drv_name[] = "tfe";
 #define CAM_TFE_CAMIF_IRQ_SOF_DEBUG_CNT_MAX  2
 #define CAM_TFE_DELAY_BW_REDUCTION_NUM_FRAMES 3
 #define CAM_TFE_MAX_OUT_OF_SYNC_ERR_COUNT     3
+#define CAM_TFE_DUAL_TFE_SYNC_SEL_IDX_FACTOR  1
 
 struct cam_tfe_top_common_data {
 	struct cam_hw_soc_info                     *soc_info;
@@ -60,6 +61,7 @@ struct cam_tfe_top_priv {
 	struct timespec64                    error_ts;
 	uint32_t                             top_debug;
 	uint32_t                             last_mup_val;
+	uint32_t                             sync_hw_id;
 	atomic_t                             switch_out_of_sync_cnt;
 };
 
@@ -1765,6 +1767,27 @@ static int cam_tfe_top_bw_control(
 	return rc;
 }
 
+static int cam_tfe_set_sync_hw_idx(
+	struct cam_tfe_hw_core_info *core_info,
+	void *cmd_args, uint32_t arg_size)
+{
+	struct cam_tfe_top_priv              *top_priv;
+	uint32_t                             *hw_idx;
+
+	if (!cmd_args) {
+		CAM_ERR(CAM_ISP, "Error! Invalid input arguments");
+		return -EINVAL;
+	}
+
+	top_priv = (struct cam_tfe_top_priv  *)core_info->top_priv;
+	hw_idx = (uint32_t *)cmd_args;
+	top_priv->sync_hw_id = *hw_idx;
+
+	CAM_DBG(CAM_ISP, "TFE:%d top sync hw idx %d", core_info->core_index,
+		top_priv->sync_hw_id);
+	return 0;
+}
+
 static int cam_tfe_top_get_reg_dump(
 	struct cam_tfe_top_priv *top_priv,
 	void *cmd_args, uint32_t arg_size)
@@ -2398,7 +2421,7 @@ static int cam_tfe_camif_resource_start(
 	if ((rsrc_data->sync_mode == CAM_ISP_HW_SYNC_SLAVE) ||
 		(rsrc_data->sync_mode == CAM_ISP_HW_SYNC_MASTER)) {
 		val |= (1 << rsrc_data->reg_data->dual_tfe_pix_en_shift);
-		val |= ((rsrc_data->dual_tfe_sync_sel + 1) <<
+		val |= ((rsrc_data->dual_tfe_sync_sel + CAM_TFE_DUAL_TFE_SYNC_SEL_IDX_FACTOR) <<
 			rsrc_data->reg_data->dual_tfe_sync_sel_shift);
 	}
 
@@ -2427,11 +2450,14 @@ static int cam_tfe_camif_resource_start(
 	}
 
 	if (rsrc_data->shdr_en) {
-		val |= rsrc_data->core_cfg &
-			(1 << rsrc_data->reg_data->shdr_mode_shift);
-		if (!rsrc_data->is_shdr_master)
-			val |= rsrc_data->core_cfg &
-				(1 << rsrc_data->reg_data->extern_mup_shift);
+		val |= (1 << rsrc_data->reg_data->shdr_mode_shift);
+		val |= (1 << rsrc_data->reg_data->dual_tfe_pix_en_shift);
+		val |= ((top_priv->sync_hw_id + CAM_TFE_DUAL_TFE_SYNC_SEL_IDX_FACTOR) <<
+			rsrc_data->reg_data->dual_tfe_sync_sel_shift);
+		if (!rsrc_data->is_shdr_master) {
+			val |= (1 << rsrc_data->reg_data->extern_mup_shift);
+			val |= (1 << rsrc_data->reg_data->extern_reg_update_shift);
+		}
 	}
 
 	cam_io_w_mb(val, rsrc_data->mem_base +
@@ -3421,6 +3447,9 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_GET_PATH_PORT_MAP:
 		rc = cam_tfe_bus_get_path_port_map(hw_info->top_hw_info, cmd_args,
 					arg_size);
+		break;
+	case CAM_ISP_HW_CMD_SET_SYNC_HW_IDX:
+		rc = cam_tfe_set_sync_hw_idx(core_info, cmd_args, arg_size);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "TFE:%d Invalid cmd type:%d",
