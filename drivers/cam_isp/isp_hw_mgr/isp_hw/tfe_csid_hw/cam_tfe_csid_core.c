@@ -3709,14 +3709,17 @@ static int cam_tfe_csid_evt_bottom_half_handler(
 	 */
 	err_evt_info.err_type = evt_payload->evt_type;
 	event_info.hw_idx = evt_payload->hw_idx;
+	event_info.res_type = CAM_ISP_RESOURCE_PIX_PATH;
 
 	switch (evt_payload->evt_type) {
+	case CAM_ISP_HW_ERROR_CSID_FRAME_SIZE:
 	case CAM_ISP_HW_ERROR_CSID_FATAL:
 		if (csid_hw->fatal_err_detected)
 			break;
-		event_info.event_data = (void *)&err_evt_info;
 		csid_hw->fatal_err_detected = true;
-		rc = csid_hw->event_cb(NULL,
+	case CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW:
+		event_info.event_data = (void *)&err_evt_info;
+		rc = csid_hw->event_cb(csid_hw->event_cb_priv,
 			CAM_ISP_HW_EVENT_ERROR, (void *)&event_info);
 		break;
 
@@ -3793,6 +3796,7 @@ irqreturn_t cam_tfe_csid_irq(int irq_num, void *data)
 	unsigned long flags;
 	uint32_t i, val, val1;
 	uint32_t data_idx;
+	uint32_t report_err_type = CAM_ISP_HW_ERROR_NONE;
 
 	if (!data) {
 		CAM_ERR(CAM_ISP, "CSID: Invalid arguments");
@@ -3945,8 +3949,9 @@ handle_fatal_error:
 			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
 				CAM_SUBDEV_MESSAGE_REG_DUMP, (void *)&data_idx);
 		}
+		report_err_type = CAM_ISP_HW_ERROR_CSID_FATAL;
 		cam_tfe_csid_handle_hw_err_irq(csid_hw,
-			CAM_ISP_HW_ERROR_CSID_FATAL, irq_status);
+			report_err_type, irq_status);
 	}
 
 	if (csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_EOT_IRQ) {
@@ -4125,6 +4130,13 @@ handle_fatal_error:
 				soc_info->reg_map[0].mem_base +
 				csid_reg->ipp_reg->csid_pxl_ctrl_addr);
 			is_error_irq = true;
+			report_err_type = CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW;
+		}
+
+		if (irq_status[TFE_CSID_IRQ_REG_IPP] &
+			(TFE_CSID_PATH_ERROR_PIX_COUNT | TFE_CSID_PATH_ERROR_LINE_COUNT)) {
+			is_error_irq = true;
+			report_err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE;
 		}
 
 		if (irq_status[TFE_CSID_IRQ_REG_IPP] &
@@ -4196,6 +4208,13 @@ handle_fatal_error:
 				soc_info->reg_map[0].mem_base +
 				csid_reg->ppp_reg->csid_pxl_ctrl_addr);
 			is_error_irq = true;
+			report_err_type = CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW;
+		}
+
+		if (irq_status[TFE_CSID_IRQ_REG_PPP] &
+			(TFE_CSID_PATH_ERROR_PIX_COUNT | TFE_CSID_PATH_ERROR_LINE_COUNT)) {
+			is_error_irq = true;
+			report_err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE;
 		}
 
 		if (irq_status[TFE_CSID_IRQ_REG_PPP] &
@@ -4276,6 +4295,7 @@ handle_fatal_error:
 			cam_io_w_mb(CAM_TFE_CSID_HALT_IMMEDIATELY,
 				soc_info->reg_map[0].mem_base +
 				csid_reg->rdi_reg[i]->csid_rdi_ctrl_addr);
+			report_err_type = CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW;
 		}
 
 		if ((irq_status[i] & TFE_CSID_PATH_RDI_OVERFLOW_IRQ) ||
@@ -4305,6 +4325,9 @@ handle_fatal_error:
 				cmn_reg->format_measure_height_mask_val),
 				val &
 				cmn_reg->format_measure_width_mask_val);
+
+			is_error_irq = true;
+			report_err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE;
 		}
 	}
 
@@ -4324,7 +4347,7 @@ handle_fatal_error:
 			soc_info->applied_src_clk_rates.sw_client);
 
 		cam_tfe_csid_handle_hw_err_irq(csid_hw,
-			CAM_ISP_HW_ERROR_NONE, irq_status);
+			report_err_type, irq_status);
 	}
 
 	if (csid_hw->irq_debug_cnt >= CAM_TFE_CSID_IRQ_SOF_DEBUG_CNT_MAX) {

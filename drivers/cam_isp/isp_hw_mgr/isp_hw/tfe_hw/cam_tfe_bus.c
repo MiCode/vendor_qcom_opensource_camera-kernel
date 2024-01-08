@@ -2782,6 +2782,40 @@ static int cam_tfe_bus_deinit_hw(void *hw_priv,
 	return rc;
 }
 
+static int cam_tfe_bus_check_overflow(
+	struct cam_tfe_bus_priv    *bus_priv,
+	void *cmd_args, uint32_t arg_size)
+{
+	struct cam_tfe_bus_wm_resource_data  *rsrc_data;
+	struct cam_isp_hw_overflow_info      *overflow_info = NULL;
+	uint32_t                             bus_overflow_status = 0, i = 0, tmp = 0;
+
+	overflow_info = (struct cam_isp_hw_overflow_info *)cmd_args;
+
+	bus_overflow_status  = cam_io_r(bus_priv->common_data.mem_base +
+		bus_priv->common_data.common_reg->overflow_status);
+
+	if (bus_overflow_status) {
+		overflow_info->is_bus_overflow = true;
+		CAM_INFO(CAM_ISP, "TFE[%d] Bus overflow status: 0x%x",
+				bus_priv->common_data.core_index, bus_overflow_status);
+	}
+
+	tmp = bus_overflow_status;
+	while (tmp) {
+		if (tmp & 0x1) {
+			rsrc_data = bus_priv->bus_client[i].res_priv;
+			CAM_ERR(CAM_ISP, "TFE[%d] WM : %d %s overflow",
+				bus_priv->common_data.core_index, i,
+				rsrc_data->hw_regs->client_name);
+		}
+		tmp = tmp >> 1;
+		i++;
+	}
+
+	return 0;
+}
+
 static int cam_tfe_bus_process_cmd(void *priv,
 	uint32_t cmd_type, void *cmd_args, uint32_t arg_size)
 {
@@ -2850,6 +2884,9 @@ static int cam_tfe_bus_process_cmd(void *priv,
 		break;
 	case CAM_ISP_HW_CMD_BUS_WM_DISABLE:
 		rc = cam_tfe_bus_diable_wm(priv, cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_NOTIFY_OVERFLOW:
+		rc = cam_tfe_bus_check_overflow(priv, cmd_args, arg_size);
 		break;
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "Invalid camif process command:%d",
