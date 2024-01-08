@@ -1043,6 +1043,10 @@ static int cam_tfe_hw_mgr_acquire_res_tfe_out_pixel(
 		if (cam_tfe_hw_mgr_is_rdi_res(out_port->res_id))
 			continue;
 
+		if (!cam_tfe_hw_mgr_check_path_port_compat(tfe_in_res->res_id,
+			out_port->res_id))
+			continue;
+
 		CAM_DBG(CAM_ISP, "res_type 0x%x", out_port->res_id);
 
 		tfe_out_res = &tfe_ctx->res_list_tfe_out[k];
