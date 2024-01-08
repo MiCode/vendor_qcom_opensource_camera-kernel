@@ -2431,11 +2431,13 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 			continue;
 		} else if (!req_isp->bubble_detected) {
 			CAM_DBG(CAM_ISP,
-				"Sync with success: req %lld res 0x%x fd 0x%x, ctx:%u link[0x%x]",
+				"Sync with success: req %lld res 0x%x fd 0x%x, ctx %u res %s",
 				req->request_id,
 				req_isp->fence_map_out[j].resource_handle,
 				req_isp->fence_map_out[j].sync_id,
-				ctx->ctx_id, ctx->link_hdl);
+				ctx->ctx_id,
+				__cam_isp_resource_handle_id_to_type(ctx_isp->isp_device_type,
+				req_isp->fence_map_out[j].resource_handle));
 
 			cam_smmu_buffer_tracker_buffer_putref(
 				req_isp->fence_map_out[j].buffer_tracker);

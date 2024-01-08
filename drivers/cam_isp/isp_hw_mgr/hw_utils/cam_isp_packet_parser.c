@@ -1123,7 +1123,7 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 	int                                 rc = 0;
 	struct cam_buf_io_cfg              *io_cfg = NULL;
 	struct cam_isp_hw_mgr_res          *hw_mgr_res = NULL;
-	uint32_t                            i;
+	uint32_t                            i, j;
 	uint32_t                            curr_used_bytes = 0;
 	uint32_t                            bytes_updated = 0;
 	struct cam_isp_resource_node       *res = NULL;
@@ -1132,6 +1132,8 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 	uint8_t                             max_out_res = 0;
 	uint64_t                           *mc_cfg = NULL;
 	uint32_t                            major_version = 0;
+	struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+	uint64_t                                 cfg_io_mask = 0, disabled_wm_mask = 0;
 
 	io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
 			&io_info->prepare->packet->payload +
@@ -1158,6 +1160,7 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 		}
 	}
 
+	prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *) io_info->prepare->priv;
 	for (i = 0; i < io_info->prepare->packet->num_io_configs; i++) {
 
 		if (major_version == 3) {
@@ -1192,6 +1195,8 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 			if (!res)
 				continue;
 
+			cfg_io_mask |= (1 << (res->res_id & 0xFF));
+
 			rc = cam_isp_add_io_buffers_util(io_info, &io_cfg[i], res);
 			if (rc) {
 				CAM_ERR(CAM_ISP, "io_cfg[%d] add buf failed rc %d", i, rc);
@@ -1214,9 +1219,25 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 		vfree(mc_cfg);
 	}
 
+	disabled_wm_mask = (prepare_hw_data->wm_bitmask ^ cfg_io_mask);
+	if ((io_info->base->hw_type == CAM_ISP_HW_TYPE_TFE) && disabled_wm_mask) {
+		for (j = 0; j < io_info->out_max; j++) {
+			rc = cam_isp_add_disable_wm_update(io_info->prepare,
+					&io_info->res_list_isp_out[j],
+					io_info->base->idx, io_info->kmd_buf_info,
+					disabled_wm_mask,
+					&io_info->kmd_buf_info->used_bytes);
+			if (rc) {
+				CAM_ERR_RATE_LIMIT(CAM_ISP, "Disable out res %d failed",
+						j, rc);
+				return rc;
+			}
+		}
+	}
+
 	bytes_updated = io_info->kmd_buf_info->used_bytes - curr_used_bytes;
-	CAM_DBG(CAM_ISP, "io_cfg_used_bytes %d, fill_fence %d",
-		bytes_updated, io_info->fill_fence);
+	CAM_DBG(CAM_ISP, "io_cfg_used_bytes %d, fill_fence %d  acuired mask %x cfg mask %x",
+		bytes_updated, io_info->fill_fence, prepare_hw_data->wm_bitmask, cfg_io_mask);
 
 	if (bytes_updated) {
 		/**
@@ -1234,6 +1255,66 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 	return rc;
 err:
 	vfree(mc_cfg);
+	return rc;
+}
+
+int cam_isp_add_disable_wm_update(
+	struct cam_hw_prepare_update_args    *prepare,
+	struct cam_isp_hw_mgr_res            *isp_hw_res,
+	uint32_t                              base_idx,
+	struct cam_kmd_buf_info              *kmd_buf_info,
+	uint64_t                              wm_mask,
+	uint32_t                             *io_cfg_used_bytes)
+{
+	int rc = 0;
+	struct cam_hw_intf                 *hw_intf;
+	struct cam_isp_resource_node       *res;
+	struct cam_isp_hw_get_cmd_update    wm_update;
+	uint32_t kmd_buf_remain_size, i;
+
+	if (prepare->packet->header.request_id == 0)
+		return 0;
+	for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+		if (!isp_hw_res->hw_res[i])
+			continue;
+		hw_intf = isp_hw_res->hw_res[i]->hw_intf;
+		res = isp_hw_res->hw_res[i];
+		if (res->hw_intf->hw_idx != base_idx)
+			continue;
+		if (!(wm_mask & (1 << res->res_id))) {
+			CAM_DBG(CAM_ISP, "No need to disable out res %d", res->res_id);
+			continue;
+		}
+		if (kmd_buf_info->size > (kmd_buf_info->used_bytes +
+			(*io_cfg_used_bytes))) {
+			kmd_buf_remain_size =  kmd_buf_info->size -
+			(kmd_buf_info->used_bytes +
+			(*io_cfg_used_bytes));
+		} else {
+			CAM_ERR(CAM_ISP, "no free mem %d %d", kmd_buf_info->size,
+				kmd_buf_info->used_bytes + (*io_cfg_used_bytes));
+			rc = -EINVAL;
+			return rc;
+		}
+		wm_update.cmd.cmd_buf_addr = kmd_buf_info->cpu_addr +
+			kmd_buf_info->used_bytes/4 + (*io_cfg_used_bytes)/4;
+		wm_update.cmd.size = kmd_buf_remain_size;
+		wm_update.cmd_type = CAM_ISP_HW_CMD_BUS_WM_DISABLE;
+		wm_update.res = res;
+		rc = res->hw_intf->hw_ops.process_cmd(
+			res->hw_intf->hw_priv,
+			CAM_ISP_HW_CMD_BUS_WM_DISABLE, &wm_update,
+			sizeof(struct cam_isp_hw_get_cmd_update));
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Diaable res %d failed split %d",
+				res->res_id, i);
+			return rc;
+		}
+		CAM_DBG(CAM_ISP,
+			"Out res %d disable update added hw_id %d cdm_idx %d",
+			res->res_id, res->hw_intf->hw_idx, base_idx);
+		(*io_cfg_used_bytes) += wm_update.cmd.used_bytes;
+	}
 	return rc;
 }
 
