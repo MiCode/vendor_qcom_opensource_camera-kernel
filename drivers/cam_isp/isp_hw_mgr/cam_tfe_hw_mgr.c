@@ -5240,14 +5240,13 @@ static int cam_tfe_mgr_cmd_get_last_consumed_addr(
 	uint32_t                      res_id_out;
 	struct cam_isp_resource_node *res;
 	struct cam_isp_hw_mgr_res     *hw_mgr_res;
-	struct list_head              *res_list_isp_src;
 
 	res_id_out = done->resource_handle & 0xFF;
 
 	if (res_id_out >= CAM_TFE_HW_OUT_RES_MAX) {
 		CAM_ERR(CAM_ISP, "Invalid out resource id :%x",
-			res_id);
-		return;
+			res_id_out);
+		return rc;
 	}
 
 	hw_mgr_res =
