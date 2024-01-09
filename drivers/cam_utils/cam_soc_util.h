@@ -196,14 +196,16 @@ struct cam_soc_pinctrl_info {
  * @cam_gpio_common_tbl:       It is list of al the gpios present in gpios node
  * @cam_gpio_common_tbl_size:  It is equal to number of gpios prsent in
  *                             gpios node in DTSI
- * @cam_gpio_req_tbl            It is list of al the requesetd gpios
- * @cam_gpio_req_tbl_size:      It is size of requested gpios
+ * @cam_gpio_req_tbl           It is list of al the requesetd gpios
+ * @cam_gpio_req_tbl_size:     It is size of requested gpios
+ * @gpio_for_vmrm_purpose:     It is just for vmrm purpose, does not has valid gpio request table
  **/
 struct cam_soc_gpio_data {
 	struct gpio *cam_gpio_common_tbl;
 	uint8_t cam_gpio_common_tbl_size;
 	struct gpio *cam_gpio_req_tbl;
 	uint8_t cam_gpio_req_tbl_size;
+	bool gpio_for_vmrm_purpose;
 };
 
 /**

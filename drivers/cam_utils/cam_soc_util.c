@@ -2732,6 +2732,12 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 
 	gconf->cam_gpio_common_tbl_size = gpio_array_size;
 	soc_info->gpio_data = gconf;
+
+	soc_info->gpio_data->gpio_for_vmrm_purpose =
+		of_property_read_bool(of_node, "gpio_for_vmrm_purpose");
+	CAM_DBG(CAM_UTIL, "dev name %s gpio_for_vmrm_purpose %d", soc_info->dev_name,
+		soc_info->gpio_data->gpio_for_vmrm_purpose);
+
 	kfree(gpio_array);
 
 	return rc;
@@ -2766,6 +2772,12 @@ static int cam_soc_util_request_gpio_table(
 	}
 	size = gpio_conf->cam_gpio_req_tbl_size;
 	gpio_tbl = gpio_conf->cam_gpio_req_tbl;
+
+	if (soc_info->gpio_data->gpio_for_vmrm_purpose) {
+		CAM_DBG(CAM_UTIL, "dev name %s does not have valid request gpio table",
+			soc_info->dev_name);
+		return 0;
+	}
 
 	if (!gpio_tbl || !size) {
 		CAM_ERR(CAM_UTIL, "Invalid gpio_tbl %pK / size %d",
