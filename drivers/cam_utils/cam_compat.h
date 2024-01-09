@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_COMPAT_H_
@@ -84,6 +84,10 @@ void cam_check_iommu_faults(struct iommu_domain *domain,
 static inline int cam_get_ddr_type(void) { return of_fdt_get_ddrtype(); }
 int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr);
 void cam_compat_util_put_dmabuf_va(struct dma_buf *dmabuf, void *vaddr);
+struct sg_table *cam_compat_dmabuf_map_attach(
+	struct dma_buf_attachment *attach, enum dma_data_direction dma_dir);
+void cam_compat_dmabuf_unmap_attach(struct dma_buf_attachment *attach,
+	struct sg_table *table, enum dma_data_direction dma_dir);
 void cam_smmu_util_iommu_custom(struct device *dev,
 	dma_addr_t discard_start, size_t discard_length);
 
