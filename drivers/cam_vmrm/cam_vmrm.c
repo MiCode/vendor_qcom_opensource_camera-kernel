@@ -797,28 +797,6 @@ DEFINE_DEBUGFS_ATTRIBUTE(cam_vmrm_proxy_voting_enable,
 	cam_vmrm_get_proxy_voting_enable,
 	cam_vmrm_set_proxy_voting_enable, "%16llu");
 
-static int cam_vmrm_debugfs_init(struct cam_vmrm_intf_dev *vmrm_dev)
-{
-	struct dentry *dbgfileptr = NULL;
-	int rc = 0;
-
-	if (!cam_debugfs_available())
-		return 0;
-
-	rc = cam_debugfs_create_subdir("vmrm", &dbgfileptr);
-	if (rc) {
-		CAM_ERR(CAM_VMRM, "DebugFS could not create directory!");
-		return rc;
-	}
-
-	vmrm_dev->dentry = dbgfileptr;
-
-	debugfs_create_file("proxy_voting_enable", 0644, vmrm_dev->dentry, NULL,
-		&cam_vmrm_proxy_voting_enable);
-
-	return 0;
-}
-
 static int cam_vmrm_irq_lend_and_notify(uint32_t label, uint32_t vm_name,
 	int irq, gh_irq_handle_fn_v2 handler, void *data)
 {
@@ -2093,6 +2071,556 @@ void cam_vmrm_print_state(void)
 	cam_vmrm_print_hw_instances(vmrm_intf_dev);
 	cam_vmrm_print_driver_nodes(vmrm_intf_dev);
 	cam_vmrm_print_io_res(vmrm_intf_dev);
+}
+
+static int cam_vmrm_set_lend_all_resources_test(void *data, u64 val)
+{
+	int rc = 0;
+	struct cam_hw_instance *hw_pos, *hw_temp;
+	struct cam_vmrm_intf_dev *vmrm_intf_dev;
+
+	CAM_INFO(CAM_VMRM, "lend all resources test starting");
+
+	if (cam_vmrm_intf_get_vmid() != CAM_PVM) {
+		CAM_WARN(CAM_VMRM, "lend all resources test only for pvm");
+		return 0;
+	}
+
+	vmrm_intf_dev = cam_vmrm_get_intf_dev();
+	if (!list_empty(&vmrm_intf_dev->hw_instance)) {
+		list_for_each_entry_safe(hw_pos,
+			hw_temp, &vmrm_intf_dev->hw_instance, list) {
+			rc = cam_vmrm_lend_resources(hw_pos->hw_id, CAM_SVM1);
+			if (rc) {
+				CAM_ERR(CAM_VMRM,
+					"lend resources test for hw id failed: 0x%x, rc: %d",
+					hw_pos->hw_id, rc);
+				return 0;
+			}
+		}
+	}
+
+	CAM_INFO(CAM_VMRM, "lend all resources test succeed");
+
+	return 0;
+}
+
+static int cam_vmrm_get_lend_all_resources_test(void *data, u64 *val)
+{
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(cam_vmrm_lend_all_resources_test,
+	cam_vmrm_get_lend_all_resources_test,
+	cam_vmrm_set_lend_all_resources_test, "%16llu");
+
+static ssize_t cam_vmrm_get_acquire_resources_test(struct file *file,
+	char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	return 0;
+}
+
+static ssize_t cam_vmrm_set_acquire_resources_test(struct file *file,
+	const char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	int rc = 0;
+	char input_buf[CAM_BUF_SIZE_MAX] = {'\0'};
+	uint32_t hw_id;
+
+	if (size >= CAM_BUF_SIZE_MAX) {
+		CAM_ERR(CAM_VMRM, "%d size more than max size %d", size, CAM_BUF_SIZE_MAX);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf))) {
+		CAM_ERR(CAM_VMRM, "copy_from_user failed");
+		return -EFAULT;
+	}
+
+	if (kstrtou32(input_buf, CAM_HEXADECIMAL, &hw_id)) {
+		CAM_ERR(CAM_VMRM, "kstrtou32 failed");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_VMRM, "acquire resources test for hw id 0x%x", hw_id);
+
+	rc = cam_vmrm_soc_acquire_resources(hw_id);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "acquire resources test for hw id failed: 0x%x, rc: %d",
+			hw_id, rc);
+		return rc;
+	}
+
+	CAM_INFO(CAM_VMRM, "hw id 0x%x acquire resources test succeed", hw_id);
+
+	return size;
+}
+
+static const struct file_operations cam_vmrm_acquire_resources_test = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.read  = cam_vmrm_get_acquire_resources_test,
+	.write = cam_vmrm_set_acquire_resources_test,
+};
+
+static ssize_t cam_vmrm_get_release_resources_test(struct file *file,
+	char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	return 0;
+}
+
+static ssize_t cam_vmrm_set_release_resources_test(struct file *file,
+	const char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	int rc = 0;
+	char input_buf[CAM_BUF_SIZE_MAX] = {'\0'};
+	uint32_t hw_id;
+
+	if (size >= CAM_BUF_SIZE_MAX) {
+		CAM_ERR(CAM_VMRM, "%d size more than max size %d", size, CAM_BUF_SIZE_MAX);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf))) {
+		CAM_ERR(CAM_VMRM, "copy_from_user failed");
+		return -EFAULT;
+	}
+
+	if (kstrtou32(input_buf, CAM_HEXADECIMAL, &hw_id)) {
+		CAM_ERR(CAM_VMRM, "kstrtou32 failed");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_VMRM, "release resources test for hw id 0x%x", hw_id);
+
+	rc = cam_vmrm_soc_release_resources(hw_id);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "release resources test for hw id failed: 0x%x, rc: %d",
+			hw_id, rc);
+		return rc;
+	}
+
+	CAM_INFO(CAM_VMRM, "hw id 0x%x release resources test succeed", hw_id);
+
+	return size;
+}
+
+static const struct file_operations cam_vmrm_release_resources_test = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.read  = cam_vmrm_get_release_resources_test,
+	.write = cam_vmrm_set_release_resources_test,
+};
+
+static ssize_t cam_vmrm_get_gh_lend_resources_test(
+	struct file *file, char __user *ubuf,
+	size_t size, loff_t *loff_t)
+{
+	return 0;
+}
+
+static ssize_t cam_vmrm_set_gh_lend_resources_test(struct file *file,
+	const char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	int rc = 0;
+	char input_buf[CAM_BUF_SIZE_MAX] = {'\0'};
+	uint32_t hw_id;
+
+	if (size >= CAM_BUF_SIZE_MAX) {
+		CAM_ERR(CAM_VMRM, "%d size more than max size %d", size, CAM_BUF_SIZE_MAX);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf))) {
+		CAM_ERR(CAM_VMRM, "copy_from_user failed");
+		return -EFAULT;
+	}
+
+	if (kstrtou32(input_buf, CAM_HEXADECIMAL, &hw_id)) {
+		CAM_ERR(CAM_VMRM, "kstrtou32 failed");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_VMRM, "lend resources test for hw id 0x%x", hw_id);
+
+	if (cam_vmrm_intf_get_vmid() != CAM_PVM) {
+		CAM_WARN(CAM_VMRM, "gh lend resources test only for pvm");
+		return size;
+	}
+
+	rc = cam_vmrm_lend_resources(hw_id, CAM_SVM1);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "lend resources test for hw id failed: 0x%x, rc: %d",
+			hw_id, rc);
+		return rc;
+	}
+
+	CAM_INFO(CAM_VMRM, "hw id 0x%x lend resources test succeed", hw_id);
+
+	return size;
+}
+
+static const struct file_operations cam_vmrm_gh_lend_resources_test = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.read  = cam_vmrm_get_gh_lend_resources_test,
+	.write = cam_vmrm_set_gh_lend_resources_test,
+};
+
+static ssize_t cam_vmrm_get_gh_release_resources_test(struct file *file,
+	char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	return 0;
+}
+
+static ssize_t cam_vmrm_set_gh_release_resources_test(struct file *file,
+	const char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	int rc = 0;
+	char input_buf[CAM_BUF_SIZE_MAX] = {'\0'};
+	uint32_t hw_id;
+
+	if (size >= CAM_BUF_SIZE_MAX) {
+		CAM_ERR(CAM_VMRM, "%d size more than max size %d", size, CAM_BUF_SIZE_MAX);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf))) {
+		CAM_ERR(CAM_VMRM, "copy_from_user failed");
+		return -EFAULT;
+	}
+
+	if (kstrtou32(input_buf, CAM_HEXADECIMAL, &hw_id)) {
+		CAM_ERR(CAM_VMRM, "kstrtou32 failed");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_VMRM, "release resources test for hw id 0x%x", hw_id);
+
+	if (cam_vmrm_intf_get_vmid() == CAM_PVM) {
+		CAM_WARN(CAM_VMRM, "gh release resources test only for svm");
+		return size;
+	}
+
+	rc = cam_vmrm_release_resources(hw_id);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "release resources test for hw id failed: 0x%x, rc: %d",
+			hw_id, rc);
+		return rc;
+	}
+
+	CAM_INFO(CAM_VMRM, "hw id 0x%x release resources test succeed", hw_id);
+
+	return size;
+}
+
+static const struct file_operations cam_vmrm_gh_release_resources_test = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.read  = cam_vmrm_get_gh_release_resources_test,
+	.write = cam_vmrm_set_gh_release_resources_test,
+};
+
+static ssize_t cam_vmrm_get_soc_resources_enable_test(
+	struct file *file, char __user *ubuf,
+	size_t size, loff_t *loff_t)
+{
+	return 0;
+}
+
+static ssize_t cam_vmrm_set_soc_resources_enable_test(struct file *file,
+	const char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	int rc = 0;
+	char input_buf[CAM_BUF_SIZE_MAX] = {'\0'};
+	uint32_t hw_id;
+
+	if (size >= CAM_BUF_SIZE_MAX) {
+		CAM_ERR(CAM_VMRM, "%d size more than max size %d", size, CAM_BUF_SIZE_MAX);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf))) {
+		CAM_ERR(CAM_VMRM, "copy_from_user failed");
+		return -EFAULT;
+	}
+
+	if (kstrtou32(input_buf, CAM_HEXADECIMAL, &hw_id)) {
+		CAM_ERR(CAM_VMRM, "kstrtou32 failed");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_VMRM, "soc resources enable request test for hw id 0x%x", hw_id);
+
+	if (cam_vmrm_intf_get_vmid() == CAM_PVM) {
+		CAM_WARN(CAM_VMRM, "soc resources enable test only for svm");
+		return size;
+	}
+
+	rc = cam_vmrm_soc_enable_disable_resources(hw_id, true);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "soc enable for hw id failed: 0x%x, rc: %d", hw_id, rc);
+		return rc;
+	}
+
+	CAM_INFO(CAM_VMRM, "hw id 0x%x soc resources enable request test succeed", hw_id);
+
+	return size;
+}
+
+static const struct file_operations cam_vmrm_soc_resources_enable_test = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.read  = cam_vmrm_get_soc_resources_enable_test,
+	.write = cam_vmrm_set_soc_resources_enable_test,
+};
+
+static ssize_t cam_vmrm_get_soc_resources_disable_test(struct file *file,
+	char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	return 0;
+}
+
+static ssize_t cam_vmrm_set_soc_resources_disable_test(struct file *file,
+	const char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	int rc = 0;
+	char input_buf[CAM_BUF_SIZE_MAX] = {'\0'};
+	uint32_t hw_id;
+
+	if (size >= CAM_BUF_SIZE_MAX) {
+		CAM_ERR(CAM_VMRM, "%d size more than max size %d", size, CAM_BUF_SIZE_MAX);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf))) {
+		CAM_ERR(CAM_VMRM, "copy_from_user failed");
+		return -EFAULT;
+	}
+
+	if (kstrtou32(input_buf, CAM_HEXADECIMAL, &hw_id)) {
+		CAM_ERR(CAM_VMRM, "kstrtou32 failed");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_VMRM, "soc resources disable request test for hw id 0x%x", hw_id);
+
+	if (cam_vmrm_intf_get_vmid() == CAM_PVM) {
+		CAM_WARN(CAM_VMRM, "soc resources disable test only for svm");
+		return size;
+	}
+
+	rc = cam_vmrm_soc_enable_disable_resources(hw_id, false);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "soc disable for hw id failed: 0x%x, rc: %d", hw_id, rc);
+		return rc;
+	}
+
+	CAM_INFO(CAM_VMRM, "hw id 0x%x soc resources disable request test succeed", hw_id);
+
+	return size;
+}
+
+static const struct file_operations cam_vmrm_soc_resources_disable_test = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.read  = cam_vmrm_get_soc_resources_disable_test,
+	.write = cam_vmrm_set_soc_resources_disable_test,
+};
+
+static ssize_t cam_vmrm_get_driver_node_msg_test(
+	struct file *file, char __user *ubuf,
+	size_t size, loff_t *loff_t)
+{
+	return 0;
+}
+
+static ssize_t cam_vmrm_set_driver_node_msg_test(struct file *file,
+	const char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	int rc = 0;
+	char input_buf[CAM_BUF_SIZE_MAX] = {'\0'};
+	uint32_t driver_id;
+	struct cam_driver_node *driver_pos;
+	struct cam_vmrm_intf_dev *vmrm_intf_dev;
+
+	if (size >= CAM_BUF_SIZE_MAX) {
+		CAM_ERR(CAM_VMRM, "%d size more than max size %d", size, CAM_BUF_SIZE_MAX);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(input_buf, ubuf, sizeof(input_buf))) {
+		CAM_ERR(CAM_VMRM, "copy_from_user failed");
+		return -EFAULT;
+	}
+
+	if (kstrtou32(input_buf, CAM_HEXADECIMAL, &driver_id)) {
+		CAM_ERR(CAM_VMRM, "kstrtou32 failed");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_VMRM, "test for driver id 0x%x", driver_id);
+
+	if (cam_vmrm_intf_get_vmid() == CAM_PVM) {
+		CAM_WARN(CAM_VMRM, "driver node msg test only for svm");
+		return size;
+	}
+
+	vmrm_intf_dev = cam_vmrm_get_intf_dev();
+
+	mutex_lock(&vmrm_intf_dev->lock);
+	driver_pos = cam_driver_node_lookup(driver_id);
+	if (!driver_pos) {
+		CAM_ERR(CAM_VMRM, "Do not find driver id 0x%x", driver_id);
+		mutex_unlock(&vmrm_intf_dev->lock);
+		return -EINVAL;
+	}
+	mutex_unlock(&vmrm_intf_dev->lock);
+
+	mutex_lock(&driver_pos->msg_comm_lock);
+	reinit_completion(&driver_pos->wait_response);
+	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_PVM, CAM_MSG_DST_TYPE_DRIVER_NODE,
+		driver_id, CAM_MSG_TYPE_MAX, false, true, NULL, 1, &driver_pos->wait_response);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "send msg for driver node failed: 0x%x, rc: %d", driver_id, rc);
+		mutex_unlock(&driver_pos->msg_comm_lock);
+		return rc;
+	}
+
+	rc = driver_pos->response_result;
+	if (!rc)
+		CAM_INFO(CAM_VMRM, "driver id 0x%x msg test succeed", driver_id);
+	else
+		CAM_ERR(CAM_VMRM, "driver id 0x%x msg test failed", driver_id);
+
+	mutex_unlock(&driver_pos->msg_comm_lock);
+
+	return size;
+}
+
+static const struct file_operations cam_vmrm_driver_node_msg_test = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.read  = cam_vmrm_get_driver_node_msg_test,
+	.write = cam_vmrm_set_driver_node_msg_test,
+};
+
+static ssize_t cam_vmrm_get_clk_rate_set_test(struct file *file,
+	char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	return 0;
+}
+
+static ssize_t cam_vmrm_set_clk_rate_set_test(struct file *file,
+	const char __user *ubuf, size_t size, loff_t *loff_t)
+{
+	int rc = 0;
+	char input_buf[CAM_BUF_SIZE_MAX] = {'\0'};
+	uint32_t hw_id;
+	uint32_t clk_rate = 0;
+	char *msg = NULL;
+	char *token = NULL;
+
+	if (size >= CAM_BUF_SIZE_MAX) {
+		CAM_ERR(CAM_VMRM, "%d size more than max size %d", size, CAM_BUF_SIZE_MAX);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(input_buf, ubuf, size)) {
+		CAM_ERR(CAM_VMRM, "copy_from_user failed");
+		return -EFAULT;
+	}
+
+	msg = input_buf;
+	token = strsep(&msg, ":");
+	if (token != NULL) {
+		if (kstrtou32(token, CAM_HEXADECIMAL, &hw_id)) {
+			CAM_ERR(CAM_VMRM, "kstrtou32 failed");
+			return -EINVAL;
+		}
+	}
+
+	if (msg != NULL) {
+		if (kstrtou32(msg, 0, &clk_rate)) {
+			CAM_ERR(CAM_VMRM, "kstrtou32 failed");
+			return -EINVAL;
+		}
+	}
+
+	clk_rate = clk_rate * CAM_MHZ;
+
+	CAM_INFO(CAM_VMRM, "clk rate set test hw id %x clk_rate %d", hw_id, clk_rate);
+
+	if (cam_vmrm_intf_get_vmid() == CAM_PVM) {
+		CAM_WARN(CAM_VMRM, "clk rate set test only for svm");
+		return size;
+	}
+
+	rc = cam_vmrm_set_src_clk_rate(hw_id, -1, clk_rate, clk_rate);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "set src clk rate for hw id failed: 0x%x, rc: %d", hw_id, rc);
+		return rc;
+	}
+
+	CAM_INFO(CAM_VMRM, "hw id 0x%x clk rate set test succeed", hw_id);
+
+	return size;
+}
+
+static const struct file_operations cam_vmrm_clk_rate_set_test = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.read  = cam_vmrm_get_clk_rate_set_test,
+	.write = cam_vmrm_set_clk_rate_set_test,
+};
+
+static int cam_vmrm_debugfs_init(struct cam_vmrm_intf_dev *vmrm_dev)
+{
+	struct dentry *dbgfileptr = NULL;
+	int rc = 0;
+
+	if (!cam_debugfs_available())
+		return 0;
+
+	rc = cam_debugfs_create_subdir("vmrm", &dbgfileptr);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "DebugFS could not create directory!");
+		return rc;
+	}
+
+	vmrm_dev->dentry = dbgfileptr;
+
+	debugfs_create_file("proxy_voting_enable", 0644, vmrm_dev->dentry, NULL,
+		&cam_vmrm_proxy_voting_enable);
+
+	debugfs_create_file("cam_vmrm_lend_all_resources_test", 0644, vmrm_dev->dentry, NULL,
+		&cam_vmrm_lend_all_resources_test);
+
+	debugfs_create_file("cam_vmrm_acquire_resources_test", 0644,
+		vmrm_dev->dentry, NULL, &cam_vmrm_acquire_resources_test);
+
+	debugfs_create_file("cam_vmrm_release_resources_test", 0644,
+		vmrm_dev->dentry, NULL, &cam_vmrm_release_resources_test);
+
+	debugfs_create_file("cam_vmrm_gh_lend_resources_test", 0644,
+		vmrm_dev->dentry, NULL, &cam_vmrm_gh_lend_resources_test);
+
+	debugfs_create_file("cam_vmrm_gh_release_resources_test", 0644,
+		vmrm_dev->dentry, NULL, &cam_vmrm_gh_release_resources_test);
+
+	debugfs_create_file("cam_vmrm_soc_resources_enable_test", 0644,
+		vmrm_dev->dentry, NULL, &cam_vmrm_soc_resources_enable_test);
+
+	debugfs_create_file("cam_vmrm_soc_resources_disable_test", 0644,
+		vmrm_dev->dentry, NULL, &cam_vmrm_soc_resources_disable_test);
+
+	debugfs_create_file("cam_vmrm_driver_node_msg_test", 0644,
+		vmrm_dev->dentry, NULL, &cam_vmrm_driver_node_msg_test);
+
+	debugfs_create_file("cam_vmrm_clk_rate_set_test", 0644,
+		vmrm_dev->dentry, NULL, &cam_vmrm_clk_rate_set_test);
+
+	return 0;
 }
 
 static int cam_vmrm_intf_bind(struct device *dev,

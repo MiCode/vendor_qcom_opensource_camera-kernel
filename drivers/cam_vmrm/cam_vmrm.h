@@ -15,6 +15,10 @@
 
 #define CAM_GET_VM_NAME() ((cam_vmrm_intf_get_vmid() == CAM_PVM) ? "PVM" : "TVM")
 
+#define CAM_BUF_SIZE_MAX      32
+#define CAM_HEXADECIMAL       16
+#define CAM_MHZ               1000000
+
 /* message destination id for hw instance */
 #define CAM_HW_ID_BASE          0x3000
 #define CAM_HW_ID_CSIPHY0       (CAM_HW_ID_BASE + 0)
