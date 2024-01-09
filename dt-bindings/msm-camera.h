@@ -161,4 +161,12 @@
 #define CAM_BYPASS_CESTA      0x8
 #define CAM_BYPASS_ICC        0x10
 
+/* Proxy voting*/
+#define CAM_PROXY_CLK_RGL_VOTING  0x1
+#define CAM_PROXY_ICC_VOTING      0x2
+
+/* VM name */
+#define CAM_PVM    1
+#define CAM_SVM1   2
+#define CAM_VM_MAX 3
 #endif

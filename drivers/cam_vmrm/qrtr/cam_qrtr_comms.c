@@ -70,9 +70,9 @@ static int cam_qrtr_send_message_locked(struct cam_inter_vm_comms_handle *handle
 }
 
 static int cam_qrtr_send_response_locked(struct cam_inter_vm_comms_handle *handle,
-	struct cam_intervm_response_data *res)
+	void *data, size_t size)
 {
-	return cam_qrtr_send_message_locked(handle, res, sizeof(*res));
+	return cam_qrtr_send_message_locked(handle, data, size);
 }
 
 static void cam_qrtr_handle_incoming_message(struct work_struct *work)
@@ -142,8 +142,10 @@ static void cam_qrtr_handle_incoming_message(struct work_struct *work)
 
 			handle->message_cb((void *)handle->msg_buffer, msg_len, &response);
 			if (response.send_response) {
-				if (cam_qrtr_send_response_locked(handle, &response.data))
+				if (cam_qrtr_send_response_locked(handle, response.res_msg,
+					response.msg_size))
 					CAM_ERR(CAM_VMRM, "Sending the response failed");
+				kfree(response.res_msg);
 			}
 		}
 	}

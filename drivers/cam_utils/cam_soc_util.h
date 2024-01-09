@@ -53,6 +53,21 @@
 /* maximum number of irq per device */
 #define CAM_SOC_MAX_IRQ_LINES_PER_DEV 2
 
+/* maximum length of soc name */
+#define CAM_SOC_MAX_LENGTH_NAME 64
+
+/* maximum number of soc device use gpio*/
+#define CAM_SOC_MAX_GPIO 4
+
+/* vmrm resource id list max */
+#define CAM_VMRM_MAX_RESOURCE_IDS 4
+
+/* vmrm resource irq id offset */
+#define CAM_VMRM_RESOURCE_IRQ_OFFSET 2
+
+/* vmrm resource irq bit map offset */
+#define CAM_VMRM_RESOURCE_IRQ_BIT_MAP_OFFSET 1
+
 /* DDR device types */
 #define DDR_TYPE_LPDDR4        6
 #define DDR_TYPE_LPDDR4X       7
@@ -263,6 +278,12 @@ struct cam_soc_gpio_data {
  * @cam_cx_ipeak_enable     cx-ipeak enable/disable flag
  * @cam_cx_ipeak_bit        cx-ipeak mask for driver
  * @soc_private:            Soc private data
+ * @hw_id:                  Vm resource manager to identify hw
+ * @num_vmrm_resource_ids:  Vm resource manager resource ids count
+ * @vmrm_resource_ids:      Vm resource manager resource ids array, parameter order is mem label,
+ *                          mem tag, irq label. For example one device has two irqs and two mem
+ *                          space, parameter is like this, mem label, mem tag, irq1 label,
+ *                          irq2 label.
  */
 struct cam_hw_soc_info {
 	struct platform_device         *pdev;
@@ -332,6 +353,11 @@ struct cam_hw_soc_info {
 	int32_t                         cam_cx_ipeak_bit;
 
 	void                           *soc_private;
+	uint32_t                        hw_id;
+#ifdef CONFIG_SPECTRA_VMRM
+	uint32_t                        num_vmrm_resource_ids;
+	uint32_t                        vmrm_resource_ids[CAM_VMRM_MAX_RESOURCE_IDS];
+#endif
 };
 
 /**

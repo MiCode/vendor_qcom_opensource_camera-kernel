@@ -7,6 +7,9 @@
 #include <linux/build_bug.h>
 
 #include "cam_req_mgr_dev.h"
+#ifdef CONFIG_SPECTRA_VMRM
+#include "cam_vmrm.h"
+#endif
 #include "cam_sync_api.h"
 #include "cam_smmu_api.h"
 #include "cam_cpas_hw_intf.h"
@@ -86,6 +89,9 @@ struct camera_submodule {
 
 static const struct camera_submodule_component camera_base[] = {
 	{&cam_req_mgr_init, &cam_req_mgr_exit},
+#ifdef CONFIG_SPECTRA_VMRM
+	{&cam_vmrm_module_init, &cam_vmrm_module_exit},
+#endif
 	{&cam_sync_init, &cam_sync_exit},
 	{&cam_smmu_init_module, &cam_smmu_exit_module},
 	{&cam_cpas_dev_init_module, &cam_cpas_dev_exit_module},

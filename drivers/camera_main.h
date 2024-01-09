@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAMERA_MAIN_H
@@ -11,6 +11,9 @@
 #include <linux/i2c.h>
 #include <linux/component.h>
 
+#ifdef CONFIG_SPECTRA_VMRM
+extern struct platform_driver cam_vmrm_intf_driver;
+#endif
 extern struct platform_driver cam_sync_driver;
 extern struct platform_driver cam_smmu_driver;
 extern struct platform_driver cam_cpas_driver;
@@ -88,6 +91,9 @@ extern struct platform_driver custom_driver;
  */
 static struct platform_driver *const cam_component_platform_drivers[] = {
 /* BASE */
+#ifdef CONFIG_SPECTRA_VMRM
+	&cam_vmrm_intf_driver,
+#endif
 	&cam_sync_driver,
 	&cam_smmu_driver,
 	&cam_cpas_driver,

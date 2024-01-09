@@ -2883,6 +2883,9 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 {
 	struct device_node *of_node = NULL;
 	int count = 0, i = 0, rc = 0;
+#ifdef CONFIG_SPECTRA_VMRM
+	int num_vmrm_resource_ids = 0;
+#endif
 
 	if (!soc_info || !soc_info->dev)
 		return -EINVAL;
@@ -3001,6 +3004,24 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 	if (of_find_property(of_node, "qcom,cam-cx-ipeak", NULL))
 		rc = cam_cx_ipeak_register_cx_ipeak(soc_info);
 
+#ifdef CONFIG_SPECTRA_VMRM
+	num_vmrm_resource_ids = of_property_count_u32_elems(of_node, "vmrm-resource-ids");
+
+	if ((num_vmrm_resource_ids <= 0) ||
+		(num_vmrm_resource_ids > CAM_VMRM_MAX_RESOURCE_IDS)) {
+		CAM_ERR(CAM_UTIL, "Invalid vmrm resource ids counter %d max %d",
+			num_vmrm_resource_ids, CAM_VMRM_MAX_RESOURCE_IDS);
+	} else {
+		soc_info->num_vmrm_resource_ids  = num_vmrm_resource_ids;
+		for (i = 0; i < num_vmrm_resource_ids; i++) {
+			of_property_read_u32_index(of_node, "vmrm-resource-ids", i,
+				&soc_info->vmrm_resource_ids[i]);
+			CAM_DBG(CAM_UTIL, "dev name %s vmrm resource id num %d index %d id %d",
+				soc_info->dev_name, num_vmrm_resource_ids, i,
+				soc_info->vmrm_resource_ids[i]);
+		}
+	}
+#endif
 	return rc;
 }
 

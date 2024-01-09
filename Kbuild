@@ -118,7 +118,8 @@ camera-y := \
 	drivers/cam_cdm/cam_cdm_intf.o \
 	drivers/cam_cdm/cam_cdm_core_common.o \
 	drivers/cam_cdm/cam_cdm_virtual_core.o \
-	drivers/cam_cdm/cam_cdm_hw_core.o
+	drivers/cam_cdm/cam_cdm_hw_core.o \
+	drivers/cam_vmrm/cam_vmrm_interface.o
 
 ifeq (,$(filter $(CONFIG_CAM_PRESIL),y m))
 	camera-y += drivers/cam_presil/stub/cam_presil_hw_access_stub.o
@@ -312,7 +313,9 @@ camera-$(CONFIG_SPECTRA_TFE) += \
 	drivers/cam_isp/isp_hw_mgr/cam_tfe_hw_mgr.o
 
 camera-$(CONFIG_SPECTRA_VMRM) += \
-	drivers/cam_vmrm/qrtr/cam_qrtr_comms.o
+	drivers/cam_vmrm/qrtr/cam_qrtr_comms.o \
+	drivers/cam_vmrm/cam_vmrm.o \
+	drivers/cam_vmrm/cam_vmrm_gh_wrapper.o
 
 camera-y += drivers/camera_main.o
 

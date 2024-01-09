@@ -26,11 +26,13 @@ struct cam_intervm_response_data {
  * @brief cam_intervm_response
  *
  * @param send_response     : Whether or not to send a response.
- * @param data              : Data pertaining to the response.
+ * @res_msg                 : Response message
+ * @msg_size                : Response message size.
  */
 struct cam_intervm_response {
 	bool send_response;
-	struct cam_intervm_response_data data;
+	void *res_msg;
+	size_t msg_size;
 };
 
 /**
