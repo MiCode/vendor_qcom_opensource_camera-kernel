@@ -1089,6 +1089,10 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 	struct device_node *np = NULL;
 	uint32_t cam_bypass_driver = 0;
 	struct device_node *of_node = NULL;
+#ifdef CONFIG_ARCH_QTI_VM
+	uint32_t device_heap_size = 0;
+	uint32_t session_heap_size = 0;
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(cam_component_i2c_drivers); i++) {
 		while ((np = of_find_compatible_node(np, NULL,
@@ -1142,6 +1146,29 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 		rc = 0;
 	}
 
+#ifdef CONFIG_ARCH_QTI_VM
+	rc = of_property_read_u32(of_node, "device-heap-size",
+		&device_heap_size);
+	if (rc) {
+		CAM_WARN(CAM_CRM, "device heap size parameter not found");
+
+		/* Setup default devie heap size to 4M */
+		device_heap_size = SZ_4M;
+		rc = 0;
+	}
+
+	rc = of_property_read_u32(of_node, "session-heap-size",
+		&session_heap_size);
+	if (rc) {
+		CAM_WARN(CAM_CRM, "session heap size parameter not found");
+
+		/* Setup default devie heap size to 200M */
+		session_heap_size = SZ_128M | SZ_64M | SZ_8M;
+		rc = 0;
+	}
+
+	cam_mem_mgr_set_svm_heap_sizes(device_heap_size, session_heap_size);
+#endif
 end:
 	of_node_put(np);
 	return rc;

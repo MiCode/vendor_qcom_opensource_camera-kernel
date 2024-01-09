@@ -1007,3 +1007,34 @@ inline struct icc_path *cam_icc_get_path(struct device *dev,
 #endif
 }
 
+#if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
+#ifdef CONFIG_ARCH_QTI_VM
+#if KERNEL_VERSION(6, 5, 0) <= LINUX_VERSION_CODE
+void *cam_mem_heap_add_kernel_pool(struct dma_heap *heap, size_t size)
+{
+	/* Comment out logic that depends on memory team's change temporary */
+	// return qcom_tvm_heap_add_kernel_pool(heap, size);
+	return NULL;
+}
+
+void cam_mem_heap_remove_kernel_pool(void *handle)
+{
+	/* Comment out logic that depends on memory team's change temporary */
+	// qcom_tvm_heap_remove_kernel_pool(handle);
+}
+#else
+void *cam_mem_heap_add_kernel_pool(struct dma_heap *heap, size_t size)
+{
+	/* Comment out logic that depends on memory team's change temporary */
+	// return qcom_tui_heap_add_kernel_pool(heap, size);
+	return NULL;
+}
+
+void cam_mem_heap_remove_kernel_pool(void *handle)
+{
+	/* Comment out logic that depends on memory team's change temporary */
+	// qcom_tui_heap_remove_kernel_pool(handle);
+}
+#endif
+#endif
+#endif

@@ -61,6 +61,18 @@ MODULE_IMPORT_NS(DMA_BUF);
 #include <linux/interconnect.h>
 #endif
 
+#if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
+#ifdef CONFIG_ARCH_QTI_VM
+#include <linux/dma-heap.h>
+#if KERNEL_VERSION(6, 5, 0) <= LINUX_VERSION_CODE
+/* Comment out logic that depends on memory team's change temporary */
+// #include <linux/qcom_tvm_heap.h>
+#else
+#include <linux/qcom_tui_heap.h>
+#endif
+#endif
+#endif
+
 #define IS_CSF25(x, y) ((((x) == 2) && ((y) == 5)) ? 1 : 0)
 
 struct cam_fw_alloc_info {
@@ -147,4 +159,11 @@ inline struct icc_path *cam_icc_get_path(struct device *dev,
 	const int src_id, const int dst_id, const char *path_name, bool use_path_name);
 #endif
 
+#if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
+#ifdef CONFIG_ARCH_QTI_VM
+void *cam_mem_heap_add_kernel_pool(struct dma_heap *heap, size_t size);
+
+void cam_mem_heap_remove_kernel_pool(void *handle);
+#endif
+#endif
 #endif /* _CAM_COMPAT_H_ */

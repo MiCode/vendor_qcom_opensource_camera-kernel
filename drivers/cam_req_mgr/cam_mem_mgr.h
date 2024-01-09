@@ -11,6 +11,9 @@
 #include <linux/dma-buf.h>
 #if IS_REACHABLE(CONFIG_DMABUF_HEAPS)
 #include <linux/dma-heap.h>
+#ifdef CONFIG_ARCH_QTI_VM
+#include "cam_compat.h"
+#endif
 #endif
 #include <media/cam_req_mgr.h>
 #include "cam_mem_mgr_api.h"
@@ -62,6 +65,22 @@ struct cam_mem_buf_hw_hdl_info {
 };
 
 /**
+ * enum cam_dma_heap_type
+ *
+ * @CAM_SVM_HEAP_DEVICE:      The memory heap that is used for one time kernel
+ *                            space allocations. This is created during probe
+ *                            and lives forever.
+ * @CAM_SVM_HEAP_SESSION:     The memory heap that is used for session based
+ *                            user space buffers. This is created at the start
+ *                            of a session and destroyed at the end of it.
+ */
+enum cam_dma_heap_type {
+	CAM_SVM_HEAP_DEVICE,
+	CAM_SVM_HEAP_SESSION,
+	CAM_HEAP_MAX,
+};
+
+/**
  * struct cam_mem_buf_queue
  *
  * @dma_buf:           pointer to the allocated dma_buf in the table
@@ -86,6 +105,7 @@ struct cam_mem_buf_hw_hdl_info {
  * @smmu_mapping_client: Client buffer (User or kernel)
  * @buf_name:            Name associated with buffer.
  * @presil_params:       Parameters specific to presil environment
+ * @dma_heap_type:       Indicating memory heap type
  */
 struct cam_mem_buf_queue {
 	struct dma_buf *dma_buf;
@@ -107,10 +127,10 @@ struct cam_mem_buf_queue {
 	struct kref krefcount;
 	enum cam_smmu_mapping_client smmu_mapping_client;
 	char buf_name[CAM_DMA_BUF_NAME_LEN];
-
 #ifdef CONFIG_CAM_PRESIL
 	struct cam_presil_dmabuf_params presil_params;
 #endif
+	enum cam_dma_heap_type dma_heap_type;
 };
 
 /**
@@ -138,6 +158,15 @@ struct cam_mem_buf_queue {
  * @secure_display_heap: Handle to secure display heap
  * @ubwc_p_heap: Handle to ubwc-p heap
  * @ubwc_p_movable_heap: Handle to ubwc-p movable heap
+ * @cam_device_heap:     Handle of svm device heap
+ * @cam_session_heap:    Handle of svm session heap
+ * @cam_device_mem_pool_handle:  Handle of device memory pool
+ * @cam_session_mem_pool_handle: Handle of session memory pool
+ * @device_heap_alloc_cnt:       Buffer count alloc from device heap
+ * @session_heap_alloc_cnt:      Buffer count alloc from session heap
+ * @device_heap_size:            Device pool size
+ * @session_heap_size:           Session pool size
+ *
  */
 struct cam_mem_table {
 	struct mutex m_lock;
@@ -159,6 +188,16 @@ struct cam_mem_table {
 	struct dma_heap *secure_display_heap;
 	struct dma_heap *ubwc_p_heap;
 	struct dma_heap *ubwc_p_movable_heap;
+#ifdef CONFIG_ARCH_QTI_VM
+	struct dma_heap *cam_device_heap;
+	struct dma_heap *cam_session_heap;
+	void *cam_device_mem_pool_handle;
+	void *cam_session_mem_pool_handle;
+	uint32_t device_heap_alloc_cnt;
+	uint32_t session_heap_alloc_cnt;
+	uint32_t device_heap_size;
+	uint32_t session_heap_size;
+#endif
 #endif
 
 };
@@ -297,4 +336,14 @@ int cam_mem_mgr_retrieve_buffer_from_presil(int32_t buf_handle,
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_mem_mgr_dump_user(struct cam_dump_req_cmd *dump_req);
+
+#ifdef CONFIG_ARCH_QTI_VM
+/**
+ * @brief: Set device and session heap size to mem mgr info
+ *
+ * @return None.
+ */
+void cam_mem_mgr_set_svm_heap_sizes(uint32_t device_heap_size,
+	uint32_t session_heap_size);
+#endif
 #endif /* _CAM_MEM_MGR_H_ */
