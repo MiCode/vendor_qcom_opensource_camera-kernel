@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1709,7 +1709,7 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 	rc = cam_sensor_core_power_up(power_info, soc_info, i3c_probe_completion);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "core power up failed:%d", rc);
-		return rc;
+		goto powerup_failure;
 	}
 
 	rc = camera_io_init(&(s_ctrl->io_master_info));
@@ -1724,6 +1724,13 @@ cci_failure:
 	if (cam_sensor_util_power_down(power_info, soc_info))
 		CAM_ERR(CAM_SENSOR, "power down failure");
 
+powerup_failure:
+	if (s_ctrl->aon_camera_id != NOT_AON_CAM) {
+		if (cam_sensor_util_aon_ops(false,
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]))
+			CAM_ERR(CAM_SENSOR,
+				"Main camera disable CPAS operation is not successful");
+	}
 	return rc;
 
 }
@@ -1752,7 +1759,7 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "%s core power down failed:%d",
 			s_ctrl->sensor_name, rc);
-		return rc;
+		goto powerdown_failure;
 	}
 
 	if (s_ctrl->aon_camera_id != NOT_AON_CAM) {
@@ -1783,6 +1790,16 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 	camera_io_release(&(s_ctrl->io_master_info));
 
 	return rc;
+
+powerdown_failure:
+	if (s_ctrl->aon_camera_id != NOT_AON_CAM) {
+		if (cam_sensor_util_aon_ops(false,
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]))
+			CAM_ERR(CAM_SENSOR,
+				"Main camera disable CPAS operation is not successful");
+	}
+	return rc;
+
 }
 
 int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
