@@ -738,7 +738,7 @@ static int cam_tfe_csid_cid_reserve(struct cam_tfe_csid_hw *csid_hw,
 	/* CSID  CSI2 v1.1 supports 4 vc  */
 	for (i = 0; i < cid_reserv->in_port->num_valid_vc_dt; i++) {
 		if (cid_reserv->in_port->dt[i] > 0x3f ||
-			cid_reserv->in_port->vc[i] > 0x3) {
+			cid_reserv->in_port->vc[i] > 0x1f) {
 			CAM_ERR(CAM_ISP, "CSID:%d Invalid vc:%d dt %d",
 				csid_hw->hw_intf->hw_idx,
 				cid_reserv->in_port->vc[i],
@@ -849,7 +849,7 @@ static int cam_tfe_csid_path_reserve(struct cam_tfe_csid_hw *csid_hw,
 	/* CSID  CSI2 v2.0 supports 4 vc */
 	for (i = 0; i < reserve->in_port->num_valid_vc_dt; i++) {
 		if (reserve->in_port->dt[i] > 0x3f ||
-			reserve->in_port->vc[i] > 0x3 ||
+			reserve->in_port->vc[i] > 0x1f ||
 			(reserve->sync_mode >= CAM_ISP_HW_SYNC_MAX)) {
 			CAM_ERR(CAM_ISP, "CSID:%d Invalid vc:%d dt %d mode:%d",
 				csid_hw->hw_intf->hw_idx,
@@ -1091,6 +1091,9 @@ static int cam_tfe_csid_enable_csi2(
 
 	/* rx cfg1 */
 	val = (1 << csid_reg->csi2_reg->csi2_misr_enable_shift_val);
+
+	/* enable vc mode to configure vc with value more than 3 */
+	val |= (1 << csid_reg->csi2_reg->csi2_vc_mode_shift_val);
 
 	/* enable packet ecc correction */
 	val |= 1;
@@ -1675,7 +1678,7 @@ static int cam_tfe_csid_enable_pxl_path(
 		pxl_reg->csid_pxl_ctrl_addr);
 
 	CAM_DBG(CAM_ISP, "CSID:%d IPP Ctrl val: 0x%x",
-			csid_hw->hw_intf->hw_idx, val);
+		csid_hw->hw_intf->hw_idx, val);
 
 	/* Enable the required pxl path interrupts */
 	val = TFE_CSID_PATH_INFO_RST_DONE |
@@ -3861,7 +3864,6 @@ irqreturn_t cam_tfe_csid_irq(int irq_num, void *data)
 	}
 	cam_io_w_mb(1, soc_info->reg_map[0].mem_base +
 		csid_reg->cmn_reg->csid_irq_cmd_addr);
-
 
 	/* Software register reset complete*/
 	if (irq_status[TFE_CSID_IRQ_REG_TOP])
