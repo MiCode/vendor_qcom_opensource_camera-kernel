@@ -225,7 +225,7 @@ static int cam_tfe_mgr_get_hw_caps(void *hw_mgr_priv,
 	uint32_t version = 0;
 	struct cam_query_cap_cmd               *query = hw_caps_args;
 	struct cam_tfe_hw_mgr                  *hw_mgr = hw_mgr_priv;
-	struct cam_isp_tfe_query_cap_cmd        query_isp;
+	struct cam_isp_tfe_query_cap_cmd        query_isp = {0};
 	struct cam_isp_tfe_query_cap_cmd_v2    *query_isp_v2;
 
 	query_size = sizeof(struct cam_isp_tfe_query_cap_cmd_v2) +
@@ -317,7 +317,7 @@ static int cam_tfe_mgr_get_hw_caps_v2(void *hw_mgr_priv,
 		return -EINVAL;
 	}
 
-	if (copy_to_user(u64_to_user_ptr(query->caps_handle), &query_isp_v2,
+	if (copy_to_user(u64_to_user_ptr(query->caps_handle), query_isp_v2,
 		(sizeof(struct cam_isp_tfe_query_cap_cmd_v2) + ((query_isp_v2->num_dev - 1)
 		* sizeof(struct cam_isp_tfe_dev_cap_info))))) {
 		CAM_ERR(CAM_ISP, "copy to user failed, query cap version %d",
