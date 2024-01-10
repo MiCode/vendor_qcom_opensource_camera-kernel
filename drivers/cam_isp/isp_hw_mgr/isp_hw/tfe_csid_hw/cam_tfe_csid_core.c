@@ -2872,9 +2872,6 @@ static int cam_tfe_csid_init_hw(void *hw_priv,
 	if (rc < 0)
 		CAM_ERR(CAM_ISP, "CSID: Failed in SW reset");
 
-	if (rc)
-		cam_tfe_csid_disable_hw(csid_hw);
-
 	spin_lock_irqsave(&csid_hw->spin_lock, flags);
 	csid_hw->device_enabled = 1;
 	spin_unlock_irqrestore(&csid_hw->spin_lock, flags);
