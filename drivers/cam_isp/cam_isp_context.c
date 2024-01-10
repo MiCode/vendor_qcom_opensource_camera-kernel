@@ -3432,7 +3432,7 @@ static int __cam_isp_ctx_epoch_in_applied(struct cam_isp_context *ctx_isp,
 		 * The previous req is applied after SOF and there is only
 		 * one applied req, we don't need to report bubble for this case.
 		 */
-		if (wait_req_cnt == 1) {
+		if (wait_req_cnt == 1 && !ctx_isp->is_tfe_shdr) {
 			req = list_first_entry(&ctx->wait_req_list,
 				struct cam_ctx_request, list);
 			request_id = req->request_id;
@@ -7457,6 +7457,8 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 
 	ctx_isp->support_consumed_addr =
 		(param.op_flags & CAM_IFE_CTX_CONSUME_ADDR_EN);
+	ctx_isp->is_tfe_shdr = (param.op_flags & CAM_IFE_CTX_SHDR_EN);
+	ctx_isp->is_shdr_master = (param.op_flags & CAM_IFE_CTX_SHDR_IS_MASTER);
 
 	/* Query the context has rdi only resource */
 	hw_cmd_args.ctxt_to_hw_map = param.ctxt_to_hw_map;
