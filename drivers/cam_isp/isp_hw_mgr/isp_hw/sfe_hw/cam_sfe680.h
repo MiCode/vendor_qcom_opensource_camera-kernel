@@ -580,6 +580,7 @@ static struct cam_sfe_bus_rd_hw_info sfe680_bus_rd_hw_info = {
 	 */
 	.latency_buf_allocation = 2048,
 	.irq_err_mask           = 0x1,
+	.fs_sync_shift          = 0x5,
 	.constraint_error_info  = &sfe680_bus_rd_constraint_error_info,
 };
 

@@ -15,6 +15,7 @@
 #include "cam_packet_util.h"
 
 #define MAX_READ_SIZE  0x7FFFF
+#define MAX_RETRY_TIMES 3
 
 /**
  * cam_eeprom_read_memory() - read map data into buffer
@@ -60,6 +61,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 			i2c_reg_settings.addr_type = emap[j].page.addr_type;
 			i2c_reg_settings.data_type = emap[j].page.data_type;
 			i2c_reg_settings.size = 1;
+			i2c_reg_settings.delay = emap[j].page.delay;
 			i2c_reg_array.reg_addr = emap[j].page.addr;
 			i2c_reg_array.reg_data = emap[j].page.data;
 			i2c_reg_array.delay = emap[j].page.delay;
@@ -148,10 +150,16 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 	struct cam_sensor_power_ctrl_t *power_info)
 {
-	int32_t                 rc = 0;
-	struct cam_hw_soc_info *soc_info =
-		&e_ctrl->soc_info;
+	int32_t                                 rc = 0;
+	struct cam_hw_soc_info                 *soc_info = &e_ctrl->soc_info;
+	struct completion                      *i3c_probe_completion = NULL;
+	struct timespec64                       ts1, ts2; // xiaomi add
+	long                                    microsec = 0; // xiaomi add
 
+	/* xiaomi add begin */
+	CAM_GET_TIMESTAMP(ts1);
+	CAM_DBG(MI_DEBUG, "%s start power_up", e_ctrl->device_name);
+	/* xiaomi add end */
 	/* Parse and fill vreg params for power up settings */
 	rc = msm_camera_fill_vreg_params(
 		&e_ctrl->soc_info,
@@ -176,7 +184,10 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 
 	power_info->dev = soc_info->dev;
 
-	rc = cam_sensor_core_power_up(power_info, soc_info);
+	if (e_ctrl->io_master_info.master_type == I3C_MASTER)
+		i3c_probe_completion = cam_eeprom_get_i3c_completion(e_ctrl->soc_info.index);
+
+	rc = cam_sensor_core_power_up(power_info, soc_info, i3c_probe_completion);
 	if (rc) {
 		CAM_ERR(CAM_EEPROM, "failed in eeprom power up rc %d", rc);
 		return rc;
@@ -189,6 +200,12 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 			goto cci_failure;
 		}
 	}
+	/* xiaomi add begin */
+	CAM_GET_TIMESTAMP(ts2);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts1, ts2, microsec);
+	CAM_DBG(MI_DEBUG, "%s end power_up, occupy time is: %ld ms",
+		e_ctrl->device_name, microsec/1000);
+	/* xiaomi add end */
 	return rc;
 cci_failure:
 	if (cam_sensor_util_power_down(power_info, soc_info))
@@ -209,7 +226,13 @@ static int cam_eeprom_power_down(struct cam_eeprom_ctrl_t *e_ctrl)
 	struct cam_hw_soc_info         *soc_info;
 	struct cam_eeprom_soc_private  *soc_private;
 	int                             rc = 0;
+	struct timespec64               ts1, ts2; // xiaomi add
+	long                            microsec = 0; // xiaomi add
 
+	/* xiaomi add begin */
+	CAM_GET_TIMESTAMP(ts1);
+	CAM_DBG(MI_DEBUG, "%s start power_down", e_ctrl->device_name);
+	/* xiaomi add end */
 	if (!e_ctrl) {
 		CAM_ERR(CAM_EEPROM, "failed: e_ctrl %pK", e_ctrl);
 		return -EINVAL;
@@ -232,7 +255,12 @@ static int cam_eeprom_power_down(struct cam_eeprom_ctrl_t *e_ctrl)
 
 	if (e_ctrl->io_master_info.master_type == CCI_MASTER)
 		camera_io_release(&(e_ctrl->io_master_info));
-
+	/* xiaomi add begin */
+	CAM_GET_TIMESTAMP(ts2);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts1, ts2, microsec);
+	CAM_DBG(MI_DEBUG, "%s end power_down, occupy time is: %ld ms",
+		e_ctrl->device_name, microsec/1000);
+	/* xiaomi add end */
 	return rc;
 }
 
@@ -1201,6 +1229,7 @@ del_req:
 static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 {
 	int32_t                         rc = 0;
+	int32_t                         i = 0;
 	struct cam_control             *ioctl_ctrl = NULL;
 	struct cam_config_dev_cmd       dev_config;
 	uintptr_t                        generic_pkt_addr;
@@ -1289,23 +1318,30 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			}
 		}
 
-		rc = cam_eeprom_power_up(e_ctrl,
-			&soc_private->power_info);
-		if (rc) {
-			CAM_ERR(CAM_EEPROM, "failed rc %d", rc);
-			goto memdata_free;
+		/* xiaomi add eeprom read retry - begin */
+		for (i = 0; i < MAX_RETRY_TIMES; i++) {
+			rc = cam_eeprom_power_up(e_ctrl,
+				&soc_private->power_info);
+			if (rc) {
+				CAM_ERR(CAM_EEPROM, "cam_eeprom_power_up failed at times %d", i);
+				rc = cam_eeprom_power_down(e_ctrl);
+				usleep_range(10*1000, 11*1000);
+				continue;
+			}
+			e_ctrl->cam_eeprom_state = CAM_EEPROM_CONFIG;
+			rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
+			if (rc) {
+				CAM_ERR(CAM_EEPROM,
+					"cam_eeprom_read_memory failed at times %d", i);
+				rc = cam_eeprom_power_down(e_ctrl);
+				usleep_range(10*1000, 11*1000);
+			} else {
+				rc = cam_eeprom_get_cal_data(e_ctrl, csl_packet);
+				rc = cam_eeprom_power_down(e_ctrl);
+				break;
+			}
 		}
-
-		e_ctrl->cam_eeprom_state = CAM_EEPROM_CONFIG;
-		rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
-		if (rc) {
-			CAM_ERR(CAM_EEPROM,
-				"read_eeprom_memory failed");
-			goto power_down;
-		}
-
-		rc = cam_eeprom_get_cal_data(e_ctrl, csl_packet);
-		rc = cam_eeprom_power_down(e_ctrl);
+		/* xiaomi add eeprom read retry - end */
 		e_ctrl->cam_eeprom_state = CAM_EEPROM_ACQUIRE;
 		vfree(e_ctrl->cal_data.mapdata);
 		vfree(e_ctrl->cal_data.map);
@@ -1376,7 +1412,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 	}
 
 	return rc;
-power_down:
+
 	cam_eeprom_power_down(e_ctrl);
 memdata_free:
 	vfree(e_ctrl->cal_data.mapdata);

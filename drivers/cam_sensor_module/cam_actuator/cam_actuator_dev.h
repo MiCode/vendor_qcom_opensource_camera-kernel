@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -26,12 +27,15 @@
 #include "cam_soc_util.h"
 #include "cam_debug_util.h"
 #include "cam_context.h"
+#include "cam_parklens_thread.h" //xiaomi add
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
 
-#define ACTUATOR_DRIVER_I2C "cam-i2c-actuator"
-#define CAMX_ACTUATOR_DEV_NAME "cam-actuator-driver"
+#define ACTUATOR_DRIVER_I2C                    "cam-i2c-actuator"
+#define CAMX_ACTUATOR_DEV_NAME                 "cam-actuator-driver"
+#define ACTUATOR_DRIVER_I3C                    "i3c_camera_actuator"
+
 
 #define MSM_ACTUATOR_MAX_VREGS (10)
 #define ACTUATOR_MAX_POLL_COUNT 10
@@ -46,6 +50,7 @@ enum cam_actuator_state {
 	CAM_ACTUATOR_ACQUIRE,
 	CAM_ACTUATOR_CONFIG,
 	CAM_ACTUATOR_START,
+	CAM_ACTUATOR_PARKLENS, //xiaomi add
 };
 
 /**
@@ -86,6 +91,7 @@ struct actuator_intf_params {
  * @cci_i2c_master: I2C structure
  * @io_master_info: Information about the communication master
  * @actuator_mutex: Actuator mutex
+ * @is_i3c_device : A Flag to indicate whether this actuator is I3C device
  * @act_apply_state: Actuator settings aRegulator config
  * @id: Cell Index
  * @res_apply_state: Actuator settings apply state
@@ -97,6 +103,7 @@ struct actuator_intf_params {
  * @act_info: Sensor query cap structure
  * @of_node: Node ptr
  * @last_flush_req: Last request to flush
+ * @cci_debug: Sensor debugfs info and entry
  */
 struct cam_actuator_ctrl_t {
 	char device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -106,6 +113,7 @@ struct cam_actuator_ctrl_t {
 	struct camera_io_master io_master_info;
 	struct cam_hw_soc_info soc_info;
 	struct mutex actuator_mutex;
+	bool is_i3c_device;
 	uint32_t id;
 	enum cam_actuator_apply_state_t setting_apply_state;
 	enum cam_actuator_state cam_act_state;
@@ -115,6 +123,11 @@ struct cam_actuator_ctrl_t {
 	struct cam_actuator_query_cap act_info;
 	struct actuator_intf_params bridge_intf;
 	uint32_t last_flush_req;
+	/* xiaomi add for cci debug start */
+	void *cci_debug;
+	/* xiaomi add for cci debug end */
+	struct cam_actuator_parklens_ctrl_t parklens_ctrl; //xiaomi add
+	uint32_t cci_io_fail_count;
 };
 
 /**

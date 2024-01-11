@@ -270,12 +270,12 @@ int cam_ife_csid_get_format_rdi(
 	case CAM_FORMAT_MIPI_RAW_6:
 	case CAM_FORMAT_MIPI_RAW_8:
 	case CAM_FORMAT_YUV422:
+	case CAM_FORMAT_PLAIN128:
 		if (mipi_unpacked)
 			path_format->plain_fmt = 0x0;
 		else
 			path_format->packing_fmt = 0x1;
 		break;
-	case CAM_FORMAT_PLAIN128:
 	case CAM_FORMAT_PLAIN8:
 		path_format->plain_fmt = 0x0;
 		break;

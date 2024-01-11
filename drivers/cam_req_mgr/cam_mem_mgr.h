@@ -94,6 +94,7 @@ struct cam_mem_buf_queue {
  * @camera_heap: Handle to camera heap
  * @camera_uncached_heap: Handle to camera uncached heap
  * @secure_display_heap: Handle to secure display heap
+ * @ubwc_p_heap: Handle to ubwc-p heap
  */
 struct cam_mem_table {
 	struct mutex m_lock;
@@ -109,6 +110,7 @@ struct cam_mem_table {
 	struct dma_heap *camera_heap;
 	struct dma_heap *camera_uncached_heap;
 	struct dma_heap *secure_display_heap;
+	struct dma_heap *ubwc_p_heap;
 #endif
 
 };
@@ -139,7 +141,7 @@ struct cam_mem_table_mini_dump {
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-int cam_mem_mgr_alloc_and_map(struct cam_mem_mgr_alloc_cmd *cmd);
+int cam_mem_mgr_alloc_and_map(struct cam_mem_mgr_alloc_cmd_v2 *cmd);
 
 /**
  * @brief: Releases a buffer reference
@@ -157,7 +159,7 @@ int cam_mem_mgr_release(struct cam_mem_mgr_release_cmd *cmd);
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd *cmd);
+int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd_v2 *cmd);
 
 /**
  * @brief: Perform cache ops on the buffer
@@ -167,6 +169,22 @@ int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd *cmd);
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd);
+
+/**
+ * @brief: Perform cpu access ops on the buffer
+ *
+ * @cmd:   CPU access ops information
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
+ */
+int cam_mem_mgr_cpu_access_op(struct cam_mem_cpu_access_op *cmd);
+
+/**
+ * @brief: Check whether ubwc-p heap is supported
+ *
+ * @return true if supported, false otherwise
+ */
+bool cam_mem_mgr_ubwc_p_heap_supported(void);
 
 /**
  * @brief: Initializes the memory manager

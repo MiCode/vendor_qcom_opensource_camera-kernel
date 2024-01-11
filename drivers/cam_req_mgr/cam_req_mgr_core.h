@@ -15,7 +15,7 @@
 #define CAM_REQ_MGR_MAX_LINKED_DEV     16
 #define MAX_REQ_SLOTS                  48
 
-#define CAM_REQ_MGR_WATCHDOG_TIMEOUT          1000
+#define CAM_REQ_MGR_WATCHDOG_TIMEOUT          5000
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT_DEFAULT  5000
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT_MAX      50000
 #define CAM_REQ_MGR_SCHED_REQ_TIMEOUT         1000
@@ -39,13 +39,13 @@
 
 #define MAXIMUM_LINKS_PER_SESSION  4
 
-#define MAXIMUM_RETRY_ATTEMPTS 3
-
-#define MINIMUM_WORKQUEUE_SCHED_TIME_IN_MS 5
+#define MAXIMUM_RETRY_ATTEMPTS 6
 
 #define VERSION_1  1
 #define VERSION_2  2
 #define CAM_REQ_MGR_MAX_TRIGGERS   2
+
+#define CAM_REQ_MGR_HALF_FRAME_DURATION(frame_duration) (frame_duration / 2)
 
 /**
  * enum crm_req_eof_trigger_type
@@ -90,7 +90,7 @@ enum crm_workq_task_type {
 struct crm_task_payload {
 	enum crm_workq_task_type type;
 	union {
-		struct cam_req_mgr_sched_request        sched_req;
+		struct cam_req_mgr_sched_request_v2     sched_req;
 		struct cam_req_mgr_flush_info           flush_info;
 		struct cam_req_mgr_add_request          dev_req;
 		struct cam_req_mgr_send_request         send_req;
@@ -148,6 +148,19 @@ enum cam_req_mgr_link_state {
 	CAM_CRM_LINK_STATE_READY,
 	CAM_CRM_LINK_STATE_ERR,
 	CAM_CRM_LINK_STATE_MAX,
+};
+
+/**
+ * enum cam_req_mgr_sync_type
+ * Sync type for syncing info
+ * DELAY_AT_SOF  : inject delay at SOF
+ * DELAY_AT_EOF  : inject delay at EOF
+ * APPLY_AT_EOF  : apply at EOF
+ */
+enum cam_req_mgr_sync_type {
+	CAM_SYNC_TYPE_DELAY_AT_SOF,
+	CAM_SYNC_TYPE_DELAY_AT_EOF,
+	CAM_SYNC_TYPE_APPLY_AT_EOF,
 };
 
 /**
@@ -272,6 +285,8 @@ struct cam_req_mgr_req_tbl {
  * @additional_timeout : Adjusted watchdog timeout value associated with
  * this request
  * @recovery_counter   : Internal recovery counter
+ * @num_sync_links     : Num of sync links
+ * @sync_link_hdls     : Array of sync link handles
  */
 struct cam_req_mgr_slot {
 	int32_t               idx;
@@ -282,6 +297,8 @@ struct cam_req_mgr_slot {
 	int32_t               sync_mode;
 	int32_t               additional_timeout;
 	int32_t               recovery_counter;
+	int32_t               num_sync_links;
+	int32_t               sync_link_hdls[MAXIMUM_LINKS_PER_SESSION - 1];
 };
 
 /**
@@ -393,6 +410,8 @@ struct cam_req_mgr_connected_device {
  * @last_sof_trigger_jiffies : Record the jiffies of last sof trigger jiffies
  * @wq_congestion        : Indicates if WQ congestion is detected or not
  * @try_for_internal_recovery : If the link stalls try for RT internal recovery
+ * @properties_mask      : Indicates if current link enables some special properties
+ * cont_empty_slots     : Continuous empty slots
  */
 struct cam_req_mgr_core_link {
 	int32_t                              link_hdl;
@@ -432,6 +451,10 @@ struct cam_req_mgr_core_link {
 	uint64_t                             last_sof_trigger_jiffies;
 	bool                                 wq_congestion;
 	bool                                 try_for_internal_recovery;
+	uint32_t                             properties_mask;
+	uint32_t                             cont_empty_slots;
+	bool 								 print_on;
+	uint32_t                             rdi_mismatch_retry;
 };
 
 /**
@@ -627,7 +650,14 @@ int cam_req_mgr_unlink(struct cam_req_mgr_unlink_info *unlink_info);
 int cam_req_mgr_schedule_request(struct cam_req_mgr_sched_request *sched_req);
 
 /**
- * cam_req_mgr_sync_mode_setup()
+ * cam_req_mgr_schedule_request_v2()
+ * @brief: Request is scheduled
+ * @sched_req: request id, session, link id info, bubble recovery info and sync info
+ */
+int cam_req_mgr_schedule_request_v2(struct cam_req_mgr_sched_request_v2 *sched_req);
+
+/**
+ * cam_req_mgr_sync_config()
  * @brief: sync for links in a session
  * @sync_info: session, links info and master link info
  */
@@ -671,4 +701,12 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control);
  * @dump_req: Dump request
  */
 int cam_req_mgr_dump_request(struct cam_dump_req_cmd *dump_req);
+
+/**
+ * cam_req_mgr_link_properties()
+ * @brief:   Handles link properties
+ * @properties: Link properties
+ */
+int cam_req_mgr_link_properties(struct cam_req_mgr_link_properties *properties);
+
 #endif

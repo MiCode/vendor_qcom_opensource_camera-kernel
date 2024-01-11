@@ -21,6 +21,7 @@
 #define CAM_PRESIL_EVENT_HFI_REG_SFR_LEN                             CAM_PRESIL_EVENT_HFI_REG(4)
 #define CAM_PRESIL_EVENT_HFI_REG_ICP_V1_HW_VERSION_TO_START_HFI_INIT CAM_PRESIL_EVENT_HFI_REG(13)
 #define CAM_PRESIL_EVENT_HFI_REG_ON_FIRST_REG_START_FW_DOWNLOAD      0x638   /* write FF to start */
+#define CAM_PRESIL_EVENT_IFE_FRAME_RUN                               0x123   /* write FF to start */
 
 
 /*

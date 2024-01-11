@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -196,6 +197,7 @@ int cam_cdm_acquire(struct cam_cdm_acquire_data *data)
 			cdm_hw = hw->hw_priv;
 			core = (struct cam_cdm *)cdm_hw->core_info;
 			data->id = core->id;
+			data->hw_idx = hw->hw_idx;
 			CAM_DBG(CAM_CDM,
 				"Device = %s, hw_index = %d, CDM id = %d",
 				data->identifier, hw_index, data->id);

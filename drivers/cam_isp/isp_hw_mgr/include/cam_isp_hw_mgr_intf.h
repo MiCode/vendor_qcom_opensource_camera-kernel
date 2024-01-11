@@ -13,15 +13,17 @@
 #include <media/cam_isp.h>
 #include "cam_hw_mgr_intf.h"
 #include "cam_packet_util.h"
+#include "cam_cpas_api.h"
 
 /* MAX IFE instance */
 #define CAM_IFE_HW_NUM_MAX       8
-#define CAM_SFE_HW_NUM_MAX       2
+#define CAM_SFE_HW_NUM_MAX       3
 #define CAM_IFE_RDI_NUM_MAX      4
 #define CAM_SFE_RDI_NUM_MAX      5
 #define CAM_SFE_FE_RDI_NUM_MAX   3
 #define CAM_ISP_BW_CONFIG_V1     1
 #define CAM_ISP_BW_CONFIG_V2     2
+#define CAM_ISP_BW_CONFIG_V3     2
 #define CAM_TFE_HW_NUM_MAX       3
 #define CAM_TFE_RDI_NUM_MAX      3
 #define CAM_IFE_SCRATCH_NUM_MAX  2
@@ -181,9 +183,9 @@ struct cam_isp_clock_config_internal {
  * @axi_path                    per path vote info
  */
 struct cam_isp_bw_config_internal_v2 {
-	uint32_t                          usage_type;
-	uint32_t                          num_paths;
-	struct cam_axi_per_path_bw_vote   axi_path[CAM_ISP_MAX_PER_PATH_VOTES];
+	uint32_t                               usage_type;
+	uint32_t                               num_paths;
+	struct cam_cpas_axi_per_path_bw_vote   axi_path[CAM_ISP_MAX_PER_PATH_VOTES];
 };
 
 /**
@@ -238,6 +240,8 @@ struct cam_isp_bw_clk_config_info {
  * @frame_header_iova:      Frame header iova
  * @frame_header_res_id:    Out port res_id corresponding to frame header
  * @bw_clk_config:          BW and clock config info
+ * @isp_drv_config:         DRV config info
+ * @bw_config_valid:        Flag indicating if DRV config is valid for current request
  * @reg_dump_buf_desc:     cmd buffer descriptors for reg dump
  * @num_reg_dump_buf:      Count of descriptors in reg_dump_buf_desc
  * @packet:                CSL packet from user mode driver
@@ -253,6 +257,8 @@ struct cam_isp_prepare_hw_update_data {
 	uint64_t                              frame_header_iova;
 	uint32_t                              frame_header_res_id;
 	struct cam_isp_bw_clk_config_info     bw_clk_config;
+	struct cam_isp_drv_config             isp_drv_config;
+	bool                                  drv_config_valid;
 	struct cam_cmd_buf_desc               reg_dump_buf_desc[
 						CAM_REG_DUMP_MAX_BUF_ENTRIES];
 	uint32_t                              num_reg_dump_buf;
@@ -365,6 +371,7 @@ enum cam_isp_hw_mgr_command {
 	CAM_ISP_HW_MGR_GET_LAST_CDM_DONE,
 	CAM_ISP_HW_MGR_CMD_PROG_DEFAULT_CFG,
 	CAM_ISP_HW_MGR_GET_SOF_TS,
+	CAM_ISP_HW_MGR_DUMP_STREAM_INFO,
 	CAM_ISP_HW_MGR_CMD_MAX,
 };
 

@@ -56,9 +56,10 @@
 
 #define CSIPHY_MAX_INSTANCES_PER_PHY     3
 
-#define CAM_CSIPHY_MAX_DPHY_LANES    4
-#define CAM_CSIPHY_MAX_CPHY_LANES    3
+#define CAM_CSIPHY_MAX_DPHY_LANES            4
+#define CAM_CSIPHY_MAX_CPHY_LANES            3
 #define CAM_CSIPHY_MAX_CPHY_DPHY_COMBO_LN    3
+#define CAM_CSIPHY_MAX_DATARATE_VARIANTS     3
 
 #define DPHY_LANE_0    BIT(0)
 #define CPHY_LANE_0    BIT(1)
@@ -68,6 +69,15 @@
 #define CPHY_LANE_2    BIT(5)
 #define DPHY_LANE_3    BIT(6)
 #define DPHY_CLK_LN    BIT(7)
+
+/* Lane info packing for scm call */
+#define LANE_0_SEL                   BIT(0)
+#define LANE_1_SEL                   BIT(1)
+#define LANE_2_SEL                   BIT(2)
+#define LANE_3_SEL                   BIT(3)
+#define CPHY_LANE_SELECTION_SHIFT    8
+#define DPHY_LANE_SELECTION_SHIFT    16
+#define MAX_SUPPORTED_PHY_IDX        7
 
 /* PRBS Pattern Macros */
 #define PREAMBLE_PATTERN_SET_CHECKER    BIT(4)
@@ -88,6 +98,51 @@ enum cam_csiphy_state {
 enum cam_csiphy_common_reg_program {
 	CAM_CSIPHY_PRGM_ALL = 0,
 	CAM_CSIPHY_PRGM_INDVDL,
+};
+
+/**
+ * struct cam_csiphy_secure_info
+ *
+ * This is an internal struct that is a reflection of the one
+ * passed over from csid
+ *
+ * @phy_lane_sel_mask: This value to be filled completely by csiphy
+ * @lane_assign:       Lane_cfg value sent over from csid is
+ *                     equivalent to lane_assign here
+ * @vc_mask:           Virtual channel masks (Unused for mobile usecase)
+ * @csid_hw_idx_mask:  Bit position denoting CSID(s) in use for secure
+ *                     session
+ * @cdm_hw_idx_mask:   Bit position denoting CDM in use for secure
+ *                     session
+ */
+struct cam_csiphy_secure_info {
+	uint32_t phy_lane_sel_mask;
+	uint32_t lane_assign;
+	uint64_t vc_mask;
+	uint32_t csid_hw_idx_mask;
+	uint32_t cdm_hw_idx_mask;
+};
+
+/**
+ * struct cam_csiphy_tz_secure_info
+ *
+ * This is the struct containing all the necessary values
+ * for scm programming of domain id
+ *
+ * @phy_lane_sel_mask: This value to be filled completely by csiphy
+ * @csid_hw_idx_mask:  Bit position denoting CSID(s) in use for secure
+ *                     session
+ * @cdm_hw_idx_mask:   Bit position denoting CDM in use for secure
+ *                     session
+ * @vc_mask:           VC mask (unused in mobile case)
+ * @protect:           To protect or reset previously protected lanes
+ */
+struct cam_csiphy_tz_secure_info {
+	uint64_t phy_lane_sel_mask;
+	uint32_t csid_hw_idx_mask;
+	uint32_t cdm_hw_idx_mask;
+	uint64_t vc_mask;
+	bool     protect;
 };
 
 /**
@@ -187,14 +242,18 @@ struct csiphy_device;
 
 /*
  * struct data_rate_reg_info_t
- * @bandwidth               : max bandwidth supported by this reg settings
- * @data_rate_reg_array_size: number of reg value pairs in the array
- * @csiphy_data_rate_regs   : array of data rate specific reg value pairs
+ * @bandwidth                 : max bandwidth supported by this reg settings
+ * @data_rate_reg_array_size  : data rate settings size
+ * @data_rate_reg_array       : array of data rate specific reg value pairs
  */
 struct data_rate_reg_info_t {
+	/* xiaomi add for mipi phy backup setting begin*/
+	uint32_t this_setting_max_choice;
+	uint32_t this_setting_current_choice;
+	/* xiaomi add for mipi phy backup setting end*/
 	uint64_t bandwidth;
 	ssize_t  data_rate_reg_array_size;
-	struct csiphy_reg_t *data_rate_reg_array;
+	struct csiphy_reg_t *data_rate_reg_array[CAM_CSIPHY_MAX_DATARATE_VARIANTS];
 };
 
 /**
@@ -275,24 +334,61 @@ struct csiphy_ctrl_t {
  * @mipi_flags                 :  MIPI phy flags
  * @csiphy_cpas_cp_reg_mask    :  CP reg mask for phy instance
  * @hdl_data                   :  CSIPHY handle table
+ * @secure_info                :  All domain-id security related information packed in proper
+ *                                format for scm call
+ * @secure_info_updated        :  If all information in the secure_info struct above
+ *                                is passed and formatted properly from CSID driver
  */
 struct cam_csiphy_param {
-	uint16_t                   lane_assign;
-	uint8_t                    lane_cnt;
-	uint8_t                    secure_mode;
-	uint32_t                   lane_enable;
-	uint64_t                   settle_time;
-	uint64_t                   data_rate;
-	int                        csiphy_3phase;
-	uint16_t                   mipi_flags;
-	uint64_t                   csiphy_cpas_cp_reg_mask;
-	struct csiphy_hdl_tbl      hdl_data;
+	uint16_t                         lane_assign;
+	uint8_t                          lane_cnt;
+	uint8_t                          secure_mode;
+	uint32_t                         lane_enable;
+	uint64_t                         settle_time;
+	uint64_t                         data_rate;
+	int                              csiphy_3phase;
+	uint16_t                         mipi_flags;
+	uint64_t                         csiphy_cpas_cp_reg_mask;
+	struct csiphy_hdl_tbl            hdl_data;
+	struct cam_csiphy_tz_secure_info secure_info;
+	bool                             secure_info_updated;
+	bool                             is_modify_onthego;	///<add by xiaomi for L3 crc device
 };
 
 struct csiphy_work_queue {
 	struct csiphy_device *csiphy_dev;
 	int32_t acquire_idx;
 	struct work_struct work;
+};
+
+/**
+ * struct cam_csiphy_dev_cdr_sweep_params
+ *
+ * @cdr_tolerance       : cdr tolerance
+ * @tolerance_op_type   : if tolerance needs to be added/subtracted
+ * @cdr_config_ptr      : Ptr to the cmd buffer, in which
+ *                        configured CDR values will be
+ *                        published
+ * @cdr_sweep_enabled   : cdr sweep enabled
+ */
+struct cam_csiphy_dev_cdr_sweep_params {
+	uint32_t  cdr_tolerance;
+	uint32_t  tolerance_op_type;
+	uint32_t *cdr_config_ptr;
+	bool      cdr_sweep_enabled;
+};
+
+/**
+ * struct cam_csiphy_dev_aux_setting_params
+ *
+ * @aux_config_ptr      : Ptr to the cmd buffer, in which
+ *                        auxiliary settings that are enabled for different
+ *                        data rates will be published
+ * @aux_mem_update_en   : Set if aux mem buffer provided
+ */
+struct cam_csiphy_dev_aux_setting_params {
+	uint32_t *aux_config_ptr;
+	bool      aux_mem_update_en;
 };
 
 /**
@@ -323,48 +419,58 @@ struct csiphy_work_queue {
  * @csiphy_cpas_cp_reg_mask    : Secure csiphy lane mask
  * @ops                        : KMD operations
  * @crm_cb                     : Callback API pointers
+ * @cdr_params                 : CDR sweep params
+ * @aux_params                 : AUX settings buffer params
  * @prgm_cmn_reg_across_csiphy : Flag to decide if com settings need to be programmed for all PHYs
  * @en_common_status_reg_dump  : Debugfs flag to enable common status register dump
  * @en_lane_status_reg_dump    : Debugfs flag to enable cphy/dphy lane status dump
  * @en_full_phy_reg_dump       : Debugfs flag to enable the dump for all the Phy registers
  * @skip_aux_settings          : Debugfs flag to ignore calls to update aux settings
+ * @domain_id_security         : Flag to determine if target has domain-id based security
  * @preamble_enable            : To enable preamble pattern
  */
 struct csiphy_device {
-	char                           device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
-	struct mutex                   mutex;
-	uint32_t                       hw_version;
-	uint32_t                       clk_lane;
-	uint32_t                       acquire_count;
-	uint32_t                       start_dev_count;
-	uint32_t                       csiphy_max_clk;
-	uint32_t                       cpas_handle;
-	uint8_t                        session_max_device_support;
-	uint8_t                        combo_mode;
-	uint8_t                        cphy_dphy_combo_mode;
-	uint8_t                        rx_clk_src_idx;
-	uint8_t                        is_divisor_32_comp;
-	uint8_t                        curr_data_rate_idx;
-	enum cam_csiphy_state          csiphy_state;
-	struct csiphy_ctrl_t          *ctrl_reg;
-	struct msm_cam_clk_info        csiphy_3p_clk_info[2];
-	struct clk                    *csiphy_3p_clk[2];
-	int32_t                        ref_count;
-	struct cam_subdev              v4l2_dev_str;
-	struct cam_csiphy_param        csiphy_info[
+	char                                     device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
+	struct mutex                             mutex;
+	uint32_t                                 hw_version;
+	uint32_t                                 clk_lane;
+	uint32_t                                 acquire_count;
+	uint32_t                                 start_dev_count;
+	uint32_t                                 csiphy_max_clk;
+	uint32_t                                 cpas_handle;
+	uint8_t                                  session_max_device_support;
+	uint8_t                                  combo_mode;
+	uint8_t                                  cphy_dphy_combo_mode;
+	uint8_t                                  rx_clk_src_idx;
+	uint8_t                                  is_divisor_32_comp;
+	uint8_t                                  curr_data_rate_idx;
+	enum cam_csiphy_state                    csiphy_state;
+	struct csiphy_ctrl_t                    *ctrl_reg;
+	struct msm_cam_clk_info                  csiphy_3p_clk_info[2];
+	struct clk                              *csiphy_3p_clk[2];
+	int32_t                                  ref_count;
+	struct cam_subdev                        v4l2_dev_str;
+	struct cam_csiphy_param                  csiphy_info[
 					CSIPHY_MAX_INSTANCES_PER_PHY];
-	struct cam_hw_soc_info         soc_info;
-	uint64_t                       current_data_rate;
-	uint64_t                       csiphy_cpas_cp_reg_mask[
+	struct cam_hw_soc_info                   soc_info;
+	uint64_t                                 current_data_rate;
+	uint64_t                                 csiphy_cpas_cp_reg_mask[
 					CSIPHY_MAX_INSTANCES_PER_PHY];
-	struct cam_req_mgr_kmd_ops     ops;
-	struct cam_req_mgr_crm_cb     *crm_cb;
-	bool                           prgm_cmn_reg_across_csiphy;
-	bool                           en_common_status_reg_dump;
-	bool                           en_lane_status_reg_dump;
-	bool                           en_full_phy_reg_dump;
-	bool                           skip_aux_settings;
-	uint16_t                       preamble_enable;
+	struct cam_req_mgr_kmd_ops               ops;
+	struct cam_req_mgr_crm_cb               *crm_cb;
+	struct cam_csiphy_dev_cdr_sweep_params   cdr_params;
+	struct cam_csiphy_dev_aux_setting_params aux_params;
+	bool                                     prgm_cmn_reg_across_csiphy;
+	bool                                     en_common_status_reg_dump;
+	bool                                     en_lane_status_reg_dump;
+	bool                                     en_full_phy_reg_dump;
+	bool                                     skip_aux_settings;
+	bool                                     domain_id_security;
+	uint16_t                                 preamble_enable;
+	/* xiaomi add for mipi phy backup setting begin*/
+	char                           phy_dts_name[CAM_PHY_DTS_NAME];
+	uint8_t                        device_has_customized;
+	/* xiaomi add for mipi phy backup setting end*/
 };
 
 /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -112,7 +113,6 @@ static void cam_ife_csid_component_unbind(struct device *dev,
 
 	hw_intf = (struct cam_hw_intf *)platform_get_drvdata(pdev);
 	hw_info = hw_intf->hw_priv;
-	core_info = hw_info->core_info;
 
 	CAM_DBG(CAM_ISP, "CSID:%d component unbind",
 		hw_intf->hw_idx);
@@ -123,6 +123,8 @@ static void cam_ife_csid_component_unbind(struct device *dev,
 		CAM_ERR(CAM_ISP, "No matching table for the IFE CSID HW!");
 		goto free_mem;
 	}
+
+	core_info = (struct cam_ife_csid_core_info *)match_dev->data;
 
 	cam_ife_csid_hw_deinit(hw_intf, core_info);
 

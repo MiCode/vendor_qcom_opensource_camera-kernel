@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -303,6 +304,14 @@ int cam_eeprom_parse_dt(struct cam_eeprom_ctrl_t *e_ctrl)
 	}
 
 	of_node = soc_info->dev->of_node;
+
+	rc = of_property_read_bool(of_node, "i3c-target");
+	if (rc) {
+		e_ctrl->is_i3c_device = true;
+		e_ctrl->io_master_info.master_type = I3C_MASTER;
+	}
+
+	CAM_DBG(CAM_SENSOR, "I3C Target: %s", CAM_BOOL_TO_YESNO(e_ctrl->is_i3c_device));
 
 	if (of_property_read_bool(of_node, "multimodule-support")) {
 		CAM_DBG(CAM_UTIL, "Multi Module is Supported");

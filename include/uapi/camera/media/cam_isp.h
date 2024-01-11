@@ -133,6 +133,9 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_SFE_FE_CONFIG             25
 #define CAM_ISP_GENERIC_BLOB_TYPE_SFE_SCRATCH_BUF_CFG       26
 #define CAM_ISP_GENERIC_BLOB_TYPE_SFE_EXP_ORDER_CFG         27
+#define CAM_ISP_GENERIC_BLOB_TYPE_DRV_CONFIG                28
+#define CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V3              29
+#define CAM_ISP_GENERIC_BLOB_TYPE_NFI_MODE_SWITCH           30
 
 #define CAM_ISP_VC_DT_CFG    4
 
@@ -182,6 +185,7 @@
 #define CAM_ISP_SFE_SHDR_MODE_EN               BIT(6)
 #define CAM_ISP_AEB_MODE_EN                    BIT(7)
 #define CAM_ISP_HDR_MODE_DYNAMIC_SWITCH_EN     BIT(8)
+#define CAM_ISP_NFI_BASED_MODE_SWITCH_EN       BIT(9)
 
 /* ISP core cfg flag params */
 #define CAM_ISP_PARAM_CORE_CFG_HDR_MUX_SEL BIT(0)
@@ -195,6 +199,30 @@
  */
 #define CAM_IFE_DECODE_FORMAT_MASK      0xFF
 #define CAM_IFE_DECODE_FORMAT_SHIFT_VAL 8
+
+/**
+ * struct cam_isp_drv_config - CSID config for DRV
+ *        Enables DRV and provides worst case timeout value in INIT packet,
+ *        provides path_idle_en and timeout updates (if any) in UPDATE packet
+ *
+ * @drv_en            : Enables DRV block
+ * @timeout_val       : Timeout value from SOF to trigger vote up,
+ *                      given in number of Global Counter cycles.
+ * @path_idle_en      : Mask for paths to be considered for consolidated IDLE signal.
+ *                      When paths matching the mask go idle, BW is voted down.
+ * @num_valid_params  : Number of valid params
+ * @valid_param_mask  : Valid param mask
+ * @params            : params
+ */
+struct cam_isp_drv_config {
+	__u32    drv_en;
+	__u32    timeout_val;
+	__u32    path_idle_en;
+	__u32    num_valid_params;
+	__u32    valid_param_mask;
+	__u32    params[5];
+} __attribute__((packed));
+
 
 /* Query devices */
 /**
@@ -627,6 +655,25 @@ struct cam_isp_bw_config_v2 {
 } __attribute__((packed));
 
 /**
+ * struct cam_isp_bw_config_v3 - Bandwidth configuration
+ *
+ * @usage_type:                 Usage type (Single/Dual)
+ * @num_paths:                  Number of axi data paths
+ * @num_valid_params:           Number of valid params
+ * @valid_param_mask:           Valid param mask
+ * @params:                     params
+ * @axi_path:                   Per path vote info v2
+ */
+struct cam_isp_bw_config_v3 {
+	__u32                                usage_type;
+	__u32                                num_paths;
+	__u32                                num_valid_params;
+	__u32                                valid_param_mask;
+	__u32                                params[4];
+	struct cam_axi_per_path_bw_vote_v2   axi_path[1];
+} __attribute__((packed));
+
+/**
  * struct cam_fe_config - Fetch Engine configuration
  *
  * @version:                    fetch engine veriosn
@@ -901,6 +948,33 @@ struct cam_isp_mode_switch_info{
 	__u32                                mup;
 	__u32                                num_expoures;
 	__u32                                reserved;
+} __attribute__((packed));
+
+/**
+ * struct cam_isp_nfi_mode_switch_info - New Frame ID (NFI) Based Switching Scheme info
+ *
+ * @version                 : Version info
+ * @mode_id                 : Mode ID value for the next frame
+ * @modeid_vc               : The VC with which the embedded packet with MODE ID comes with.
+ * @x_offset                : X offset of MODE ID location in horizontal
+ *                            direction within single EBD line packet, unit is byte.
+ * @y_offset                : Y offset of MODE ID location in vertical direction
+ *                            within EBD Lines, unit is line packet.
+ * @reg_length              : Number of bytes for each MODE ID
+ * @num_valid_params        : Number of valid params
+ * @param_mask              : Mask to indicate fields in params
+ * @params                  : Additional Params
+ */
+struct cam_isp_nfi_mode_switch_info {
+	__u32                                version;
+	__u32                                mode_id;
+	__u32                                modeid_vc;
+	__u32                                x_offset;
+	__u32                                y_offset;
+	__u32                                reg_length;
+	__u32                                num_valid_params;
+	__u32                                param_mask;
+	__u32                                params[4];
 } __attribute__((packed));
 
 /**

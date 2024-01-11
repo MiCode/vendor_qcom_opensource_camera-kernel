@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_vfe_top_common.h"
@@ -48,12 +49,14 @@ static int cam_vfe_top_set_axi_bw_vote(struct cam_vfe_top_priv_common *top_commo
 			final_bw_vote->num_paths, rc);
 		for (i = 0; i < final_bw_vote->num_paths; i++) {
 			CAM_INFO(CAM_PERF,
-				"ife[%d] : Applied BW Vote : [%s][%s] [%llu %llu %llu]",
+				"ife[%d] : Applied BW Vote : [%s][%s][%s] [%llu %llu %llu]",
 				top_common->hw_idx,
 				cam_cpas_axi_util_path_type_to_string(
 				final_bw_vote->axi_path[i].path_data_type),
 				cam_cpas_axi_util_trans_type_to_string(
 				final_bw_vote->axi_path[i].transac_type),
+				cam_cpas_axi_util_drv_vote_lvl_to_string(
+				final_bw_vote->axi_path[i].vote_level),
 				final_bw_vote->axi_path[i].camnoc_bw,
 				final_bw_vote->axi_path[i].mnoc_ab_bw,
 				final_bw_vote->axi_path[i].mnoc_ib_bw);
@@ -62,12 +65,14 @@ static int cam_vfe_top_set_axi_bw_vote(struct cam_vfe_top_priv_common *top_commo
 		for (i = 0; i < CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ; i++) {
 			for (j = 0; j < top_common->last_bw_vote[i].num_paths; j++) {
 				CAM_INFO(CAM_PERF,
-					"ife[%d] : History[%d] BW Vote : [%s][%s] [%llu %llu %llu]",
+					"ife[%d] : History[%d] BW Vote : [%s][%s] [%s] [%llu %llu %llu]",
 					top_common->hw_idx, i,
 					cam_cpas_axi_util_path_type_to_string(
 					top_common->last_bw_vote[i].axi_path[j].path_data_type),
 					cam_cpas_axi_util_trans_type_to_string(
 					top_common->last_bw_vote[i].axi_path[j].transac_type),
+					cam_cpas_axi_util_drv_vote_lvl_to_string(
+					top_common->last_bw_vote[i].axi_path[j].vote_level),
 					top_common->last_bw_vote[i].axi_path[j].camnoc_bw,
 					top_common->last_bw_vote[i].axi_path[j].mnoc_ab_bw,
 					top_common->last_bw_vote[i].axi_path[j].mnoc_ib_bw);
@@ -284,7 +289,7 @@ static int cam_vfe_top_calc_axi_bw_vote(
 				&top_common->req_axi_vote[i].axi_path[0],
 				top_common->req_axi_vote[i].num_paths *
 				sizeof(
-				struct cam_axi_per_path_bw_vote));
+				struct cam_cpas_axi_per_path_bw_vote));
 			num_paths += top_common->req_axi_vote[i].num_paths;
 		}
 	}
@@ -293,13 +298,15 @@ static int cam_vfe_top_calc_axi_bw_vote(
 
 	for (i = 0; i < top_common->agg_incoming_vote.num_paths; i++) {
 		CAM_DBG(CAM_PERF,
-			"ife[%d] : New BW Vote : counter[%d] [%s][%s] [%llu %llu %llu]",
+			"ife[%d] : New BW Vote : counter[%d] [%s][%s][%s] [%llu %llu %llu]",
 			top_common->hw_idx,
 			top_common->last_bw_counter,
 			cam_cpas_axi_util_path_type_to_string(
 			top_common->agg_incoming_vote.axi_path[i].path_data_type),
 			cam_cpas_axi_util_trans_type_to_string(
 			top_common->agg_incoming_vote.axi_path[i].transac_type),
+			cam_cpas_axi_util_drv_vote_lvl_to_string(
+			top_common->agg_incoming_vote.axi_path[i].vote_level),
 			top_common->agg_incoming_vote.axi_path[i].camnoc_bw,
 			top_common->agg_incoming_vote.axi_path[i].mnoc_ab_bw,
 			top_common->agg_incoming_vote.axi_path[i].mnoc_ib_bw);
@@ -359,12 +366,14 @@ static int cam_vfe_top_calc_axi_bw_vote(
 
 	for (i = 0; i < final_bw_vote->num_paths; i++) {
 		CAM_DBG(CAM_PERF,
-			"ife[%d] : Apply BW Vote : [%s][%s] [%llu %llu %llu]",
+			"ife[%d] : Apply BW Vote : [%s][%s][%s] [%llu %llu %llu]",
 			top_common->hw_idx,
 			cam_cpas_axi_util_path_type_to_string(
 			final_bw_vote->axi_path[i].path_data_type),
 			cam_cpas_axi_util_trans_type_to_string(
 			final_bw_vote->axi_path[i].transac_type),
+			cam_cpas_axi_util_drv_vote_lvl_to_string(
+			final_bw_vote->axi_path[i].vote_level),
 			final_bw_vote->axi_path[i].camnoc_bw,
 			final_bw_vote->axi_path[i].mnoc_ab_bw,
 			final_bw_vote->axi_path[i].mnoc_ib_bw);
@@ -492,11 +501,6 @@ int cam_vfe_top_bw_update(struct cam_vfe_soc_private *soc_private,
 			mux_axi_vote->axi_path[0].mnoc_ab_bw =
 				bw_update->external_bw_bytes;
 			mux_axi_vote->axi_path[0].mnoc_ib_bw =
-				bw_update->external_bw_bytes;
-			/* Make ddr bw same as mnoc bw */
-			mux_axi_vote->axi_path[0].ddr_ab_bw =
-				bw_update->external_bw_bytes;
-			mux_axi_vote->axi_path[0].ddr_ib_bw =
 				bw_update->external_bw_bytes;
 
 			top_common->axi_vote_control[i] =

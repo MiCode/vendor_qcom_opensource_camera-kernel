@@ -74,6 +74,10 @@
 #define CAM_AXI_PATH_DATA_ALL  256
 #define CAM_CPAS_FUSES_MAX     32
 
+/* DRV Vote level */
+#define CAM_CPAS_VOTE_LEVEL_HIGH   1
+#define CAM_CPAS_VOTE_LEVEL_LOW    2
+
 /**
  * struct cam_cpas_fuse_value - CPAS fuse value
  *
@@ -128,6 +132,37 @@ struct cam_cpas_query_cap_v2 {
 	struct cam_hw_version     camera_version;
 	struct cam_hw_version     cpas_version;
 	struct cam_cpas_fuse_info fuse_info;
+};
+
+/**
+ * struct cam_axi_per_path_bw_vote_v2 - Per path bandwidth vote information
+ *
+ * @usage_data:              client usage data (left/right/rdi)
+ * @transac_type:            Transaction type on the path (read/write)
+ * @path_data_type:          Path for which vote is given (video, display, rdi)
+ * @vote_level:              Vote level for this path
+ * @camnoc_bw:               CAMNOC bw for this path
+ * @mnoc_ab_bw:              MNOC AB bw for this path
+ * @mnoc_ib_bw:              MNOC IB bw for this path
+ * @ddr_ab_bw:               DDR AB bw for this path
+ * @ddr_ib_bw:               DDR IB bw for this path
+ * @num_valid_params:        Number of valid params
+ * @valid_param_mask:        Valid param mask
+ * @params:                  params
+ */
+struct cam_axi_per_path_bw_vote_v2 {
+	__u32                      usage_data;
+	__u32                      transac_type;
+	__u32                      path_data_type;
+	__u32                      vote_level;
+	__u64                      camnoc_bw;
+	__u64                      mnoc_ab_bw;
+	__u64                      mnoc_ib_bw;
+	__u64                      ddr_ab_bw;
+	__u64                      ddr_ib_bw;
+	__u32                      num_valid_params;
+	__u32                      valid_param_mask;
+	__u32                      params[4];
 };
 
 /**

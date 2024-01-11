@@ -1106,156 +1106,156 @@ struct csiphy_reg_t datarate_213_5Gsps[] = {
 	{0x108C, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct data_rate_reg_info_t data_rate_settings_2_1_3[] = {
+static struct data_rate_reg_info_t data_rate_settings_2_1_3[] = {
 	{
 		/* ((100 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 228000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_100Msps),
-		.data_rate_reg_array = datarate_213_100Msps
+		.data_rate_reg_array[0] = datarate_213_100Msps
 	},
 	{
 		/* ((200 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 456000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_200Msps),
-		.data_rate_reg_array = datarate_213_200Msps
+		.data_rate_reg_array[0] = datarate_213_200Msps
 	},
 	{
 		/* ((300 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 684000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_300Msps),
-		.data_rate_reg_array = datarate_213_300Msps
+		.data_rate_reg_array[0] = datarate_213_300Msps
 	},
 	{
 		/* ((400 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 912000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_400Msps),
-		.data_rate_reg_array = datarate_213_400Msps
+		.data_rate_reg_array[0] = datarate_213_400Msps
 	},
 	{
 		/* ((500 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 1140000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_500Msps),
-		.data_rate_reg_array = datarate_213_500Msps
+		.data_rate_reg_array[0] = datarate_213_500Msps
 	},
 	{
 		/* ((600 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 1368000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_600Msps),
-		.data_rate_reg_array = datarate_213_600Msps
+		.data_rate_reg_array[0] = datarate_213_600Msps
 	},
 	{
 		/* ((700 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 1596000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_700Msps),
-		.data_rate_reg_array = datarate_213_700Msps
+		.data_rate_reg_array[0] = datarate_213_700Msps
 	},
 	{
 		/* ((800 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 1824000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_800Msps),
-		.data_rate_reg_array = datarate_213_800Msps
+		.data_rate_reg_array[0] = datarate_213_800Msps
 	},
 	{
 		/* ((900 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 2052000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_900Msps),
-		.data_rate_reg_array = datarate_213_900Msps
+		.data_rate_reg_array[0] = datarate_213_900Msps
 	},
 	{
 		/* ((1000 MSpS) * (10^6) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 2280000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_1p0Gsps),
-		.data_rate_reg_array = datarate_213_1p0Gsps
+		.data_rate_reg_array[0] = datarate_213_1p0Gsps
 	},
 	{
 		/* ((1.2 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 2736000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_1p2Gsps),
-		.data_rate_reg_array = datarate_213_1p2Gsps
+		.data_rate_reg_array[0] = datarate_213_1p2Gsps
 	},
 	{
 		/* ((1.5 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 3420000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_1p5Gsps),
-		.data_rate_reg_array = datarate_213_1p5Gsps,
+		.data_rate_reg_array[0] = datarate_213_1p5Gsps,
 	},
 	{
 		/* ((1.7 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 3876000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_1p7Gsps),
-		.data_rate_reg_array = datarate_213_1p7Gsps,
+		.data_rate_reg_array[0] = datarate_213_1p7Gsps,
 	},
 	{
 		/* ((2.0 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 4560000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_2p0Gsps),
-		.data_rate_reg_array = datarate_213_2p0Gsps
+		.data_rate_reg_array[0] = datarate_213_2p0Gsps
 	},
 	{
 		/* ((2.1 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 4788000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_2p1Gsps),
-		.data_rate_reg_array = datarate_213_2p1Gsps,
+		.data_rate_reg_array[0] = datarate_213_2p1Gsps,
 	},
 	{
 		/* ((2.35 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 5358000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_2p35Gsps),
-		.data_rate_reg_array = datarate_213_2p35Gsps,
+		.data_rate_reg_array[0] = datarate_213_2p35Gsps,
 	},
 	{
 		/* ((2.5 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 5700000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_2p5Gsps),
-		.data_rate_reg_array = datarate_213_2p5Gsps
+		.data_rate_reg_array[0] = datarate_213_2p5Gsps
 	},
 	{
 		/* ((2.6 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value*/
 		.bandwidth = 5928000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_2p6Gsps),
-		.data_rate_reg_array = datarate_213_2p6Gsps,
+		.data_rate_reg_array[0] = datarate_213_2p6Gsps,
 	},
 	{
 		/* ((2.8 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value */
 		.bandwidth = 6384000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_2p8Gsps),
-		.data_rate_reg_array = datarate_213_2p8Gsps,
+		.data_rate_reg_array[0] = datarate_213_2p8Gsps,
 	},
 	{
 		/* ((3.0 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value */
 		.bandwidth = 6840000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_3p0Gsps),
-		.data_rate_reg_array = datarate_213_3p0Gsps
+		.data_rate_reg_array[0] = datarate_213_3p0Gsps
 	},
 	{
 		/* ((3.3 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value */
 		.bandwidth = 7524000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_3p3Gsps),
-		.data_rate_reg_array = datarate_213_3p3Gsps,
+		.data_rate_reg_array[0] = datarate_213_3p3Gsps,
 	},
 	{
 		/* ((3.5 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value */
 		.bandwidth = 7980000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_3p5Gsps),
-		.data_rate_reg_array = datarate_213_3p5Gsps,
+		.data_rate_reg_array[0] = datarate_213_3p5Gsps,
 	},
 	{
 		/* ((4 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value */
 		.bandwidth = 9120000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_4Gsps),
-		.data_rate_reg_array = datarate_213_4Gsps,
+		.data_rate_reg_array[0] = datarate_213_4Gsps,
 	},
 	{
 		/* ((4.5 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value */
 		.bandwidth = 10260000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_4p5Gsps),
-		.data_rate_reg_array = datarate_213_4p5Gsps,
+		.data_rate_reg_array[0] = datarate_213_4p5Gsps,
 	},
 	{
 		/* ((5.0 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value */
 		.bandwidth = 11400000000,
 		.data_rate_reg_array_size = ARRAY_SIZE(datarate_213_5Gsps),
-		.data_rate_reg_array = datarate_213_5Gsps,
+		.data_rate_reg_array[0] = datarate_213_5Gsps,
 	},
 };
 

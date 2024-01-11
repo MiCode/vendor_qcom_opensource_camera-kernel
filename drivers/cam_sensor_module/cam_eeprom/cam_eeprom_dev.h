@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _CAM_EEPROM_DEV_H_
 #define _CAM_EEPROM_DEV_H_
@@ -33,7 +34,9 @@
 #define MSM_EEPROM_MAX_MEM_MAP_CNT             100
 #define MSM_EEPROM_MEM_MAP_PROPERTIES_CNT      8
 
-#define EEPROM_DRIVER_I2C "cam-i2c-eeprom"
+#define EEPROM_DRIVER_I2C                      "cam-i2c-eeprom"
+#define EEPROM_DRIVER_I3C                      "i3c_camera_eeprom"
+
 
 enum cam_eeprom_state {
 	CAM_EEPROM_INIT,
@@ -164,6 +167,7 @@ struct eebin_info {
  * @gpio_num_info       :   gpio info
  * @cci_i2c_master      :   I2C structure
  * @v4l2_dev_str        :   V4L2 device structure
+ * @is_i3c_device       :   A flag to indicate whether this eeprom is I3C device
  * @bridge_intf         :   bridge interface params
  * @cam_eeprom_state    :   eeprom_device_state
  * @userspace_probe     :   flag indicates userspace or kernel probe
@@ -172,6 +176,7 @@ struct eebin_info {
  * @is_multimodule_mode :   To identify multimodule node
  * @wr_settings         :   I2C write settings
  * @eebin_info          :   EEBIN address, size info
+ * @cci_debug           :   EEPROM debugfs info and entry
  */
 struct cam_eeprom_ctrl_t {
 	char device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -184,6 +189,7 @@ struct cam_eeprom_ctrl_t {
 	enum cci_i2c_master_t cci_i2c_master;
 	enum cci_device_num cci_num;
 	struct cam_subdev v4l2_dev_str;
+	bool is_i3c_device;
 	struct cam_eeprom_intf_params bridge_intf;
 	enum msm_camera_device_type_t eeprom_device_type;
 	enum cam_eeprom_state cam_eeprom_state;
@@ -192,6 +198,9 @@ struct cam_eeprom_ctrl_t {
 	uint16_t is_multimodule_mode;
 	struct i2c_settings_array wr_settings;
 	struct eebin_info eebin_info;
+	/* xiaomi add for cci debug start */
+	void *cci_debug;
+	/* xiaomi add for cci debug end */
 };
 
 int32_t cam_eeprom_update_i2c_info(struct cam_eeprom_ctrl_t *e_ctrl,

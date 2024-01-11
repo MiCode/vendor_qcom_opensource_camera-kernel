@@ -5,13 +5,110 @@
  */
 
 #include <linux/dma-mapping.h>
+#include <linux/dma-buf.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
+
+#include <soc/qcom/rpmh.h>
 
 #include "cam_compat.h"
 #include "cam_debug_util.h"
 #include "cam_cpas_api.h"
 #include "camera_main.h"
+
+#if IS_ENABLED(CONFIG_USE_RPMH_DRV_API)
+#define CAM_RSC_DRV_IDENTIFIER "cam_rsc"
+
+const struct device *cam_cpas_get_rsc_dev_for_drv(uint32_t index)
+{
+	const struct device *rsc_dev;
+
+	rsc_dev = rpmh_get_device(CAM_RSC_DRV_IDENTIFIER, index);
+	if (!rsc_dev) {
+		CAM_ERR(CAM_CPAS, "Invalid dev for index: %u", index);
+		return NULL;
+	}
+
+	return rsc_dev;
+}
+
+int cam_cpas_start_drv_for_dev(const struct device *dev)
+{
+	int rc = 0;
+
+	if (!dev) {
+		CAM_ERR(CAM_CPAS, "Invalid dev for DRV enable");
+		return -EINVAL;
+	}
+
+	rc = rpmh_drv_start(dev);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "[%s] Failed in DRV start", dev_name(dev));
+		return rc;
+	}
+
+	return rc;
+}
+
+int cam_cpas_stop_drv_for_dev(const struct device *dev)
+{
+	int rc = 0;
+
+	if (!dev) {
+		CAM_ERR(CAM_CPAS, "Invalid dev for DRV disable");
+		return -EINVAL;
+	}
+
+	rc = rpmh_drv_stop(dev);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "[%s] Failed in DRV stop", dev_name(dev));
+		return rc;
+	}
+
+	return rc;
+}
+
+int cam_cpas_drv_channel_switch_for_dev(const struct device *dev)
+{
+	int rc = 0;
+
+	if (!dev) {
+		CAM_ERR(CAM_CPAS, "Invalid dev for DRV channel switch");
+		return -EINVAL;
+	}
+
+	rc = rpmh_write_sleep_and_wake_no_child(dev);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "[%s] Failed in DRV channel switch", dev_name(dev));
+		return rc;
+	}
+
+	return rc;
+}
+
+#else
+const struct device *cam_cpas_get_rsc_dev_for_drv(uint32_t index)
+{
+	return NULL;
+}
+
+int cam_cpas_start_drv_for_dev(const struct device *dev)
+
+{
+	return 0;
+}
+
+int cam_cpas_stop_drv_for_dev(const struct device *dev)
+{
+	return 0;
+}
+
+int cam_cpas_drv_channel_switch_for_dev(const struct device *dev)
+{
+	return 0;
+}
+#endif
+
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
 int cam_reserve_icp_fw(struct cam_fw_alloc_info *icp_fw, size_t fw_length)
@@ -364,6 +461,13 @@ void cam_compat_util_put_dmabuf_va(struct dma_buf *dmabuf, void *vaddr)
 
 	dma_buf_vunmap(dmabuf, &mapping);
 }
+
+void cam_i3c_driver_remove(struct i3c_device *client)
+{
+	CAM_DBG(CAM_SENSOR, "I3C remove invoked for %s",
+		(client ? dev_name(&client->dev) : "none"));
+}
+
 #else
 void cam_smmu_util_iommu_custom(struct device *dev,
 	dma_addr_t discard_start, size_t discard_length)
@@ -401,5 +505,28 @@ int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
 void cam_compat_util_put_dmabuf_va(struct dma_buf *dmabuf, void *vaddr)
 {
 	dma_buf_vunmap(dmabuf, vaddr);
+}
+
+int cam_i3c_driver_remove(struct i3c_device *client)
+{
+	CAM_DBG(CAM_SENSOR, "I3C remove invoked for %s",
+		(client ? dev_name(&client->dev) : "none"));
+	return 0;
+}
+#endif
+
+#if KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE
+long cam_dma_buf_set_name(struct dma_buf *dmabuf, const char *name)
+{
+	long ret = 0;
+
+	ret = dma_buf_set_name(dmabuf, name);
+
+	return ret;
+}
+#else
+long cam_dma_buf_set_name(struct dma_buf *dmabuf, const char *name)
+{
+	return 0;
 }
 #endif

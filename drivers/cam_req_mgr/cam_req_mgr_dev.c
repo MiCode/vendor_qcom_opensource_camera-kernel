@@ -30,8 +30,11 @@
 #include "cam_compat.h"
 #include "cam_cpas_hw.h"
 #include "cam_compat.h"
+#include "camera_main.h"
 
-#define CAM_REQ_MGR_EVENT_MAX 30
+/* Xiaomi: enlarge from 30 to 200 */
+#define CAM_REQ_MGR_EVENT_MAX 200
+#define CAM_I3C_MASTER_COMPAT "qcom,geni-i3c"
 
 static struct cam_req_mgr_device g_dev;
 struct kmem_cache *g_cam_req_mgr_timer_cachep;
@@ -41,6 +44,15 @@ DECLARE_RWSEM(rwsem_lock);
 
 static struct device_attribute camera_debug_sysfs_attr =
 	__ATTR(debug_node, 0600, NULL, cam_debug_sysfs_node_store);
+
+static const struct of_device_id cam_sensor_module_dt_match[] = {
+	{.compatible = "qcom,cam-sensor"},
+	{ .compatible = "qcom,eeprom" },
+	{.compatible = "qcom,actuator"},
+	{ .compatible = "qcom,ois" },
+	{.compatible = "qcom,camera-flash", .data = NULL},
+	{}
+};
 
 static int cam_media_device_setup(struct device *dev)
 {
@@ -333,7 +345,7 @@ static int cam_unsubscribe_event(struct v4l2_fh *fh,
 static long cam_private_ioctl(struct file *file, void *fh,
 	bool valid_prio, unsigned int cmd, void *arg)
 {
-	int rc;
+	int rc = 0;
 	struct cam_control *k_ioctl;
 
 	if ((!arg) || (cmd != VIDIOC_CAM_CONTROL))
@@ -460,6 +472,22 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		}
 		break;
 
+	case CAM_REQ_MGR_SCHED_REQ_V2: {
+		struct cam_req_mgr_sched_request_v2 sched_req;
+
+		if (k_ioctl->size != sizeof(sched_req))
+			return -EINVAL;
+
+		if (copy_from_user(&sched_req,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_req_mgr_sched_request_v2))) {
+			return -EFAULT;
+		}
+
+		rc = cam_req_mgr_schedule_request_v2(&sched_req);
+		}
+		break;
+
 	case CAM_REQ_MGR_FLUSH_REQ: {
 		struct cam_req_mgr_flush_info flush_info;
 
@@ -491,8 +519,10 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		rc = cam_req_mgr_sync_config(&sync_info);
 		}
 		break;
+
 	case CAM_REQ_MGR_ALLOC_BUF: {
 		struct cam_mem_mgr_alloc_cmd cmd;
+		struct cam_mem_mgr_alloc_cmd_v2 cmd_v2 = {0};
 
 		if (k_ioctl->size != sizeof(cmd))
 			return -EINVAL;
@@ -504,7 +534,16 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			break;
 		}
 
-		rc = cam_mem_mgr_alloc_and_map(&cmd);
+		strscpy(cmd_v2.buf_name, "UNKNOWN", CAM_DMA_BUF_NAME_LEN);
+		memcpy(cmd_v2.mmu_hdls, cmd.mmu_hdls,
+			sizeof(__s32) * CAM_MEM_MMU_MAX_HANDLE);
+		cmd_v2.num_hdl = cmd.num_hdl;
+		cmd_v2.flags = cmd.flags;
+		cmd_v2.len = cmd.len;
+		cmd_v2.align = cmd.align;
+
+		rc = cam_mem_mgr_alloc_and_map(&cmd_v2);
+		memcpy(&cmd.out, &cmd_v2.out, sizeof(cmd.out));
 		if (!rc)
 			if (copy_to_user(
 				u64_to_user_ptr(k_ioctl->handle),
@@ -514,8 +553,32 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			}
 		}
 		break;
+	case CAM_REQ_MGR_ALLOC_BUF_V2: {
+		struct cam_mem_mgr_alloc_cmd_v2 cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_mem_mgr_alloc_cmd_v2))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = cam_mem_mgr_alloc_and_map(&cmd);
+		if (!rc)
+			if (copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				&cmd, sizeof(struct cam_mem_mgr_alloc_cmd_v2))) {
+				rc = -EFAULT;
+				break;
+			}
+		}
+		break;
 	case CAM_REQ_MGR_MAP_BUF: {
 		struct cam_mem_mgr_map_cmd cmd;
+		struct cam_mem_mgr_map_cmd_v2 cmd_v2 = {0};
 
 		if (k_ioctl->size != sizeof(cmd))
 			return -EINVAL;
@@ -527,11 +590,42 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			break;
 		}
 
-		rc = cam_mem_mgr_map(&cmd);
+		strscpy(cmd_v2.buf_name, "UNKNOWN", CAM_DMA_BUF_NAME_LEN);
+		memcpy(cmd_v2.mmu_hdls, cmd.mmu_hdls,
+			sizeof(__s32) * CAM_MEM_MMU_MAX_HANDLE);
+		cmd_v2.num_hdl = cmd.num_hdl;
+		cmd_v2.flags = cmd.flags;
+		cmd_v2.fd = cmd.fd;
+
+		rc = cam_mem_mgr_map(&cmd_v2);
+		memcpy(&cmd.out, &cmd_v2.out, sizeof(cmd.out));
 		if (!rc)
 			if (copy_to_user(
 				u64_to_user_ptr(k_ioctl->handle),
 				&cmd, sizeof(struct cam_mem_mgr_map_cmd))) {
+				rc = -EFAULT;
+				break;
+			}
+		}
+		break;
+	case CAM_REQ_MGR_MAP_BUF_V2: {
+		struct cam_mem_mgr_map_cmd_v2 cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_mem_mgr_map_cmd_v2))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = cam_mem_mgr_map(&cmd);
+		if (!rc)
+			if (copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				&cmd, sizeof(struct cam_mem_mgr_map_cmd_v2))) {
 				rc = -EFAULT;
 				break;
 			}
@@ -567,6 +661,22 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		}
 
 		rc = cam_mem_mgr_cache_ops(&cmd);
+		}
+		break;
+	case CAM_REQ_MGR_MEM_CPU_ACCESS_OP: {
+		struct cam_mem_cpu_access_op cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_mem_cpu_access_op))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = cam_mem_mgr_cpu_access_op(&cmd);
 		if (rc)
 			rc = -EINVAL;
 		}
@@ -613,8 +723,49 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			rc = -EFAULT;
 		}
 		break;
+	case CAM_REQ_MGR_LINK_PROPERTIES: {
+		struct cam_req_mgr_link_properties cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_req_mgr_link_properties))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = cam_req_mgr_link_properties(&cmd);
+		}
+		break;
+	case CAM_REQ_MGR_QUERY_CAP: {
+		struct cam_req_mgr_query_cap cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_req_mgr_query_cap))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		cmd.feature_mask = 0;
+
+		if (cam_mem_mgr_ubwc_p_heap_supported())
+			cmd.feature_mask |= CAM_REQ_MGR_MEM_UBWC_P_HEAP_SUPPORTED;
+
+		if (copy_to_user(
+			u64_to_user_ptr(k_ioctl->handle),
+			&cmd, sizeof(struct cam_req_mgr_query_cap)))
+			rc = -EFAULT;
+		}
+		break;
 	default:
-		return -ENOIOCTLCMD;
+		CAM_ERR(CAM_CRM, "Invalid Opcode %d", k_ioctl->op_code);
+		rc = -ENOIOCTLCMD;
 	}
 
 	return rc;
@@ -934,9 +1085,34 @@ static int cam_req_mgr_remove(struct platform_device *pdev)
 
 static int cam_req_mgr_probe(struct platform_device *pdev)
 {
-	int rc = 0;
+	int rc = 0, i;
 	struct component_match *match_list = NULL;
 	struct device *dev = &pdev->dev;
+	struct device_node *np = NULL;
+
+	for (i = 0; i < ARRAY_SIZE(cam_component_i2c_drivers); i++) {
+		while ((np = of_find_compatible_node(np, NULL,
+			cam_component_i2c_drivers[i]->driver.of_match_table->compatible))) {
+			if (of_device_is_available(np) && !(of_find_i2c_device_by_node(np))) {
+				CAM_INFO_RATE_LIMIT(CAM_CRM,
+					"I2C device: %s not available, deferring probe",
+					np->full_name);
+				rc = -EPROBE_DEFER;
+				goto end;
+			}
+		}
+	}
+
+	np = NULL;
+	while ((np = of_find_compatible_node(np, NULL, CAM_I3C_MASTER_COMPAT))) {
+		rc = of_platform_populate(np, cam_sensor_module_dt_match, NULL, NULL);
+		if (rc) {
+			CAM_ERR(CAM_CRM,
+				"Failed to populate child nodes as platform devices for parent: %s, rc=%d",
+				np->full_name, rc);
+			goto end;
+		}
+	}
 
 	rc = camera_component_match_add_drivers(dev, &match_list);
 	if (rc) {
@@ -957,6 +1133,7 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 	}
 
 end:
+	of_node_put(np);
 	return rc;
 }
 

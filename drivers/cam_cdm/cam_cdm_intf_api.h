@@ -89,6 +89,7 @@ enum cam_cdm_bl_fifo_queue {
  * @ops : Output pointer updated by cdm driver to the CDM
  *                     util ops for this HW version of CDM acquired.
  * @handle  : Output Unique handle generated for this acquire
+ * @hw_idx  : The physical CDM acquired
  *
  */
 struct cam_cdm_acquire_data {
@@ -104,6 +105,7 @@ struct cam_cdm_acquire_data {
 	struct cam_hw_version cdm_version;
 	struct cam_cdm_utils_ops *ops;
 	uint32_t handle;
+	uint32_t hw_idx;
 };
 
 /**

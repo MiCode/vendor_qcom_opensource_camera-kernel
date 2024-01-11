@@ -160,8 +160,6 @@ static int cam_icp_v2_cpas_start(struct cam_icp_v2_core_info *core_info)
 	vote.axi_vote.axi_path[0].camnoc_bw = CAM_ICP_BW_BYTES_VOTE;
 	vote.axi_vote.axi_path[0].mnoc_ab_bw = CAM_ICP_BW_BYTES_VOTE;
 	vote.axi_vote.axi_path[0].mnoc_ib_bw = CAM_ICP_BW_BYTES_VOTE;
-	vote.axi_vote.axi_path[0].ddr_ab_bw = CAM_ICP_BW_BYTES_VOTE;
-	vote.axi_vote.axi_path[0].ddr_ib_bw = CAM_ICP_BW_BYTES_VOTE;
 
 	return __icp_v2_cpas_start(core_info, &vote);
 }
@@ -317,6 +315,13 @@ static int __cam_icp_v2_power_collapse(struct cam_hw_info *icp_v2_info)
 
 	core_info = icp_v2_info->core_info;
 	sys_base_idx = core_info->reg_base_idx[ICP_V2_SYS_BASE];
+
+	if (sys_base_idx < 0) {
+		CAM_ERR(CAM_ICP, "No reg base idx found for ICP_SYS: %d",
+			sys_base_idx);
+		return -EINVAL;
+	}
+
 	base = icp_v2_info->soc_info.reg_map[sys_base_idx].mem_base;
 
 	/**
@@ -336,11 +341,11 @@ static int __cam_icp_v2_power_collapse(struct cam_hw_info *icp_v2_info)
 	return 0;
 }
 
-/* Used if ICP_SYS is not protected */
+/* Used if ICP_SYS and ICP_DOM_MASK are not protected */
 static int __cam_icp_v2_power_resume(struct cam_hw_info *icp_v2_info)
 {
-	int32_t sys_base_idx;
-	void __iomem *base;
+	int32_t sys_base_idx, dom_mask_base_idx;
+	void __iomem *sys_base, *dom_mask_base;
 	struct cam_icp_soc_info     *soc_priv;
 	struct cam_hw_soc_info      *soc_info;
 	struct cam_icp_v2_core_info *core_info = NULL;
@@ -354,16 +359,38 @@ static int __cam_icp_v2_power_resume(struct cam_hw_info *icp_v2_info)
 	core_info = icp_v2_info->core_info;
 	soc_priv = soc_info->soc_private;
 	sys_base_idx = core_info->reg_base_idx[ICP_V2_SYS_BASE];
-	base = icp_v2_info->soc_info.reg_map[sys_base_idx].mem_base;
+	dom_mask_base_idx = core_info->reg_base_idx[ICP_V2_DOM_MASK_BASE];
+
+	if (sys_base_idx < 0) {
+		CAM_ERR(CAM_ICP, "No reg base idx found for ICP_SYS: %d",
+			sys_base_idx);
+		return -EINVAL;
+	}
+
+	sys_base = icp_v2_info->soc_info.reg_map[sys_base_idx].mem_base;
 
 	cam_io_w_mb(ICP_V2_FUNC_RESET,
-		base + ICP_V2_SYS_RESET);
+		sys_base + ICP_V2_SYS_RESET);
 
 	if (soc_priv->qos_val)
-		cam_io_w_mb(soc_priv->qos_val, base + ICP_V2_SYS_ACCESS);
+		cam_io_w_mb(soc_priv->qos_val, sys_base + ICP_V2_SYS_ACCESS);
+
+	/* Program domain ID reg mask values if reg base is available */
+	if (dom_mask_base_idx >= 0) {
+		dom_mask_base = icp_v2_info->soc_info.reg_map[dom_mask_base_idx].mem_base;
+
+		CAM_DBG(CAM_ICP, "domain_cfg0, offset: 0x%x: 0x%x, domain_cfg1, offset: 0x%x: 0x%x",
+			ICP_V2_DOM_0_CFG_OFFSET, ICP_V2_DOMAIN_MASK_CFG_0,
+			ICP_V2_DOM_1_CFG_OFFSET, ICP_V2_DOMAIN_MASK_CFG_1);
+
+		cam_io_w_mb(ICP_V2_DOMAIN_MASK_CFG_0,
+			dom_mask_base + ICP_V2_DOM_0_CFG_OFFSET);
+		cam_io_w_mb(ICP_V2_DOMAIN_MASK_CFG_1,
+			dom_mask_base + ICP_V2_DOM_1_CFG_OFFSET);
+	}
 
 	cam_io_w_mb(ICP_V2_EN_CPU,
-		base + ICP_V2_SYS_CONTROL);
+		sys_base + ICP_V2_SYS_CONTROL);
 
 	return 0;
 }
@@ -480,6 +507,7 @@ static int cam_icp_v2_non_sec_boot(
 	uint32_t arg_size)
 {
 	int rc;
+	struct cam_icp_soc_info *soc_priv;
 
 	if (!icp_v2_info || !args) {
 		CAM_ERR(CAM_ICP,
@@ -493,8 +521,10 @@ static int cam_icp_v2_non_sec_boot(
 		return -EINVAL;
 	}
 
-	if (icp_v2_info->soc_info.num_mem_block != ICP_V2_BASE_MAX) {
-		CAM_ERR(CAM_ICP, "check ICP SYS reg config in DT..");
+	soc_priv = (struct cam_icp_soc_info *)icp_v2_info->soc_info.soc_private;
+	if (icp_v2_info->soc_info.num_mem_block > ICP_V2_BASE_MAX) {
+		CAM_ERR(CAM_ICP, "check reg config in DT v 0x%x n %d",
+			soc_priv->hw_version, icp_v2_info->soc_info.num_mem_block);
 		return -EINVAL;
 	}
 
@@ -670,6 +700,12 @@ static int cam_icp_v2_shutdown(struct cam_hw_info *icp_v2_info)
 	else {
 		int32_t sys_base_idx = core_info->reg_base_idx[ICP_V2_SYS_BASE];
 		void __iomem *base;
+
+		if (sys_base_idx < 0) {
+			CAM_ERR(CAM_ICP, "No reg base idx found for ICP_SYS: %d",
+				sys_base_idx);
+			return -EINVAL;
+		}
 
 		base = icp_v2_info->soc_info.reg_map[sys_base_idx].mem_base;
 		cam_io_w_mb(0x0, base + ICP_V2_SYS_CONTROL);
@@ -1107,6 +1143,18 @@ static int cam_icp_v2_setup_register_base_indexes(
 			"Failed to get index for icp_sys, rc: %d index: %u num_reg_map: %u",
 			rc, index, num_reg_map);
 		regbase_index[ICP_V2_SYS_BASE] = -1;
+	}
+
+	/* optional - for non secure FW loading */
+	rc = cam_common_util_get_string_index(soc_info->mem_block_name,
+		soc_info->num_mem_block, "icp_dom_mask", &index);
+	if ((rc == 0) && (index < num_reg_map)) {
+		regbase_index[ICP_V2_DOM_MASK_BASE] = index;
+	} else {
+		CAM_DBG(CAM_ICP,
+			"Failed to get index for icp_dom_mask, rc: %d index: %u num_reg_map: %u",
+			rc, index, num_reg_map);
+		regbase_index[ICP_V2_DOM_MASK_BASE] = -1;
 	}
 
 	return 0;

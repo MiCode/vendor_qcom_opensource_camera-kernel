@@ -2253,18 +2253,25 @@ static int cam_sfe_bus_wr_err_irq_top_half(uint32_t evt_id,
 {
 
 	int i = 0, rc = 0;
+	uint32_t status = 0;
 	struct cam_sfe_bus_wr_priv *bus_priv =
 		th_payload->handler_priv;
 	struct cam_sfe_bus_wr_irq_evt_payload *evt_payload;
 
-	CAM_ERR_RATE_LIMIT(CAM_ISP, "SFE:%d BUS Err IRQ",
-		bus_priv->common_data.core_index);
-
 	for (i = 0; i < th_payload->num_registers; i++) {
-		CAM_ERR_RATE_LIMIT(CAM_ISP, "SFE:%d BUS IRQ status_%d: 0x%X",
-		bus_priv->common_data.core_index, i,
-			th_payload->evt_status_arr[i]);
+	    status = th_payload->evt_status_arr[i];
+
+		if ((status & CAM_SFE_BUS_WR_IRQ_CCIF_VIOLATION) ||
+		(status & CAM_SFE_BUS_WR_IRQ_IMAGE_SIZE_VIOLATION)){
+			CAM_ERR_RATE_LIMIT(CAM_ISP, "SFE:%d BUS Err IRQ",
+				bus_priv->common_data.core_index);
+
+		    CAM_ERR_RATE_LIMIT(CAM_ISP, "SFE:%d BUS IRQ status_%d: 0x%X",
+				bus_priv->common_data.core_index, i,
+				th_payload->evt_status_arr[i]);
+		}
 	}
+
 	cam_irq_controller_disable_irq(
 		bus_priv->common_data.bus_irq_controller,
 		bus_priv->error_irq_handle);
@@ -2364,7 +2371,7 @@ static int cam_sfe_bus_wr_irq_bottom_half(
 	}
 
 	if (status & CAM_SFE_BUS_WR_IRQ_CONS_VIOLATION) {
-		CAM_ERR(CAM_SFE, "SFE:%d status0 0x%x Constraint Violation",
+		CAM_WARN(CAM_SFE, "SFE:%d status0 0x%x Constraint Violation",
 			bus_priv->common_data.core_index, status);
 		cam_sfe_bus_wr_get_constraint_errors(&skip_err_notify, bus_priv);
 	}
@@ -2489,6 +2496,7 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 	uint32_t frame_inc = 0, val;
 	uint32_t stride = 0, slice_h = 0;
 	dma_addr_t iova;
+	uint32_t curr_cache_cfg = 0;
 
 	bus_priv = (struct cam_sfe_bus_wr_priv *) priv;
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
@@ -2537,6 +2545,7 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 			wm_data->index, sfe_out_data->wm_res[i].res_name,
 			reg_val_pair[j-1]);
 
+		curr_cache_cfg = wm_data->cache_cfg;
 		wm_data->cache_cfg = 0;
 		if (wm_data->enable_caching) {
 			if ((cache_dbg_cfg->disable_for_scratch) &&
@@ -2558,6 +2567,13 @@ static int cam_sfe_bus_wr_update_wm(void *priv, void *cmd_args,
 				wm_data->cache_cfg |= cache_dbg_cfg->buf_alloc;
 			else
 				wm_data->cache_cfg |= CACHE_ALLOC_ALLOC;
+
+			if (cache_dbg_cfg->print_cache_cfg &&
+				(curr_cache_cfg != wm_data->cache_cfg)) {
+				CAM_INFO(CAM_SFE, "SFE:%d WM:%d current_scid:%d cache_cfg:0x%x",
+					wm_data->common_data->core_index,
+					wm_data->index, wm_data->current_scid, wm_data->cache_cfg);
+			}
 		}
 
 skip_cache_cfg:
@@ -2696,6 +2712,7 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 	uint32_t frame_inc = 0, val, img_addr = 0, img_offset = 0;
 	uint32_t stride = 0, slice_h = 0;
 	dma_addr_t iova;
+	uint32_t curr_cache_cfg = 0;
 
 	bus_priv = (struct cam_sfe_bus_wr_priv  *) priv;
 	update_buf =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
@@ -2788,6 +2805,7 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 			wm_data->index, frame_inc,
 			CAM_BOOL_TO_YESNO(cam_smmu_is_expanded_memory));
 
+		curr_cache_cfg = wm_data->cache_cfg;
 		wm_data->cache_cfg = 0;
 		if ((!cache_dbg_cfg->disable_for_scratch) &&
 			(wm_data->enable_caching)) {
@@ -2798,6 +2816,14 @@ static int cam_sfe_bus_wr_config_wm(void *priv, void *cmd_args,
 				wm_data->cache_cfg |= cache_dbg_cfg->scratch_alloc;
 			else
 				wm_data->cache_cfg |= CACHE_ALLOC_ALLOC;
+
+			if (cache_dbg_cfg->print_cache_cfg &&
+				(curr_cache_cfg != wm_data->cache_cfg)) {
+				CAM_INFO(CAM_SFE,
+					"SFE:%d Scratch Buff WM:%d current_scid:%d cache_cfg:0x%x",
+					wm_data->common_data->core_index,
+					wm_data->index, wm_data->current_scid, wm_data->cache_cfg);
+			}
 		}
 
 		cam_io_w_mb(wm_data->cache_cfg,
@@ -3621,7 +3647,7 @@ int cam_sfe_bus_wr_deinit(
 	bus_priv->common_data.err_irq_subscribe = false;
 	spin_unlock_irqrestore(&bus_priv->common_data.spin_lock, flags);
 
-	for (i = 0; i < CAM_SFE_BUS_WR_COMP_GRP_MAX; i++) {
+	for (i = 0; i < bus_priv->num_comp_grp; i++) {
 		rc = cam_sfe_bus_deinit_comp_grp(&bus_priv->comp_grp[i]);
 		if (rc < 0)
 			CAM_ERR(CAM_SFE,
@@ -3629,7 +3655,7 @@ int cam_sfe_bus_wr_deinit(
 				bus_priv->common_data.core_index, i, rc);
 	}
 
-	for (i = 0; i < CAM_SFE_BUS_SFE_OUT_MAX; i++) {
+	for (i = 0; i < bus_priv->num_out; i++) {
 		rc = cam_sfe_bus_deinit_sfe_out_resource(
 			&bus_priv->sfe_out[i]);
 		if (rc < 0)

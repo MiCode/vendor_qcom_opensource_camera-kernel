@@ -446,7 +446,6 @@ static void cam_vfe_top_ver4_print_debug_reg_status(
 		}
 		CAM_INFO(CAM_ISP, "VFE[%u]: Top Debug Status: %s", soc_info->index, log_buf);
 		len = 0;
-		memset(log_buf, 0, sizeof(uint8_t)*CAM_VFE_LEN_LOG_BUF);
 	}
 
 	cam_vfe_top_ver4_check_module_status(num_reg, reg_val,
@@ -474,6 +473,9 @@ int cam_vfe_top_ver4_dump_timestamps(
 		}
 
 		vfe_priv  = res->res_priv;
+
+		if (!vfe_priv->frame_irq_handle)
+			continue;
 
 		if (vfe_priv->is_pixel_path) {
 			camif_res = res;
@@ -560,7 +562,7 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 	cam_vfe_top_ver4_dump_timestamps(top_priv, res_id);
 	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
 	if (bus_overflow_status)
-		cam_cpas_log_votes();
+		cam_cpas_log_votes(false);
 
 	if (violation_status)
 		CAM_INFO(CAM_ISP, "VFE[%d] Bus violation status: 0x%x",
@@ -972,6 +974,10 @@ int cam_vfe_top_ver4_stop(void *device_priv,
 		top_priv->perf_counters[i].dump_counter = false;
 	}
 
+	if (top_priv->common_data.hw_info->num_pdaf_lcr_res)
+		cam_io_w(1, soc_info->reg_map[VFE_CORE_BASE_IDX].mem_base +
+			top_priv->common_data.common_reg->pdaf_input_cfg_1);
+
 	atomic_set(&top_priv->overflow_pending, 0);
 	return rc;
 }
@@ -1285,8 +1291,8 @@ static int cam_vfe_handle_eof(struct cam_vfe_mux_ver4_data *vfe_priv,
 	struct cam_isp_hw_event_info *evt_info)
 {
 	CAM_DBG(CAM_ISP, "VFE:%d Received EOF", vfe_priv->hw_intf->hw_idx);
-	vfe_priv->epoch_ts.tv_sec = payload->ts.mono_time.tv_sec;
-	vfe_priv->epoch_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
+	vfe_priv->eof_ts.tv_sec = payload->ts.mono_time.tv_sec;
+	vfe_priv->eof_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
 
 	cam_cpas_notify_event("IFE EOF", vfe_priv->hw_intf->hw_idx);
 	return 0;

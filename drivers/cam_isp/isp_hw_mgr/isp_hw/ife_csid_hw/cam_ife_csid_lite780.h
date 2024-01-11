@@ -275,7 +275,7 @@ static const struct cam_ife_csid_top_irq_desc cam_ife_csid_lite_780_top_irq_desc
 	},
 };
 
-static struct cam_irq_register_set cam_ife_csid_lite_780_irq_reg_set[7] = {
+static struct cam_irq_register_set cam_ife_csid_lite_780_irq_reg_set[9] = {
 	/* Top */
 	{
 		.mask_reg_offset   = 0x00000080,
@@ -315,12 +315,14 @@ static struct cam_irq_register_set cam_ife_csid_lite_780_irq_reg_set[7] = {
 		.clear_reg_offset  = 0x00000124,
 		.status_reg_offset = 0x0000011C,
 	},
+	{}, /* no RDI4 */
 	/* IPP */
 	{
 		.mask_reg_offset   = 0x000000B0,
 		.clear_reg_offset  = 0x000000B4,
 		.status_reg_offset = 0x000000AC,
 	},
+	{}, /* no PPP */
 };
 
 static struct cam_irq_controller_reg_info cam_ife_csid_lite_780_top_irq_reg_info = {
@@ -528,6 +530,8 @@ static struct cam_ife_csid_csi2_rx_reg_info
 		.epd_mode_shift_en                    = 8,
 		.eotp_shift_en                        = 9,
 		.dyn_sensor_switch_shift_en           = 10,
+		.rup_aup_latch_shift                  = 11,
+		.rup_aup_latch_supported              = true,
 		.long_pkt_strobe_rst_shift            = 0,
 		.short_pkt_strobe_rst_shift           = 1,
 		.cphy_pkt_strobe_rst_shift            = 2,

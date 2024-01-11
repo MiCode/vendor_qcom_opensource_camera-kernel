@@ -14,6 +14,7 @@
 #define CAM_IFE_CSID_HW_NUM_MAX                        8
 #define CAM_IFE_CSID_UDI_MAX                           3
 #define RT_BASE_IDX                                    2
+#define CAM_ISP_MAX_PATHS                              8
 
 /**
  * enum cam_ife_csid_input_core_type - Specify the csid input core
@@ -285,9 +286,22 @@ struct cam_csid_hw_stop_args {
 	uint32_t                                  num_res;
 };
 
+/**
+ * struct cam_csid_hw_start_args - Relevant info to pass from ife_hw_mgr layer
+ *                                 to start various resource nodes.
+ *
+ * @node_res:           Resource pointer array (cid or CSID)
+ * @num_res:            Number of resources in node_res
+ * @cdm_hw_idx:         Physical CDM in use together with these resources
+ * @is_secure:          If these resources are run in secure session
+ * @is_internal_start:  Start triggered internally for reset & recovery
+ *
+ */
 struct cam_csid_hw_start_args {
 	struct cam_isp_resource_node            **node_res;
 	uint32_t                                  num_res;
+	uint32_t                                  cdm_hw_idx;
+	bool                                      is_secure;
 	bool                                      is_internal_start;
 };
 
@@ -478,6 +492,21 @@ struct cam_ife_csid_debug_cfg_args {
 	uint32_t                          csid_rx_capture_debug;
 	uint32_t                          csid_testbus_debug;
 	bool                              rx_capture_debug_set;
+};
+
+/*
+ * struct cam_ife_csid_drv_config_args:
+ *
+ * @is_init_config: Indicator for init config
+ * @drv_en:         Indicator for camera DRV enable
+ * @timeout_val:    Timeout value from SOF to trigger up vote, given in number of GC cycles
+ * @path_idle_en:   Mask for paths to be considered for consolidated IDLE
+ */
+struct cam_ife_csid_drv_config_args {
+	bool                               is_init_config;
+	bool                               drv_en;
+	uint32_t                           timeout_val;
+	uint32_t                           path_idle_en;
 };
 
 #endif /* _CAM_CSID_HW_INTF_H_ */

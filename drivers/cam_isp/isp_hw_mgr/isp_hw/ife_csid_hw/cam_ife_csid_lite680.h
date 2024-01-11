@@ -244,7 +244,7 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_680_path_irq_desc[] 
 		.desc = "CCIF_VIOLATION: Bad frame timings",
 	},
 };
-static struct cam_irq_register_set cam_ife_csid_lite_680_irq_reg_set[7] = {
+static struct cam_irq_register_set cam_ife_csid_lite_680_irq_reg_set[9] = {
 	/* Top */
 	{
 		.mask_reg_offset   = 0x00000080,
@@ -284,12 +284,14 @@ static struct cam_irq_register_set cam_ife_csid_lite_680_irq_reg_set[7] = {
 		.clear_reg_offset  = 0x00000124,
 		.status_reg_offset = 0x0000011C,
 	},
+	{}, /* no RDI4 */
 	/* IPP */
 	{
 		.mask_reg_offset   = 0x000000B0,
 		.clear_reg_offset  = 0x000000B4,
 		.status_reg_offset = 0x000000AC,
 	},
+	{}, /* no PPP */
 };
 
 static struct cam_irq_controller_reg_info cam_ife_csid_lite_680_top_irq_reg_info = {

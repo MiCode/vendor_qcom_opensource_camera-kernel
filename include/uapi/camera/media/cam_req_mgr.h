@@ -69,6 +69,10 @@
 #define CAM_REQ_MGR_LINK_ACTIVATE               0
 #define CAM_REQ_MGR_LINK_DEACTIVATE             1
 
+/* DMA buffer name length */
+#define CAM_DMA_BUF_NAME_LEN                    128
+#define CAM_REQ_MGR_ALLOC_BUF_WITH_NAME         1
+
 /**
  * Request Manager : flush_type
  * @CAM_REQ_MGR_FLUSH_TYPE_ALL: Req mgr will remove all the pending
@@ -338,6 +342,10 @@ struct cam_req_mgr_link_properties {
 #define CAM_REQ_MGR_REQUEST_DUMP                (CAM_COMMON_OPCODE_MAX + 15)
 #define CAM_REQ_MGR_SCHED_REQ_V2                (CAM_COMMON_OPCODE_MAX + 16)
 #define CAM_REQ_MGR_LINK_PROPERTIES             (CAM_COMMON_OPCODE_MAX + 17)
+#define CAM_REQ_MGR_ALLOC_BUF_V2                (CAM_COMMON_OPCODE_MAX + 18)
+#define CAM_REQ_MGR_MAP_BUF_V2                  (CAM_COMMON_OPCODE_MAX + 19)
+#define CAM_REQ_MGR_MEM_CPU_ACCESS_OP           (CAM_COMMON_OPCODE_MAX + 20)
+#define CAM_REQ_MGR_QUERY_CAP                   (CAM_COMMON_OPCODE_MAX + 21)
 
 /* end of cam_req_mgr opcodes */
 
@@ -358,6 +366,7 @@ struct cam_req_mgr_link_properties {
 #define CAM_MEM_FLAG_KMD_DEBUG_FLAG             (1<<14)
 #define CAM_MEM_FLAG_EVA_NOPIXEL                (1<<15)
 #define CAM_MEM_FLAG_HW_AND_CDM_OR_SHARED       (1<<16)
+#define CAM_MEM_FLAG_UBWC_P_HEAP                (1<<17)
 
 
 #define CAM_MEM_MMU_MAX_HANDLE                  16
@@ -398,7 +407,6 @@ struct cam_req_mgr_link_properties {
 #define CAM_MEM_DMA_TO_DEVICE                   2
 #define CAM_MEM_DMA_FROM_DEVICE                 3
 
-
 /**
  * memory cache operation
  */
@@ -406,6 +414,38 @@ struct cam_req_mgr_link_properties {
 #define CAM_MEM_INV_CACHE                       2
 #define CAM_MEM_CLEAN_INV_CACHE                 3
 
+/**
+ * memory CPU access operation
+ */
+#define CAM_MEM_BEGIN_CPU_ACCESS                BIT(0)
+#define CAM_MEM_END_CPU_ACCESS                  BIT(1)
+
+/**
+ * memory CPU access type
+ */
+#define CAM_MEM_CPU_ACCESS_READ                 BIT(0)
+#define CAM_MEM_CPU_ACCESS_WRITE                BIT(1)
+
+/**
+ * Feature mask returned in query_cap
+ */
+#define CAM_REQ_MGR_MEM_UBWC_P_HEAP_SUPPORTED   BIT(0)
+
+/**
+ * struct cam_req_mgr_query_cap
+ * @version:          Struct version
+ * @feature_mask      Supported features
+ * @num_valid_params: Valid number of params being used
+ * @valid_param_mask: Mask to indicate the field types in params
+ * @params:           Additional params
+ */
+struct cam_req_mgr_query_cap {
+	__u32   version;
+	__u64   feature_mask;
+	__u32   num_valid_params;
+	__u32   valid_param_mask;
+	__s32   params[5];
+};
 
 /**
  * struct cam_mem_alloc_out_params
@@ -451,6 +491,37 @@ struct cam_mem_mgr_alloc_cmd {
 };
 
 /**
+ * struct cam_mem_mgr_alloc_cmd_v2
+ * @version: Struct version
+ * @num_hdl: number of handles
+ * @mmu_hdls: array of mmu handles
+ * @len: size of buffer to allocate
+ * @align: alignment of the buffer
+ * @vmids: reserved
+ * @buf_name: DMA buffer name
+ * @flags: flags of the buffer
+ * @num_valid_params: Valid number of params being used
+ * @valid_param_mask: Mask to indicate the field types in params
+ * @params: Additional params
+ * @out: out params
+ */
+/* CAM_REQ_MGR_ALLOC_BUF_V2 */
+struct cam_mem_mgr_alloc_cmd_v2 {
+	__u32                           version;
+	__u32                           num_hdl;
+	__s32                           mmu_hdls[CAM_MEM_MMU_MAX_HANDLE];
+	__u64                           len;
+	__u64                           align;
+	__u64                           vmids;
+	char                            buf_name[CAM_DMA_BUF_NAME_LEN];
+	__u32                           flags;
+	__u32                           num_valid_params;
+	__u32                           valid_param_mask;
+	__s32                           params[5];
+	struct cam_mem_alloc_out_params out;
+};
+
+/**
  * struct cam_mem_mgr_map_cmd
  * @mmu_hdls: array of mmu handles
  * @num_hdl: number of handles
@@ -469,6 +540,37 @@ struct cam_mem_mgr_map_cmd {
 	__u32                         reserved;
 	struct cam_mem_map_out_params out;
 };
+
+/**
+ * struct cam_mem_mgr_map_cmd_v2
+ * @version: Struct version
+ * @fd: output buffer file descriptor
+ * @mmu_hdls: array of mmu handles
+ * @num_hdl: number of handles
+ * @flags: flags of the buffer
+ * @vmids: reserved
+ * @buf_name: DMA buffer name
+ * @num_valid_params: Valid number of params being used
+ * @valid_param_mask: Mask to indicate the field types in params
+ * @params: Additional params
+ * @out: out params
+ */
+
+/* CAM_REQ_MGR_MAP_BUF_V2 */
+struct cam_mem_mgr_map_cmd_v2 {
+	__u32                         version;
+	__s32                         fd;
+	__s32                         mmu_hdls[CAM_MEM_MMU_MAX_HANDLE];
+	__u32                         num_hdl;
+	__u32                         flags;
+	__u64                         vmids;
+	char                          buf_name[CAM_DMA_BUF_NAME_LEN];
+	__u32                         num_valid_params;
+	__u32                         valid_param_mask;
+	__s32                         params[4];
+	struct cam_mem_map_out_params out;
+};
+
 
 /**
  * struct cam_mem_mgr_map_cmd
@@ -490,6 +592,33 @@ struct cam_mem_mgr_release_cmd {
 struct cam_mem_cache_ops_cmd {
 	__s32 buf_handle;
 	__u32 mem_cache_ops;
+};
+
+/**
+ * struct cam_mem_cpu_access_op
+ * @version:          Struct version
+ * @buf_handle:       buffer handle
+ * @access:           CPU access operation. Allowed params :
+ *                    CAM_MEM_BEGIN_CPU_ACCESS
+ *                    CAM_MEM_END_CPU_ACCESS
+ *                    both
+ * @access_type:      CPU access type. Allowed params :
+ *                    CAM_MEM_CPU_ACCESS_READ
+ *                    CAM_MEM_CPU_ACCESS_WRITE
+ *                    both
+ * @num_valid_params: Valid number of params being used
+ * @valid_param_mask: Mask to indicate the field types in params
+ * @params:           Additional params
+ */
+/* CAM_REQ_MGR_MEM_CPU_ACCESS_OP */
+struct cam_mem_cpu_access_op {
+	__u32   version;
+	__s32   buf_handle;
+	__u32   access;
+	__u32   access_type;
+	__u32   num_valid_params;
+	__u32   valid_param_mask;
+	__s32   params[4];
 };
 
 /**
@@ -746,6 +875,12 @@ struct cam_req_mgr_pf_err_msg {
 	__u16 mid;
 	__u32 reserved[3];
 };
+
+// xiaomi add
+#define V4L_EVENT_CAM_MQS_EVENT           (V4L2_EVENT_PRIVATE_START + 1)
+#define V4L_EVENT_CAM_MQS_ISP             1
+#define V4L_EVENT_CAM_MQS_BUBBLE          (V4L_EVENT_CAM_MQS_ISP << 16) + 1
+// xiaomi add
 
 /**
  * struct cam_req_mgr_message - 64 bytes is the max size that can be sent as v4l2 evt

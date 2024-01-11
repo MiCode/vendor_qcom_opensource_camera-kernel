@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_CONTEXT_H_
@@ -269,6 +270,8 @@ struct cam_isp_context_event_record {
  * @rdi_only_context:          Get context type information.
  *                             true, if context is rdi only context
  * @offline_context:           Indicate whether context is for offline IFE
+ * @vfps_aux_context:          Indicate whether context is for VFPS aux link
+ * @resume_hw_in_flushed:      Indicate whether resume hw in flushed state in vfps case
  * @hw_acquired:               Indicate whether HW resources are acquired
  * @init_received:             Indicate whether init config packet is received
  * @split_acquire:             Indicate whether a separate acquire is expected
@@ -296,6 +299,9 @@ struct cam_isp_context {
 	uint32_t                         frame_id_meta;
 	uint32_t                         substate_activated;
 	atomic_t                         process_bubble;
+	bool                             process_rdi_mismatch;
+	int64_t                          request_mismatched;
+	int32_t                          ctx_mismatched;
 	struct cam_ctx_ops              *substate_machine;
 	struct cam_isp_ctx_irq_ops      *substate_machine_irq;
 
@@ -324,6 +330,8 @@ struct cam_isp_context {
 		CAM_ISP_CTX_EVENT_MAX][CAM_ISP_CTX_EVENT_RECORD_MAX_ENTRIES];
 	bool                                  rdi_only_context;
 	bool                                  offline_context;
+	bool                                  vfps_aux_context;
+	bool                                  resume_hw_in_flushed;
 	bool                                  hw_acquired;
 	bool                                  init_received;
 	bool                                  split_acquire;
@@ -507,5 +515,27 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
  *
  */
 int cam_isp_context_deinit(struct cam_isp_context *ctx);
+
+/**
+ * cam_isp_detect_framerate()
+ *
+ * @brief                function to detect framerate - xiaomi added
+ *
+ * @ctx:                 ISP context
+ * @interval:            frame interval num to calculate framerate
+ *
+ */
+void cam_isp_detect_framerate(struct cam_isp_context *ctx,
+     uint interval);
+
+/**
+ * @brief                 function to get frame batchsize of HFR - xiaomi add
+ *
+ * @ctx:                  ISP context obj to be detected
+ * @cpkt:                 camera packet
+ *
+ */
+void cam_isp_get_frame_batchsize(struct cam_context *ctx,
+     struct cam_packet *cpkt);
 
 #endif  /* __CAM_ISP_CONTEXT_H__ */

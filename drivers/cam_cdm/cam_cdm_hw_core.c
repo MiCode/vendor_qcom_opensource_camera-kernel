@@ -899,6 +899,10 @@ int cam_hw_cdm_submit_gen_irq(
 		return -EIO;
 	}
 
+	CAM_DBG(CAM_CDM, "GenIRQ BL: First Word: 0x%llx Second Word: 0x%llx",
+		*(cdm_cmd->genirq_buff->cpu_addr + (cdm_cmd->genirq_buff->used_bytes / 4)),
+		*(cdm_cmd->genirq_buff->cpu_addr + (cdm_cmd->genirq_buff->used_bytes / 4) + 1));
+
 	cdm_cmd->genirq_buff->used_bytes += genirq_cmd_size;
 	cdm_cmd->genirq_buff->offset += genirq_cmd_size;
 
@@ -908,7 +912,7 @@ int cam_hw_cdm_submit_gen_irq(
 			cdm_cmd->genirq_buff->handle, core->iommu_hdl.non_secure);
 
 		rc = cam_mem_mgr_send_buffer_to_presil(core->iommu_hdl.non_secure,
-			0);
+			cdm_cmd->genirq_buff->handle);
 		if (rc) {
 			CAM_ERR(CAM_PRESIL,
 				"Failed to send CDM gen irq cmd buffer fifo_idx:%d mem_handle:%d rc:%d",

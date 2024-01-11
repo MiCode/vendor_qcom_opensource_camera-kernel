@@ -9,6 +9,9 @@
 #include "cam_cci_soc.h"
 #include "cam_cci_core.h"
 #include "camera_main.h"
+/* xiaomi add for cci debug start */
+#include "cam_cci_debug_util.h"
+/* xiaomi add for cci debug end */
 
 #define CCI_MAX_DELAY 1000000
 
@@ -298,6 +301,9 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 				CAM_ERR(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+			/* xiaomi add for cci cmds dump start */
+			cam_cci_cmds_dump(cci_dev, MASTER_0, QUEUE_0);
+			/* xiaomi add for cci cmds dump end */
 			cam_cci_dump_registers(cci_dev, MASTER_0,
 					QUEUE_0);
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
@@ -312,6 +318,9 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 				CAM_ERR(CAM_CCI,
 					"Base:%pK,cci: %d, M0_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+			/* xiaomi add for cci cmds dump start */
+			cam_cci_cmds_dump(cci_dev, MASTER_0, QUEUE_1);
+			/* xiaomi add for cci cmds dump end */
 			cam_cci_dump_registers(cci_dev, MASTER_0,
 					QUEUE_1);
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
@@ -340,6 +349,9 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 				CAM_ERR(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q0 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+			/* xiaomi add for cci cmds dump start */
+			cam_cci_cmds_dump(cci_dev, MASTER_1, QUEUE_0);
+			/* xiaomi add for cci cmds dump end */
 			cam_cci_dump_registers(cci_dev, MASTER_1,
 					QUEUE_0);
 			complete_all(&cci_dev->cci_master_info[MASTER_1]
@@ -354,6 +366,9 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 				CAM_ERR(CAM_CCI,
 					"Base:%pK, cci: %d, M1_Q1 NACK ERROR: 0x%x",
 					base, cci_dev->soc_info.index, irq_status0);
+			/* xiaomi add for cci cmds dump start */
+			cam_cci_cmds_dump(cci_dev, MASTER_1, QUEUE_1);
+			/* xiaomi add for cci cmds dump end */
 			cam_cci_dump_registers(cci_dev, MASTER_1,
 				QUEUE_1);
 			complete_all(&cci_dev->cci_master_info[MASTER_1]
@@ -429,6 +444,9 @@ static int cam_cci_create_debugfs_entry(struct cci_device *cci_dev)
 	int rc = 0, idx;
 	struct dentry *dbgfileptr = NULL;
 	static char * const filename[] = { "en_dump_cci0", "en_dump_cci1", "en_dump_cci2"};
+	/* xiaomi add for cci debug start */
+	char debugfs_name[DEBUGFS_NAME_MAX_SIZE];
+	/* xiaomi add for cci debug end */
 
 	if (!cam_debugfs_available())
 		return 0;
@@ -450,6 +468,17 @@ static int cam_cci_create_debugfs_entry(struct cci_device *cci_dev)
 
 	debugfs_create_file(filename[idx], 0644, debugfs_root, cci_dev, &cam_cci_debug);
 
+	/* xiaomi modified for cci debug start */
+	snprintf(debugfs_name, DEBUGFS_NAME_MAX_SIZE, "cci%d",
+		cci_dev->soc_info.index);
+	dbgfileptr = debugfs_create_dir(debugfs_name, debugfs_root);
+	if (!dbgfileptr) {
+		CAM_ERR(CAM_CCI, "debugfs directory creation fail");
+		rc = -ENOENT;
+		return 0;
+	}
+	/* xiaomi modified for cci debug end */
+
 	return 0;
 }
 
@@ -461,6 +490,9 @@ static int cam_cci_component_bind(struct device *dev,
 	struct cam_hw_soc_info *soc_info = NULL;
 	int rc = 0;
 	struct platform_device *pdev = to_platform_device(dev);
+	/* xiaomi add for cci cmds dump start */
+	uint32_t *cci_write_cmds0, *cci_write_cmds1;
+	/* xiaomi add for cci cmds dump start */
 
 	new_cci_dev = devm_kzalloc(&pdev->dev, sizeof(struct cci_device),
 		GFP_KERNEL);
@@ -534,6 +566,27 @@ static int cam_cci_component_bind(struct device *dev,
 		CAM_WARN(CAM_CCI, "debugfs creation failed");
 		rc = 0;
 	}
+
+	/* xiaomi add for cci cmds dump start */
+	cci_write_cmds0 = kvcalloc(CCI_I2C_CMDS_SNAPSHOT_MAX_COUNT,
+		sizeof(uint32_t), GFP_KERNEL);
+	if (!cci_write_cmds0) {
+		CAM_ERR(CAM_CCI, "Memory allocation failed for master0 cmds");
+		return -ENOMEM;
+	}
+	new_cci_dev->cci_master_info[CCI_MASTER_0].cci_write_cmds =
+		cci_write_cmds0;
+
+	cci_write_cmds1 = kvcalloc(CCI_I2C_CMDS_SNAPSHOT_MAX_COUNT,
+		sizeof(uint32_t), GFP_KERNEL);
+	if (!cci_write_cmds1) {
+		CAM_ERR(CAM_CCI, "Memory allocation failed for master1 cmds");
+		return -ENOMEM;
+	}
+	new_cci_dev->cci_master_info[CCI_MASTER_1].cci_write_cmds =
+		cci_write_cmds1;
+	/* xiaomi add for cci cmds dump end */
+
 	CAM_DBG(CAM_CCI, "Component bound successfully");
 	return rc;
 

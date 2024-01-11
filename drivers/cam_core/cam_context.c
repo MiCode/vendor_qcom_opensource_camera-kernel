@@ -741,6 +741,11 @@ int cam_context_init(struct cam_context *ctx,
 	ctx->ctx_priv = NULL;
 	ctx->img_iommu_hdl = img_iommu_hdl;
 
+	/*xiaomi added */
+	ctx->dbg_timestamp = 0;
+	ctx->dbg_frame     = 0;
+	ctx->exlink        =-1;
+	ctx->batchsize     = 1;
 	return 0;
 }
 

@@ -20,6 +20,25 @@
 #define SKEW_CAL_MASK             BIT(1)
 #define PREAMBLE_PATTEN_CAL_MASK  BIT(2)
 
+/* CSIPHY driver cmd buffer meta types */
+#define CAM_CSIPHY_PACKET_META_LANE_INFO           0
+#define CAM_CSIPHY_PACKET_META_GENERIC_BLOB        1
+
+/* CSIPHY blob types */
+#define CAM_CSIPHY_GENERIC_BLOB_TYPE_CDR_CONFIG    0
+#define CAM_CSIPHY_GENERIC_BLOB_TYPE_AUX_CONFIG    1
+
+/* CSIPHY CDR tolerance operations */
+#define CAM_CSIPHY_CDR_ADD_TOLERANCE               1
+#define CAM_CSIPHY_CDR_SUB_TOLERANCE               2
+
+/* SENSOR driver cmd buffer meta types */
+#define CAM_SENSOR_PACKET_I2C_COMMANDS             0
+#define CAM_SENSOR_PACKET_GENERIC_BLOB             1
+
+/* SENSOR blob types */
+#define CAM_SENSOR_GENERIC_BLOB_RES_INFO           0
+
 enum camera_sensor_cmd_type {
 	CAMERA_SENSOR_CMD_TYPE_INVALID,
 	CAMERA_SENSOR_CMD_TYPE_PROBE,
@@ -45,7 +64,9 @@ enum cam_actuator_packet_opcodes {
 	CAM_ACTUATOR_PACKET_OPCODE_INIT,
 	CAM_ACTUATOR_PACKET_AUTO_MOVE_LENS,
 	CAM_ACTUATOR_PACKET_MANUAL_MOVE_LENS,
-	CAM_ACTUATOR_PACKET_OPCODE_READ
+	CAM_ACTUATOR_PACKET_OPCODE_READ,
+	CAM_ACTUATOR_PACKET_OPCODE_PARKLENS, // xiaomi add
+	CAM_ACTUATOR_PACKET_OPCODE_WRITE     // xiaomi add
 };
 
 enum cam_eeprom_packet_opcodes {
@@ -57,7 +78,10 @@ enum cam_ois_packet_opcodes {
 	CAM_OIS_PACKET_OPCODE_INIT,
 	CAM_OIS_PACKET_OPCODE_OIS_CONTROL,
 	CAM_OIS_PACKET_OPCODE_READ,
-	CAM_OIS_PACKET_OPCODE_WRITE_TIME
+	CAM_OIS_PACKET_OPCODE_WRITE_TIME,
+	CAM_OIS_PACKET_OPCODE_OIS_MANUAL_MODE,
+	CAM_OIS_PACKET_OPCODE_INIT_SECOND,
+	CAM_OIS_PACKET_OPCODE_OIS_PARKLENS,
 };
 
 enum camera_sensor_i2c_op_code {
@@ -98,6 +122,7 @@ enum cam_sensor_packet_opcodes {
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_PROBE_V2,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_UNLOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_LOCK,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_WRITE,  //xiaomi add
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_NOP = 127,
 };
 
@@ -283,6 +308,36 @@ struct cam_cmd_i2c_info {
 } __attribute__((packed));
 
 /**
+ * struct cam_cmd_sensor_res_info - Contains sensor res info
+ *
+ * res_index is the key property, it specifies the
+ * combinations of other properties enclosed in this
+ * structure.
+ *
+ * @res_index        : The resolution index that gets updated
+ *                     during a mode switch
+ * @fps              : Frame rate
+ * @width            : Pixel width to output to csiphy
+ * @height           : Pixel height to output to csiphy
+ * @caps             : Specifies capability sensor is configured
+ *                     for, (eg, XCFA, HFR), num_exposures and
+ *                     PDAF type
+ * @num_valid_params : Number of valid params
+ * @valid_param_mask : Valid param mask
+ * @params           : params
+ */
+struct cam_sensor_res_info {
+	__u16 res_index;
+	__u32 fps;
+	__u32 width;
+	__u32 height;
+	char  caps[64];
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u16 params[3];
+} __attribute__((packed));
+
+/**
  * struct cam_ois_opcode - Contains OIS opcode
  *
  * @prog            :    OIS FW prog register address
@@ -295,6 +350,11 @@ struct cam_ois_opcode {
 	__u32 coeff;
 	__u32 pheripheral;
 	__u32 memory;
+	__u8 fw_addr_type;
+	__u8 is_addr_increase;
+	__u16 fw_download_type;
+	__u32 fw_version;
+	__u8 customized_ois_flag;
 } __attribute__((packed));
 
 /**
@@ -533,9 +593,49 @@ struct cam_cmd_unconditional_wait {
 } __attribute__((packed));
 
 /**
+ * cam_csiphy_cdr_sweep_params : Provides cdr blob structre
+ *
+ * @cdr_tolerance        : CDR tolerance param
+ * @tolerance_op_type    : Determines if the tolerance needs to be added/subtracted
+ *                         from default CDR value
+ * @configured_cdr       : Configured CDR value for all the lanes for the
+ *                         selected data rate, default +/- tolerance,
+ *                         this is the output
+ * @num_valid_params     : Number of valid params
+ * @valid_param_mask     : Valid param mask
+ * @params               : params
+ *
+ */
+struct cam_csiphy_cdr_sweep_params {
+	__u32 cdr_tolerance;
+	__u32 tolerance_op_type;
+	__u32 configured_cdr;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[3];
+};
+
+/**
+ * cam_csiphy_aux_settings_params : Provides aux blob structre
+ *
+ * @data_rate_aux_mask : Auxiliary settings update for different data rates,
+ *                       this is the output
+ * @num_valid_params   : Number of valid params
+ * @valid_param_mask   : Valid param mask
+ * @params             : params
+ *
+ */
+struct cam_csiphy_aux_settings_params {
+	__u64 data_rate_aux_mask;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[2];
+};
+
+/**
  * cam_csiphy_info       : Provides cmdbuffer structre
  * @lane_assign          : Lane sensor will be using
- * @mipi_flags           : Phy flags for differnt calibration operations
+ * @mipi_flags           : Phy flags for different calibration operations
  * @lane_cnt             : Total number of lanes
  * @secure_mode          : Secure mode flag to enable / disable
  * @settle_time          : Settling time in ms
@@ -550,6 +650,7 @@ struct cam_csiphy_info {
 	__u8     secure_mode;
 	__u64    settle_time;
 	__u64    data_rate;
+	bool     is_modify_onthego;
 } __attribute__((packed));
 
 /**

@@ -79,7 +79,7 @@ struct cam_ope_clk_bw_req_internal_v2 {
 	uint32_t rt_flag;
 	uint32_t reserved;
 	uint32_t num_paths;
-	struct cam_axi_per_path_bw_vote axi_path[CAM_OPE_MAX_PER_PATH_VOTES];
+	struct cam_cpas_axi_per_path_bw_vote axi_path[CAM_OPE_MAX_PER_PATH_VOTES];
 };
 
 /**
@@ -119,7 +119,7 @@ struct cam_ctx_clk_info {
 	uint64_t compressed_bw;
 	int32_t clk_rate[CAM_MAX_VOTE];
 	uint32_t num_paths;
-	struct cam_axi_per_path_bw_vote axi_path[CAM_OPE_MAX_PER_PATH_VOTES];
+	struct cam_cpas_axi_per_path_bw_vote axi_path[CAM_OPE_MAX_PER_PATH_VOTES];
 };
 
 /**
@@ -156,7 +156,7 @@ struct cam_ope_clk_info {
 	uint64_t uncompressed_bw;
 	uint64_t compressed_bw;
 	uint32_t num_paths;
-	struct cam_axi_per_path_bw_vote axi_path[CAM_OPE_MAX_PER_PATH_VOTES];
+	struct cam_cpas_axi_per_path_bw_vote axi_path[CAM_OPE_MAX_PER_PATH_VOTES];
 	uint32_t hw_type;
 	struct cam_req_mgr_timer *watch_dog;
 	uint32_t watch_dog_reset_counter;

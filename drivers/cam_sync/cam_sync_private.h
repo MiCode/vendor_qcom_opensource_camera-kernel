@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CAM_SYNC_PRIVATE_H__
@@ -17,6 +18,7 @@
 #include <media/v4l2-event.h>
 #include <media/v4l2-ioctl.h>
 #include "cam_sync_api.h"
+#include "cam_sync_dma_fence.h"
 
 #if IS_REACHABLE(CONFIG_MSM_GLOBAL_SYNX)
 #include <synx_api.h>
@@ -30,6 +32,7 @@
 
 #define CAM_SYNC_OBJ_NAME_LEN           64
 #define CAM_SYNC_MAX_OBJS               2048
+#define CAM_GENERIC_FENCE_BATCH_MAX     10
 #define CAM_SYNC_MAX_V4L2_EVENTS        250
 #define CAM_SYNC_DEBUG_FILENAME         "cam_debug"
 #define CAM_SYNC_DEBUG_BASEDIR          "cam"
@@ -125,21 +128,37 @@ struct sync_user_payload {
 };
 
 /**
+ * struct sync_dma_fence_info - DMA fence info associated with this sync obj
+ *
+ * @dma_fence_fd          : DMA fence fd
+ * @dma_fence_row_idx     : Index of the row corresponding to this dma fence
+ *                          in the dma fence table
+ * @sync_created_with_dma : If sync obj and dma fence are created together
+ */
+struct sync_dma_fence_info {
+	int32_t dma_fence_fd;
+	int32_t dma_fence_row_idx;
+	bool    sync_created_with_dma;
+};
+
+/**
  * struct sync_table_row - Single row of information about a sync object, used
  * for internal book keeping in the sync driver
  *
- * @name              : Optional string representation of the sync object
- * @type              : Type of the sync object (individual or group)
- * @sync_id           : Integer id representing this sync object
- * @parents_list      : Linked list of parents of this sync object
- * @children_list     : Linked list of children of this sync object
- * @state             : State (INVALID, ACTIVE, SIGNALED_SUCCESS or
- *                      SIGNALED_ERROR)
- * @remaining         : Count of remaining children that not been signaled
- * @signaled          : Completion variable on which block calls will wait
- * @callback_list     : Linked list of kernel callbacks registered
- * @user_payload_list : LInked list of user space payloads registered
- * @ref_cnt           : ref count of the number of usage of the fence.
+ * @name               : Optional string representation of the sync object
+ * @type               : Type of the sync object (individual or group)
+ * @sync_id            : Integer id representing this sync object
+ * @parents_list       : Linked list of parents of this sync object
+ * @children_list      : Linked list of children of this sync object
+ * @state              : State (INVALID, ACTIVE, SIGNALED_SUCCESS or
+ *                       SIGNALED_ERROR)
+ * @remaining          : Count of remaining children that not been signaled
+ * @signaled           : Completion variable on which block calls will wait
+ * @callback_list      : Linked list of kernel callbacks registered
+ * @user_payload_list  : LInked list of user space payloads registered
+ * @ref_cnt            : ref count of the number of usage of the fence.
+ * @ext_fence_mask     : Mask to indicate associated external fence types
+ * @dma_fence_info     : dma fence info if associated
  */
 struct sync_table_row {
 	char name[CAM_SYNC_OBJ_NAME_LEN];
@@ -155,6 +174,8 @@ struct sync_table_row {
 	struct list_head callback_list;
 	struct list_head user_payload_list;
 	atomic_t ref_cnt;
+	unsigned long ext_fence_mask;
+	struct sync_dma_fence_info dma_fence_info;
 };
 
 /**
