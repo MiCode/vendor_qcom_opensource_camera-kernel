@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -249,15 +249,10 @@ const struct v4l2_subdev_internal_ops cam_icp_subdev_internal_ops = {
 	.close = cam_icp_subdev_close,
 };
 
-static inline int cam_icp_subdev_clean_up(uint32_t device_idx)
+static inline void cam_icp_subdev_clean_up(uint32_t device_idx)
 {
-	struct cam_icp_subdev *icp_subdev;
-
-	icp_subdev = g_icp_dev[device_idx];
-	icp_subdev->node = NULL;
-	icp_subdev->open_cnt = 0;
-
-	return 0;
+	kfree(g_icp_dev[device_idx]);
+	g_icp_dev[device_idx] = NULL;
 }
 
 static int cam_icp_component_bind(struct device *dev,

@@ -817,7 +817,7 @@ static int cam_jpeg_mgr_process_hw_update_entries(void *priv, void *data)
 	rc = hw_mgr->devices[dev_type][0]->hw_ops.init(
 		hw_mgr->devices[dev_type][0]->hw_priv,
 		ctx_data,
-		sizeof(ctx_data));
+		sizeof(struct cam_jpeg_hw_ctx_data));
 	if (rc) {
 		CAM_ERR(CAM_JPEG, "Failed to Init %d HW", dev_type);
 		goto end;
