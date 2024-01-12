@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -901,7 +901,7 @@ static int __cam_isp_ctx_notify_error_util(
 	notify.frame_id = ctx_isp->frame_id;
 	notify.sof_timestamp_val = ctx_isp->sof_timestamp_val;
 
-	if (error == CRM_KMD_ERR_BUBBLE)
+	if ((error == CRM_KMD_ERR_BUBBLE) || (error == CRM_KMD_WARN_INTERNAL_RECOVERY))
 		CAM_WARN(CAM_ISP,
 			"Notify CRM about bubble req: %llu frame: %llu in ctx: %u on link: 0x%x",
 			req_id, ctx_isp->frame_id, ctx->ctx_id, ctx->link_hdl);
@@ -1762,7 +1762,7 @@ static int __cam_isp_context_try_internal_recovery(
 
 		if (req->request_id == ctx_isp->recovery_req_id) {
 			rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF,
-				CRM_KMD_ERR_BUBBLE, ctx_isp->recovery_req_id, ctx_isp);
+				CRM_KMD_WARN_INTERNAL_RECOVERY, ctx_isp->recovery_req_id, ctx_isp);
 			if (rc) {
 				/* Unable to do bubble recovery reset back to normal */
 				CAM_WARN(CAM_ISP,
@@ -1795,7 +1795,7 @@ static int __cam_isp_context_try_internal_recovery(
 
 		if (req->request_id == ctx_isp->recovery_req_id) {
 			rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF,
-				CRM_KMD_ERR_BUBBLE, ctx_isp->recovery_req_id, ctx_isp);
+				CRM_KMD_WARN_INTERNAL_RECOVERY, ctx_isp->recovery_req_id, ctx_isp);
 			if (rc) {
 				/* Unable to do bubble recovery reset back to normal */
 				CAM_WARN(CAM_ISP,
@@ -4607,8 +4607,8 @@ static int __cam_isp_ctx_trigger_internal_recovery(
 			ctx_isp->active_req_cnt, ctx_isp->recovery_req_id,
 			ctx->ctx_id, ctx->link_hdl);
 	} else {
-		rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF, CRM_KMD_ERR_BUBBLE,
-				ctx_isp->recovery_req_id, ctx_isp);
+		rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF,
+				CRM_KMD_WARN_INTERNAL_RECOVERY, ctx_isp->recovery_req_id, ctx_isp);
 		if (rc) {
 			/* Unable to do bubble recovery reset back to normal */
 			CAM_WARN(CAM_ISP,

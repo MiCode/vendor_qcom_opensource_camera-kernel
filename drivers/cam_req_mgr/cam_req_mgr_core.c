@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -3607,7 +3607,9 @@ int cam_req_mgr_process_error(void *priv, void *data)
 			/* Bring processing pointer to bubbled req id */
 			__cam_req_mgr_tbl_set_all_skip_cnt(&link->req.l_tbl);
 			in_q->rd_idx = idx;
-			in_q->slot[idx].bubble_times++;
+			/* Increment bubble counter only for bubble errors */
+			if (err_info->error == CRM_KMD_ERR_BUBBLE)
+				in_q->slot[idx].bubble_times++;
 			in_q->slot[idx].status = CRM_SLOT_STATUS_REQ_ADDED;
 
 			/* Reset request apply map for all pd tables */
