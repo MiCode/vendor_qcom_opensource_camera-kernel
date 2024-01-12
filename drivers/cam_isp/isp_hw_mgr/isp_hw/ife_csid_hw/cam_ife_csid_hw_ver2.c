@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -2915,6 +2915,7 @@ int cam_ife_csid_ver2_get_hw_caps(void *hw_priv,
 	hw_caps->is_lite = soc_private->is_ife_csid_lite;
 	hw_caps->sfe_ipp_input_rdi_res = csid_reg->cmn_reg->sfe_ipp_input_rdi_res;
 	hw_caps->camif_irq_support = csid_reg->cmn_reg->camif_irq_support;
+	hw_caps->is_ife_sfe_mapped = csid_reg->is_ife_sfe_mapped;
 
 	CAM_DBG(CAM_ISP,
 		"CSID:%u num-rdis:%d, num-pix:%d, major:%d minor:%d ver:%d",
