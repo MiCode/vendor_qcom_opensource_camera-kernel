@@ -11241,7 +11241,7 @@ static int cam_isp_validate_scratch_buffer_blob(
 
 	if (blob_size <
 		(sizeof(struct cam_isp_sfe_init_scratch_buf_config) +
-		(scratch_config->num_ports - 1) *
+		((int32_t)scratch_config->num_ports - 1) *
 		sizeof(struct cam_isp_sfe_scratch_buf_info))) {
 		CAM_ERR(CAM_ISP, "Invalid blob size: %u expected: %lu ctx_idx: %u",
 			blob_size,
