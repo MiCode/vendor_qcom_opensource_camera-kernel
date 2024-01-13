@@ -3885,9 +3885,13 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 		csid_acquire.sync_mode = CAM_ISP_HW_SYNC_NONE;
 	}
 
-	if (in_port->num_out_res) {
-		out_port = &(in_port->data[0]);
-		csid_res->is_secure = out_port->secure_mode;
+	/* Update the secure mode of CSID based on all the out ports */
+	for (i = 0; i < in_port->num_out_res; i++) {
+		out_port = &(in_port->data[i]);
+		if (out_port->secure_mode) {
+			csid_res->is_secure = out_port->secure_mode;
+			break;
+		}
 	}
 
 	CAM_DBG(CAM_ISP, "CSID Acquire: Enter, ctx_idx: %u", ife_ctx->ctx_index);
