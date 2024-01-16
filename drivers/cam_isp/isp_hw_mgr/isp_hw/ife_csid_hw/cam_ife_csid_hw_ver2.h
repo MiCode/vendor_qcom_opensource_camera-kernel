@@ -647,7 +647,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t overflow_ctrl_en;
 	uint32_t early_eof_supported;
 	uint32_t global_reset;
-	uint32_t rup_supported;
+	uint32_t aup_rup_supported;
 	uint32_t only_master_rup;
 	uint32_t sfe_ipp_input_rdi_res;
 	uint32_t phy_sel_base_idx;
@@ -784,6 +784,8 @@ struct cam_ife_csid_ver2_reg_info {
  * @discard_frame_per_path:   Count of paths dropping initial frames
  * @drv_init_done:            Indicates if drv init config is done
  * @is_drv_config_en:         If drv config is enabled
+ * @secure_mode:              Holds secure mode state of the CSID
+ * @reset_done:               Flag which indicate CSID SW reset is done
  *
  */
 struct cam_ife_csid_ver2_hw {
@@ -834,6 +836,8 @@ struct cam_ife_csid_ver2_hw {
 	atomic_t                               discard_frame_per_path;
 	bool                                   drv_init_done;
 	bool                                   is_drv_config_en;
+	bool                                   secure_mode;
+	bool                                   reset_done;
 };
 
 /*

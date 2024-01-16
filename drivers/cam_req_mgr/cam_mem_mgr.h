@@ -64,26 +64,28 @@ struct cam_mem_buf_hw_hdl_info {
 /**
  * struct cam_mem_buf_queue
  *
- * @dma_buf:        pointer to the allocated dma_buf in the table
- * @q_lock:         mutex lock for buffer
- * @fd:             file descriptor of buffer
- * @i_ino:          inode number of this dmabuf. Uniquely identifies a buffer
- * @buf_handle:     unique handle for buffer
- * @align:          alignment for allocation
- * @len:            size of buffer
- * @flags:          attributes of buffer
- * @num_hdls:       number of valid handles
- * @vaddr_info:     Array of IOVA addresses mapped for different devices
- *                  using the same indexing as SMMU
- * @kmdvaddr:       Kernel virtual address
- * @active:         state of the buffer
- * @is_imported:    Flag indicating if buffer is imported from an FD in user space
- * @is_internal:    Flag indicating kernel allocated buffer
- * @timestamp:      Timestamp at which this entry in tbl was made
- * @krefcount:      Reference counter to track whether the buffer is
- *                  mapped and in use
+ * @dma_buf:           pointer to the allocated dma_buf in the table
+ * @q_lock:            mutex lock for buffer
+ * @fd:                file descriptor of buffer
+ * @i_ino:             inode number of this dmabuf. Uniquely identifies a buffer
+ * @buf_handle:        unique handle for buffer
+ * @align:             alignment for allocation
+ * @len:               size of buffer
+ * @flags:             attributes of buffer
+ * @num_hdls:          number of valid handles
+ * @vaddr_info:        Array of IOVA addresses mapped for different devices
+ *                     using the same indexing as SMMU
+ * @kmdvaddr:          Kernel virtual address
+ * @active:            state of the buffer
+ * @release_deferred:  Buffer is deferred for release.
+ * @is_imported:       Flag indicating if buffer is imported from an FD in user space
+ * @is_internal:       Flag indicating kernel allocated buffer
+ * @timestamp:         Timestamp at which this entry in tbl was made
+ * @krefcount:         Reference counter to track whether the buffer is
+ *                     mapped and in use
  * @smmu_mapping_client: Client buffer (User or kernel)
- * @presil_params:  Parameters specific to presil environment
+ * @buf_name:            Name associated with buffer.
+ * @presil_params:       Parameters specific to presil environment
  */
 struct cam_mem_buf_queue {
 	struct dma_buf *dma_buf;
@@ -98,11 +100,13 @@ struct cam_mem_buf_queue {
 	int32_t num_hdls;
 	struct cam_mem_buf_hw_hdl_info *hdls_info;
 	bool active;
+	bool release_deferred;
 	bool is_imported;
 	bool is_internal;
 	struct timespec64 timestamp;
 	struct kref krefcount;
 	enum cam_smmu_mapping_client smmu_mapping_client;
+	char buf_name[CAM_DMA_BUF_NAME_LEN];
 
 #ifdef CONFIG_CAM_PRESIL
 	struct cam_presil_dmabuf_params presil_params;

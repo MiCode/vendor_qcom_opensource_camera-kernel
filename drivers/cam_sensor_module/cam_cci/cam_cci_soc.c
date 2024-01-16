@@ -247,6 +247,7 @@ static void cam_cci_init_cci_params(struct cci_device *new_cci_dev)
 		mutex_init(&new_cci_dev->cci_master_info[i].mutex);
 		sema_init(&new_cci_dev->cci_master_info[i].master_sem, 1);
 		mutex_init(&new_cci_dev->cci_master_info[i].freq_cnt_lock);
+		mutex_init(&new_cci_dev->cci_master_info[i].master_mutex);
 		init_completion(
 			&new_cci_dev->cci_master_info[i].reset_complete);
 		init_completion(

@@ -105,7 +105,7 @@ enum cam_ife_csid_secondary_evt_type {
  * @sfe_ipp_input_rdi_res: RDI Res as an input to SFE
  * @is_lite:               is the ife_csid lite
  * @global_reset_en:       flag to indicate if global reset is enabled
- * @rup_en:                flag to indicate if rup is on csid side
+ * @aup_rup_en:            flag to indicate if AUP RUP is on csid side
  * @only_master_rup:       flag to indicate if only master RUP
  * @camif_irq_support:     flag to indicate if CSID supports CAMIF irq
  */
@@ -119,7 +119,7 @@ struct cam_ife_csid_hw_caps {
 	uint32_t      sfe_ipp_input_rdi_res;
 	bool          is_lite;
 	bool          global_reset_en;
-	bool          rup_en;
+	bool          aup_rup_en;
 	bool          only_master_rup;
 	bool          camif_irq_support;
 };
@@ -356,11 +356,13 @@ enum cam_ife_csid_reset_type {
  * struct cam_ife_csid_reset_cfg-  csid reset configuration
  * @ reset_type : Global reset or path reset
  * @res_node :   resource need to be reset
+ * @power_on_reset : Set if the reset is issued prior to streaming
  *
  */
 struct cam_csid_reset_cfg_args {
 	enum cam_ife_csid_reset_type   reset_type;
 	struct cam_isp_resource_node  *node_res;
+	bool power_on_reset;
 };
 
 /**

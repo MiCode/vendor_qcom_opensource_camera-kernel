@@ -282,6 +282,7 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.reg_bank_unlock_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.reg_bank_lock_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.read_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.write_settings.list_head));  //xiaomi add
 
 	for (i = 0; i < MAX_PER_FRAME_ARRAY; i++) {
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.per_frame[i].list_head));
@@ -473,6 +474,7 @@ static int cam_sensor_component_bind(struct device *dev,
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.reg_bank_unlock_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.reg_bank_lock_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.read_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.write_settings.list_head));  //xiaomi add
 
 	for (i = 0; i < MAX_PER_FRAME_ARRAY; i++) {
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.per_frame[i].list_head));
@@ -499,6 +501,17 @@ static int cam_sensor_component_bind(struct device *dev,
 
 	g_i3c_sensor_data[soc_info->index].s_ctrl = s_ctrl;
 	init_completion(&g_i3c_sensor_data[soc_info->index].probe_complete);
+
+	/* xiaomi add for cci debug start */
+	rc = cam_cci_dev_create_debugfs_entry(s_ctrl->sensor_name,
+		s_ctrl->soc_info.index, CAM_SENSOR_NAME,
+		&s_ctrl->io_master_info, s_ctrl->cci_i2c_master,
+		&s_ctrl->cci_debug);
+	if (rc) {
+		CAM_WARN(CAM_SENSOR, "debugfs creation failed");
+		rc = 0;
+	}
+	/* xiaomi add for cci debug end */
 
 	return rc;
 
@@ -537,6 +550,9 @@ static void cam_sensor_component_unbind(struct device *dev,
 	cam_sensor_shutdown(s_ctrl);
 	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
 	cam_unregister_subdev(&(s_ctrl->v4l2_dev_str));
+	/* xiaomi add for cci debug start */
+	cam_cci_dev_remove_debugfs_entry((void *)s_ctrl->cci_debug);
+	/* xiaomi add for cci debug end */
 	soc_info = &s_ctrl->soc_info;
 	for (i = 0; i < soc_info->num_clk; i++) {
 		if (!soc_info->clk[i]) {

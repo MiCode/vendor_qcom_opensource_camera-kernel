@@ -35,8 +35,11 @@
 #define CAM_EEPROM_NAME    "cam-eeprom"
 #define CAM_OIS_NAME       "cam-ois"
 #define CAM_TPG_NAME       "cam-tpg"
+#define CAM_APERTURE_NAME  "cam-aperture"  //xiaomi add
 
 #define MAX_SYSTEM_PIPELINE_DELAY 2
+
+#define CAM_FRAME_SKIP_OPCODE 126
 
 #define CAM_PKT_NOP_OPCODE 127
 
@@ -93,6 +96,7 @@ enum sensor_sub_module {
 	SUB_MODULE_CSID,
 	SUB_MODULE_CSIPHY,
 	SUB_MODULE_OIS,
+	SUB_MODULE_APERTURE,
 	SUB_MODULE_EXT,
 	SUB_MODULE_MAX,
 };
@@ -111,6 +115,11 @@ enum msm_camera_power_seq_type {
 	SENSOR_CUSTOM_GPIO1,
 	SENSOR_CUSTOM_GPIO2,
 	SENSOR_VANA1,
+/* xiaomi add begin*/
+	SENSOR_BOB,
+	SENSOR_BOB2,
+	SENSOR_CUSTOM_REG3,
+/* xiaomi add end*/
 	SENSOR_SEQ_TYPE_MAX,
 };
 
@@ -258,6 +267,8 @@ struct i2c_data_settings {
 	struct i2c_settings_array *bubble_update;
 	struct i2c_settings_array reg_bank_unlock_settings;
 	struct i2c_settings_array reg_bank_lock_settings;
+	struct i2c_settings_array write_settings;  //xiaomi add
+	struct i2c_settings_array parklens_settings; //xiaomi add
 };
 
 struct cam_sensor_power_ctrl_t {
@@ -269,6 +280,9 @@ struct cam_sensor_power_ctrl_t {
 	struct msm_camera_gpio_num_info *gpio_num_info;
 	struct msm_pinctrl_info pinctrl_info;
 	uint8_t cam_pinctrl_status;
+//add by xiaomi
+	enum msm_camera_power_seq_type fail_type;
+//end
 };
 
 struct cam_camera_slave_info {
@@ -342,6 +356,11 @@ enum msm_camera_vreg_name_t {
 	CAM_VDIG,
 	CAM_VIO,
 	CAM_VANA,
+/* xiaomi add begin*/
+	CAM_VANA1,
+	CAM_BOB,
+	CAM_BOB2,
+/* xiaomi add end*/
 	CAM_VAF,
 	CAM_V_CUSTOM1,
 	CAM_V_CUSTOM2,

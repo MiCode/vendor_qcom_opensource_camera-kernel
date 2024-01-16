@@ -538,6 +538,7 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_MC_CTXT_SEL:
 	case CAM_ISP_HW_CMD_IRQ_INJECTION:
 	case CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION:
+	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
 		rc = core_info->vfe_bus->hw_ops.process_cmd(
 			core_info->vfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);

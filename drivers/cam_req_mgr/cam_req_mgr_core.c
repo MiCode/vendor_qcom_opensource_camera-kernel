@@ -3866,6 +3866,7 @@ static int cam_req_mgr_process_trigger(void *priv, void *data)
 		 */
 		CAM_DBG(CAM_CRM, "link[%x] Req[%lld] invalidating slot",
 			link->link_hdl, in_q->slot[in_q->rd_idx].req_id);
+
 		rc = __cam_req_mgr_move_to_next_req_slot(link);
 		if (rc) {
 			CAM_DBG(CAM_REQ,

@@ -3074,8 +3074,10 @@ static int32_t cam_icp_mgr_process_msg(void *priv, void *data)
 {
 	uint32_t read_len, msg_processed_len;
 	uint32_t *msg_ptr = NULL;
+	uint32_t *temp_read_buf = NULL;
 	struct hfi_msg_work_data *task_data;
 	struct cam_icp_hw_mgr *hw_mgr;
+	int temp_read_size = 0;
 	int rc = 0;
 
 	if (!data || !priv) {
@@ -3088,31 +3090,56 @@ static int32_t cam_icp_mgr_process_msg(void *priv, void *data)
 
 	rc = hfi_read_message(hw_mgr->hfi_handle, hw_mgr->msg_buf, Q_MSG,
 		ICP_MSG_BUF_SIZE_IN_WORDS, &read_len);
-	if (rc) {
-		CAM_DBG(CAM_ICP, "Unable to read msg q rc %d", rc);
-	} else {
+	if (!rc) {
 		read_len = read_len << BYTE_WORD_SHIFT;
 		msg_ptr = (uint32_t *)hw_mgr->msg_buf;
-		while (true) {
-			cam_icp_process_msg_pkt_type(hw_mgr, msg_ptr,
-				&msg_processed_len);
+	} else if (rc == -ENOMEM) {
+		/* Fails to read, need to read again using a larger buffer */
+		temp_read_size = ICP_MSG_Q_SIZE_IN_BYTES >> BYTE_WORD_SHIFT;
+		temp_read_buf = kzalloc(sizeof(uint32_t) * temp_read_size, GFP_KERNEL);
+		if (!temp_read_buf) {
+			rc = -ENOMEM;
+			goto end;
+		}
 
-			if (!msg_processed_len) {
-				CAM_ERR(CAM_ICP, "Failed to read");
-				rc = -EINVAL;
-				break;
-			}
+		rc = hfi_read_message(hw_mgr->hfi_handle, temp_read_buf, Q_MSG,
+			temp_read_size, &read_len);
+		if (rc)
+			goto end;
 
-			read_len -= msg_processed_len;
-			if (read_len > 0) {
-				msg_ptr += (msg_processed_len >>
-				BYTE_WORD_SHIFT);
-				msg_processed_len = 0;
-			} else {
-				break;
-			}
+		CAM_INFO(CAM_ICP, "Recovery for read succeeds, read_len = %u",
+			read_len);
+
+		read_len = read_len << BYTE_WORD_SHIFT;
+		msg_ptr = temp_read_buf;
+	} else if (rc) {
+		CAM_DBG(CAM_ICP, "Unable to read msg q rc %d", rc);
+		goto end;
+	}
+
+	while (true) {
+		cam_icp_process_msg_pkt_type(hw_mgr, msg_ptr,
+			&msg_processed_len);
+
+		if (!msg_processed_len) {
+			CAM_ERR(CAM_ICP, "Failed to read");
+			rc = -EINVAL;
+			break;
+		}
+
+		read_len -= msg_processed_len;
+		if (read_len > 0) {
+			msg_ptr += (msg_processed_len >>
+			BYTE_WORD_SHIFT);
+			msg_processed_len = 0;
+		} else {
+			break;
 		}
 	}
+
+end:
+	if (temp_read_buf)
+		kfree(temp_read_buf);
 
 	cam_icp_mgr_process_dbg_buf(hw_mgr);
 

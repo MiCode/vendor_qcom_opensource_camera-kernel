@@ -242,7 +242,8 @@ struct cam_iommu_handle {
 #define CAM_PACKET_DEV_LRME                     17
 #define CAM_PACKET_DEV_TFE                      18
 #define CAM_PACKET_DEV_OPE                      19
-#define CAM_PACKET_DEV_MAX                      20
+#define CAM_PACKET_DEV_APERTURE                 20
+#define CAM_PACKET_DEV_MAX                      21
 
 /* Register base type */
 #define CAM_REG_DUMP_BASE_TYPE_ISP_LEFT         1

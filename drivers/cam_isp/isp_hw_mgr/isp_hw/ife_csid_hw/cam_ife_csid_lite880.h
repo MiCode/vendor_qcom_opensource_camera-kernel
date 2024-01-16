@@ -477,7 +477,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.rst_cmd_irq_ctrl_only_val                    = 0x4,
 	.timestamp_strobe_val                         = 0x2,
 	.global_reset                                 = 1,
-	.rup_supported                                = 1,
+	.aup_rup_supported                            = 1,
 	.only_master_rup                              = 1,
 	.format_measure_height_mask_val               = 0xFFFF,
 	.format_measure_height_shift_val              = 0x10,

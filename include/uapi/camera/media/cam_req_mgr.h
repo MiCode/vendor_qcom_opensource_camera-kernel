@@ -36,6 +36,7 @@
 #define CAM_CRE_DEVICE_TYPE       (CAM_DEVICE_TYPE_BASE + 17)
 #define CAM_TPG_DEVICE_TYPE       (CAM_DEVICE_TYPE_BASE + 18)
 #define CAM_TFE_MC_DEVICE_TYPE    (CAM_DEVICE_TYPE_BASE + 19)
+#define CAM_APERTURE_DEVICE_TYPE  (CAM_DEVICE_TYPE_BASE + 20)
 
 /* cam_req_mgr hdl info */
 #define CAM_REQ_MGR_HDL_IDX_POS           8
@@ -64,6 +65,41 @@
 #define V4L_EVENT_CAM_REQ_MGR_NODE_EVENT                                4
 #define V4L_EVENT_CAM_REQ_MGR_SOF_UNIFIED_TS                            5
 #define V4L_EVENT_CAM_REQ_MGR_PF_ERROR                                  6
+
+/* Add by xiaomi V4L event type for Hw event*/
+#define V4L_EVENT_HW_ISSUE_EVENT       		(V4L2_EVENT_PRIVATE_START + 1)
+
+/* Specific event ids to get notified in user space */
+#define V4L_EVENT_HW_ISSUE_CCI_ERROR					0
+#define V4L_EVENT_HW_ISSUE_POWER_ERROR					1
+
+/**
+ * HW ISSUE : error message err type
+ * @HW_ISSUE_ERROR_TYPE_SENSOR_POWER: Sensor Power error
+ * @HW_ISSUE_ERROR_TYPE_SENSOR_CCI: Sensor CCI error
+ * @HW_ISSUE_ERROR_TYPE_ACTUATOR_POWER: Actuator Power error
+ * @HW_ISSUE_ERROR_TYPE_ACTUATOR_CCI: Actuator CCI error
+ * @HW_ISSUE_ERROR_TYPE_EEPROM_POWER: EEprom Power error
+ * @HW_ISSUE_ERROR_TYPE_EEPROM_CCI: EEprom CCI error
+ */
+#define HW_ISSUE_ERROR_TYPE_SENSOR_POWER				0
+#define HW_ISSUE_ERROR_TYPE_SENSOR_CCI					1
+#define HW_ISSUE_ERROR_TYPE_ACTUATOR_POWER				3
+#define HW_ISSUE_ERROR_TYPE_ACTUATOR_CCI				4
+#define HW_ISSUE_ERROR_TYPE_EEPROM_POWER				5
+#define HW_ISSUE_ERROR_TYPE_EEPROM_CCI					6
+
+/**
+ * HW ISSUE : error message err code
+ * @HW_ISSUE_HW_CCI_READ_ERROR					: CCI_READ_ERROR
+ * @HW_ISSUE_HW_CCI_WRITE_ERROR					: CCI_WRITE_ERROR
+ * @HW_ISSUE_HW_CCI_POLL_ERROR					: CCI_POLL_ERROR
+ */
+#define HW_ISSUE_HW_CCI_READ_ERROR                   	 0
+#define HW_ISSUE_HW_CCI_WRITE_ERROR                  	 1
+#define HW_ISSUE_HW_CCI_POLL_ERROR                   	 2
+/*end xiaomi*/
+
 
 /* SOF Event status */
 #define CAM_REQ_MGR_SOF_EVENT_SUCCESS           0
@@ -907,4 +943,11 @@ struct cam_req_mgr_message {
 		struct cam_req_mgr_pf_err_msg pf_err_msg;
 	} u;
 };
+
+// xiaomi add
+#define V4L_EVENT_CAM_MQS_EVENT           (V4L2_EVENT_PRIVATE_START + 7)
+#define V4L_EVENT_CAM_MQS_ISP             1
+#define V4L_EVENT_CAM_MQS_BUBBLE          (V4L_EVENT_CAM_MQS_ISP << 16) + 1
+// xiaomi add
+
 #endif /* __UAPI_LINUX_CAM_REQ_MGR_H */

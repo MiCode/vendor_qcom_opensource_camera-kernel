@@ -4764,6 +4764,43 @@ static int cam_tfe_mgr_resume_hw(struct cam_tfe_hw_mgr_ctx *ctx)
 	return cam_tfe_mgr_bw_control(ctx, CAM_TFE_BW_CONTROL_INCLUDE);
 }
 
+static int cam_tfe_mgr_cmd_get_last_consumed_addr(
+	struct cam_tfe_hw_mgr_ctx         *ctx,
+	struct cam_isp_hw_done_event_data *done)
+{
+	int                           i, rc = -EINVAL;
+	uint32_t                      res_id_out;
+	struct cam_isp_resource_node *res;
+	struct cam_isp_hw_mgr_res     *hw_mgr_res;
+	struct list_head              *res_list_isp_src;
+
+	res_id_out = done->resource_handle & 0xFF;
+
+	if (res_id_out >= CAM_TFE_HW_OUT_RES_MAX) {
+		CAM_ERR(CAM_ISP, "Invalid out resource id :%x",
+			res_id);
+		return;
+	}
+
+	hw_mgr_res =
+		&ctx->res_list_tfe_out[res_id_out];
+
+	for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+		if (!hw_mgr_res->hw_res[i])
+			continue;
+
+		res = hw_mgr_res->hw_res[i];
+		rc = res->hw_intf->hw_ops.process_cmd(
+			res->hw_intf->hw_priv,
+			CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR,
+			done, sizeof(struct cam_isp_hw_done_event_data));
+
+		return rc;
+	}
+
+	return rc;
+}
+
 static int cam_tfe_mgr_sof_irq_debug(
 	struct cam_tfe_hw_mgr_ctx *ctx,
 	uint32_t sof_irq_enable)
@@ -4896,7 +4933,8 @@ static void cam_tfe_mgr_dump_pf_data(
 
 	pf_cmd_args = hw_cmd_args->u.pf_cmd_args;
 	rc = cam_packet_util_get_packet_addr(&packet,
-		pf_cmd_args->pf_req_info->packet_handle, pf_cmd_args->pf_req_info->packet_offset);
+		pf_cmd_args->pf_req_info->packet_handle,
+		pf_cmd_args->pf_req_info->packet_offset);
 	if (rc)
 		return;
 	ctx_found = &pf_cmd_args->pf_args->pf_context_info.ctx_found;
@@ -4925,6 +4963,7 @@ static void cam_tfe_mgr_dump_pf_data(
 		CAM_INFO(CAM_ISP,
 			"PID:%d  is not matching with any TFE HW PIDs ctx id:%d",
 			pf_cmd_args->pf_args->pf_smmu_info->pid,  ctx->ctx_index);
+		cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 		return;
 	}
 
@@ -4939,6 +4978,7 @@ static void cam_tfe_mgr_dump_pf_data(
 		CAM_INFO(CAM_ISP,
 			"This context does not cause pf:pid:%d hw id:%d ctx_id:%d",
 			pf_cmd_args->pf_args->pf_smmu_info->pid, hw_id, ctx->ctx_index);
+		cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 		return;
 	}
 
@@ -4946,7 +4986,6 @@ static void cam_tfe_mgr_dump_pf_data(
 		hw_mgr_res = &ctx->res_list_tfe_out[i];
 		if (!hw_mgr_res->hw_res[0])
 			continue;
-
 		break;
 	}
 
@@ -4954,6 +4993,7 @@ static void cam_tfe_mgr_dump_pf_data(
 		CAM_ERR(CAM_ISP,
 			"NO valid outport resources ctx id:%d req id:%lld",
 			ctx->ctx_index, packet->header.request_id);
+		cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 		return;
 	}
 
@@ -4967,11 +5007,11 @@ static void cam_tfe_mgr_dump_pf_data(
 		hw_mgr_res->hw_res[0]->hw_intf->hw_priv,
 		cmd_update.cmd_type, &cmd_update,
 		sizeof(struct cam_isp_hw_get_cmd_update));
-
 	if (rc) {
 		CAM_ERR(CAM_ISP,
 			"getting mid port resource id failed ctx id:%d req id:%lld",
 			ctx->ctx_index, packet->header.request_id);
+		cam_packet_util_put_packet_addr(pf_cmd_args->pf_req_info->packet_handle);
 		return;
 	}
 	CAM_ERR(CAM_ISP,
@@ -5063,6 +5103,10 @@ static int cam_tfe_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 				&isp_hw_cmd_args->u.sof_ts.curr,
 				&isp_hw_cmd_args->u.sof_ts.boot,
 				&isp_hw_cmd_args->u.sof_ts.prev);
+			break;
+		case CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR:
+			rc = cam_tfe_mgr_cmd_get_last_consumed_addr(ctx,
+				(struct cam_isp_hw_done_event_data *)(isp_hw_cmd_args->cmd_data));
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x, ISP HW mgr cmd:0x%x",

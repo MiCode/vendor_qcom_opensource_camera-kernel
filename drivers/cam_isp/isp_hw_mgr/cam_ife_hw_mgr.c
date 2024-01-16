@@ -937,7 +937,7 @@ static bool cam_ife_hw_mgr_is_sfe_rd_res(
 
 static int cam_ife_hw_mgr_reset_csid(
 	struct cam_ife_hw_mgr_ctx  *ctx,
-	int reset_type)
+	int reset_type, bool power_on_rst)
 {
 	int i;
 	int rc = 0;
@@ -963,6 +963,7 @@ static int cam_ife_hw_mgr_reset_csid(
 
 			reset_args.reset_type = reset_type;
 			reset_args.node_res = hw_mgr_res->hw_res[i];
+			reset_args.power_on_reset = power_on_rst;
 			rc  = hw_intf->hw_ops.reset(hw_intf->hw_priv,
 				&reset_args, sizeof(reset_args));
 			if (rc)
@@ -1185,7 +1186,7 @@ static void cam_ife_hw_mgr_deinit_hw(
 	hw_mgr = ctx->hw_mgr;
 
 	if (hw_mgr->csid_global_reset_en)
-		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL);
+		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL, false);
 
 	/* Deinit IFE CSID */
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
@@ -1256,6 +1257,7 @@ static int cam_ife_hw_mgr_init_hw(
 	struct cam_ife_hw_mgr_ctx *ctx)
 {
 	struct cam_isp_hw_mgr_res *hw_mgr_res;
+	struct cam_ife_hw_mgr     *hw_mgr;
 	int rc = 0, i;
 
 	/* INIT IFE SRC */
@@ -1331,6 +1333,16 @@ static int cam_ife_hw_mgr_init_hw(
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Can not INIT IFE CSID(id :%d), ctx_idx:%u",
 				 hw_mgr_res->res_id, ctx->ctx_index);
+			goto deinit;
+		}
+	}
+
+	hw_mgr = ctx->hw_mgr;
+	if (hw_mgr->csid_global_reset_en) {
+		rc = cam_ife_hw_mgr_reset_csid(ctx,
+			CAM_IFE_CSID_RESET_GLOBAL, true);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "CSID reset failed, ctx_idx:%u", ctx->ctx_index);
 			goto deinit;
 		}
 	}
@@ -7227,7 +7239,7 @@ skip_bw_clk_update:
 			(ctx->ctx_config & CAM_IFE_CTX_CFG_SW_SYNC_ON)) {
 			rem_jiffies = cam_common_wait_for_completion_timeout(
 				&ctx->config_done_complete,
-				msecs_to_jiffies(60));
+				msecs_to_jiffies(600));//XM mod 500 -> 600
 			if (rem_jiffies == 0) {
 				CAM_ERR(CAM_ISP,
 					"config done completion timeout for req_id=%llu ctx_index %u",
@@ -8199,7 +8211,7 @@ static int cam_ife_mgr_reset(void *hw_mgr_priv, void *hw_reset_args)
 
 	CAM_DBG(CAM_ISP, "Reset CSID and VFE, ctx_idx: %u", ctx->ctx_index);
 
-	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH);
+	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH, false);
 
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed to reset CSID:%d rc: %d ctx_idx: %u",
@@ -12996,7 +13008,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 	}
 
 	/* add reg update commands */
-	if (hw_mgr->csid_rup_en)
+	if (hw_mgr->csid_aup_rup_en)
 		rc = cam_ife_mgr_csid_add_reg_update(ctx,
 			prepare, &prepare_hw_data->kmd_cmd_buff_info);
 
@@ -13005,8 +13017,8 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 			prepare, &prepare_hw_data->kmd_cmd_buff_info);
 
 	if (rc) {
-		CAM_ERR(CAM_ISP, "Add RUP fail csid_rup_en %d, ctx_idx: %u",
-			hw_mgr->csid_rup_en, ctx->ctx_index);
+		CAM_ERR(CAM_ISP, "Add RUP fail csid_aup_rup_en %d, ctx_idx: %u",
+			hw_mgr->csid_aup_rup_en, ctx->ctx_index);
 		goto end;
 	}
 
@@ -13590,6 +13602,45 @@ static int cam_hw_mgr_reset_out_of_sync_cnt(
 	return rc;
 }
 
+static int cam_ife_mgr_cmd_get_last_consumed_addr(
+	struct cam_ife_hw_mgr_ctx         *ife_ctx,
+	struct cam_isp_hw_done_event_data *done)
+{
+	int                           i, rc = -EINVAL;
+	struct cam_isp_resource_node *res;
+	struct cam_isp_hw_mgr_res     *hw_mgr_res;
+	struct list_head              *res_list_isp_src;
+
+	if (done->hw_type == CAM_ISP_HW_TYPE_VFE)
+		res_list_isp_src = &ife_ctx->res_list_ife_src;
+	else if (done->hw_type == CAM_ISP_HW_TYPE_SFE)
+		res_list_isp_src = &ife_ctx->res_list_sfe_src;
+	else {
+		CAM_ERR(CAM_ISP, "invalid hw_type:%d", done->hw_type);
+		return rc;
+	}
+
+	list_for_each_entry(hw_mgr_res, res_list_isp_src, list) {
+		if (hw_mgr_res->res_type == CAM_ISP_RESOURCE_UNINT)
+			continue;
+
+		for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+			if (!hw_mgr_res->hw_res[i])
+				continue;
+
+			res = hw_mgr_res->hw_res[i];
+			rc = res->hw_intf->hw_ops.process_cmd(
+				res->hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR,
+				done, sizeof(struct cam_isp_hw_done_event_data));
+
+			return rc;
+		}
+	}
+
+	return rc;
+}
+
 static void *cam_ife_mgr_user_dump_stream_info(
 	void *dump_struct, uint8_t *addr_ptr)
 {
@@ -13688,16 +13739,20 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 			break;
 		case CAM_ISP_HW_MGR_CMD_CTX_TYPE:
 			if (ctx->flags.is_fe_enabled && ctx->flags.is_offline)
-				isp_hw_cmd_args->u.ctx_type =
-					CAM_ISP_CTX_OFFLINE;
+				isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_OFFLINE;
 			else if (ctx->flags.is_fe_enabled && !ctx->flags.is_offline &&
 				ctx->ctx_type != CAM_IFE_CTX_TYPE_SFE)
-				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_FS2;
+				isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_FS2;
 			else if (ctx->flags.is_rdi_only_context || ctx->flags.is_lite_context ||
 					ctx->flags.rdi_pd_context)
-				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_RDI;
+				isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_RDI;
 			else
-				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_PIX;
+				isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_PIX;
+
+			if (hw_mgr->csid_aup_rup_en)
+				isp_hw_cmd_args->u.ctx_info.bubble_recover_dis  = 1;
+			else
+				isp_hw_cmd_args->u.ctx_info.bubble_recover_dis = 0;
 			break;
 		case CAM_ISP_HW_MGR_GET_PACKET_OPCODE:
 			packet = (struct cam_packet *)
@@ -13751,6 +13806,10 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 				memcpy(query_cmd->sfe_bus_comp_grp, ctx->sfe_bus_comp_grp,
 					sizeof(struct cam_isp_context_comp_record) *
 					CAM_SFE_BUS_COMP_NUM_MAX);
+			break;
+		case CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR:
+			rc = cam_ife_mgr_cmd_get_last_consumed_addr(ctx,
+				(struct cam_isp_hw_done_event_data *)(isp_hw_cmd_args->cmd_data));
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x, ctx_idx: %u",
@@ -14102,7 +14161,7 @@ static int cam_ife_mgr_recover_hw(void *priv, void *data)
 		for (i = 0; i < recovery_data->no_of_context; i++) {
 			ctx = recovery_data->affected_ctx[i];
 			rc = cam_ife_hw_mgr_reset_csid(ctx,
-				CAM_IFE_CSID_RESET_PATH);
+				CAM_IFE_CSID_RESET_PATH, false);
 
 			if (rc) {
 				CAM_ERR(CAM_ISP, "Failed RESET, ctx_idx: %u", ctx->ctx_index);
@@ -15452,8 +15511,8 @@ static int cam_ife_hw_mgr_sort_dev_with_caps(
 
 		ife_hw_mgr->csid_global_reset_en =
 			ife_hw_mgr->csid_hw_caps[i].global_reset_en;
-		ife_hw_mgr->csid_rup_en =
-			ife_hw_mgr->csid_hw_caps[i].rup_en;
+		ife_hw_mgr->csid_aup_rup_en =
+			ife_hw_mgr->csid_hw_caps[i].aup_rup_en;
 		ife_hw_mgr->csid_camif_irq_support =
 			ife_hw_mgr->csid_hw_caps[i].camif_irq_support;
 	}

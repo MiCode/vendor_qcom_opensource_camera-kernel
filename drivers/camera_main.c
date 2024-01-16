@@ -26,6 +26,7 @@
 #include "cam_ois_dev.h"
 #include "cam_tpg_dev.h"
 #include "cam_flash_dev.h"
+#include "cam_aperture_dev.h"
 
 #include "cam_icp_v1_dev.h"
 #include "cam_icp_v2_dev.h"
@@ -121,6 +122,7 @@ static const struct camera_submodule_component camera_sensor[] = {
 	{&cam_sensor_driver_init, &cam_sensor_driver_exit},
 	{&cam_eeprom_driver_init, &cam_eeprom_driver_exit},
 	{&cam_ois_driver_init, &cam_ois_driver_exit},
+	{&cam_aperture_driver_init, &cam_aperture_driver_exit},
 	{&cam_flash_init_module, &cam_flash_exit_module},
 #endif
 };

@@ -176,6 +176,7 @@ struct eebin_info {
  * @is_multimodule_mode :   To identify multimodule node
  * @wr_settings         :   I2C write settings
  * @eebin_info          :   EEBIN address, size info
+ * @cci_debug           :   EEPROM debugfs info and entry
  */
 struct cam_eeprom_ctrl_t {
 	char device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -197,6 +198,9 @@ struct cam_eeprom_ctrl_t {
 	uint16_t is_multimodule_mode;
 	struct i2c_settings_array wr_settings;
 	struct eebin_info eebin_info;
+	/* xiaomi add for cci debug start */
+	void *cci_debug;
+	/* xiaomi add for cci debug end */
 };
 
 int32_t cam_eeprom_update_i2c_info(struct cam_eeprom_ctrl_t *e_ctrl,

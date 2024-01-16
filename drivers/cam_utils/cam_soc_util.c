@@ -3539,7 +3539,8 @@ static int cam_soc_util_dump_cont_reg_range(
 		val = cam_soc_util_r(soc_info, base_idx,
 			(reg_read->offset + (i * sizeof(uint32_t))));
 		if (!val)
-			CAM_WARN(CAM_UTIL, "Possibly fails to read");
+			CAM_WARN_RATE_LIMIT(CAM_UTIL,
+				"Possibly fails to read");
 
 		dump_out_buf->dump_data[write_idx++] = reg_read->offset +
 			(i * sizeof(uint32_t));
@@ -3630,7 +3631,8 @@ static int cam_soc_util_dump_dmi_reg_range(
 		val = cam_soc_util_r_mb(soc_info, base_idx,
 			dmi_read->dmi_data_read.offset);
 		if (!val)
-			CAM_WARN(CAM_UTIL, "Possibly fails to read for dmi_data_read");
+			CAM_WARN_RATE_LIMIT(CAM_UTIL,
+				"Possibly fails to read for dmi_data_read");
 
 		dump_out_buf->dump_data[write_idx++] =
 			dmi_read->dmi_data_read.offset;
@@ -3737,7 +3739,8 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 		val = cam_soc_util_r_mb(soc_info, base_idx,
 			dmi_read->dmi_data_read.offset);
 		if (!val)
-			CAM_WARN(CAM_UTIL, "Possibly fails to read for dmi_data_read");
+			CAM_WARN_RATE_LIMIT(CAM_UTIL,
+				"Possibly fails to read for dmi_data_read");
 
 		*waddr++ = dmi_read->dmi_data_read.offset;
 		*waddr++ = val;
@@ -3822,7 +3825,8 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 		val = cam_soc_util_r(soc_info, base_idx,
 			(reg_read->offset + (i * sizeof(uint32_t))));
 		if (!val)
-			CAM_WARN(CAM_UTIL, "Possibly fails to read");
+			CAM_WARN_RATE_LIMIT(CAM_UTIL,
+				"Possibly fails to read");
 
 		waddr[0] = reg_read->offset + (i * sizeof(uint32_t));
 		waddr[1] = val;

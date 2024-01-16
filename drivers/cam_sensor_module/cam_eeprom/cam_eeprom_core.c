@@ -151,6 +151,13 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 	int32_t                                 rc = 0;
 	struct cam_hw_soc_info                 *soc_info = &e_ctrl->soc_info;
 	struct completion                      *i3c_probe_completion = NULL;
+	struct timespec64                       ts1, ts2; // xiaomi add
+	long                                    microsec = 0; // xiaomi add
+
+	/* xiaomi add begin */
+	CAM_GET_TIMESTAMP(ts1);
+	CAM_DBG(MI_DEBUG, "%s start power_up", e_ctrl->device_name);
+	/* xiaomi add end */
 
 	/* Parse and fill vreg params for power up settings */
 	rc = msm_camera_fill_vreg_params(
@@ -182,6 +189,10 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 	rc = cam_sensor_core_power_up(power_info, soc_info, i3c_probe_completion);
 	if (rc) {
 		CAM_ERR(CAM_EEPROM, "failed in eeprom power up rc %d", rc);
+//add by xiaomi
+		cam_hw_notify_v4l2_error_event(CAM_EEPROM_NAME, (void *)e_ctrl, V4L_EVENT_HW_ISSUE_POWER_ERROR,
+				HW_ISSUE_ERROR_TYPE_EEPROM_POWER, power_info->fail_type);
+//end
 		return rc;
 	}
 
@@ -190,6 +201,12 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 		CAM_ERR(CAM_EEPROM, "cci_init failed");
 		goto cci_failure;
 	}
+	/* xiaomi add begin */
+	CAM_GET_TIMESTAMP(ts2);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts1, ts2, microsec);
+	CAM_DBG(MI_DEBUG, "%s end power_up, occupy time is: %ld ms",
+		e_ctrl->device_name, microsec/1000);
+	/* xiaomi add end */
 
 	return rc;
 cci_failure:
@@ -211,6 +228,13 @@ static int cam_eeprom_power_down(struct cam_eeprom_ctrl_t *e_ctrl)
 	struct cam_hw_soc_info         *soc_info;
 	struct cam_eeprom_soc_private  *soc_private;
 	int                             rc = 0;
+	struct timespec64               ts1, ts2; // xiaomi add
+	long                            microsec = 0; // xiaomi add
+
+	/* xiaomi add begin */
+	CAM_GET_TIMESTAMP(ts1);
+	CAM_DBG(MI_DEBUG, "%s start power_down", e_ctrl->device_name);
+	/* xiaomi add end */
 
 	if (!e_ctrl) {
 		CAM_ERR(CAM_EEPROM, "failed: e_ctrl %pK", e_ctrl);
@@ -233,6 +257,12 @@ static int cam_eeprom_power_down(struct cam_eeprom_ctrl_t *e_ctrl)
 	}
 
 	camera_io_release(&(e_ctrl->io_master_info));
+	/* xiaomi add begin */
+	CAM_GET_TIMESTAMP(ts2);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts1, ts2, microsec);
+	CAM_DBG(MI_DEBUG, "%s end power_down, occupy time is: %ld ms",
+		e_ctrl->device_name, microsec/1000);
+	/* xiaomi add end */
 
 	return rc;
 }
@@ -1104,6 +1134,7 @@ static int32_t cam_eeprom_get_cal_data(struct cam_eeprom_ctrl_t *e_ctrl,
 			}
 			if (buf_size <= io_cfg->offsets[0]) {
 				CAM_ERR(CAM_EEPROM, "Not enough buffer");
+				cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 				rc = -EINVAL;
 				return rc;
 			}
@@ -1116,6 +1147,7 @@ static int32_t cam_eeprom_get_cal_data(struct cam_eeprom_ctrl_t *e_ctrl,
 			if (!read_buffer) {
 				CAM_ERR(CAM_EEPROM,
 					"invalid buffer to copy data");
+				cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 				rc = -EINVAL;
 				return rc;
 			}
@@ -1124,6 +1156,7 @@ static int32_t cam_eeprom_get_cal_data(struct cam_eeprom_ctrl_t *e_ctrl,
 			if (remain_len < e_ctrl->cal_data.num_data) {
 				CAM_ERR(CAM_EEPROM,
 					"failed to copy, Invalid size");
+				cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 				rc = -EINVAL;
 				return rc;
 			}
@@ -1239,6 +1272,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			"Inval cam_packet strut size: %zu, len_of_buff: %zu",
 			 sizeof(struct cam_packet), pkt_len);
 		rc = -EINVAL;
+		cam_mem_put_cpu_buf(dev_config.packet_handle);
 		return rc;
 	}
 
@@ -1249,6 +1283,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 	if (cam_packet_util_validate_packet(csl_packet,
 		remain_len)) {
 		CAM_ERR(CAM_EEPROM, "Invalid packet params");
+		cam_mem_put_cpu_buf(dev_config.packet_handle);
 		rc = -EINVAL;
 		return rc;
 	}
@@ -1260,6 +1295,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 					e_ctrl->soc_info.dev->of_node, e_ctrl);
 			if (rc < 0) {
 				CAM_ERR(CAM_EEPROM, "Failed: rc : %d", rc);
+				cam_mem_put_cpu_buf(dev_config.packet_handle);
 				return rc;
 			}
 			rc = cam_eeprom_get_cal_data(e_ctrl, csl_packet);
@@ -1278,6 +1314,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 		if (rc) {
 			CAM_ERR(CAM_EEPROM,
 				"Failed in parsing the pkt");
+			cam_mem_put_cpu_buf(dev_config.packet_handle);
 			return rc;
 		}
 
@@ -1339,6 +1376,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			csl_packet, e_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_EEPROM, "Failed: rc : %d", rc);
+			cam_mem_put_cpu_buf(dev_config.packet_handle);
 			return rc;
 		}
 
@@ -1360,6 +1398,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			e_ctrl->eebin_info.size);
 		if (rc < 0) {
 			CAM_ERR(CAM_EEPROM, "Failed in erase : %d", rc);
+			cam_mem_put_cpu_buf(dev_config.packet_handle);
 			return rc;
 		}
 
@@ -1369,6 +1408,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 		rc = cam_eeprom_write(e_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_EEPROM, "Failed: rc : %d", rc);
+			cam_mem_put_cpu_buf(dev_config.packet_handle);
 			return rc;
 		}
 
@@ -1393,6 +1433,7 @@ power_down:
 memdata_free:
 	vfree(e_ctrl->cal_data.mapdata);
 error:
+	cam_mem_put_cpu_buf(dev_config.packet_handle);
 	kfree(power_info->power_setting);
 	kfree(power_info->power_down_setting);
 	power_info->power_setting = NULL;
