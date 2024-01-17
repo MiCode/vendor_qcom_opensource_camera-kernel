@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_980_H_
@@ -170,7 +170,7 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_980_path_irq_desc[] = {
 	{0},
 	{
 		.bitmask = BIT(2),
-		.desc = "ERROR_FIFO_OVERFLOW",
+		.desc = "INFO_DATA_FIFO_FULL",
 	},
 	{
 		.bitmask = BIT(3),
@@ -619,7 +619,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.lut_bank_0_sel_val               = 0,
 		.lut_bank_1_sel_val               = 1,
 		.fatal_err_mask                   = 0x241c6001,
-		.non_fatal_err_mask               = 0x12000004,
+		.non_fatal_err_mask               = 0x12000000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -726,7 +726,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.timestamp_en_shift_val           = 6,
 		.start_master_sel_shift_val       = 4,
 		.fatal_err_mask                   = 0x241c6001,
-		.non_fatal_err_mask               = 0x12000004,
+		.non_fatal_err_mask               = 0x12000000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -831,7 +831,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.timestamp_en_shift_val           = 6,
 		.start_master_sel_shift_val       = 4,
 		.fatal_err_mask                   = 0x241c6001,
-		.non_fatal_err_mask               = 0x12000004,
+		.non_fatal_err_mask               = 0x12000000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -951,7 +951,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.lut_bank_0_sel_val               = 0,
 		.lut_bank_1_sel_val               = 1,
 		.fatal_err_mask                   = 0x241c6001,
-		.non_fatal_err_mask               = 0x12000004,
+		.non_fatal_err_mask               = 0x12000000,
 		.rup_mask                         = 0x10000,
 		.aup_mask                         = 0x10000,
 		.rup_aup_set_mask                 = 0x1,
@@ -1065,7 +1065,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.offline_mode_en_shift_val        = 2,
 		.ccif_violation_en                = 1,
 		.fatal_err_mask                   = 0x241c6001,
-		.non_fatal_err_mask               = 0x12000004,
+		.non_fatal_err_mask               = 0x12000000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -1186,7 +1186,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.offline_mode_en_shift_val        = 2,
 		.ccif_violation_en                = 1,
 		.fatal_err_mask                   = 0x241c6001,
-		.non_fatal_err_mask               = 0x12000004,
+		.non_fatal_err_mask               = 0x12000000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -1304,7 +1304,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.offline_mode_en_shift_val        = 2,
 		.ccif_violation_en                = 1,
 		.fatal_err_mask                   = 0x241c6001,
-		.non_fatal_err_mask               = 0x12000004,
+		.non_fatal_err_mask               = 0x12000000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -1419,7 +1419,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.offline_mode_en_shift_val        = 2,
 		.ccif_violation_en                = 1,
 		.fatal_err_mask                   = 0x241c6001,
-		.non_fatal_err_mask               = 0x12000004,
+		.non_fatal_err_mask               = 0x12000000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -1533,7 +1533,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.offline_mode_en_shift_val        = 2,
 		.ccif_violation_en                = 1,
 		.fatal_err_mask                   = 0x241c6001,
-		.non_fatal_err_mask               = 0x12000004,
+		.non_fatal_err_mask               = 0x12000000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
