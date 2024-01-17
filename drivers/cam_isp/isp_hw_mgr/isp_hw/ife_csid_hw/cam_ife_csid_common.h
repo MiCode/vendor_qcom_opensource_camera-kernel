@@ -11,9 +11,15 @@
 #include "cam_ife_csid_hw_intf.h"
 #include "cam_ife_csid_soc.h"
 
-#define CAM_IFE_CSID_VER_1_0  0x100
-#define CAM_IFE_CSID_VER_2_0  0x200
-#define CAM_IFE_CSID_MAX_ERR_COUNT  100
+#define CAM_IFE_CSID_VER_1_0                              0x100
+#define CAM_IFE_CSID_VER_2_0                              0x200
+#define CAM_IFE_CSID_MAX_ERR_COUNT                        100
+
+/*
+ * CRC error threshold is set to be 1% of frame width and
+ * this macro is used as divisor in calculation
+ */
+#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR                  100
 
 #define CAM_IFE_CSID_HW_CAP_IPP                           0x1
 #define CAM_IFE_CSID_HW_CAP_RDI                           0x2
@@ -367,11 +373,13 @@ struct cam_ife_csid_core_info {
  * @csi2_reserve_cnt:       Reserve count for csi2
  * @irq_debug_cnt:          irq debug counter
  * @error_irq_count:        error irq counter
+ * @crc_error_irq_count:    crc error irq counter
  */
 struct cam_ife_csid_hw_counters {
 	uint32_t                          csi2_reserve_cnt;
 	uint32_t                          irq_debug_cnt;
 	uint32_t                          error_irq_count;
+	uint32_t                          crc_error_irq_count;
 };
 
 /*

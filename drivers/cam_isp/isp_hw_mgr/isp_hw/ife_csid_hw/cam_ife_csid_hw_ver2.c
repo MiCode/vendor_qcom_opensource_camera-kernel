@@ -1299,14 +1299,25 @@ static inline int cam_ife_csid_ver2_rx_err_process_top_half(
 
 	if (*status & csi2_reg->part_fatal_err_mask[rx_idx]) {
 		if ((evt_bitmap[rx_idx] & BIT_ULL(CAM_IFE_CSID_RX_CPHY_SOT_RECEPTION)) &&
-			(*status & BIT(bit_pos[CAM_IFE_CSID_RX_CPHY_SOT_RECEPTION])))
+			(*status & BIT(bit_pos[CAM_IFE_CSID_RX_CPHY_SOT_RECEPTION]))) {
 			csid_hw->counters.error_irq_count++;
+			CAM_DBG(CAM_ISP, "CSID[%u] Recoverable Error Count:%u",
+				csid_hw->hw_intf->hw_idx,
+				csid_hw->counters.error_irq_count);
+		}
 
-		CAM_DBG(CAM_ISP, "CSID[%u] Recoverable Error Count:%u",
-			csid_hw->hw_intf->hw_idx,
-			csid_hw->counters.error_irq_count);
+		if ((evt_bitmap[rx_idx] & BIT_ULL(CAM_IFE_CSID_RX_ERROR_CRC)) &&
+			(*status & BIT(bit_pos[CAM_IFE_CSID_RX_ERROR_CRC]))) {
+			csid_hw->counters.crc_error_irq_count++;
+			CAM_DBG(CAM_ISP,
+				"CSID[%u] Recoverable CRC Error Count:%u, CRC Error threshold: %u",
+				csid_hw->hw_intf->hw_idx,
+				csid_hw->counters.crc_error_irq_count,
+				csid_hw->crc_error_threshold);
+		}
 
-		if (csid_hw->counters.error_irq_count > CAM_IFE_CSID_MAX_ERR_COUNT) {
+		if ((csid_hw->counters.error_irq_count > CAM_IFE_CSID_MAX_ERR_COUNT) ||
+			(csid_hw->counters.crc_error_irq_count > csid_hw->crc_error_threshold)) {
 			csid_hw->flags.fatal_err_detected = true;
 			cam_ife_csid_ver2_stop_csi2_in_err(csid_hw);
 		}
@@ -1778,6 +1789,11 @@ static int cam_ife_csid_ver2_rx_err_process_bottom_half(
 				csid_hw->rx_cfg.lane_type);
 		}
 
+		/**
+		 * Starting from v880, CRC errors wil be treated as part fatal errors and
+		 * only be flagged after happening several times. Leave this for backward
+		 * compatibility.
+		 */
 		if ((evt_bitmap[rx_idx] & BIT_ULL(CAM_IFE_CSID_RX_ERROR_CRC)) && (irq_status &
 			BIT(bit_pos[CAM_IFE_CSID_RX_ERROR_CRC]))) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED;
@@ -1819,6 +1835,32 @@ static int cam_ife_csid_ver2_rx_err_process_bottom_half(
 			(irq_status & BIT(bit_pos[CAM_IFE_CSID_RX_CPHY_SOT_RECEPTION]))) {
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 					"CPHY_SOT_RECEPTION: Less SOTs on lane/s");
+		}
+
+		if ((evt_bitmap[rx_idx] & BIT_ULL(CAM_IFE_CSID_RX_ERROR_CRC)) &&
+			(irq_status & BIT(bit_pos[CAM_IFE_CSID_RX_ERROR_CRC]))) {
+			event_type |= CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED;
+			long_pkt_ftr_val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+				csi2_reg->captured_long_pkt_ftr_addr);
+			total_crc = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+				csi2_reg->total_crc_err_addr);
+
+			if (csid_hw->rx_cfg.lane_type == CAM_ISP_LANE_TYPE_CPHY) {
+				val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+					csi2_reg->captured_cphy_pkt_hdr_addr);
+
+				CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
+					"PHY_CRC_ERROR: Long pkt payload CRC mismatch. Totl CRC Errs: %u, Rcvd CRC: 0x%x Caltd CRC: 0x%x, VC:%d DT:%d WC:%d",
+					total_crc, long_pkt_ftr_val & 0xffff,
+					long_pkt_ftr_val >> 16, val >> 22,
+					(val >> 16) & 0x3F, val & 0xFFFF);
+			} else {
+				CAM_ERR_BUF(CAM_ISP, log_buf,
+					CAM_IFE_CSID_LOG_BUF_LEN, &len,
+					"PHY_CRC_ERROR: Long pkt payload CRC mismatch. Totl CRC Errs: %u, Rcvd CRC: 0x%x Caltd CRC: 0x%x",
+					total_crc, long_pkt_ftr_val & 0xffff,
+					long_pkt_ftr_val >> 16);
+			}
 		}
 
 		CAM_ERR(CAM_ISP, "CSID[%u] Partly fatal errors: %s",
@@ -4683,6 +4725,11 @@ static int cam_ife_csid_ver2_program_rdi_path(
 
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+
+	/* Set crc error threshold for primary rdi path */
+	if (res->is_rdi_primary_res)
+		csid_hw->crc_error_threshold = path_cfg->width / CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR;
+
 	if (!csid_hw->flags.offline_mode && !(csid_reg->cmn_reg->capabilities &
 		CAM_IFE_CSID_CAP_SKIP_EPOCH_CFG)) {
 		CAM_DBG(CAM_ISP, "CSID:%u Rdi res: %d",
@@ -4771,6 +4818,10 @@ static int cam_ife_csid_ver2_program_ipp_path(
 
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+
+	/* Set crc error threshold for ipp path */
+	if (res->res_id == CAM_IFE_PIX_PATH_RES_IPP)
+		csid_hw->crc_error_threshold = path_cfg->width / CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR;
 
 	if (!(csid_reg->cmn_reg->capabilities & CAM_IFE_CSID_CAP_SKIP_EPOCH_CFG)) {
 		cam_io_w_mb(path_cfg->epoch_cfg << path_reg->epoch0_shift_val,
@@ -5995,6 +6046,7 @@ static int cam_ife_csid_ver2_disable_core(
 			csid_hw->hw_intf->hw_idx);
 
 	csid_hw->counters.error_irq_count = 0;
+	csid_hw->counters.crc_error_irq_count = 0;
 	return rc;
 }
 
@@ -6217,7 +6269,7 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 		}
 
 		switch (res->res_id) {
-		case  CAM_IFE_PIX_PATH_RES_IPP:
+		case CAM_IFE_PIX_PATH_RES_IPP:
 		case CAM_IFE_PIX_PATH_RES_IPP_1:
 		case CAM_IFE_PIX_PATH_RES_IPP_2:
 			rc = cam_ife_csid_ver2_program_ipp_path(csid_hw, res, &rup_aup_mask);
@@ -7854,6 +7906,9 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 				cmd_args)->node_res;
 			cam_ife_csid_ver2_print_hbi_vbi(csid_hw, res);
 		}
+
+		/* Reset CRC error count during SOF */
+		csid_hw->counters.crc_error_irq_count = 0;
 		break;
 	case CAM_IFE_CSID_SET_CSID_DEBUG:
 		rc = cam_ife_csid_ver2_set_debug(csid_hw,

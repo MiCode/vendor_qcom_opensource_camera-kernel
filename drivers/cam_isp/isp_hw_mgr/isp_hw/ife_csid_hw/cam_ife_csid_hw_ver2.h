@@ -780,6 +780,7 @@ struct cam_ife_csid_ver2_reg_info {
  * @discard_frame_per_path:   Count of paths dropping initial frames
  * @drv_init_done:            Indicates if drv init config is done
  * @is_drv_config_en:         If drv config is enabled
+ * @crc_error_threshold:      CRC error threshold to be treated as fatal error
  *
  */
 struct cam_ife_csid_ver2_hw {
@@ -831,6 +832,7 @@ struct cam_ife_csid_ver2_hw {
 	atomic_t                               discard_frame_per_path;
 	bool                                   drv_init_done;
 	bool                                   is_drv_config_en;
+	uint32_t                               crc_error_threshold;
 };
 
 /*
