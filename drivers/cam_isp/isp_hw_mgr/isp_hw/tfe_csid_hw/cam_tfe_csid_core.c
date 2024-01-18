@@ -251,6 +251,9 @@ static void cam_tfe_csid_enable_path_for_init_frame_drop(
 	if (res_id == CAM_TFE_CSID_PATH_RES_IPP) {
 		res = &csid_hw->ipp_res;
 		pxl_reg = csid_reg->ipp_reg;
+	} else if (res_id == CAM_TFE_CSID_PATH_RES_PPP) {
+		res = &csid_hw->ppp_res;
+		pxl_reg = csid_reg->ppp_reg;
 	} else if (res_id >= CAM_TFE_CSID_PATH_RES_RDI_0 &&
 			res_id <= CAM_TFE_CSID_PATH_RES_RDI_2) {
 		res = &csid_hw->rdi_res[res_id];
@@ -282,8 +285,9 @@ static void cam_tfe_csid_enable_path_for_init_frame_drop(
 	if ((path_data->res_sof_cnt ==
 		path_data->init_frame_drop) &&
 		pxl_reg) {
-		CAM_DBG(CAM_ISP, "CSID:%d Enabling pixel IPP Path",
-			csid_hw->hw_intf->hw_idx);
+		CAM_DBG(CAM_ISP, "CSID:%d Enabling pixel %s Path",
+			csid_hw->hw_intf->hw_idx,
+			(res_id == CAM_TFE_CSID_PATH_RES_IPP) ? "IPP" : "PPP");
 		if (path_data->sync_mode !=
 			CAM_ISP_HW_SYNC_SLAVE) {
 			val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
@@ -1670,8 +1674,8 @@ static int cam_tfe_csid_enable_pxl_path(
 	 * Resume at frame boundary if Master or No Sync.
 	 * Slave will get resume command from Master.
 	 */
-	if (path_data->sync_mode == CAM_ISP_HW_SYNC_MASTER ||
-		path_data->sync_mode == CAM_ISP_HW_SYNC_NONE)
+	if ((path_data->sync_mode == CAM_ISP_HW_SYNC_MASTER ||
+		path_data->sync_mode == CAM_ISP_HW_SYNC_NONE) && !path_data->init_frame_drop)
 		val |= CAM_TFE_CSID_RESUME_AT_FRAME_BOUNDARY;
 
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
@@ -1691,7 +1695,7 @@ static int cam_tfe_csid_enable_pxl_path(
 			TFE_CSID_PATH_ERROR_LINE_COUNT;
 	}
 
-	if (csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_SOF_IRQ)
+	if (csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_SOF_IRQ || path_data->init_frame_drop)
 		val |= TFE_CSID_PATH_INFO_INPUT_SOF;
 	if (csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_EOF_IRQ)
 		val |= TFE_CSID_PATH_INFO_INPUT_EOF;
@@ -1831,6 +1835,9 @@ static int cam_tfe_csid_disable_pxl_path(
 			pxl_reg->csid_pxl_ctrl_addr);
 	}
 
+	path_data->init_frame_drop = 0;
+	path_data->res_sof_cnt     = 0;
+
 	return rc;
 }
 
@@ -1886,8 +1893,8 @@ static int cam_tfe_csid_enable_ppp_path(
 	 * Resume at frame boundary if Master or No Sync.
 	 * Slave will get resume command from Master.
 	 */
-	if (path_data->sync_mode == CAM_ISP_HW_SYNC_MASTER ||
-		path_data->sync_mode == CAM_ISP_HW_SYNC_NONE)
+	if ((path_data->sync_mode == CAM_ISP_HW_SYNC_MASTER ||
+		path_data->sync_mode == CAM_ISP_HW_SYNC_NONE) && !path_data->init_frame_drop)
 		val |= CAM_TFE_CSID_RESUME_AT_FRAME_BOUNDARY;
 
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base + ppp_reg->csid_pxl_ctrl_addr);
@@ -1901,7 +1908,7 @@ static int cam_tfe_csid_enable_ppp_path(
 	if (csid_reg->cmn_reg->format_measure_support)
 		val |= TFE_CSID_PATH_ERROR_PIX_COUNT | TFE_CSID_PATH_ERROR_LINE_COUNT;
 
-	if (csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_SOF_IRQ)
+	if (csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_SOF_IRQ || path_data->init_frame_drop)
 		val |= TFE_CSID_PATH_INFO_INPUT_SOF;
 	if (csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_EOF_IRQ)
 		val |= TFE_CSID_PATH_INFO_INPUT_EOF;
@@ -1998,6 +2005,9 @@ static int cam_tfe_csid_disable_ppp_path(
 		cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
 			ppp_reg->csid_pxl_ctrl_addr);
 	}
+
+	path_data->init_frame_drop = 0;
+	path_data->res_sof_cnt     = 0;
 
 	return rc;
 }
@@ -3261,6 +3271,38 @@ end:
 	return rc;
 }
 
+static int cam_tfe_csid_set_discard_frame_cfg(
+	struct cam_tfe_csid_hw *csid_hw, void *cmd_args)
+{
+	struct cam_isp_resource_node                 *res;
+	struct cam_tfe_csid_path_cfg                 *path_cfg;
+	struct cam_tfe_csid_discard_init_frame_args  *discard_config = NULL;
+
+	if (!csid_hw)
+		return -EINVAL;
+
+	discard_config = (struct cam_tfe_csid_discard_init_frame_args *)cmd_args;
+
+	res = discard_config->res;
+	if (res->res_type != CAM_ISP_RESOURCE_PIX_PATH ||
+		res->res_id >= CAM_TFE_CSID_PATH_RES_MAX) {
+		CAM_ERR(CAM_ISP, "CSID[%u] Invalid res_type: %d res id: %d",
+			csid_hw->hw_intf->hw_idx, res->res_type, res->res_id);
+		return -EINVAL;
+	}
+
+	if ((res->res_state == CAM_ISP_RESOURCE_STATE_RESERVED) ||
+		(res->res_state == CAM_ISP_RESOURCE_STATE_INIT_HW)) {
+
+		path_cfg = (struct cam_tfe_csid_path_cfg *)res->res_priv;
+
+		path_cfg->init_frame_drop = discard_config->num_frames;
+		path_cfg->res_sof_cnt = 0;
+	}
+
+	return 0;
+}
+
 static int cam_tfe_csid_get_regdump(struct cam_tfe_csid_hw *csid_hw,
 	void *cmd_args)
 {
@@ -3571,6 +3613,9 @@ static int cam_tfe_csid_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_DYNAMIC_CLOCK_UPDATE:
 		rc = cam_tfe_csid_set_csid_clock_dynamically(csid_hw, cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_CSID_DISCARD_INIT_FRAMES:
+		rc = cam_tfe_csid_set_discard_frame_cfg(csid_hw, cmd_args);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",
@@ -4101,6 +4146,12 @@ handle_fatal_error:
 			complete(&csid_hw->csid_ipp_complete);
 		}
 
+		if (irq_status[TFE_CSID_IRQ_REG_IPP] & TFE_CSID_PATH_INFO_INPUT_SOF) {
+			CAM_DBG(CAM_ISP, "CSID:%d IPP SOF received", csid_hw->hw_intf->hw_idx);
+			cam_tfe_csid_enable_path_for_init_frame_drop(csid_hw,
+				CAM_TFE_CSID_PATH_RES_IPP);
+		}
+
 		if ((irq_status[TFE_CSID_IRQ_REG_IPP] &
 			TFE_CSID_PATH_INFO_INPUT_SOF) &&
 			(csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_SOF_IRQ)) {
@@ -4177,6 +4228,12 @@ handle_fatal_error:
 			BIT(csid_reg->cmn_reg->path_rst_done_shift_val)) {
 			CAM_DBG(CAM_ISP, "CSID PPP reset complete");
 			complete(&csid_hw->csid_ppp_complete);
+		}
+
+		if (irq_status[TFE_CSID_IRQ_REG_PPP] & TFE_CSID_PATH_INFO_INPUT_SOF) {
+			CAM_DBG(CAM_ISP, "CSID:%d PPP SOF received", csid_hw->hw_intf->hw_idx);
+			cam_tfe_csid_enable_path_for_init_frame_drop(csid_hw,
+				CAM_TFE_CSID_PATH_RES_PPP);
 		}
 
 		if ((irq_status[TFE_CSID_IRQ_REG_PPP] &
@@ -4265,8 +4322,11 @@ handle_fatal_error:
 			complete(&csid_hw->csid_rdin_complete[i]);
 		}
 
-		if (irq_status[i] & TFE_CSID_PATH_INFO_INPUT_SOF)
+		if (irq_status[i] & TFE_CSID_PATH_INFO_INPUT_SOF) {
+			CAM_DBG(CAM_ISP, "CSID:%d RDI:%d SOF received",
+				csid_hw->hw_intf->hw_idx);
 			cam_tfe_csid_enable_path_for_init_frame_drop(csid_hw, i);
+		}
 
 		if ((irq_status[i] & TFE_CSID_PATH_INFO_INPUT_SOF) &&
 			(csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_SOF_IRQ)) {
