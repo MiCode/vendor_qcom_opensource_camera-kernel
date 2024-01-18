@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -3659,6 +3659,14 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 				continue;
 			}
 
+			if (csid_caps->is_ife_sfe_mapped &&
+				(ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE) &&
+				!ife_hw_mgr->sfe_devices[hw_intf->hw_idx]) {
+				CAM_DBG(CAM_ISP, "No sfe_device with idx: %d, ctx_idx: %u",
+					hw_intf->hw_idx, ife_ctx->ctx_index);
+				continue;
+			}
+
 			rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
 				csid_acquire, sizeof(*csid_acquire));
 			if (rc) {
@@ -3692,6 +3700,14 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 		}
 
 		compat_count++;
+
+		if (ife_hw_mgr->csid_hw_caps[hw_intf->hw_idx].is_ife_sfe_mapped &&
+			(ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE) &&
+			!ife_hw_mgr->sfe_devices[hw_intf->hw_idx]) {
+			CAM_DBG(CAM_ISP, "No sfe_device with idx: %d, ctx_idx: %u",
+				hw_intf->hw_idx, ife_ctx->ctx_index);
+			continue;
+		}
 
 		rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv, csid_acquire,
 			sizeof(struct cam_csid_hw_reserve_resource_args));

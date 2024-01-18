@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_880_H_
@@ -1508,5 +1508,6 @@ static struct cam_ife_csid_ver2_reg_info cam_ife_csid_880_reg_info = {
 	.num_path_err_irqs  = ARRAY_SIZE(cam_ife_csid_880_path_irq_desc),
 	.num_top_regs       = 1,
 	.num_rx_regs        = 1,
+	.is_ife_sfe_mapped  = true,
 };
 #endif /*_CAM_IFE_CSID_880_H_ */
