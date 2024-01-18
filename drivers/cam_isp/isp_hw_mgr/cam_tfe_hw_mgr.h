@@ -132,6 +132,7 @@ struct cam_tfe_cdm_user_data {
  * @acquired_wm_mask          Bitmask of acquired out resource
  * @is_shdr                   Indicate if the usecase is SHDR
  * @is_shdr_slave             Indicate whether context is slave in shdr usecase
+ * @ctx_state                 Indicate if ctx is active or paused
  */
 struct cam_tfe_hw_mgr_ctx {
 	struct list_head                list;
@@ -183,6 +184,7 @@ struct cam_tfe_hw_mgr_ctx {
 	enum cam_cdm_id                 cdm_id;
 	bool                            is_shdr;
 	bool                            is_shdr_slave;
+	uint32_t                        ctx_state;
 };
 
 /**

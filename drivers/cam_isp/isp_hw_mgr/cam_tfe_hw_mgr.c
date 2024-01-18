@@ -41,6 +41,9 @@
 #define CAM_TFE_SAFE_ENABLE 1
 #define SMMU_SE_TFE 0
 
+#define CAM_TFE_HW_MGR_STATE_INACTIVE  0
+#define CAM_TFE_HW_MGR_STATE_ACTIVE    1
+
 static struct cam_tfe_hw_mgr g_tfe_hw_mgr;
 static uint32_t g_num_tfe_available, g_num_tfe_functional;
 static uint32_t g_num_tfe_lite_available, g_num_tfe_lite_functional;
@@ -3318,6 +3321,7 @@ static int cam_tfe_mgr_stop_hw_in_overflow(void *stop_hw_args)
 	if (i == ctx->num_base)
 		master_base_idx = ctx->base[0].idx;
 
+	ctx->ctx_state = CAM_TFE_HW_MGR_STATE_INACTIVE;
 
 	/* stop the master CSID path first */
 	cam_tfe_mgr_csid_stop_hw(ctx, &ctx->res_list_tfe_csid,
@@ -3445,6 +3449,8 @@ static int cam_tfe_mgr_stop_hw(void *hw_mgr_priv, void *stop_hw_args)
 	 */
 	if (i == ctx->num_base)
 		master_base_idx = ctx->base[0].idx;
+
+	ctx->ctx_state = CAM_TFE_HW_MGR_STATE_INACTIVE;
 
 	/*Change slave mode*/
 	if (csid_halt_type == CAM_TFE_CSID_HALT_IMMEDIATELY)
@@ -3606,6 +3612,8 @@ static int cam_tfe_mgr_restart_hw(void *start_hw_args)
 			goto err;
 		}
 	}
+
+	ctx->ctx_state = CAM_TFE_HW_MGR_STATE_ACTIVE;
 
 	CAM_DBG(CAM_ISP, "Exit...(success)");
 	return 0;
@@ -3810,6 +3818,7 @@ start_only:
 		}
 	}
 
+	ctx->ctx_state = CAM_TFE_HW_MGR_STATE_ACTIVE;
 	ctx->last_dump_flush_req_id = U64_MAX;
 	ctx->last_dump_err_req_id = U64_MAX;
 	return 0;
@@ -6584,6 +6593,12 @@ static int cam_tfe_hw_mgr_handle_hw_err(
 		tfe_hw_mgr_ctx = (struct cam_tfe_hw_mgr_ctx *)ctx;
 	else {
 		CAM_ERR(CAM_ISP, "tfe hw mgr ctx NULL");
+		return rc;
+	}
+
+	if (!tfe_hw_mgr_ctx->ctx_state) {
+		CAM_INFO(CAM_ISP, "TFE Hw mgr ctx is not in active state ctx %d",
+			tfe_hw_mgr_ctx->ctx_index);
 		return rc;
 	}
 
