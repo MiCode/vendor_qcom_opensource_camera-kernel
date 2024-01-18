@@ -1472,8 +1472,7 @@ static int cam_tfe_csid_init_config_pxl_path(
 		}
 	}
 
-	if (csid_reg->cmn_reg->format_measure_support &&
-		(csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_HBI_VBI_INFO))
+	if (csid_reg->cmn_reg->format_measure_support)
 		val |= (1 << pxl_reg->format_measure_en_shift_val);
 
 	val |= (1 << pxl_reg->pix_store_en_shift_val);
@@ -2051,8 +2050,7 @@ static int cam_tfe_csid_init_config_rdi_path(
 		(plain_fmt << csid_reg->cmn_reg->plain_fmt_shit_val) |
 		(1 << 2) | 1;
 
-	if (csid_reg->cmn_reg->format_measure_support &&
-		(csid_hw->csid_debug & TFE_CSID_DEBUG_ENABLE_HBI_VBI_INFO))
+	if (csid_reg->cmn_reg->format_measure_support)
 		val |= (1 << rdi_reg->format_measure_en_shift_val);
 
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
@@ -4184,19 +4182,11 @@ handle_fatal_error:
 		}
 
 		if (irq_status[TFE_CSID_IRQ_REG_IPP] &
-			(TFE_CSID_PATH_ERROR_PIX_COUNT | TFE_CSID_PATH_ERROR_LINE_COUNT)) {
-			is_error_irq = true;
-			report_err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE;
-		}
-
-		if (irq_status[TFE_CSID_IRQ_REG_IPP] &
 			TFE_CSID_PATH_IPP_ERROR_CCIF_VIOLATION)
 			is_error_irq = true;
 
-		if ((irq_status[TFE_CSID_IRQ_REG_IPP] &
-			TFE_CSID_PATH_ERROR_PIX_COUNT) ||
-			(irq_status[TFE_CSID_IRQ_REG_IPP] &
-			TFE_CSID_PATH_ERROR_LINE_COUNT)) {
+		if (irq_status[TFE_CSID_IRQ_REG_IPP] &
+			(TFE_CSID_PATH_ERROR_PIX_COUNT | TFE_CSID_PATH_ERROR_LINE_COUNT)) {
 			ipp_reg = csid_reg->ipp_reg;
 			cmn_reg = csid_reg->cmn_reg;
 			val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
@@ -4217,6 +4207,8 @@ handle_fatal_error:
 				cmn_reg->format_measure_height_mask_val),
 				val &
 				cmn_reg->format_measure_width_mask_val);
+			is_error_irq = true;
+			report_err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE;
 		}
 
 	}
@@ -4268,19 +4260,11 @@ handle_fatal_error:
 		}
 
 		if (irq_status[TFE_CSID_IRQ_REG_PPP] &
-			(TFE_CSID_PATH_ERROR_PIX_COUNT | TFE_CSID_PATH_ERROR_LINE_COUNT)) {
-			is_error_irq = true;
-			report_err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE;
-		}
-
-		if (irq_status[TFE_CSID_IRQ_REG_PPP] &
 			TFE_CSID_PATH_PPP_ERROR_CCIF_VIOLATION)
 			is_error_irq = true;
 
-		if ((irq_status[TFE_CSID_IRQ_REG_PPP] &
-			TFE_CSID_PATH_ERROR_PIX_COUNT) ||
-			(irq_status[TFE_CSID_IRQ_REG_PPP] &
-			TFE_CSID_PATH_ERROR_LINE_COUNT)) {
+		if (irq_status[TFE_CSID_IRQ_REG_PPP] &
+			(TFE_CSID_PATH_ERROR_PIX_COUNT | TFE_CSID_PATH_ERROR_LINE_COUNT)) {
 			ppp_reg = csid_reg->ppp_reg;
 			cmn_reg = csid_reg->cmn_reg;
 			val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
@@ -4301,6 +4285,8 @@ handle_fatal_error:
 				cmn_reg->format_measure_height_mask_val),
 				val &
 				cmn_reg->format_measure_width_mask_val);
+			is_error_irq = true;
+			report_err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE;
 		}
 
 	}
