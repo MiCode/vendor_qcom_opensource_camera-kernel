@@ -4260,6 +4260,7 @@ static int cam_isp_tfe_blob_update_out_resource_config(
 		prepare->hw_update_entries[num_ent].handle = kmd_buf_info->handle;
 		prepare->hw_update_entries[num_ent].len = total_used_bytes;
 		prepare->hw_update_entries[num_ent].offset = kmd_buf_info->offset;
+		prepare->hw_update_entries[num_ent].flags = CAM_ISP_IOCFG_BL;
 		num_ent++;
 		kmd_buf_info->used_bytes += total_used_bytes;
 		kmd_buf_info->offset     += total_used_bytes;
@@ -4358,6 +4359,7 @@ static int cam_isp_tfe_blob_hfr_update(
 		prepare->hw_update_entries[num_ent].handle =
 			kmd_buf_info->handle;
 		prepare->hw_update_entries[num_ent].len = total_used_bytes;
+		prepare->hw_update_entries[num_ent].flags = CAM_ISP_IQ_BL;
 		prepare->hw_update_entries[num_ent].offset =
 			kmd_buf_info->offset;
 		num_ent++;
@@ -4623,6 +4625,7 @@ static int cam_isp_tfe_blob_bw_limit_update(
 		prepare->hw_update_entries[num_ent].handle =
 			kmd_buf_info->handle;
 		prepare->hw_update_entries[num_ent].len = total_used_bytes;
+		prepare->hw_update_entries[num_ent].flags = CAM_ISP_IOCFG_BL;
 		prepare->hw_update_entries[num_ent].offset =
 			kmd_buf_info->offset;
 		num_ent++;
