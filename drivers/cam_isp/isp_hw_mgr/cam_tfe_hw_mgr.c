@@ -1967,7 +1967,7 @@ void cam_tfe_cam_cdm_callback(uint32_t handle, void *userdata,
 		}
 		CAM_DBG(CAM_ISP,
 			"CDM hdl=%x, udata=%pK, status=%d, cookie=%llu ctx_index=%d cdm_req=%llu",
-			 handle, userdata, status, cookie, ctx->ctx_index,
+			 handle, userdata, status, *(uint64_t *)cookie, ctx->ctx_index,
 			 ctx->cdm_userdata.request_id);
 	} else if (status == CAM_CDM_CB_STATUS_PAGEFAULT ||
 		status == CAM_CDM_CB_STATUS_INVALID_BL_CMD ||
@@ -2008,7 +2008,8 @@ void cam_tfe_cam_cdm_callback(uint32_t handle, void *userdata,
 	} else {
 		CAM_WARN(CAM_ISP,
 			"CDM hdl=%x, udata=%pK, status=%d, cookie=%llu cdm_req=%llu",
-			 handle, userdata, status, cookie, ctx->cdm_userdata.request_id);
+			 handle, userdata, status, *(uint64_t *)cookie,
+			 ctx->cdm_userdata.request_id);
 	}
 }
 
