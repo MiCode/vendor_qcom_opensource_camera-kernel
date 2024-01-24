@@ -1,5 +1,6 @@
 load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
+load("//msm-kernel:target_variants.bzl", "get_all_variants")
 
 def _define_module(target, variant):
     tv = "{}_{}".format(target, variant)
@@ -135,6 +136,23 @@ def _define_module(target, variant):
                     "drivers/cam_icp/hfi.c",
                 ],
             },
+            "CONFIG_SPECTRA_TFE": {
+                True: [
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_core.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_dev.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi100.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_dev.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_core.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_soc.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_bus.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_core.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_soc.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe.c",
+                    "drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_dev.c",
+                    "drivers/cam_isp/isp_hw_mgr/cam_tfe_hw_mgr.c",
+                ],
+            },
             "CONFIG_SPECTRA_JPEG": {
                 True: [
                     "drivers/cam_jpeg/jpeg_hw/jpeg_enc_hw/jpeg_enc_dev.c",
@@ -232,12 +250,12 @@ def _define_module(target, variant):
         copts = ["-include", "$(location :camera_banner)"],
         deps = deps,
         kconfig = "Kconfig",
-        defconfig = "{}_defconfig".format(tv),
+        defconfig = "{}_defconfig".format(target),
         kernel_build = "//msm-kernel:{}".format(tv),
     )
 
     copy_to_dist_dir(
-        name = "{}_camera_dist".format(tv),
+	name = "{}_camera_dist".format(tv),
         data = [":{}_camera".format(tv)],
         dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(target),
         flat = True,
@@ -247,5 +265,5 @@ def _define_module(target, variant):
     )
 
 def define_camera_module():
-    _define_module("pineapple", "gki")
-    _define_module("pineapple", "consolidate")
+    for (t, v) in get_all_variants():
+           _define_module(t, v)

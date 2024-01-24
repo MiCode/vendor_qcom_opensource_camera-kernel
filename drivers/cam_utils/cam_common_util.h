@@ -30,6 +30,7 @@
 #define CAM_COMMON_IFE_NODE  "IFE"
 #define CAM_COMMON_ICP_NODE  "IPE"
 #define CAM_COMMON_JPEG_NODE "JPEG"
+#define CAM_COMMON_TFE_NODE "TFE"
 
 #define CAM_COMMON_NS_PER_MS              1000000ULL
 
@@ -124,7 +125,8 @@ enum cam_common_evt_inject_str_id_type {
 };
 
 enum cam_common_evt_inject_hw_id {
-	CAM_COMMON_EVT_INJECT_HW_ISP,
+	CAM_COMMON_EVT_INJECT_HW_IFE,
+	CAM_COMMON_EVT_INJECT_HW_TFE,
 	CAM_COMMON_EVT_INJECT_HW_ICP,
 	CAM_COMMON_EVT_INJECT_HW_JPEG,
 	CAM_COMMON_EVT_INJECT_HW_MAX

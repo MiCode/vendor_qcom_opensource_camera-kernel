@@ -91,6 +91,8 @@ struct cam_isp_tfe_in_port_generic_info {
 	uint32_t                        ipp_count;
 	uint32_t                        rdi_count;
 	uint32_t                        secure_mode;
+	bool                            shdr_en;
+	bool                            is_shdr_master;
 	struct cam_isp_tfe_out_port_generic_info    *data;
 };
 
@@ -271,5 +273,15 @@ struct cam_tfe_csid_clock_update_args {
 	uint64_t                           clk_rate;
 };
 
+/*
+ * struct cam_tfe_csid_discard_init_frame_args:
+ *
+ * @num_frames: Num frames to discard
+ * @res: Node res for this path
+ */
+struct cam_tfe_csid_discard_init_frame_args {
+	uint32_t                          num_frames;
+	struct cam_isp_resource_node     *res;
+};
 
 #endif /* _CAM_TFE_CSID_HW_INTF_H_ */

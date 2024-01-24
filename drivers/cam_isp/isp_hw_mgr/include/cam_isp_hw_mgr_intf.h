@@ -49,6 +49,8 @@
 #define CAM_IFE_CTX_SFE_EN             BIT(4)
 #define CAM_IFE_CTX_AEB_EN             BIT(5)
 #define CAM_IFE_CTX_DYNAMIC_SWITCH_EN  BIT(6)
+#define CAM_IFE_CTX_SHDR_EN            BIT(7)
+#define CAM_IFE_CTX_SHDR_IS_MASTER     BIT(8)
 
 /*
  * Maximum configuration entry size  - This is based on the
@@ -346,6 +348,7 @@ struct cam_isp_fcg_config_info {
  * @packet:                CSL packet from user mode driver
  * @mup_val:               MUP value if configured
  * @num_exp:               Num of exposures
+ * @wm_bitmask:            Bitmask of acquired out resource
  * @mup_en:                Flag if dynamic sensor switch is enabled
  * @fcg_info:              Track FCG config for further usage in config stage
  *
@@ -368,6 +371,7 @@ struct cam_isp_prepare_hw_update_data {
 	struct cam_kmd_buf_info               kmd_cmd_buff_info;
 	uint32_t                              mup_val;
 	uint32_t                              num_exp;
+	uint64_t                              wm_bitmask;
 	bool                                  mup_en;
 	struct cam_isp_fcg_config_info        fcg_info;
 };

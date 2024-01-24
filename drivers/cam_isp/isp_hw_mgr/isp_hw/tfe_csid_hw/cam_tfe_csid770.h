@@ -278,6 +278,7 @@ static struct cam_tfe_csid_csi2_rx_reg_offset
 	.csi2_rst_done_shift_val                      = 27,
 	.csi2_irq_mask_all                            = 0xFFFFFFF,
 	.csi2_misr_enable_shift_val                   = 6,
+	.csi2_vc_mode_shift_val                       = 2,
 	.csi2_capture_long_pkt_en_shift               = 0,
 	.csi2_capture_short_pkt_en_shift              = 1,
 	.csi2_capture_cphy_pkt_en_shift               = 2,
@@ -340,8 +341,9 @@ static struct cam_tfe_csid_common_reg_offset
 	.top_tfe2_fuse_reg                            = 0xFE8,
 	.format_measure_support                       = true,
 	.format_measure_height_shift_val              = 16,
-	.format_measure_height_mask_val               = 0xe,
-	.format_measure_width_mask_val                = 0x10,
+	.format_measure_height_mask_val               = 0xFFFF,
+	.format_measure_width_mask_val                = 0xFFFF,
+	.sync_clk                                     = true,
 };
 
 static struct cam_tfe_csid_reg_offset cam_tfe_csid_770_reg_offset = {

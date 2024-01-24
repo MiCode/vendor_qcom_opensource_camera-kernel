@@ -169,6 +169,7 @@ struct cam_hw_acquire_stream_caps {
  * @hw_mgr_ctx_id          HWMgr context id(returned)
  * @op_flags:              Used as bitwise params from hw_mgr to ctx
  *                         See xxx_hw_mgr_intf.h for definitions
+ * @link_hdl:              Link handle
  * @acquired_hw_id:        Acquired hardware mask
  * @acquired_hw_path:      Acquired path mask for an input
  *                         if input splits into multiple paths,
@@ -189,11 +190,10 @@ struct cam_hw_acquire_args {
 	void                        *ctxt_to_hw_map;
 	uint32_t                     hw_mgr_ctx_id;
 	uint32_t                     op_flags;
-
-	uint32_t    acquired_hw_id[CAM_MAX_ACQ_RES];
-	uint32_t    acquired_hw_path[CAM_MAX_ACQ_RES][CAM_MAX_HW_SPLIT];
-	uint32_t    valid_acquired_hw;
-
+	int32_t                      link_hdl;
+	uint32_t                     acquired_hw_id[CAM_MAX_ACQ_RES];
+	uint32_t                     acquired_hw_path[CAM_MAX_ACQ_RES][CAM_MAX_HW_SPLIT];
+	uint32_t                     valid_acquired_hw;
 	struct cam_hw_acquire_stream_caps op_params;
 	cam_ctx_mini_dump_cb_func    mini_dump_cb;
 };

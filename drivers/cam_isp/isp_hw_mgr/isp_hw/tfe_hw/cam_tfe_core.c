@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -31,6 +31,7 @@ static const char drv_name[] = "tfe";
 #define CAM_TFE_CAMIF_IRQ_SOF_DEBUG_CNT_MAX  2
 #define CAM_TFE_DELAY_BW_REDUCTION_NUM_FRAMES 3
 #define CAM_TFE_MAX_OUT_OF_SYNC_ERR_COUNT     3
+#define CAM_TFE_DUAL_TFE_SYNC_SEL_IDX_FACTOR  1
 
 struct cam_tfe_top_common_data {
 	struct cam_hw_soc_info                     *soc_info;
@@ -60,6 +61,7 @@ struct cam_tfe_top_priv {
 	struct timespec64                    error_ts;
 	uint32_t                             top_debug;
 	uint32_t                             last_mup_val;
+	uint32_t                             sync_hw_id;
 	atomic_t                             switch_out_of_sync_cnt;
 };
 
@@ -93,6 +95,9 @@ struct cam_tfe_camif_data {
 	uint32_t                           qcfa_bin;
 	uint32_t                           bayer_bin;
 	uint32_t                           core_cfg;
+	bool                               shdr_en;
+	bool                               is_shdr_master;
+	uint32_t                           epoch_factor;
 };
 
 struct cam_tfe_rdi_data {
@@ -109,6 +114,9 @@ struct cam_tfe_rdi_data {
 	uint32_t                                     left_last_pixel;
 	uint32_t                                     first_line;
 	uint32_t                                     last_line;
+	bool                                         shdr_en;
+	bool                                         is_shdr_master;
+	uint32_t                                     epoch_factor;
 };
 
 struct cam_tfe_ppp_data {
@@ -399,7 +407,7 @@ static void cam_tfe_log_error_irq_status(
 	for (i = 0; i < common_reg->num_debug_reg; i++) {
 		val_0 = cam_io_r(mem_base  +
 			common_reg->debug_reg[i]);
-		CAM_INFO(CAM_ISP, "Top debug [i]:0x%x", i, val_0);
+		CAM_INFO(CAM_ISP, "Top debug [%d]:0x%x", i, val_0);
 	}
 
 	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
@@ -1490,31 +1498,36 @@ static int cam_tfe_top_get_reg_update(
 	struct cam_tfe_top_priv *top_priv,
 	void *cmd_args, uint32_t arg_size)
 {
-	uint32_t                             size = 0;
-	uint32_t                             reg_val_pair[2];
-	struct cam_isp_hw_get_cmd_update     *cdm_args = cmd_args;
-	struct cam_cdm_utils_ops             *cdm_util_ops = NULL;
-	struct cam_tfe_camif_data            *camif_rsrc_data = NULL;
-	struct cam_tfe_rdi_data              *rdi_rsrc_data = NULL;
-	struct cam_isp_resource_node         *in_res;
-	struct cam_isp_mode_switch_data      *mup_config = NULL;
+	int                               rc = 0;
+	uint32_t                          size = 0;
+	uint32_t                          reg_val_pair[2] = {0};
+	struct cam_isp_hw_get_cmd_update *cdm_args = cmd_args;
+	struct cam_cdm_utils_ops         *cdm_util_ops = NULL;
+	struct cam_tfe_camif_data        *camif_rsrc_data = NULL;
+	struct cam_tfe_rdi_data          *rdi_rsrc_data = NULL;
+	struct cam_isp_resource_node     *in_res;
+	struct cam_isp_mode_switch_data  *mup_config = NULL;
+	struct cam_hw_soc_info           *soc_info;
 	struct cam_tfe_top_reg_offset_common *common_reg;
 
 	if (arg_size != sizeof(struct cam_isp_hw_get_cmd_update)) {
 		CAM_ERR(CAM_ISP, "Invalid cmd size");
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
 	if (!cdm_args || !cdm_args->res || !top_priv) {
 		CAM_ERR(CAM_ISP, "Invalid args");
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
 	cdm_util_ops = (struct cam_cdm_utils_ops *)cdm_args->res->cdm_ops;
 
 	if (!cdm_util_ops) {
 		CAM_ERR(CAM_ISP, "Invalid CDM ops");
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
 	soc_info = top_priv->common_data.soc_info;
@@ -1524,11 +1537,16 @@ static int cam_tfe_top_get_reg_update(
 	if ((!cdm_args->reg_write) && ((size * 4) > cdm_args->cmd.size)) {
 		CAM_ERR(CAM_ISP, "buf size:%d is not sufficient, expected: %d",
 			cdm_args->cmd.size, size);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
 	if (in_res->res_id == CAM_ISP_HW_TFE_IN_CAMIF) {
 		camif_rsrc_data =  in_res->res_priv;
+		if (camif_rsrc_data->shdr_en && !camif_rsrc_data->is_shdr_master) {
+			CAM_DBG(CAM_ISP, "Skip reg update cmd for slave camif");
+			goto end;
+		}
 		reg_val_pair[0] = camif_rsrc_data->camif_reg->reg_update_cmd;
 		reg_val_pair[1] =
 			camif_rsrc_data->reg_data->reg_update_cmd_data;
@@ -1542,7 +1560,11 @@ static int cam_tfe_top_get_reg_update(
 		CAM_DBG(CAM_ISP, "Reg update not supported for res %d",
 			in_res->res_id);
 		cdm_args->cmd.used_bytes = 0;
-		return 0;
+		goto end;
+	} else {
+		CAM_ERR(CAM_ISP, "Unknown resource with res_id = %d", in_res->res_id);
+		rc = -EINVAL;
+		goto end;
 	}
 
 	common_reg = top_priv->common_data.common_reg;
@@ -1564,9 +1586,57 @@ static int cam_tfe_top_get_reg_update(
 	} else {
 		cdm_util_ops->cdm_write_regrandom(cdm_args->cmd.cmd_buf_addr,
 			1, reg_val_pair);
-
 		cdm_args->cmd.used_bytes = size * 4;
 	}
+
+end:
+	return rc;
+}
+
+static int cam_tfe_top_init_config_update(
+	struct cam_tfe_top_priv *top_priv,
+	void *cmd_args, uint32_t arg_size)
+{
+	int i = 0;
+	struct cam_isp_hw_init_config_update *init_cfg = NULL;
+	struct cam_isp_resource_node *rsrc_node = NULL;
+	struct cam_tfe_camif_data *camif_data;
+
+	init_cfg = (struct cam_isp_hw_init_config_update *)cmd_args;
+
+	if (arg_size != sizeof(struct cam_isp_hw_init_config_update)) {
+		CAM_ERR(CAM_ISP, "Invalid args size expected: %zu actual: %zu",
+			sizeof(struct cam_isp_hw_init_config_update), arg_size);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < CAM_TFE_TOP_IN_PORT_MAX; i++) {
+		if (top_priv->in_rsrc[i].res_id == CAM_ISP_HW_TFE_IN_CAMIF) {
+			rsrc_node = &top_priv->in_rsrc[i];
+			break;
+		}
+	}
+
+	if (!rsrc_node) {
+		CAM_ERR(CAM_ISP, "TFE %d null input res node",
+			top_priv->common_data.hw_intf->hw_idx);
+		return -EINVAL;
+	}
+
+	if (rsrc_node->res_type != CAM_ISP_RESOURCE_TFE_IN) {
+		CAM_ERR(CAM_ISP, "TFE %d Invalid res_type %d res id %d ",
+			rsrc_node->hw_intf->hw_idx, rsrc_node->res_type,
+			rsrc_node->res_id);
+		return -EINVAL;
+	}
+
+	camif_data = (struct cam_tfe_camif_data *)rsrc_node->res_priv;
+	camif_data->epoch_factor = init_cfg->init_config->epoch_cfg.epoch_factor;
+
+	CAM_DBG(CAM_ISP,
+		"Init Update TFE %d res type: %d res id %d epoch_factor: %u",
+		rsrc_node->hw_intf->hw_idx, rsrc_node->res_type,
+		rsrc_node->res_id, camif_data->epoch_factor);
 
 	return 0;
 }
@@ -1708,6 +1778,27 @@ static int cam_tfe_top_bw_control(
 	}
 
 	return rc;
+}
+
+static int cam_tfe_set_sync_hw_idx(
+	struct cam_tfe_hw_core_info *core_info,
+	void *cmd_args, uint32_t arg_size)
+{
+	struct cam_tfe_top_priv              *top_priv;
+	uint32_t                             *hw_idx;
+
+	if (!cmd_args) {
+		CAM_ERR(CAM_ISP, "Error! Invalid input arguments");
+		return -EINVAL;
+	}
+
+	top_priv = (struct cam_tfe_top_priv  *)core_info->top_priv;
+	hw_idx = (uint32_t *)cmd_args;
+	top_priv->sync_hw_id = *hw_idx;
+
+	CAM_DBG(CAM_ISP, "TFE:%d top sync hw idx %d", core_info->core_index,
+		top_priv->sync_hw_id);
+	return 0;
 }
 
 static int cam_tfe_top_get_reg_dump(
@@ -2154,6 +2245,7 @@ int cam_tfe_top_reserve(void *device_priv,
 	top_priv = (struct cam_tfe_top_priv   *)device_priv;
 	args = (struct cam_tfe_acquire_args *)reserve_args;
 	acquire_args = &args->tfe_in;
+	top_priv->last_mup_val = 0;
 
 	for (i = 0; i < CAM_TFE_TOP_IN_PORT_MAX; i++) {
 		CAM_DBG(CAM_ISP, "i :%d res_id:%d state:%d", i,
@@ -2206,6 +2298,8 @@ int cam_tfe_top_reserve(void *device_priv,
 					acquire_args->in_port->bayer_bin;
 				camif_data->core_cfg =
 					acquire_args->in_port->core_cfg;
+				camif_data->shdr_en = acquire_args->in_port->shdr_en;
+				camif_data->is_shdr_master = acquire_args->in_port->is_shdr_master;
 
 				CAM_DBG(CAM_ISP,
 					"TFE:%d pix_pattern:%d dsp_mode=%d",
@@ -2247,6 +2341,8 @@ int cam_tfe_top_reserve(void *device_priv,
 					acquire_args->in_port->line_start;
 				rdi_data->last_line =
 					acquire_args->in_port->line_end;
+				rdi_data->shdr_en = acquire_args->in_port->shdr_en;
+				rdi_data->is_shdr_master = acquire_args->in_port->is_shdr_master;
 			}
 
 			top_priv->in_rsrc[i].cdm_ops = acquire_args->cdm_ops;
@@ -2301,7 +2397,7 @@ static int cam_tfe_camif_resource_start(
 	struct cam_tfe_camif_data           *rsrc_data;
 	struct cam_tfe_soc_private          *soc_private;
 	struct cam_tfe_top_priv             *top_priv;
-	uint32_t                             val = 0;
+	uint32_t                             val = 0, epoch_factor = 50;
 	uint32_t                             epoch0_irq_mask;
 	uint32_t                             epoch1_irq_mask;
 	uint32_t                             computed_epoch_line_cfg;
@@ -2339,7 +2435,7 @@ static int cam_tfe_camif_resource_start(
 	if ((rsrc_data->sync_mode == CAM_ISP_HW_SYNC_SLAVE) ||
 		(rsrc_data->sync_mode == CAM_ISP_HW_SYNC_MASTER)) {
 		val |= (1 << rsrc_data->reg_data->dual_tfe_pix_en_shift);
-		val |= ((rsrc_data->dual_tfe_sync_sel + 1) <<
+		val |= ((rsrc_data->dual_tfe_sync_sel + CAM_TFE_DUAL_TFE_SYNC_SEL_IDX_FACTOR) <<
 			rsrc_data->reg_data->dual_tfe_sync_sel_shift);
 	}
 
@@ -2367,6 +2463,16 @@ static int cam_tfe_camif_resource_start(
 			(1 << rsrc_data->reg_data->ds4_c_srl_en_shift);
 	}
 
+	if (rsrc_data->shdr_en) {
+		val |= (1 << rsrc_data->reg_data->shdr_mode_shift);
+		val |= (1 << rsrc_data->reg_data->dual_tfe_pix_en_shift);
+		val |= ((top_priv->sync_hw_id + CAM_TFE_DUAL_TFE_SYNC_SEL_IDX_FACTOR) <<
+			rsrc_data->reg_data->dual_tfe_sync_sel_shift);
+		if (!rsrc_data->is_shdr_master) {
+			val |= (1 << rsrc_data->reg_data->extern_mup_shift);
+			val |= (1 << rsrc_data->reg_data->extern_reg_update_shift);
+		}
+	}
 
 	cam_io_w_mb(val, rsrc_data->mem_base +
 		rsrc_data->common_reg->core_cfg_0);
@@ -2388,8 +2494,12 @@ static int cam_tfe_camif_resource_start(
 	}
 
 	/* Epoch config */
+	if ((rsrc_data->epoch_factor) && (rsrc_data->epoch_factor <= 100))
+		epoch_factor = rsrc_data->epoch_factor;
+
 	epoch0_irq_mask = (((rsrc_data->last_line + rsrc_data->vbi_value) -
-			rsrc_data->first_line) / 2);
+		rsrc_data->first_line) * epoch_factor / 100);
+
 	if (epoch0_irq_mask > (rsrc_data->last_line - rsrc_data->first_line))
 		epoch0_irq_mask = (rsrc_data->last_line -
 					rsrc_data->first_line);
@@ -2406,11 +2516,11 @@ static int cam_tfe_camif_resource_start(
 			rsrc_data->camif_reg->epoch_irq_cfg);
 	CAM_DBG(CAM_ISP, "TFE:%d first_line: %u\n"
 			"last_line: %u\n"
-			"epoch_line_cfg: 0x%x",
+			"epoch_line_cfg: 0x%x epoch factor %d",
 			core_info->core_index,
 			rsrc_data->first_line,
 			rsrc_data->last_line,
-			computed_epoch_line_cfg);
+			computed_epoch_line_cfg, epoch_factor);
 
 	camif_res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
 
@@ -2796,8 +2906,8 @@ int cam_tfe_top_init(
 				hw_info->ppp_hw_info.ppp_reg;
 			ppp_priv->reg_data    =
 				hw_info->ppp_hw_info.reg_data;
-		} else if (hw_info->in_port[i] ==
-			CAM_TFE_RDI_VER_1_0) {
+		} else if (hw_info->in_port[i] == CAM_TFE_RDI_VER_1_0 &&
+				(j < CAM_TFE_RDI_MAX)) {
 			top_priv->in_rsrc[i].res_id =
 				CAM_ISP_HW_TFE_IN_RDI0 + j;
 
@@ -2821,8 +2931,8 @@ int cam_tfe_top_init(
 			rdi_priv->reg_data =
 				hw_info->rdi_hw_info[j++].reg_data;
 		}  else {
-			CAM_WARN(CAM_ISP, "TFE:%d Invalid inport type: %u",
-				core_info->core_index, hw_info->in_port[i]);
+			CAM_WARN(CAM_ISP, "TFE:%d Invalid inport type: %u at i = %d. j = %d",
+				core_info->core_index, hw_info->in_port[i], i, j);
 		}
 	}
 
@@ -3278,7 +3388,8 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 
 	if (!hw_priv) {
 		CAM_ERR(CAM_ISP, "Invalid arguments");
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
 	soc_info = &tfe_hw->soc_info;
@@ -3329,6 +3440,11 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		rc = cam_tfe_top_dynamic_clock_update(core_info->top_priv, cmd_args,
 			arg_size);
 		break;
+	case CAM_ISP_HW_CMD_INIT_CONFIG_UPDATE:
+		rc = cam_tfe_top_init_config_update(core_info->top_priv, cmd_args,
+			arg_size);
+		break;
+	case CAM_ISP_HW_NOTIFY_OVERFLOW:
 	case CAM_ISP_HW_CMD_GET_BUF_UPDATE:
 	case CAM_ISP_HW_CMD_GET_HFR_UPDATE:
 	case CAM_ISP_HW_CMD_STRIPE_UPDATE:
@@ -3340,6 +3456,9 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_IS_PDAF_RDI2_MUX_EN:
 	case CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG:
 	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
+	case CAM_ISP_HW_CMD_BUS_WM_DISABLE:
+	case CAM_ISP_HW_CMD_BUFFER_ALIGNMENT_UPDATE:
+	case CAM_ISP_HW_CMD_WM_CONFIG_UPDATE:
 		rc = core_info->tfe_bus->hw_ops.process_cmd(
 			core_info->tfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);
@@ -3348,12 +3467,22 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		rc = cam_tfe_bus_get_path_port_map(hw_info->top_hw_info, cmd_args,
 					arg_size);
 		break;
+	case CAM_ISP_HW_CMD_SET_SYNC_HW_IDX:
+		rc = cam_tfe_set_sync_hw_idx(core_info, cmd_args, arg_size);
+		break;
 	default:
 		CAM_ERR(CAM_ISP, "TFE:%d Invalid cmd type:%d",
 			core_info->core_index, cmd_type);
 		rc = -EINVAL;
 		break;
 	}
+
+end:
+	if (rc) {
+		CAM_ERR(CAM_ISP, "TFE: %d error with cmd type: %d",
+			core_info->core_index, cmd_type);
+	}
+
 	return rc;
 }
 

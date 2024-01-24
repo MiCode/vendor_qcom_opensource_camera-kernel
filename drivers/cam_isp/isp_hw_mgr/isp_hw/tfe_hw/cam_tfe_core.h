@@ -202,6 +202,9 @@ struct cam_tfe_camif_reg_data {
 	uint32_t     ai_c_srl_en_shift;
 	uint32_t     ds16_c_srl_en_shift;
 	uint32_t     ds4_c_srl_en_shift;
+
+	uint32_t     shdr_mode_shift;
+	uint32_t     extern_mup_shift;
 };
 
 struct cam_tfe_camif_hw_info {
