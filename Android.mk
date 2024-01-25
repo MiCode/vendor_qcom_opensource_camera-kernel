@@ -25,7 +25,7 @@ SYNX_VENDOR_BOARDS := pineapple sun
 SMCINVOKE_DLKM_BOARDS := pineapple sun
 
 # List of board platforms for which SMMU_PROXY_DLKM driver API should be enabled
-SMMU_PROXY_DLKM_BOARDS := pineapple
+SMMU_PROXY_DLKM_BOARDS := pineapple sun
 
 CAMERA_SRC_FILES := \
                     $(addprefix $(LOCAL_PATH)/, $(call all-named-files-under,*.h,drivers dt-bindings include))\
