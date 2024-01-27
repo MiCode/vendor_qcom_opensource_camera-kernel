@@ -1992,18 +1992,12 @@ int32_t cam_sensor_apply_request(struct cam_req_mgr_apply_request *apply)
 	}
 
 	if ((apply->recovery) && (apply->request_id > 0)) {
-		curr_idx = apply->request_id % MAX_PER_FRAME_ARRAY;
-		last_applied_idx = s_ctrl->last_applied_req % MAX_PER_FRAME_ARRAY;
-
-		/*
-		 * If the sensor resolution index in current req isn't same with
-		 * last applied index, we should apply bubble update.
-		 */
-
-		if ((s_ctrl->sensor_res[curr_idx].res_index !=
-			s_ctrl->sensor_res[last_applied_idx].res_index) ||
-			(s_ctrl->sensor_res[curr_idx].feature_mask !=
-			s_ctrl->sensor_res[last_applied_idx].feature_mask)) {
+		if (apply->request_id <= s_ctrl->last_applied_req) {
+			/*
+			 * Use bubble update for request reapply
+			 */
+			curr_idx = apply->request_id % MAX_PER_FRAME_ARRAY;
+			last_applied_idx = s_ctrl->last_applied_req % MAX_PER_FRAME_ARRAY;
 			opcode = CAM_SENSOR_PACKET_OPCODE_SENSOR_BUBBLE_UPDATE;
 			CAM_INFO(CAM_REQ,
 				"Sensor[%d] update req id: %lld [last_applied: %lld] with opcode:%d recovery: %d last_applied_res_idx: %u current_res_idx: %u",
