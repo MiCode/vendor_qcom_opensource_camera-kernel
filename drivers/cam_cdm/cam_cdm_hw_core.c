@@ -2399,6 +2399,15 @@ static int cam_hw_cdm_component_bind(struct device *dev,
 			cdm_hw->soc_info.index);
 		goto destroy_non_secure_hdl;
 	}
+
+	cdm_hw->soc_info.hw_id = CAM_HW_ID_CDM0 + cdm_hw->soc_info.index;
+	rc = cam_vmvm_populate_hw_instance_info(&cdm_hw->soc_info, NULL, NULL);
+	if (rc) {
+		CAM_ERR(CAM_CDM, " cdm %d hw instance populate failed: %d",
+			cdm_hw->soc_info.index, rc);
+		goto release_platform_resource;
+	}
+
 	cpas_parms.cam_cpas_client_cb = cam_cdm_cpas_cb;
 	cpas_parms.cell_index = cdm_hw->soc_info.index;
 	cpas_parms.dev = &pdev->dev;

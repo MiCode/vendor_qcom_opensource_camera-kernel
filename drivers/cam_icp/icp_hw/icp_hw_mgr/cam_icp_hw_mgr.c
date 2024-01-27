@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -46,6 +46,7 @@
 #include "cam_mem_mgr_api.h"
 #include "cam_presil_hw_access.h"
 #include "cam_icp_proc.h"
+#include "cam_vmrm_interface.h"
 
 #define ICP_WORKQ_TASK_CMD_TYPE 1
 #define ICP_WORKQ_TASK_MSG_TYPE 2
@@ -1732,12 +1733,36 @@ static int cam_icp_mgr_device_resume(struct cam_icp_hw_mgr *hw_mgr,
 	int rc = 0, i;
 	enum cam_icp_hw_type hw_dev_type;
 	uint32_t *prop_ref_data;
+	uint32_t hw_id;
 
 	hw_dev_type = ctx_data->device_info->hw_dev_type;
 	dev_info = ctx_data->device_info;
 
 	if (dev_info->dev_ctx_info.dev_ctxt_cnt++)
 		goto end;
+
+	switch (hw_dev_type) {
+	case CAM_ICP_DEV_BPS:
+		hw_id = CAM_HW_ID_BPS;
+		break;
+	case CAM_ICP_DEV_IPE:
+		hw_id = CAM_HW_ID_IPE0;
+		break;
+	case CAM_ICP_DEV_OFE:
+		hw_id = CAM_HW_ID_OFE;
+		break;
+	default:
+		CAM_ERR(CAM_ICP, "Invalid hw dev type: %d", hw_dev_type);
+		rc = -EINVAL;
+		goto end;
+	}
+
+	/* Acquire ownership */
+	rc = cam_vmrm_soc_acquire_resources(hw_id);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "hw id %x acquire ownership failed", hw_id);
+		goto end;
+	}
 
 	for (i = 0; i < dev_info->hw_dev_cnt; i++) {
 		dev_intf = dev_info->dev_intf[i];
@@ -1819,6 +1844,8 @@ static int cam_icp_mgr_dev_power_collapse(struct cam_icp_hw_mgr *hw_mgr,
 	int rc = 0, i;
 	struct cam_icp_hw_device_info *dev_info = NULL;
 	struct cam_hw_intf *dev_intf = NULL;
+	enum cam_icp_hw_type hw_dev_type;
+	uint32_t hw_id;
 
 	if (!ctx_data) {
 		CAM_ERR(CAM_ICP, "Invalid ctx data is NULL");
@@ -1850,6 +1877,28 @@ static int cam_icp_mgr_dev_power_collapse(struct cam_icp_hw_mgr *hw_mgr,
 	}
 
 	dev_info->dev_ctx_info.dev_clk_state = false;
+
+	hw_dev_type = dev_info->hw_dev_type;
+	switch (hw_dev_type) {
+	case CAM_ICP_DEV_BPS:
+		hw_id = CAM_HW_ID_BPS;
+		break;
+	case CAM_ICP_DEV_IPE:
+		hw_id = CAM_HW_ID_IPE0;
+		break;
+	case CAM_ICP_DEV_OFE:
+		hw_id = CAM_HW_ID_OFE;
+		break;
+	default:
+		CAM_ERR(CAM_ICP, "Invalid hw dev type: %d", hw_dev_type);
+		return -EINVAL;
+	}
+
+	rc = cam_vmrm_soc_release_resources(hw_id);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "hw id %x vmrm soc release resources failed", hw_id);
+		return rc;
+	}
 
 end:
 	return rc;

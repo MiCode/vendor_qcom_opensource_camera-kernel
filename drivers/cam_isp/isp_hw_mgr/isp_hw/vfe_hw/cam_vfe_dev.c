@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -13,6 +13,7 @@
 #include "cam_vfe_core.h"
 #include "cam_vfe_soc.h"
 #include "cam_debug_util.h"
+#include "cam_vmrm_interface.h"
 #include <dt-bindings/msm-camera.h>
 
 static  struct cam_isp_hw_intf_data cam_vfe_hw_list[CAM_VFE_HW_NUM_MAX];
@@ -127,6 +128,13 @@ static int cam_vfe_component_bind(struct device *dev,
 	for (i = 0; i < vfe_soc_priv->num_pid; i++)
 		cam_vfe_hw_list[vfe_hw_intf->hw_idx].hw_pid[i] =
 			vfe_soc_priv->pid[i];
+
+	vfe_hw->soc_info.hw_id = CAM_HW_ID_IFE0 + vfe_hw->soc_info.index;
+	rc = cam_vmvm_populate_hw_instance_info(&vfe_hw->soc_info, NULL, NULL);
+	if (rc) {
+		CAM_ERR(CAM_ISP, " hw instance populate failed: %d", rc);
+		goto deinit_soc;
+	}
 
 	CAM_DBG(CAM_ISP, "VFE:%d component bound successfully",
 		vfe_hw_intf->hw_idx);

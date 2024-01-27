@@ -138,6 +138,7 @@ struct cam_soc_resources {
  * @lend_in_progress            Whether lend is in progress
  * @spin_lock:                  Spin lock
  * @msg_comm_lock:              Message communication lock
+ * @ref_count:                  Hw acquired ref count
  * @list:                       Link list entry
  */
 struct cam_hw_instance {
@@ -156,6 +157,7 @@ struct cam_hw_instance {
 	atomic_t                 lend_in_progress;
 	spinlock_t               spin_lock;
 	struct mutex             msg_comm_lock;
+	int32_t                  ref_count;
 	struct list_head         list;
 };
 

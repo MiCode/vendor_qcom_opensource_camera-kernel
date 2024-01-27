@@ -11,6 +11,7 @@
 #include "cam_vmrm.h"
 #include "cam_common_util.h"
 #include "cam_vmrm_interface.h"
+#include "cam_soc_util.h"
 
 struct cam_vmrm_intf_dev *g_vmrm_intf_dev;
 
@@ -1423,6 +1424,63 @@ end:
 	return rc;
 }
 
+static int cam_vmrm_hw_instance_generic_callback(void *cb_data, void *msg,
+	uint32_t size)
+{
+	int rc = 0;
+	uint32_t msg_type, hw_id;
+	struct cam_hw_soc_info            *soc_info = NULL;
+	unsigned long cesta_clk_rate_high = 0, cesta_clk_rate_low = 0;
+	int cesta_client_idx = -1;
+	struct cam_msg_set_clk_rate *msg_set_clk_rate = NULL;
+	struct cam_vmrm_msg *hw_msg = NULL;
+
+	hw_msg = msg;
+	hw_id = hw_msg->msg_dst_id;
+
+	soc_info = (struct cam_hw_soc_info *)cb_data;
+
+	msg_type = hw_msg->msg_type;
+
+	CAM_DBG(CAM_VMRM, "hw id:0x%x, msg type %d", hw_id, msg_type);
+
+	switch (msg_type) {
+	case CAM_SOC_ENABLE_RESOURCE:
+		rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX,
+			true, soc_info->lowest_clk_level, false);
+		if (rc)
+			CAM_ERR(CAM_VMRM, "hw id:0x%x soc enable resource failed", hw_id);
+		break;
+
+	case CAM_SOC_DISABLE_RESOURCE:
+		rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX,
+			true, false);
+		if (rc)
+			CAM_ERR(CAM_VMRM, "hw id:0x%x soc disable resource failed", hw_id);
+		break;
+
+	case CAM_CLK_SET_RATE:
+		msg_set_clk_rate = (struct cam_msg_set_clk_rate *)&hw_msg->data[0];
+		cesta_client_idx = msg_set_clk_rate->cesta_client_idx;
+		cesta_clk_rate_high = msg_set_clk_rate->clk_rate_high;
+		cesta_clk_rate_low = msg_set_clk_rate->clk_rate_low;
+		CAM_DBG(CAM_VMRM, "hw id:0x%x, client idx %d, clk[high low]=[%lu %lu]", hw_id,
+			cesta_client_idx, cesta_clk_rate_high, cesta_clk_rate_low);
+		rc = cam_soc_util_set_src_clk_rate(soc_info, cesta_client_idx,
+			cesta_clk_rate_high, cesta_clk_rate_low);
+		if (rc)
+			CAM_ERR(CAM_VMRM, "hw id:0x%x clk set rate failed", hw_id);
+		break;
+
+	default:
+		rc = -EINVAL;
+		CAM_ERR(CAM_VMRM, "hw id:0x%x Error, Invalid msg type:%d", hw_id, msg_type);
+		break;
+	}
+
+	return rc;
+}
+
 void cam_vmrm_msg_handle(void *msg, size_t size, struct cam_intervm_response *res)
 {
 	int rc = 0;
@@ -1467,8 +1525,12 @@ void cam_vmrm_msg_handle(void *msg, size_t size, struct cam_intervm_response *re
 			mutex_lock(&vmrm_intf_dev->lock);
 			hw_pos = cam_hw_instance_lookup(vm_msg->msg_dst_id, 0, 0, 0);
 			if (hw_pos) {
-				rc = hw_pos->hw_msg_callback(hw_pos->hw_msg_callback_data,
-					vm_msg, size);
+				if (hw_pos->hw_msg_callback)
+					rc = hw_pos->hw_msg_callback(hw_pos->hw_msg_callback_data,
+						vm_msg, size);
+				else
+					rc = cam_vmrm_hw_instance_generic_callback(
+						hw_pos->hw_msg_callback_data, vm_msg, size);
 				if (!rc)
 					CAM_DBG(CAM_VMRM, "hw id 0x%x msg type %d handle succeed",
 						vm_msg->msg_dst_id, vm_msg->msg_type);

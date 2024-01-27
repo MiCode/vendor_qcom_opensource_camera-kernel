@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -17,6 +17,7 @@
 #include "cam_sfe880.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
+#include "cam_vmrm_interface.h"
 
 static struct cam_isp_hw_intf_data cam_sfe_hw_list[CAM_SFE_HW_NUM_MAX];
 static uint32_t g_num_sfe_hws;
@@ -130,6 +131,13 @@ static int cam_sfe_component_bind(struct device *dev,
 	for (i = 0; i < soc_priv->num_pid; i++)
 		cam_sfe_hw_list[sfe_hw_intf->hw_idx].hw_pid[i] =
 			soc_priv->pid[i];
+
+	sfe_info->soc_info.hw_id = CAM_HW_ID_SFE0 + sfe_info->soc_info.index;
+	rc = cam_vmvm_populate_hw_instance_info(&sfe_info->soc_info, NULL, NULL);
+	if (rc) {
+		CAM_ERR(CAM_SFE, " hw instance populate failed: %d", rc);
+		goto deinit_soc;
+	}
 
 	CAM_DBG(CAM_SFE, "SFE%d bound successfully",
 		sfe_hw_intf->hw_idx);

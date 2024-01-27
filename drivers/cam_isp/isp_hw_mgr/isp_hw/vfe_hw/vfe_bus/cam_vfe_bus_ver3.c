@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -27,6 +27,7 @@
 #include "cam_smmu_api.h"
 #include "cam_common_util.h"
 #include "cam_compat.h"
+#include "cam_vmrm_interface.h"
 
 static const char drv_name[] = "vfe_bus";
 
@@ -1157,7 +1158,7 @@ static int cam_vfe_bus_ver3_acquire_wm(
 	struct cam_isp_resource_node           *wm_res,
 	enum cam_vfe_bus_ver3_comp_grp_type   *comp_grp_id)
 {
-	int32_t wm_idx = 0, rc;
+	int32_t wm_idx = 0, rc = 0;
 	struct cam_vfe_bus_ver3_wm_resource_data  *rsrc_data = NULL;
 	char wm_mode[50] = {'\0'};
 
@@ -1215,6 +1216,14 @@ static int cam_vfe_bus_ver3_acquire_wm(
 	if (out_acq_args->out_port_info->rcs_en)
 		rsrc_data->cfg.en_cfg |= rsrc_data->hw_regs->rcs_en_mask;
 
+	/* Acquire ownership */
+	rc = cam_vmrm_soc_acquire_resources(CAM_HW_ID_IFE0 + rsrc_data->common_data->core_index);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "VFE[%u] acquire ownership failed",
+			rsrc_data->common_data->core_index);
+		return rc;
+	}
+
 	wm_res->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
 	wm_res->tasklet_info = tasklet;
 
@@ -1230,6 +1239,7 @@ static int cam_vfe_bus_ver3_acquire_wm(
 static int cam_vfe_bus_ver3_release_wm(void   *bus_priv,
 	struct cam_isp_resource_node     *wm_res)
 {
+	int rc = 0;
 	struct cam_vfe_bus_ver3_wm_resource_data   *rsrc_data =
 		wm_res->res_priv;
 
@@ -1260,11 +1270,18 @@ static int cam_vfe_bus_ver3_release_wm(void   *bus_priv,
 	wm_res->tasklet_info = NULL;
 	wm_res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 
+	rc = cam_vmrm_soc_release_resources(CAM_HW_ID_IFE0 + rsrc_data->common_data->core_index);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "VFE[%u] vmrm soc release resources failed",
+			rsrc_data->common_data->core_index);
+		return rc;
+	}
+
 	CAM_DBG(CAM_ISP, "VFE:%u Release WM:%d %s",
 		rsrc_data->common_data->core_index, rsrc_data->index,
 		wm_res->res_name);
 
-	return 0;
+	return rc;
 }
 
 static int cam_vfe_bus_ver3_start_wm_util(

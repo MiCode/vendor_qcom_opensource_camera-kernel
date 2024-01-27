@@ -178,7 +178,11 @@ int cam_vmvm_populate_hw_instance_info(struct cam_hw_soc_info *soc_info,
 	hw_instance_temp->resources.mem_label = soc_info->vmrm_resource_ids[0];
 	hw_instance_temp->resources.mem_tag = soc_info->vmrm_resource_ids[1];
 	hw_instance_temp->hw_msg_callback = hw_msg_callback;
-	hw_instance_temp->hw_msg_callback_data = hw_msg_callback_data;
+
+	if (hw_instance_temp->hw_msg_callback)
+		hw_instance_temp->hw_msg_callback_data = hw_msg_callback_data;
+	else
+		hw_instance_temp->hw_msg_callback_data = soc_info;
 
 	/*Mem resource is allways there*/
 	hw_instance_temp->resources.valid_mask |= BIT(0);
@@ -186,6 +190,7 @@ int cam_vmvm_populate_hw_instance_info(struct cam_hw_soc_info *soc_info,
 	/* Default owner is PVM*/
 	hw_instance_temp->vm_owner = CAM_PVM;
 	hw_instance_temp->is_using = false;
+	hw_instance_temp->ref_count = 0;
 
 	INIT_LIST_HEAD(&hw_instance_temp->list);
 	init_completion(&hw_instance_temp->wait_response);
@@ -431,12 +436,13 @@ int cam_vmrm_soc_acquire_resources(uint32_t hw_id)
 		goto end;
 	}
 
-	CAM_DBG(CAM_VMRM, "hw 0x%x ownership %d is_using %d", hw_id, hw_pos->vm_owner,
-		hw_pos->is_using);
+	CAM_DBG(CAM_VMRM, "hw 0x%x ownership %d is_using %d ref count %d", hw_id, hw_pos->vm_owner,
+		hw_pos->is_using, hw_pos->ref_count);
 
-	if ((hw_pos->vm_owner == cam_vmrm_intf_get_vmid()) && hw_pos->is_using) {
-		CAM_DBG(CAM_VMRM, "hw 0x%x ownership has been acquired %d", hw_id,
-			cam_vmrm_intf_get_vmid());
+	if ((hw_pos->vm_owner == cam_vmrm_intf_get_vmid()) && hw_pos->ref_count) {
+		hw_pos->ref_count++;
+		CAM_DBG(CAM_VMRM, "hw 0x%x ownership has been acquired %d ref count %d",
+			hw_id, cam_vmrm_intf_get_vmid(), hw_pos->ref_count);
 		mutex_unlock(&vmrm_intf_dev->lock);
 		goto end;
 	}
@@ -453,6 +459,7 @@ int cam_vmrm_soc_acquire_resources(uint32_t hw_id)
 	 */
 	if (CAM_IS_PRIMARY_VM()) {
 		hw_pos->is_using = true;
+		hw_pos->ref_count++;
 		mutex_unlock(&vmrm_intf_dev->lock);
 		rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_SVM1, CAM_MSG_DST_TYPE_VMRM,
 			hw_id, CAM_HW_RESOURCE_SET_ACQUIRE, false, false, NULL, 1, NULL);
@@ -460,7 +467,8 @@ int cam_vmrm_soc_acquire_resources(uint32_t hw_id)
 			CAM_ERR(CAM_VMRM, "vm rm send msg failed %d", rc);
 			goto end;
 		}
-		CAM_DBG(CAM_VMRM, "hw 0x%x is pvm own just return and send msg to SVM", hw_id);
+		CAM_DBG(CAM_VMRM, "hw 0x%x is pvm own and send msg to SVM ref count %d",
+			hw_id, hw_pos->ref_count);
 	} else {
 		mutex_unlock(&vmrm_intf_dev->lock);
 		if (vmrm_intf_dev->gh_rr_enable) {
@@ -539,8 +547,10 @@ int cam_vmrm_soc_acquire_resources(uint32_t hw_id)
 			if (!rc && !hw_pos->response_result) {
 				mutex_lock(&vmrm_intf_dev->lock);
 				vmrm_intf_dev->lend_cnt++;
-				CAM_DBG(CAM_VMRM, "acquire succeed hw id 0x%x lend_cnt %d",
-					hw_pos->hw_id, vmrm_intf_dev->lend_cnt);
+				hw_pos->ref_count++;
+				CAM_DBG(CAM_VMRM,
+					"acquire succeed hw id 0x%x lend_cnt %d ref count %d",
+					hw_pos->hw_id, vmrm_intf_dev->lend_cnt, hw_pos->ref_count);
 				mutex_unlock(&vmrm_intf_dev->lock);
 			} else if (!rc && hw_pos->response_result) {
 				CAM_ERR(CAM_VMRM, "failure happen in pvm lend hw id 0x%x",
@@ -584,6 +594,15 @@ int cam_vmrm_soc_release_resources(uint32_t hw_id)
 		mutex_unlock(&vmrm_intf_dev->lock);
 		goto end;
 	}
+
+	hw_pos->ref_count--;
+
+	if (hw_pos->ref_count) {
+		CAM_DBG(CAM_VMRM, "hw %x ref count %d", hw_id, hw_pos->ref_count);
+		mutex_unlock(&vmrm_intf_dev->lock);
+		goto end;
+	}
+
 	if (CAM_IS_PRIMARY_VM())
 		hw_pos->is_using = false;
 	mutex_unlock(&vmrm_intf_dev->lock);
@@ -711,6 +730,54 @@ int cam_vmrm_set_src_clk_rate(uint32_t hw_id, int cesta_client_idx,
 		CAM_DBG(CAM_VMRM, "set src clk rate succeed 0x%x", hw_id);
 	else
 		CAM_ERR(CAM_VMRM, "set src clk rate failed 0x%x", hw_id);
+
+	mutex_unlock(&hw_pos->msg_comm_lock);
+
+	return rc;
+}
+
+int cam_vmrm_set_clk_rate_level(uint32_t hw_id, int cesta_client_idx,
+	enum cam_vote_level clk_level_high, enum cam_vote_level clk_level_low,
+	bool do_not_set_src_clk, unsigned long clk_rate)
+{
+	int rc = 0;
+	struct cam_hw_instance *hw_pos;
+	struct cam_vmrm_intf_dev *vmrm_intf_dev;
+	struct cam_msg_set_clk_rate_level msg_set_clk_rate_level;
+
+	vmrm_intf_dev = cam_vmrm_get_intf_dev();
+	mutex_lock(&vmrm_intf_dev->lock);
+	hw_pos = cam_hw_instance_lookup(hw_id, 0, 0, 0);
+	if (!hw_pos) {
+		CAM_ERR(CAM_VMRM, "Do not find hw instance 0x%x", hw_id);
+		mutex_unlock(&vmrm_intf_dev->lock);
+		return -EINVAL;
+	}
+	mutex_unlock(&vmrm_intf_dev->lock);
+
+	msg_set_clk_rate_level.cesta_client_idx = cesta_client_idx;
+	msg_set_clk_rate_level.clk_level_high = clk_level_high;
+	msg_set_clk_rate_level.clk_level_low = clk_level_low;
+	msg_set_clk_rate_level.do_not_set_src_clk = do_not_set_src_clk;
+	msg_set_clk_rate_level.clk_rate = clk_rate;
+
+	mutex_lock(&hw_pos->msg_comm_lock);
+	reinit_completion(&hw_pos->wait_response);
+
+	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
+		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, hw_id, CAM_CLK_SET_RATE_LEVEL, false, true,
+		&msg_set_clk_rate_level, sizeof(msg_set_clk_rate_level), &hw_pos->wait_response);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "send msg for hw id failed: 0x%x, rc: %d", hw_id, rc);
+		mutex_unlock(&hw_pos->msg_comm_lock);
+		return rc;
+	}
+
+	rc = hw_pos->response_result;
+	if (!rc)
+		CAM_DBG(CAM_VMRM, "set src clk rate level succeed 0x%x", hw_id);
+	else
+		CAM_ERR(CAM_VMRM, "set src clk rate level failed 0x%x", hw_id);
 
 	mutex_unlock(&hw_pos->msg_comm_lock);
 
@@ -919,6 +986,13 @@ int cam_vmrm_soc_enable_disable_resources(uint32_t hw_id, bool flag)
 
 int cam_vmrm_set_src_clk_rate(uint32_t hw_id, int cesta_client_idx,
 	unsigned long clk_rate_high, unsigned long clk_rate_low)
+{
+	return 0;
+}
+
+int cam_vmrm_set_clk_rate_level(uint32_t hw_id, int cesta_client_idx,
+	enum cam_vote_level clk_level_high, enum cam_vote_level clk_level_low,
+	bool do_not_set_src_clk, unsigned long clk_rate)
 {
 	return 0;
 }

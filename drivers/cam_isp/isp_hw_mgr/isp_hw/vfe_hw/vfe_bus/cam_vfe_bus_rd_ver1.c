@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/ratelimit.h>
@@ -22,6 +22,7 @@
 #include "cam_vfe_core.h"
 #include "cam_debug_util.h"
 #include "cam_cpas_api.h"
+#include "cam_vmrm_interface.h"
 
 static const char drv_name[] = "vfe_bus_rd";
 
@@ -355,6 +356,7 @@ static int cam_vfe_bus_acquire_rm(
 	uint32_t                                     rm_idx = 0;
 	struct cam_isp_resource_node                *rm_res_local = NULL;
 	struct cam_vfe_bus_rd_ver1_rm_resource_data *rsrc_data = NULL;
+	int rc = 0;
 
 	*rm_res = NULL;
 	*client_done_mask = 0;
@@ -374,6 +376,16 @@ static int cam_vfe_bus_acquire_rm(
 			rm_res_local->res_state);
 		return -EALREADY;
 	}
+
+	/* Acquire ownership */
+	rc = cam_vmrm_soc_acquire_resources(
+		CAM_HW_ID_IFE0 + ver1_bus_rd_priv->common_data.core_index);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "VFE[%u] acquire ownership failed",
+			ver1_bus_rd_priv->common_data.core_index);
+		return rc;
+	}
+
 	rm_res_local->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
 	rm_res_local->tasklet_info = tasklet;
 
@@ -397,6 +409,7 @@ static int cam_vfe_bus_acquire_rm(
 static int cam_vfe_bus_release_rm(void              *bus_priv,
 	struct cam_isp_resource_node                *rm_res)
 {
+	int rc = 0;
 	struct cam_vfe_bus_rd_ver1_rm_resource_data *rsrc_data =
 		rm_res->res_priv;
 
@@ -414,9 +427,17 @@ static int cam_vfe_bus_release_rm(void              *bus_priv,
 	rm_res->tasklet_info = NULL;
 	rm_res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 
+	rc = cam_vmrm_soc_release_resources(
+		CAM_HW_ID_IFE0 + rsrc_data->common_data->core_index);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "VFE[%u] vmrm soc release resources failed",
+			rsrc_data->common_data->core_index);
+		return rc;
+	}
+
 	CAM_DBG(CAM_ISP, "VFE:%d RM:%d released",
 		rsrc_data->common_data->core_index, rsrc_data->index);
-	return 0;
+	return rc;
 }
 
 static int cam_vfe_bus_start_rm(struct cam_isp_resource_node *rm_res)

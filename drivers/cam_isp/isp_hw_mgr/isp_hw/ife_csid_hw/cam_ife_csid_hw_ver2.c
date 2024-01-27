@@ -27,6 +27,7 @@
 #include "cam_common_util.h"
 #include "cam_subdev.h"
 #include "cam_compat.h"
+#include "cam_vmrm_interface.h"
 
 /* CSIPHY TPG VC/DT values */
 #define CAM_IFE_CPHY_TPG_VC_VAL                         0x0
@@ -3903,6 +3904,14 @@ int cam_ife_csid_ver2_reserve(void *hw_priv,
 		}
 	}
 
+	/* Acquire ownership */
+	rc = cam_vmrm_soc_acquire_resources(csid_hw->hw_info->soc_info.hw_id);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "CSID[%u] acquire ownership failed",
+			csid_hw->hw_intf->hw_idx);
+		goto release;
+	}
+
 	reserve->node_res = res;
 	res->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
 	csid_hw->event_cb = reserve->event_cb;
@@ -4008,6 +4017,13 @@ int cam_ife_csid_ver2_release(void *hw_priv,
 	}
 
 	res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
+
+	rc = cam_vmrm_soc_release_resources(csid_hw->hw_info->soc_info.hw_id);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "CSID[%u] vmrm soc release resources failed",
+			csid_hw->hw_intf->hw_idx);
+	}
+
 end:
 	mutex_unlock(&csid_hw->hw_info->hw_mutex);
 	return rc;

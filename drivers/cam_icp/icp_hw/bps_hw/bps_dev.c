@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -19,6 +19,7 @@
 #include "cam_cpas_api.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
+#include "cam_vmrm_interface.h"
 
 static struct cam_bps_device_hw_info cam_bps_hw_info = {
 	.hw_idx = 0,
@@ -174,8 +175,19 @@ static int cam_bps_component_bind(struct device *dev,
 		kfree(bps_dev_intf);
 		return rc;
 	}
+
+	bps_dev->soc_info.hw_id = CAM_HW_ID_BPS + bps_dev->soc_info.index;
 	CAM_DBG(CAM_ICP, "soc info : %pK",
 		(void *)&bps_dev->soc_info);
+
+	rc = cam_vmvm_populate_hw_instance_info(&bps_dev->soc_info, NULL, NULL);
+	if (rc) {
+		CAM_ERR(CAM_ICP, " hw instance populate failed: %d", rc);
+		kfree(bps_dev->core_info);
+		kfree(bps_dev);
+		kfree(bps_dev_intf);
+		return rc;
+	}
 
 	rc = cam_bps_register_cpas(&bps_dev->soc_info,
 			core_info, bps_dev_intf->hw_idx);

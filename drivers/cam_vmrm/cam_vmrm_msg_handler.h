@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VMRM_MSG_HANDLER_H_
@@ -22,11 +22,12 @@
 #define CAM_SOC_ENABLE_RESOURCE     4
 #define CAM_SOC_DISABLE_RESOURCE    5
 #define CAM_CLK_SET_RATE            6
-#define CAM_ICC_VOTE                7
-#define CAM_HW_POWER_UP             8
-#define CAM_HW_POWER_DOWN           9
-#define CAM_MSG_TYPE_CUSTOM         10
-#define CAM_MSG_TYPE_MAX            11
+#define CAM_CLK_SET_RATE_LEVEL      7
+#define CAM_ICC_VOTE                8
+#define CAM_HW_POWER_UP             9
+#define CAM_HW_POWER_DOWN           10
+#define CAM_MSG_TYPE_CUSTOM         11
+#define CAM_MSG_TYPE_MAX            12
 
 /* vm communication message payload data_size only includes the data size*/
 struct cam_vmrm_msg {
@@ -54,6 +55,24 @@ struct cam_msg_set_clk_rate {
 	int           cesta_client_idx;
 	unsigned long clk_rate_high;
 	unsigned long clk_rate_low;
+};
+
+/**
+ * struct cam_msg_set_clk_rate_level - camera set clock rate level message data payload
+ *
+ * @cesta_client_idx:          Cesta client index
+ * @clk_level_high:            Clock high level
+ * @clk_level_low:             Clock low level
+ * @do_not_set_src_clk:        Set src clk flag
+ * @clk_rate:                  Clock rate
+ *
+ */
+struct cam_msg_set_clk_rate_level {
+	int           cesta_client_idx;
+	int32_t       clk_level_high;
+	int32_t       clk_level_low;
+	bool          do_not_set_src_clk;
+	unsigned long clk_rate;
 };
 
 /**

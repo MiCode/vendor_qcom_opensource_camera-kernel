@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -18,6 +18,7 @@
 #include "cam_cpas_hw.h"
 #include "cam_cpas_soc.h"
 #include "cam_compat.h"
+#include "cam_vmrm_interface.h"
 
 static uint cpas_dump;
 module_param(cpas_dump, uint, 0644);
@@ -381,49 +382,56 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 					return rc;
 				}
 			} else {
-				rc = of_property_read_string_index(mnoc_node,
-					"interconnect-names", i,
-					&curr_axi_port->bus_client.common_data.name);
+				rc = of_property_read_string_index(mnoc_node, "interconnect-names",
+					i, &curr_axi_port->bus_client.common_data.name);
 				if (rc) {
-					CAM_ERR(CAM_CPAS, "failed to read interconnect-names rc=%d",
-						rc);
+					CAM_ERR(CAM_CPAS,
+						"failed to read interconnect-names rc=%d", rc);
 					return rc;
 				}
 
-				rc = of_parse_phandle_with_args(mnoc_node, "interconnects",
-					"#interconnect-cells", (2 * i), &src_args);
-				if (rc) {
-					CAM_ERR(CAM_CPAS,
-						"failed to read axi bus src info rc=%d",
-						rc);
-					return -EINVAL;
+				/* interconnect is not supported on tvm */
+				if (!cam_vmrm_proxy_icc_voting_enable()) {
+					rc = of_parse_phandle_with_args(mnoc_node, "interconnects",
+						"#interconnect-cells", (2 * i), &src_args);
+					if (rc) {
+						CAM_ERR(CAM_CPAS,
+							"failed to read axi bus src info rc=%d",
+							rc);
+						return -EINVAL;
+					}
+
+					of_node_put(src_args.np);
+					if (src_args.args_count != 1) {
+						CAM_ERR(CAM_CPAS,
+							"Invalid number of axi src args: %d",
+							src_args.args_count);
+						return -EINVAL;
+					}
+
+					curr_axi_port->bus_client.common_data.src_id =
+						src_args.args[0];
+
+					rc = of_parse_phandle_with_args(mnoc_node, "interconnects",
+						"#interconnect-cells", ((2 * i) + 1), &dst_args);
+					if (rc) {
+						CAM_ERR(CAM_CPAS,
+							"failed to read axi bus dst info rc=%d",
+							rc);
+						return -EINVAL;
+					}
+
+					of_node_put(dst_args.np);
+					if (dst_args.args_count != 1) {
+						CAM_ERR(CAM_CPAS,
+							"Invalid number of axi dst args: %d",
+							dst_args.args_count);
+						return -EINVAL;
+					}
+
+					curr_axi_port->bus_client.common_data.dst_id =
+						dst_args.args[0];
 				}
-
-				of_node_put(src_args.np);
-				if (src_args.args_count != 1) {
-					CAM_ERR(CAM_CPAS, "Invalid number of axi src args: %d",
-						src_args.args_count);
-					return -EINVAL;
-				}
-
-				curr_axi_port->bus_client.common_data.src_id = src_args.args[0];
-
-				rc = of_parse_phandle_with_args(mnoc_node, "interconnects",
-					"#interconnect-cells", ((2 * i) + 1), &dst_args);
-				if (rc) {
-					CAM_ERR(CAM_CPAS, "failed to read axi bus dst info rc=%d",
-						rc);
-					return -EINVAL;
-				}
-
-				of_node_put(dst_args.np);
-				if (dst_args.args_count != 1) {
-					CAM_ERR(CAM_CPAS, "Invalid number of axi dst args: %d",
-						dst_args.args_count);
-					return -EINVAL;
-				}
-
-				curr_axi_port->bus_client.common_data.dst_id = dst_args.args[0];
 			}
 
 			curr_axi_port->bus_client.common_data.num_usecases = 2;
@@ -1317,7 +1325,7 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	CAM_DBG(CAM_CPAS, "camnoc-axi-min-ib-bw = %llu", soc_private->camnoc_axi_min_ib_bw);
 
 	soc_private->client_id_based = of_property_read_bool(of_node, "client-id-based");
-	soc_private->bus_icc_based = of_property_read_bool(of_node, "interconnects");
+	soc_private->bus_icc_based = of_property_read_bool(of_node, "interconnect-names");
 
 	if (soc_private->bus_icc_based) {
 		soc_private->use_cam_icc_path_str = of_property_read_bool(of_node,
@@ -1337,42 +1345,47 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 		rc = of_property_read_string(of_node, "interconnect-names",
 			&cpas_core->ahb_bus_client.common_data.name);
 		if (rc) {
-			CAM_ERR(CAM_CPAS, "device %s failed to read ahb interconnect-names",
-				pdev->name);
+			CAM_ERR(CAM_CPAS,
+				"device %s failed to read ahb interconnect-names", pdev->name);
 			return rc;
 		}
 
-		rc = of_parse_phandle_with_args(of_node, "interconnects",
-			"#interconnect-cells", 0, &src_args);
-		if (rc) {
-			CAM_ERR(CAM_CPAS, "device %s failed to read ahb bus src info", pdev->name);
-			return rc;
+		/* interconnect is not supported on tvm */
+		if (!cam_vmrm_proxy_icc_voting_enable()) {
+			rc = of_parse_phandle_with_args(of_node, "interconnects",
+				"#interconnect-cells", 0, &src_args);
+			if (rc) {
+				CAM_ERR(CAM_CPAS, "device %s failed to read ahb bus src info",
+					pdev->name);
+				return rc;
+			}
+
+			of_node_put(src_args.np);
+			if (src_args.args_count != 1) {
+				CAM_ERR(CAM_CPAS, "Invalid number of ahb src args: %d",
+					src_args.args_count);
+				return -EINVAL;
+			}
+
+			cpas_core->ahb_bus_client.common_data.src_id = src_args.args[0];
+
+			rc = of_parse_phandle_with_args(of_node, "interconnects",
+				"#interconnect-cells", 1, &dst_args);
+			if (rc) {
+				CAM_ERR(CAM_CPAS, "device %s failed to read ahb bus dst info",
+					pdev->name);
+				return rc;
+			}
+
+			of_node_put(dst_args.np);
+			if (dst_args.args_count != 1) {
+				CAM_ERR(CAM_CPAS, "Invalid number of ahb dst args: %d",
+					dst_args.args_count);
+				return -EINVAL;
+			}
+
+			cpas_core->ahb_bus_client.common_data.dst_id = dst_args.args[0];
 		}
-
-		of_node_put(src_args.np);
-		if (src_args.args_count != 1) {
-			CAM_ERR(CAM_CPAS, "Invalid number of ahb src args: %d",
-				src_args.args_count);
-			return -EINVAL;
-		}
-
-		cpas_core->ahb_bus_client.common_data.src_id = src_args.args[0];
-
-		rc = of_parse_phandle_with_args(of_node, "interconnects",
-			"#interconnect-cells", 1, &dst_args);
-		if (rc) {
-			CAM_ERR(CAM_CPAS, "device %s failed to read ahb bus dst info", pdev->name);
-			return rc;
-		}
-
-		of_node_put(dst_args.np);
-		if (dst_args.args_count != 1) {
-			CAM_ERR(CAM_CPAS, "Invalid number of ahb dst args: %d",
-				dst_args.args_count);
-			return -EINVAL;
-		}
-
-		cpas_core->ahb_bus_client.common_data.dst_id = dst_args.args[0];
 
 parse_ahb_table:
 		rc = of_property_read_u32(of_node, "cam-ahb-num-cases",
@@ -1966,6 +1979,177 @@ int cam_cpas_soc_disable_irq(struct cam_hw_soc_info *soc_info)
 	rc = cam_soc_util_irq_disable(soc_info);
 	if (rc)
 		CAM_ERR(CAM_CPAS, "disable irq failed, rc=%d", rc);
+
+	return rc;
+}
+
+int cam_cpas_vmrm_callback_handler(void *cb_data, void *msg, uint32_t size)
+{
+	int rc = 0, i;
+	uint32_t msg_type;
+	struct cam_hw_intf *cpas_hw_intf = NULL;
+	struct cam_hw_info *cpas_hw = NULL;
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct cam_cpas *cpas_core = NULL;
+	struct cam_soc_bus_client *bus_client = NULL;
+	struct cam_vmrm_msg *cpas_msg = NULL;
+	unsigned long cesta_clk_rate_high = 0, cesta_clk_rate_low = 0;
+	int32_t clk_level_high, clk_level_low, clk_lvl, highest_level;
+	bool do_not_set_src_clk;
+	int cesta_client_idx = -1;
+	int64_t applied_rate = 0;
+	struct cam_msg_set_clk_rate *msg_set_clk_rate = NULL;
+	struct cam_msg_set_clk_rate_level *msg_set_clk_rate_level = NULL;
+	struct cam_msg_icc_vote *msg_icc_vote = NULL;
+	char name[CAM_ICC_CLIENT_NAME_MAX];
+	uint64_t ab, ib;
+
+	cpas_hw_intf = (struct cam_hw_intf *)cb_data;
+	cpas_hw = cpas_hw_intf->hw_priv;
+	soc_info = &cpas_hw->soc_info;
+	cpas_core = cpas_hw->core_info;
+
+	cpas_msg = msg;
+	msg_type = cpas_msg->msg_type;
+
+	CAM_DBG(CAM_CPAS, "msg type %d", msg_type);
+
+	switch (msg_type) {
+	case CAM_SOC_ENABLE_RESOURCE:
+		rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+			cpas_hw->soc_info.lowest_clk_level, false);
+		if (rc)
+			CAM_ERR(CAM_CPAS, "cpas soc enable resource failed %d", rc);
+		break;
+
+	case CAM_SOC_DISABLE_RESOURCE:
+		rc = cam_soc_util_disable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX,
+			true, false);
+		if (rc)
+			CAM_ERR(CAM_CPAS, "cpas soc disable resource failed %d", rc);
+		break;
+
+	case CAM_CLK_SET_RATE:
+		msg_set_clk_rate = (struct cam_msg_set_clk_rate *)&cpas_msg->data[0];
+		cesta_client_idx = msg_set_clk_rate->cesta_client_idx;
+		cesta_clk_rate_high = msg_set_clk_rate->clk_rate_high;
+		cesta_clk_rate_low = msg_set_clk_rate->clk_rate_low;
+
+		CAM_DBG(CAM_CPAS, "set %s, cesta_client_idx %d rate [%ld %ld] dev_name %s",
+				soc_info->clk_name[soc_info->src_clk_idx], cesta_client_idx,
+				cesta_clk_rate_high, cesta_clk_rate_low, soc_info->dev_name);
+
+		rc = cam_soc_util_set_src_clk_rate(soc_info, cesta_client_idx,
+			cesta_clk_rate_high, cesta_clk_rate_low);
+		if (rc)
+			CAM_ERR(CAM_CPAS, "set %s, cesta_client_idx %d rate [%ld %ld] dev_name %s",
+				soc_info->clk_name[soc_info->src_clk_idx], cesta_client_idx,
+				cesta_clk_rate_high, cesta_clk_rate_low, soc_info->dev_name);
+		break;
+
+	case CAM_CLK_SET_RATE_LEVEL:
+		msg_set_clk_rate_level = (struct cam_msg_set_clk_rate_level *)&cpas_msg->data[0];
+		cesta_client_idx = msg_set_clk_rate_level->cesta_client_idx;
+		clk_level_high = msg_set_clk_rate_level->clk_level_high;
+		clk_level_low = msg_set_clk_rate_level->clk_level_low;
+		cesta_clk_rate_high = msg_set_clk_rate_level->clk_rate;
+		do_not_set_src_clk = msg_set_clk_rate_level->do_not_set_src_clk;
+
+		CAM_DBG(CAM_CPAS,
+			"set %s, cesta_client_idx %d level [%d %d] rate %ld dev_name %s do_not_set_src_clk %d",
+			soc_info->clk_name[soc_info->src_clk_idx], cesta_client_idx,
+			clk_level_high, clk_level_low, cesta_clk_rate_high, soc_info->dev_name);
+
+		if (cesta_clk_rate_high) {
+			rc = cam_soc_util_get_clk_level(soc_info, cesta_clk_rate_high,
+				soc_info->src_clk_idx, &clk_lvl);
+			if (rc) {
+				CAM_ERR(CAM_CPAS,
+					"failed to get clk lvl: %d, src clk idx: %d, hlos clk rate %lld",
+					rc, soc_info->src_clk_idx, cesta_clk_rate_high);
+				return rc;
+			}
+
+			highest_level = max(clk_level_high, clk_lvl);
+			rc = cam_soc_util_get_valid_clk_rate(soc_info, highest_level,
+				&applied_rate);
+			if (rc) {
+				CAM_ERR(CAM_CPAS,
+					"Failed in getting valid clk rate to apply rc: %d", rc);
+				return rc;
+			}
+
+			CAM_DBG(CAM_CPAS,
+				"Highest valid lvl: %d, applying corresponding rate %lld",
+				highest_level, applied_rate);
+			rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX,
+				applied_rate, 0);
+			if (rc) {
+				CAM_ERR(CAM_CPAS,
+					"Failed in setting camnoc axi clk applied rate:[%lld] rc:%d",
+					applied_rate, rc);
+				return rc;
+			}
+		} else {
+			rc = cam_soc_util_set_clk_rate_level(soc_info, cesta_client_idx,
+				clk_level_high, clk_level_low, do_not_set_src_clk);
+			if (rc) {
+				CAM_ERR(CAM_CPAS,
+					"Failed in scaling clock rate level %d for cpas",
+					clk_level_high);
+				return rc;
+			}
+		}
+		break;
+
+	case CAM_ICC_VOTE:
+		msg_icc_vote = (struct cam_msg_icc_vote *)&cpas_msg->data[0];
+		scnprintf(name, sizeof(name), "%s", msg_icc_vote->name);
+		ab = msg_icc_vote->ab;
+		ib = msg_icc_vote->ib;
+
+		CAM_DBG(CAM_CPAS, "name %s, ab %llu ib %llu", name, ab, ib);
+
+		if (!strcmp(name, cpas_core->ahb_bus_client.common_data.name)) {
+			bus_client = (struct cam_soc_bus_client *)
+				cpas_core->ahb_bus_client.soc_bus_client;
+			goto update_bw;
+		}
+
+		for (i = 0; i < cpas_core->num_axi_ports; i++) {
+			if (!strcmp(name, cpas_core->axi_port[i].bus_client.common_data.name)) {
+				bus_client = (struct cam_soc_bus_client *)
+					cpas_core->axi_port[i].bus_client.soc_bus_client;
+				goto update_bw;
+			}
+		}
+
+		for (i = 0; i < cpas_core->num_camnoc_axi_ports; i++) {
+			if (!strcmp(name,
+				cpas_core->camnoc_axi_port[i].bus_client.common_data.name)) {
+				bus_client = (struct cam_soc_bus_client *)
+					cpas_core->camnoc_axi_port[i].bus_client.soc_bus_client;
+				break;
+			}
+		}
+
+update_bw:
+		if (bus_client == NULL) {
+			CAM_ERR(CAM_CPAS, "Invalid bus client name %s", name);
+			return -EINVAL;
+		}
+
+		rc = cam_soc_bus_client_update_bw(bus_client, ab, ib, CAM_SOC_BUS_PATH_DATA_HLOS);
+		if (rc)
+			CAM_ERR(CAM_CPAS, "bus client %s ab %llu ib %llu update bw failed %d ",
+				name, ab, ib);
+		break;
+
+	default:
+		rc = -EINVAL;
+		CAM_ERR(CAM_CPAS, "Invalid msg type:%d", msg_type);
+		break;
+	}
 
 	return rc;
 }

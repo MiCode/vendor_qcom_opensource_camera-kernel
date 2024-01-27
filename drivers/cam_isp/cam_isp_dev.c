@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -22,6 +22,7 @@
 #include "camera_main.h"
 #include "cam_common_util.h"
 #include "cam_context_utils.h"
+#include "cam_vmrm_interface.h"
 
 static struct cam_isp_dev g_isp_dev;
 
@@ -87,6 +88,21 @@ static void cam_isp_subdev_handle_message(
 		if (rc)
 			CAM_ERR(CAM_ISP, "Failed to handle message for %s", node->name);
 	}
+}
+
+static int cam_isp_vmrm_callback_handler(
+	void *cb_data, void *msg, uint32_t size)
+{
+	struct cam_isp_dev *isp_dev;
+	struct cam_vmrm_msg *isp_msg = NULL;
+
+	isp_dev = (struct cam_isp_dev *)cb_data;
+	isp_msg = (struct cam_vmrm_msg *)msg;
+
+	CAM_WARN(CAM_ISP, "isp dev type %d msg type %d",
+		isp_dev->isp_device_type, isp_msg->msg_type);
+
+	return 0;
 }
 
 static const struct of_device_id cam_isp_dt_match[] = {
@@ -164,6 +180,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 	struct cam_node               *node;
 	const char                    *compat_str = NULL;
 	struct platform_device *pdev = to_platform_device(dev);
+	struct cam_driver_node driver_node;
 
 	int iommu_hdl = -1;
 
@@ -258,6 +275,18 @@ static int cam_isp_dev_component_bind(struct device *dev,
 		cam_isp_dev_iommu_fault_handler, node);
 
 	mutex_init(&g_isp_dev.isp_mutex);
+
+	driver_node.driver_id = CAM_DRIVER_ID_ISP;
+	scnprintf(driver_node.driver_name,
+		sizeof(driver_node.driver_name), "%s", pdev->name);
+	driver_node.driver_msg_callback = cam_isp_vmrm_callback_handler;
+	driver_node.driver_msg_callback_data = &g_isp_dev;
+
+	rc = cam_vmrm_populate_driver_node_info(&driver_node);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, " isp driver node populate failed: %d", rc);
+		goto kfree;
+	}
 
 	CAM_DBG(CAM_ISP, "Component bound successfully");
 

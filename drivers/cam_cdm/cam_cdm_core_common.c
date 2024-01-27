@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -18,6 +18,7 @@
 #include "cam_cdm.h"
 #include "cam_cdm_soc.h"
 #include "cam_cdm_core_common.h"
+#include "cam_vmrm_interface.h"
 
 int cam_cdm_util_cpas_start(struct cam_hw_info *cdm_hw)
 {
@@ -674,6 +675,19 @@ int cam_cdm_process_cmd(void *hw_priv,
 			rc = -ENOMEM;
 			break;
 		}
+
+		/* Acquire ownership */
+		if ((core->id != CAM_CDM_VIRTUAL) && (core->num_active_clients == 0)) {
+			rc = cam_vmrm_soc_acquire_resources(cdm_hw->soc_info.hw_id);
+			if (rc) {
+				CAM_ERR(CAM_ISP, "CDM[%u] acquire ownership failed",
+					cdm_hw->soc_info.index);
+				kfree(core->clients[idx]);
+				mutex_unlock(&cdm_hw->hw_mutex);
+				break;
+			}
+		}
+
 		core->num_active_clients++;
 		mutex_unlock(&cdm_hw->hw_mutex);
 
@@ -764,6 +778,17 @@ int cam_cdm_process_cmd(void *hw_priv,
 				core->name, core->id);
 			core->cdm_status = 0;
 		}
+
+		if ((core->id != CAM_CDM_VIRTUAL) && (core->num_active_clients == 0)) {
+			rc = cam_vmrm_soc_release_resources(cdm_hw->soc_info.hw_id);
+			if (rc) {
+				CAM_ERR(CAM_ISP, "CDM[%u] vmrm soc release resources failed",
+					cdm_hw->soc_info.index);
+				mutex_unlock(&cdm_hw->hw_mutex);
+				break;
+			}
+		}
+
 		mutex_unlock(&cdm_hw->hw_mutex);
 		rc = 0;
 		break;

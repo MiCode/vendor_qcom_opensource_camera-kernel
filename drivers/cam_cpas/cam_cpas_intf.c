@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -27,6 +27,7 @@
 
 #include <linux/soc/qcom/llcc-qcom.h>
 #include "cam_req_mgr_interface.h"
+#include "cam_vmrm_interface.h"
 
 #ifdef CONFIG_DYNAMIC_FD_PORT_CONFIG
 #include <linux/IClientEnv.h>
@@ -1787,6 +1788,7 @@ static int cam_cpas_dev_component_bind(struct device *dev,
 	struct cam_hw_intf *hw_intf;
 	int rc;
 	struct platform_device *pdev = to_platform_device(dev);
+	struct cam_hw_info *cpas_hw = NULL;
 
 	if (g_cpas_intf) {
 		CAM_ERR(CAM_CPAS, "cpas component already binded");
@@ -1808,6 +1810,15 @@ static int cam_cpas_dev_component_bind(struct device *dev,
 
 	hw_intf = g_cpas_intf->hw_intf;
 	hw_caps = &g_cpas_intf->hw_caps;
+	cpas_hw = hw_intf->hw_priv;
+
+	cpas_hw->soc_info.hw_id = CAM_HW_ID_CPAS + cpas_hw->soc_info.index;
+	rc = cam_vmvm_populate_hw_instance_info(
+		&cpas_hw->soc_info, cam_cpas_vmrm_callback_handler, hw_intf);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "hw instance populate failed: %d", rc);
+		goto error_hw_remove;
+	}
 
 	if (hw_intf->hw_ops.get_hw_caps) {
 		rc = hw_intf->hw_ops.get_hw_caps(hw_intf->hw_priv,

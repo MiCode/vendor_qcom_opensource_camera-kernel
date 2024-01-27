@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interconnect.h>
@@ -9,6 +9,7 @@
 #include "cam_soc_bus.h"
 #include "cam_compat.h"
 #include "cam_soc_util.h"
+#include "cam_vmrm_interface.h"
 
 extern bool clk_rgltr_bus_ops_profiling;
 
@@ -19,7 +20,7 @@ static inline struct icc_path *cam_wrapper_icc_get(struct device *dev,
 	long usec = 0;
 	struct icc_path *temp;
 
-	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
+	if (cam_vmrm_proxy_icc_voting_enable() || (debug_bypass_drivers & CAM_BYPASS_ICC)) {
 		CAM_WARN(CAM_UTIL, "Bypass icc get for %d %d", src_id, dst_id);
 		return (struct icc_path *)BYPASS_VALUE;
 	}
@@ -39,7 +40,7 @@ static inline void cam_wrapper_icc_put(struct icc_path *path)
 	struct timespec64 ts1, ts2;
 	long usec = 0;
 
-	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
+	if (cam_vmrm_proxy_icc_voting_enable() || (debug_bypass_drivers & CAM_BYPASS_ICC)) {
 		CAM_WARN(CAM_UTIL, "Bypass icc put");
 		return;
 	}
@@ -59,7 +60,7 @@ static inline int cam_wrapper_icc_set_bw(struct icc_path *path,
 	long usec = 0;
 	int temp;
 
-	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
+	if (cam_vmrm_proxy_icc_voting_enable() || (debug_bypass_drivers & CAM_BYPASS_ICC)) {
 		CAM_WARN(CAM_UTIL, "Bypass icc set bw");
 		return 0;
 	}
@@ -80,7 +81,7 @@ static inline void cam_wrapper_icc_set_tag(struct icc_path *path,
 	struct timespec64 ts1, ts2;
 	long usec = 0;
 
-	if (debug_bypass_drivers & CAM_BYPASS_ICC) {
+	if (cam_vmrm_proxy_icc_voting_enable() || (debug_bypass_drivers & CAM_BYPASS_ICC)) {
 		CAM_WARN(CAM_UTIL, "Bypass icc set tag");
 		return;
 	}
@@ -142,6 +143,15 @@ int cam_soc_bus_client_update_request(void *client, unsigned int idx)
 	CAM_DBG(CAM_PERF, "Bus client=[%s] index[%d] ab[%llu] ib[%llu]",
 		bus_client->common_data->name, idx, ab, ib);
 
+	if (cam_vmrm_proxy_icc_voting_enable()) {
+		rc = cam_vmrm_icc_vote(bus_client->common_data->name, ab, ib);
+		if (rc)
+			CAM_ERR(CAM_PERF,
+				"Bus client=[%s] index[%d] ab[%llu] ib[%llu] vmrm icc vote failed",
+				bus_client->common_data->name, idx, ab, ib);
+		goto end;
+	}
+
 	rc = cam_wrapper_icc_set_bw(
 		bus_client_data->icc_data[CAM_SOC_BUS_PATH_DATA_HLOS],
 		Bps_to_icc(ab),
@@ -160,23 +170,34 @@ end:
 int cam_soc_bus_client_update_bw(void *client, uint64_t ab, uint64_t ib,
 	enum cam_soc_bus_path_data bus_path_data)
 {
-		struct cam_soc_bus_client *bus_client =
-			(struct cam_soc_bus_client *) client;
-		struct cam_soc_bus_client_data *bus_client_data =
-			(struct cam_soc_bus_client_data *) bus_client->client_data;
-		int rc = 0;
+	struct cam_soc_bus_client *bus_client =
+		(struct cam_soc_bus_client *) client;
+	struct cam_soc_bus_client_data *bus_client_data =
+		(struct cam_soc_bus_client_data *) bus_client->client_data;
+	int rc = 0;
 
-		CAM_DBG(CAM_PERF, "Bus client=[%s] [%s] :ab[%llu] ib[%llu]",
-			bus_client->common_data->name, cam_soc_bus_path_data_to_str(bus_path_data),
-			ab, ib);
-		rc = cam_wrapper_icc_set_bw(
-			bus_client_data->icc_data[bus_path_data], Bps_to_icc(ab),
-			Bps_to_icc(ib));
-		if (rc) {
-			CAM_ERR(CAM_UTIL, "Update request failed, client[%s]",
-				bus_client->common_data->name);
-			goto end;
-		}
+	CAM_DBG(CAM_PERF, "Bus client=[%s] [%s] :ab[%llu] ib[%llu]",
+		bus_client->common_data->name, cam_soc_bus_path_data_to_str(bus_path_data),
+		ab, ib);
+
+	if (cam_vmrm_proxy_icc_voting_enable()) {
+		rc = cam_vmrm_icc_vote(bus_client->common_data->name, ab, ib);
+		if (rc)
+			CAM_ERR(CAM_PERF,
+				"Bus client=[%s] [%s] :ab[%llu] ib[%llu] vmrm icc vote failed",
+				bus_client->common_data->name,
+				cam_soc_bus_path_data_to_str(bus_path_data), ab, ib);
+		goto end;
+	}
+
+	rc = cam_wrapper_icc_set_bw(
+		bus_client_data->icc_data[bus_path_data], Bps_to_icc(ab),
+		Bps_to_icc(ib));
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "Update request failed, client[%s]",
+			bus_client->common_data->name);
+		goto end;
+	}
 
 end:
 	return rc;

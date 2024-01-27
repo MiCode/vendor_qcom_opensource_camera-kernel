@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_SOC_H_
@@ -342,4 +342,5 @@ int cam_cpas_soc_enable_resources(struct cam_hw_soc_info *soc_info,
 int cam_cpas_soc_disable_resources(struct cam_hw_soc_info *soc_info,
 	bool disable_clocks, bool disable_irq);
 int cam_cpas_soc_disable_irq(struct cam_hw_soc_info *soc_info);
+int cam_cpas_vmrm_callback_handler(void *cb_data, void *msg, uint32_t size);
 #endif /* _CAM_CPAS_SOC_H_ */

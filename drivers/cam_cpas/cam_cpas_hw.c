@@ -1273,11 +1273,27 @@ static int cam_cpas_util_set_camnoc_axi_hlos_clk_rate(struct cam_hw_soc_info *so
 	 */
 
 	if (cpas_core->streamon_clients) {
-		rc = cam_cpas_util_set_max_camnoc_axi_clk_rate(cpas_core, soc_info);
-		if (rc)
-			CAM_ERR(CAM_CPAS,
-				"Failed in setting camnoc axi clk [BW Clk]:[%llu %lld] rc:%d",
-				req_hlos_camnoc_bw, hlos_clk_rate, rc);
+		if (cam_vmrm_proxy_clk_rgl_voting_enable()) {
+			rc = cam_vmrm_set_clk_rate_level(soc_info->hw_id, CAM_CLK_SW_CLIENT_IDX,
+				cpas_core->hlos_axi_floor_lvl, 0, false, hlos_clk_rate);
+			if (rc) {
+				CAM_ERR(CAM_CPAS,
+					"Failed in setting camnoc axi clk applied rate:[%lld] rc:%d",
+					hlos_clk_rate, rc);
+				return rc;
+			}
+			/*
+			 * Since actual clk frequencies are not available,
+			 * saving hlos_clk_rate here.
+			 */
+			cpas_core->applied_camnoc_axi_rate.sw_client = hlos_clk_rate;
+		} else {
+			rc = cam_cpas_util_set_max_camnoc_axi_clk_rate(cpas_core, soc_info);
+			if (rc)
+				CAM_ERR(CAM_CPAS,
+					"Failed in setting camnoc axi clk [BW Clk]:[%llu %lld] rc:%d",
+					req_hlos_camnoc_bw, hlos_clk_rate, rc);
+		}
 	}
 
 	return rc;

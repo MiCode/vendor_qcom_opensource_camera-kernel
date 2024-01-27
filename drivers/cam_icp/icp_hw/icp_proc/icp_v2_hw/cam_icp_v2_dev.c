@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -15,6 +15,7 @@
 #include "cam_icp_hw_intf.h"
 #include "cam_icp_v2_core.h"
 #include "cam_icp_soc_common.h"
+#include "cam_vmrm_interface.h"
 
 static int max_icp_v2_hw_idx = -1;
 
@@ -133,6 +134,13 @@ static int cam_icp_v2_component_bind(struct device *dev,
 	icp_v2_intf->hw_ops.deinit = cam_icp_v2_hw_deinit;
 	icp_v2_intf->hw_ops.process_cmd = cam_icp_v2_process_cmd;
 	icp_v2_intf->hw_ops.test_irq_line = cam_icp_v2_test_irq_line;
+
+	icp_v2_info->soc_info.hw_id = CAM_HW_ID_ICP + icp_v2_info->soc_info.index;
+	rc = cam_vmvm_populate_hw_instance_info(&icp_v2_info->soc_info, NULL, NULL);
+	if (rc) {
+		CAM_ERR(CAM_ICP, " hw instance populate failed: %d", rc);
+		goto res_deinit;
+	}
 
 	rc = cam_icp_v2_cpas_register(icp_v2_intf);
 	if (rc) {

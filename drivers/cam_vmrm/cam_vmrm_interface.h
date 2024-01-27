@@ -167,6 +167,27 @@ int cam_vmrm_set_src_clk_rate(uint32_t hw_id, int cesta_client_idx,
 	unsigned long clk_rate_high, unsigned long clk_rate_low);
 
 /**
+ * cam_vmrm_set_clk_rate_level()
+ *
+ * @brief:              Vmrm set clk rate level
+ *
+ * @hw_id:              Hw id
+ *
+ * @cesta_client_idx:   Cesta client index
+ *
+ * @clk_level_high:     Clk level high
+ *
+ * @clk_level_low:      Clk level low
+ *
+ * @do_not_set_src_clk: Set src clk flag
+ *
+ * @clk_rate:           Clk rate
+ */
+int cam_vmrm_set_clk_rate_level(uint32_t hw_id, int cesta_client_idx,
+	enum cam_vote_level clk_level_high, enum cam_vote_level clk_level_low,
+	bool do_not_set_src_clk, unsigned long clk_rate);
+
+/**
  * cam_vmrm_icc_vote()
  *
  * @brief:            Vmrm icc vote

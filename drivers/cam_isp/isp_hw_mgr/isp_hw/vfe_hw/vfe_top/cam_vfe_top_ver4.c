@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -17,6 +17,7 @@
 #include "cam_irq_controller.h"
 #include "cam_tasklet_util.h"
 #include "cam_cdm_intf_api.h"
+#include "cam_vmrm_interface.h"
 
 #define CAM_SHIFT_TOP_CORE_VER_4_CFG_DSP_EN            8
 #define CAM_VFE_CAMIF_IRQ_SOF_DEBUG_CNT_MAX            2
@@ -902,6 +903,15 @@ int cam_vfe_top_ver4_reserve(void *device_priv,
 					break;
 			}
 
+			/* Acquire ownership */
+			rc = cam_vmrm_soc_acquire_resources(
+				CAM_HW_ID_IFE0 + top_priv->common_data.hw_intf->hw_idx);
+			if (rc) {
+				CAM_ERR(CAM_ISP, "VFE[%u] acquire ownership failed",
+					top_priv->common_data.hw_intf->hw_idx);
+				break;
+			}
+
 			top_priv->top_common.mux_rsrc[i].cdm_ops =
 				acquire_args->cdm_ops;
 			top_priv->top_common.mux_rsrc[i].tasklet_info =
@@ -923,6 +933,7 @@ int cam_vfe_top_ver4_reserve(void *device_priv,
 int cam_vfe_top_ver4_release(void *device_priv,
 	void *release_args, uint32_t arg_size)
 {
+	int rc = 0;
 	struct cam_isp_resource_node            *mux_res;
 	struct cam_vfe_top_ver4_priv            *top_priv;
 	struct cam_vfe_mux_ver4_data            *vfe_priv = NULL;
@@ -949,7 +960,14 @@ int cam_vfe_top_ver4_release(void *device_priv,
 	vfe_priv->hw_ctxt_mask = 0;
 	mux_res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 
-	return 0;
+	rc = cam_vmrm_soc_release_resources(
+		CAM_HW_ID_IFE0 + top_priv->common_data.hw_intf->hw_idx);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "VFE[%u] vmrm soc release resources failed",
+			top_priv->common_data.hw_intf->hw_idx);
+	}
+
+	return rc;
 }
 
 int cam_vfe_top_ver4_start(void *device_priv,

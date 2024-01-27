@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -13,6 +13,7 @@
 #include "cam_debug_util.h"
 #include "camera_main.h"
 #include "cam_cpas_api.h"
+#include "cam_vmrm_interface.h"
 #include <dt-bindings/msm-camera.h>
 
 static struct cam_hw_intf *cam_ife_csid_hw_list[CAM_IFE_CSID_HW_NUM_MAX] = {
@@ -87,6 +88,14 @@ static int cam_ife_csid_component_bind(struct device *dev,
 	}
 
 	platform_set_drvdata(pdev, hw_intf);
+
+	hw_info->soc_info.hw_id = CAM_HW_ID_CSID0 + hw_info->soc_info.index;
+	rc = cam_vmvm_populate_hw_instance_info(&hw_info->soc_info, NULL, NULL);
+	if (rc) {
+		CAM_ERR(CAM_ISP, " hw instance populate failed: %d", rc);
+		goto free_hw_info;
+	}
+
 	CAM_DBG(CAM_ISP, "CSID:%d component bound successfully",
 		hw_intf->hw_idx);
 

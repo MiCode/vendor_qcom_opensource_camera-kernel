@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -15,6 +15,7 @@
 #include "cam_mem_mgr.h"
 #include "cam_presil_hw_access.h"
 #include "cam_compat.h"
+#include "cam_vmrm_interface.h"
 
 #if IS_ENABLED(CONFIG_QCOM_CRM)
 #include <soc/qcom/crm.h>
@@ -1196,6 +1197,11 @@ int cam_soc_util_get_clk_level(struct cam_hw_soc_info *soc_info,
 	int i;
 	long clk_rate_round;
 
+	if (cam_vmrm_proxy_clk_rgl_voting_enable()) {
+		*clk_lvl = CAM_MINSVS_VOTE;
+		return 0;
+	}
+
 	if (!soc_info || (clk_idx < 0) || (clk_idx >= CAM_SOC_MAX_CLK)) {
 		CAM_ERR(CAM_UTIL, "Invalid src_clk_idx: %d", clk_idx);
 		*clk_lvl = -1;
@@ -1775,6 +1781,16 @@ int cam_soc_util_set_src_clk_rate(struct cam_hw_soc_info *soc_info, int cesta_cl
 			goto end;
 	}
 
+	if (cam_vmrm_proxy_clk_rgl_voting_enable()) {
+		rc = cam_vmrm_set_src_clk_rate(soc_info->hw_id,
+			CAM_CLK_SW_CLIENT_IDX, clk_rate_high, clk_rate_low);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "vmrm set src clk rate failed %d", rc);
+			return rc;
+		}
+		goto end;
+	}
+
 	rc = cam_soc_util_set_clk_rate(soc_info, clk,
 		soc_info->clk_name[src_clk_idx], clk_rate_high,
 		CAM_IS_BIT_SET(soc_info->shared_clk_mask, src_clk_idx),
@@ -1870,6 +1886,9 @@ int cam_soc_util_get_option_clk_by_name(struct cam_hw_soc_info *soc_info,
 	int rc = 0;
 	struct device_node *of_node = NULL;
 	uint32_t shared_clk_val;
+
+	if (cam_vmrm_proxy_clk_rgl_voting_enable())
+		return 0;
 
 	if (!soc_info || !clk_name || !clk_index) {
 		CAM_ERR(CAM_UTIL,
@@ -2504,6 +2523,21 @@ int cam_soc_util_set_clk_rate_level(struct cam_hw_soc_info *soc_info,
 	enum cam_vote_level apply_level_low = soc_info->lowest_clk_level;
 	unsigned long applied_clk_rate;
 
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass clk set rate");
+		return 0;
+	}
+
+	if (cam_vmrm_proxy_clk_rgl_voting_enable()) {
+		rc = cam_vmrm_set_clk_rate_level(soc_info->hw_id, CAM_CLK_SW_CLIENT_IDX,
+			clk_level_high, clk_level_low, do_not_set_src_clk, 0);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "vmrm set clk rate level failed %d", rc);
+			return rc;
+		}
+		goto end;
+	}
+
 	if ((soc_info->num_clk == 0) ||
 		(soc_info->num_clk >= CAM_SOC_MAX_CLK)) {
 		CAM_ERR(CAM_UTIL, "Invalid number of clock %d", soc_info->num_clk);
@@ -2581,6 +2615,7 @@ int cam_soc_util_set_clk_rate_level(struct cam_hw_soc_info *soc_info,
 			soc_info->applied_src_clk_rates.sw_client = applied_clk_rate;
 	}
 
+end:
 	return rc;
 };
 
@@ -3535,6 +3570,7 @@ int cam_soc_util_request_platform_resource(
 	irq_handler_t handler, void **irq_data)
 {
 	int i = 0, rc = 0;
+	bool clk_regulator_needed = true;
 
 	if (!soc_info || !soc_info->dev) {
 		CAM_ERR(CAM_UTIL, "Invalid parameters");
@@ -3546,6 +3582,9 @@ int cam_soc_util_request_platform_resource(
 			soc_info->irq_count, CAM_SOC_MAX_IRQ_LINES_PER_DEV);
 		return -EINVAL;
 	}
+
+	if (cam_vmrm_proxy_clk_rgl_voting_enable())
+		clk_regulator_needed = false;
 
 	for (i = 0; i < soc_info->num_mem_block; i++) {
 
@@ -3569,17 +3608,19 @@ int cam_soc_util_request_platform_resource(
 		soc_info->num_reg_map++;
 	}
 
-	for (i = 0; i < soc_info->num_rgltr; i++) {
-		if (soc_info->rgltr_name[i] == NULL) {
-			CAM_ERR(CAM_UTIL, "can't find regulator name");
-			goto put_regulator;
-		}
+	if (clk_regulator_needed) {
+		for (i = 0; i < soc_info->num_rgltr; i++) {
+			if (soc_info->rgltr_name[i] == NULL) {
+				CAM_ERR(CAM_UTIL, "can't find regulator name");
+				goto put_regulator;
+			}
 
-		rc = cam_soc_util_get_regulator(soc_info->dev,
-			&soc_info->rgltr[i],
-			soc_info->rgltr_name[i]);
-		if (rc)
-			goto put_regulator;
+			rc = cam_soc_util_get_regulator(soc_info->dev,
+				&soc_info->rgltr[i],
+				soc_info->rgltr_name[i]);
+			if (rc)
+				goto put_regulator;
+		}
 	}
 
 	for (i = 0; i < soc_info->irq_count; i++) {
@@ -3596,58 +3637,62 @@ int cam_soc_util_request_platform_resource(
 		soc_info->irq_data[i] = irq_data[i];
 	}
 
-	/* Get Clock */
-	for (i = 0; i < soc_info->num_clk; i++) {
-		soc_info->clk[i] = cam_wrapper_clk_get(soc_info->dev,
-			soc_info->clk_name[i]);
-		if (IS_ERR(soc_info->clk[i])) {
-			CAM_ERR(CAM_UTIL, "get failed for %s",
+	if (clk_regulator_needed) {
+		/* Get Clock */
+		for (i = 0; i < soc_info->num_clk; i++) {
+			soc_info->clk[i] = cam_wrapper_clk_get(soc_info->dev,
 				soc_info->clk_name[i]);
-			rc = -ENOENT;
-			goto put_clk;
-		} else if (!soc_info->clk[i]) {
-			CAM_DBG(CAM_UTIL, "%s handle is NULL skip get",
-				soc_info->clk_name[i]);
-			continue;
-		}
-
-		/* Create a wrapper entry if this is a shared clock */
-		if (CAM_IS_BIT_SET(soc_info->shared_clk_mask, i)) {
-			uint32_t min_level = soc_info->lowest_clk_level;
-
-			CAM_DBG(CAM_UTIL,
-				"Dev %s, clk %s, id %d register wrapper entry for shared clk",
-				soc_info->dev_name, soc_info->clk_name[i],
-				soc_info->clk_id[i]);
-
-			rc = cam_soc_util_clk_wrapper_register_entry(
-				soc_info->clk_id[i], soc_info->clk[i],
-				(i == soc_info->src_clk_idx) ? true : false,
-				soc_info, soc_info->clk_rate[min_level][i],
-				soc_info->clk_name[i]);
-			if (rc) {
-				CAM_ERR(CAM_UTIL,
-					"Failed in registering shared clk Dev %s id %d",
-					soc_info->dev_name,
-					soc_info->clk_id[i]);
-				cam_wrapper_clk_put(soc_info->clk[i], soc_info->clk_name[i]);
-				soc_info->clk[i] = NULL;
+			if (IS_ERR(soc_info->clk[i])) {
+				CAM_ERR(CAM_UTIL, "get failed for %s",
+					soc_info->clk_name[i]);
+				rc = -ENOENT;
 				goto put_clk;
+			} else if (!soc_info->clk[i]) {
+				CAM_DBG(CAM_UTIL, "%s handle is NULL skip get",
+					soc_info->clk_name[i]);
+				continue;
 			}
-		} else if (i == soc_info->src_clk_idx) {
-			rc = cam_soc_util_register_mmrm_client(
-				soc_info->clk_id[i], soc_info->clk[i],
-				soc_info->is_nrt_dev,
-				soc_info, soc_info->clk_name[i],
-				&soc_info->mmrm_handle);
-			if (rc) {
-				CAM_ERR(CAM_UTIL,
-					"Failed in register mmrm client Dev %s clk id %d",
-					soc_info->dev_name,
+
+			/* Create a wrapper entry if this is a shared clock */
+			if (CAM_IS_BIT_SET(soc_info->shared_clk_mask, i)) {
+				uint32_t min_level = soc_info->lowest_clk_level;
+
+				CAM_DBG(CAM_UTIL,
+					"Dev %s, clk %s, id %d register wrapper entry for shared clk",
+					soc_info->dev_name, soc_info->clk_name[i],
 					soc_info->clk_id[i]);
-				cam_wrapper_clk_put(soc_info->clk[i], soc_info->clk_name[i]);
-				soc_info->clk[i] = NULL;
-				goto put_clk;
+
+				rc = cam_soc_util_clk_wrapper_register_entry(
+					soc_info->clk_id[i], soc_info->clk[i],
+					(i == soc_info->src_clk_idx) ? true : false,
+					soc_info, soc_info->clk_rate[min_level][i],
+					soc_info->clk_name[i]);
+				if (rc) {
+					CAM_ERR(CAM_UTIL,
+						"Failed in registering shared clk Dev %s id %d",
+						soc_info->dev_name,
+						soc_info->clk_id[i]);
+					cam_wrapper_clk_put(soc_info->clk[i],
+						soc_info->clk_name[i]);
+					soc_info->clk[i] = NULL;
+					goto put_clk;
+				}
+			} else if (i == soc_info->src_clk_idx) {
+				rc = cam_soc_util_register_mmrm_client(
+					soc_info->clk_id[i], soc_info->clk[i],
+					soc_info->is_nrt_dev,
+					soc_info, soc_info->clk_name[i],
+					&soc_info->mmrm_handle);
+				if (rc) {
+					CAM_ERR(CAM_UTIL,
+						"Failed in register mmrm client Dev %s clk id %d",
+						soc_info->dev_name,
+						soc_info->clk_id[i]);
+					cam_wrapper_clk_put(soc_info->clk[i],
+						soc_info->clk_name[i]);
+					soc_info->clk[i] = NULL;
+					goto put_clk;
+				}
 			}
 		}
 	}
@@ -3664,26 +3709,30 @@ int cam_soc_util_request_platform_resource(
 		goto put_clk;
 	}
 
-	if (soc_info->clk_control_enable)
-		cam_soc_util_create_clk_lvl_debugfs(soc_info);
+	if (clk_regulator_needed) {
+		if (soc_info->clk_control_enable)
+			cam_soc_util_create_clk_lvl_debugfs(soc_info);
+	}
 
 	return rc;
 
 put_clk:
 
-	if (soc_info->mmrm_handle) {
-		cam_soc_util_unregister_mmrm_client(soc_info->mmrm_handle);
-		soc_info->mmrm_handle = NULL;
-	}
+	if (clk_regulator_needed) {
+		if (soc_info->mmrm_handle) {
+			cam_soc_util_unregister_mmrm_client(soc_info->mmrm_handle);
+			soc_info->mmrm_handle = NULL;
+		}
 
-	for (i = i - 1; i >= 0; i--) {
-		if (soc_info->clk[i]) {
-			if (CAM_IS_BIT_SET(soc_info->shared_clk_mask, i))
-				cam_soc_util_clk_wrapper_unregister_entry(
-					soc_info->clk_id[i], soc_info);
+		for (i = i - 1; i >= 0; i--) {
+			if (soc_info->clk[i]) {
+				if (CAM_IS_BIT_SET(soc_info->shared_clk_mask, i))
+					cam_soc_util_clk_wrapper_unregister_entry(
+						soc_info->clk_id[i], soc_info);
 
-			cam_wrapper_clk_put(soc_info->clk[i], soc_info->clk_name[i]);
-			soc_info->clk[i] = NULL;
+				cam_wrapper_clk_put(soc_info->clk[i], soc_info->clk_name[i]);
+				soc_info->clk[i] = NULL;
+			}
 		}
 	}
 
@@ -3696,13 +3745,17 @@ put_irq:
 	}
 
 put_regulator:
-	if (i == -1)
-		i = soc_info->num_rgltr;
-	for (i = i - 1; i >= 0; i--) {
-		if (soc_info->rgltr[i]) {
-			cam_wrapper_regulator_disable(soc_info->rgltr[i], soc_info->rgltr_name[i]);
-			cam_wrapper_regulator_put(soc_info->rgltr[i], soc_info->rgltr_name[i]);
-			soc_info->rgltr[i] = NULL;
+	if (clk_regulator_needed) {
+		if (i == -1)
+			i = soc_info->num_rgltr;
+		for (i = i - 1; i >= 0; i--) {
+			if (soc_info->rgltr[i]) {
+				cam_wrapper_regulator_disable(soc_info->rgltr[i],
+					soc_info->rgltr_name[i]);
+				cam_wrapper_regulator_put(soc_info->rgltr[i],
+					soc_info->rgltr_name[i]);
+				soc_info->rgltr[i] = NULL;
+			}
 		}
 	}
 
@@ -3725,41 +3778,48 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 {
 	int i;
 	bool b_ret = false;
+	bool clk_regulator_needed = true;
 
 	if (!soc_info || !soc_info->dev) {
 		CAM_ERR(CAM_UTIL, "Invalid parameter");
 		return -EINVAL;
 	}
 
-	if (soc_info->mmrm_handle) {
-		cam_soc_util_unregister_mmrm_client(soc_info->mmrm_handle);
-		soc_info->mmrm_handle = NULL;
-	}
+	if (cam_vmrm_proxy_clk_rgl_voting_enable())
+		clk_regulator_needed = false;
 
-	for (i = soc_info->num_clk - 1; i >= 0; i--) {
-		if (CAM_IS_BIT_SET(soc_info->shared_clk_mask, i))
-			cam_soc_util_clk_wrapper_unregister_entry(
-				soc_info->clk_id[i], soc_info);
-		if (!soc_info->clk[i]) {
-			CAM_DBG(CAM_UTIL, "%s handle is NULL skip put",
-				soc_info->clk_name[i]);
-			continue;
+	if (clk_regulator_needed) {
+		if (soc_info->mmrm_handle) {
+			cam_soc_util_unregister_mmrm_client(soc_info->mmrm_handle);
+			soc_info->mmrm_handle = NULL;
 		}
-		cam_wrapper_clk_put(soc_info->clk[i], soc_info->clk_name[i]);
-		soc_info->clk[i] = NULL;
-	}
 
-	for (i = soc_info->num_rgltr - 1; i >= 0; i--) {
-		if (soc_info->rgltr[i]) {
-			cam_wrapper_regulator_put(soc_info->rgltr[i], soc_info->rgltr_name[i]);
-			soc_info->rgltr[i] = NULL;
+		for (i = soc_info->num_clk - 1; i >= 0; i--) {
+			if (CAM_IS_BIT_SET(soc_info->shared_clk_mask, i))
+				cam_soc_util_clk_wrapper_unregister_entry(
+					soc_info->clk_id[i], soc_info);
+			if (!soc_info->clk[i]) {
+				CAM_DBG(CAM_UTIL, "%s handle is NULL skip put",
+					soc_info->clk_name[i]);
+				continue;
+			}
+			cam_wrapper_clk_put(soc_info->clk[i], soc_info->clk_name[i]);
+			soc_info->clk[i] = NULL;
 		}
-	}
 
-	for (i = soc_info->num_reg_map - 1; i >= 0; i--) {
-		iounmap(soc_info->reg_map[i].mem_base);
-		soc_info->reg_map[i].mem_base = NULL;
-		soc_info->reg_map[i].size = 0;
+		for (i = soc_info->num_rgltr - 1; i >= 0; i--) {
+			if (soc_info->rgltr[i]) {
+				cam_wrapper_regulator_put(soc_info->rgltr[i],
+					soc_info->rgltr_name[i]);
+				soc_info->rgltr[i] = NULL;
+			}
+		}
+
+		for (i = soc_info->num_reg_map - 1; i >= 0; i--) {
+			iounmap(soc_info->reg_map[i].mem_base);
+			soc_info->reg_map[i].mem_base = NULL;
+			soc_info->reg_map[i].size = 0;
+		}
 	}
 
 	for (i = soc_info->irq_count -1; i >= 0; i--) {
@@ -3799,16 +3859,24 @@ int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 	if (!soc_info)
 		return -EINVAL;
 
-	rc = cam_soc_util_regulator_enable_default(soc_info);
-	if (rc) {
-		CAM_ERR(CAM_UTIL, "Regulators enable failed");
-		return rc;
-	}
+	if (cam_vmrm_proxy_clk_rgl_voting_enable()) {
+		rc = cam_vmrm_soc_enable_disable_resources(soc_info->hw_id, true);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "vmrm soc enable soc resources failed %d", rc);
+			return rc;
+		}
+	} else {
+		rc = cam_soc_util_regulator_enable_default(soc_info);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Regulators enable failed");
+			return rc;
+		}
 
-	if (enable_clocks) {
-		rc = cam_soc_util_clk_enable_default(soc_info, cesta_client_idx, clk_level);
-		if (rc)
-			goto disable_regulator;
+		if (enable_clocks) {
+			rc = cam_soc_util_clk_enable_default(soc_info, cesta_client_idx, clk_level);
+			if (rc)
+				goto disable_regulator;
+		}
 	}
 
 	if (irq_enable) {
@@ -3832,11 +3900,19 @@ disable_irq:
 			disable_irq(soc_info->irq_num[i]);
 	}
 
-	if (enable_clocks)
-		cam_soc_util_clk_disable_default(soc_info, cesta_client_idx);
+	if (cam_vmrm_proxy_clk_rgl_voting_enable()) {
+		rc = cam_vmrm_soc_enable_disable_resources(soc_info->hw_id, false);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "vmrm soc disable soc resources failed %d", rc);
+			return rc;
+		}
+	} else {
+		if (enable_clocks)
+			cam_soc_util_clk_disable_default(soc_info, cesta_client_idx);
 
 disable_regulator:
-	cam_soc_util_regulator_disable_default(soc_info);
+		cam_soc_util_regulator_disable_default(soc_info);
+	}
 
 	return rc;
 }
@@ -3852,10 +3928,18 @@ int cam_soc_util_disable_platform_resource(struct cam_hw_soc_info *soc_info,
 	if (disable_irq)
 		rc |= cam_soc_util_irq_disable(soc_info);
 
-	if (disable_clocks)
-		cam_soc_util_clk_disable_default(soc_info, cesta_client_idx);
+	if (cam_vmrm_proxy_clk_rgl_voting_enable()) {
+		rc = cam_vmrm_soc_enable_disable_resources(soc_info->hw_id, false);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "vmrm soc disable soc resources failed %d", rc);
+			return rc;
+		}
+	} else {
+		if (disable_clocks)
+			cam_soc_util_clk_disable_default(soc_info, cesta_client_idx);
 
-	cam_soc_util_regulator_disable_default(soc_info);
+		cam_soc_util_regulator_disable_default(soc_info);
+	}
 
 	return rc;
 }

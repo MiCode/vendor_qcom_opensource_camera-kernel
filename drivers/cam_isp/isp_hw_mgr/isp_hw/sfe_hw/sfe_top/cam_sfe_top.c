@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -13,6 +13,7 @@
 #include "cam_debug_util.h"
 #include "cam_sfe_soc.h"
 #include "cam_sfe_core.h"
+#include "cam_vmrm_interface.h"
 
 struct cam_sfe_core_cfg {
 	uint32_t   mode_sel;
@@ -1530,6 +1531,17 @@ int cam_sfe_top_reserve(void *device_priv,
 				top_priv->in_rsrc[i].hw_intf->hw_idx,
 				acquire_args->res_id);
 
+			/* Acquire ownership */
+			if (top_priv->reserve_cnt == 0) {
+				rc = cam_vmrm_soc_acquire_resources(CAM_HW_ID_SFE0 +
+					top_priv->in_rsrc[i].hw_intf->hw_idx);
+				if (rc) {
+					CAM_ERR(CAM_SFE, "SFE[%u] acquire ownership failed",
+						top_priv->in_rsrc[i].hw_intf->hw_idx);
+					return rc;
+				}
+			}
+
 			top_priv->in_rsrc[i].cdm_ops = acquire_args->cdm_ops;
 			top_priv->in_rsrc[i].tasklet_info = args->tasklet;
 			top_priv->in_rsrc[i].res_state =
@@ -1555,6 +1567,7 @@ int cam_sfe_top_release(void *device_priv,
 {
 	struct cam_sfe_top_priv            *top_priv;
 	struct cam_isp_resource_node       *in_res;
+	int rc = 0;
 
 	if (!device_priv || !release_args) {
 		CAM_ERR(CAM_SFE, "Invalid input arguments");
@@ -1583,9 +1596,14 @@ int cam_sfe_top_release(void *device_priv,
 	if (!top_priv->reserve_cnt) {
 		top_priv->priv_per_stream = NULL;
 		top_priv->event_cb = NULL;
+		rc = cam_vmrm_soc_release_resources(CAM_HW_ID_SFE0 + in_res->hw_intf->hw_idx);
+		if (rc) {
+			CAM_ERR(CAM_SFE, "SFE[%u] vmrm soc release resources failed",
+				in_res->hw_intf->hw_idx);
+		}
 	}
 
-	return 0;
+	return rc;
 }
 
 static int cam_sfe_top_get_evt_payload(

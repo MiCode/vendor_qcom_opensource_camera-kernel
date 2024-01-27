@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -19,6 +19,7 @@
 #include "cam_cpas_api.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
+#include "cam_vmrm_interface.h"
 
 static struct cam_ipe_device_hw_info cam_ipe_hw_info[] = {
 	{
@@ -159,6 +160,14 @@ static int cam_ipe_component_bind(struct device *dev,
 
 	CAM_DBG(CAM_ICP, "cam_ipe_init_soc_resources : %pK",
 		(void *)&ipe_dev->soc_info);
+
+	ipe_dev->soc_info.hw_id = CAM_HW_ID_IPE0 + ipe_dev->soc_info.index;
+	rc = cam_vmvm_populate_hw_instance_info(&ipe_dev->soc_info, NULL, NULL);
+	if (rc) {
+		CAM_ERR(CAM_ICP, " hw instance populate failed: %d", rc);
+		return rc;
+	}
+
 	rc = cam_ipe_register_cpas(&ipe_dev->soc_info,
 		core_info, ipe_dev_intf->hw_idx);
 	if (rc < 0) {
