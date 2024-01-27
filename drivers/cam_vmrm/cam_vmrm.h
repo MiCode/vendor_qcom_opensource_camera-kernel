@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_soc_util.h"
@@ -228,19 +228,20 @@ struct cam_io_res {
 /**
  * struct cam_vmrm_intf_dev - camera vm resource manager
  *
- * @hw_instance:             Hw instance registered list
- * @driver_node:             Driver node registered list
- * @io_res:                  Io resource list
- * @is_initialized:          Flag for vm resource manager initialized or not
- * @gh_rr_enable:            Gh request resource enable or not
- * @gh_res_client:           Gh resource client
- * @proxy_voting_enable:     Proxy voting enable mask, support clk/icc proxy voting.
- * @lock:                    Mutex lock
- * @cam_vmid:                Camera vm id, such as PVM, SVM1 etc
- * @dentry:                  Debugfs entry
- * @vm_handle:               Vm internal communication handle
- * @lend_cnt:                Lend count
- * @ops_table:               Operations table
+ * @hw_instance:              Hw instance registered list
+ * @driver_node:              Driver node registered list
+ * @io_res:                   Io resource list
+ * @is_initialized:           Flag for vm resource manager initialized or not
+ * @gh_rr_enable:             Gh request resource enable or not
+ * @gh_res_client:            Gh resource client
+ * @proxy_voting_enable:      Proxy voting enable mask, support clk/icc proxy voting.
+ * @no_register_read_on_bind: Workaround no register read on bind for tvm.
+ * @lock:                     Mutex lock
+ * @cam_vmid:                 Camera vm id, such as PVM, SVM1 etc
+ * @dentry:                   Debugfs entry
+ * @vm_handle:                Vm internal communication handle
+ * @lend_cnt:                 Lend count
+ * @ops_table:                Operations table
  */
 struct cam_vmrm_intf_dev {
 	struct list_head                  hw_instance;
@@ -250,6 +251,7 @@ struct cam_vmrm_intf_dev {
 	bool                              gh_rr_enable;
 	struct gh_resource_client        *gh_res_client;
 	uint32_t                          proxy_voting_enable;
+	bool                              no_register_read_on_bind;
 	struct mutex                      lock;
 	uint32_t                          cam_vmid;
 	struct dentry                    *dentry;

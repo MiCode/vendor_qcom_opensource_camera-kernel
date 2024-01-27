@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifdef CONFIG_SPECTRA_VMRM
 #include <linux/module.h>
@@ -70,6 +70,24 @@ bool cam_vmrm_proxy_icc_voting_enable(void)
 		enable = true;
 
 	return enable;
+}
+
+bool cam_vmrm_no_register_read_on_bind(void)
+{
+	struct cam_vmrm_intf_dev *vmrm_intf_dev;
+
+	vmrm_intf_dev = cam_vmrm_get_intf_dev();
+	if (!vmrm_intf_dev) {
+		CAM_ERR(CAM_VMRM, "vmrm dev is not ready");
+		return false;
+	}
+
+	if (!vmrm_intf_dev->is_initialized) {
+		CAM_ERR(CAM_VMRM, "vmrm is not initialized");
+		return false;
+	}
+
+	return vmrm_intf_dev->no_register_read_on_bind;
 }
 
 int cam_vmvm_populate_hw_instance_info(struct cam_hw_soc_info *soc_info,
@@ -842,6 +860,11 @@ bool cam_vmrm_proxy_clk_rgl_voting_enable(void)
 }
 
 bool cam_vmrm_proxy_icc_voting_enable(void)
+{
+	return false;
+}
+
+bool cam_vmrm_no_register_read_on_bind(void)
 {
 	return false;
 }

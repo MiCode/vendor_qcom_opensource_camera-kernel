@@ -66,6 +66,7 @@ def _define_module(target, variant):
             "drivers/cam_cdm/cam_cdm_virtual_core.c",
             "drivers/cam_cdm/cam_cdm_hw_core.c",
             "drivers/cam_utils/cam_soc_icc.c",
+            "drivers/cam_vmrm/cam_vmrm_interface.c",
             "drivers/camera_main.c",
         ],
         conditional_srcs = {

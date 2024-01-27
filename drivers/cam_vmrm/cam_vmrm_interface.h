@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_vmrm.h"
@@ -51,6 +51,13 @@ bool cam_vmrm_proxy_clk_rgl_voting_enable(void);
  * @brief:        Proxy voting icc enable or not
  */
 bool cam_vmrm_proxy_icc_voting_enable(void);
+
+/**
+ * cam_vmrm_no_register_read_on_bind()
+ *
+ * @brief:        No register read on bind in tvm enable or not
+ */
+bool cam_vmrm_no_register_read_on_bind(void);
 
 /**
  * cam_vmvm_populate_hw_instance_info()

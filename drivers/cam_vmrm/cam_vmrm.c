@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -760,6 +760,8 @@ static int cam_vmrm_dt_parse(struct platform_device *pdev,
 	}
 
 	g_vmrm_intf_dev->gh_rr_enable = of_property_read_bool(pdev->dev.of_node, "gh_rr_enable");
+	g_vmrm_intf_dev->no_register_read_on_bind = of_property_read_bool(pdev->dev.of_node,
+		"no_register_read_on_bind");
 
 	rc = of_property_read_u32(pdev->dev.of_node, "proxy_voting_enable",
 		&g_vmrm_intf_dev->proxy_voting_enable);
@@ -769,9 +771,10 @@ static int cam_vmrm_dt_parse(struct platform_device *pdev,
 		rc = 0;
 	}
 
-	CAM_DBG(CAM_VMRM, "VM-name: %d proxy voting enable 0x%x gh request resource enable %d",
+	CAM_DBG(CAM_VMRM,
+		"VM-name: %d proxy voting enable 0x%x gh request resource enable %d no register read on bind %d",
 		g_vmrm_intf_dev->cam_vmid, g_vmrm_intf_dev->proxy_voting_enable,
-		g_vmrm_intf_dev->gh_rr_enable);
+		g_vmrm_intf_dev->gh_rr_enable, g_vmrm_intf_dev->no_register_read_on_bind);
 
 	return rc;
 }

@@ -40,6 +40,7 @@
 #include "cpastop_v980_100.h"
 #include "cam_req_mgr_workq.h"
 #include "cam_common_util.h"
+#include "cam_vmrm_interface.h"
 
 struct cam_camnoc_info *camnoc_info[CAM_CAMNOC_HW_TYPE_MAX];
 struct cam_cpas_info *cpas_info;
@@ -337,7 +338,17 @@ static int cam_cpastop_get_hw_info(struct cam_hw_info *cpas_hw,
 
 	hw_caps->camera_family = CAM_FAMILY_CPAS_SS;
 
-	cam_version = cam_io_r_mb(soc_info->reg_map[reg_indx].mem_base + 0x0);
+	if (!cam_vmrm_no_register_read_on_bind()) {
+		cam_version = cam_io_r_mb(soc_info->reg_map[reg_indx].mem_base + 0x0);
+	} else {
+		rc = of_property_read_u32(soc_info->pdev->dev.of_node,
+			"cam-version", &cam_version);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "no cam version");
+			return rc;
+		}
+	}
+
 	hw_caps->camera_version.major =
 		CAM_BITS_MASK_SHIFT(cam_version, 0xff0000, 0x10);
 	hw_caps->camera_version.minor =
@@ -345,7 +356,17 @@ static int cam_cpastop_get_hw_info(struct cam_hw_info *cpas_hw,
 	hw_caps->camera_version.incr =
 		CAM_BITS_MASK_SHIFT(cam_version, 0xff, 0x0);
 
-	cpas_version = cam_io_r_mb(soc_info->reg_map[reg_indx].mem_base + 0x4);
+	if (!cam_vmrm_no_register_read_on_bind()) {
+		cpas_version = cam_io_r_mb(soc_info->reg_map[reg_indx].mem_base + 0x4);
+	} else {
+		rc = of_property_read_u32(soc_info->pdev->dev.of_node,
+			"cpas-version", &cpas_version);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "no cpas version");
+			return rc;
+		}
+	}
+
 	hw_caps->cpas_version.major =
 		CAM_BITS_MASK_SHIFT(cpas_version, 0xf0000000, 0x1c);
 	hw_caps->cpas_version.minor =
@@ -1338,7 +1359,7 @@ static int cam_cpastop_set_up_camnoc_info(struct cam_cpas *cpas_core,
 
 static int cam_cpastop_get_hw_capability(struct cam_hw_info *cpas_hw)
 {
-	int i, reg_idx;
+	int i, reg_idx, rc;
 	struct cam_cpas *cpas_core = cpas_hw->core_info;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 	struct cam_cpas_hw_cap_info *hw_caps_info;
@@ -1357,10 +1378,29 @@ static int cam_cpastop_get_hw_capability(struct cam_hw_info *cpas_hw)
 	}
 
 	hw_caps->num_capability_reg = hw_caps_info->num_caps_registers;
-	for (i = 0; i < hw_caps_info->num_caps_registers; i++) {
-		hw_caps->camera_capability[i] = cam_io_r_mb(soc_info->reg_map[reg_idx].mem_base +
-			hw_caps_info->hw_caps_offsets[i]);
-		CAM_DBG(CAM_CPAS, "camera_caps_%d = 0x%x", i, hw_caps->camera_capability[i]);
+
+	if (!cam_vmrm_no_register_read_on_bind()) {
+		for (i = 0; i < hw_caps_info->num_caps_registers; i++) {
+			hw_caps->camera_capability[i] =
+				cam_io_r_mb(soc_info->reg_map[reg_idx].mem_base +
+					hw_caps_info->hw_caps_offsets[i]);
+			CAM_DBG(CAM_CPAS, "camera_caps_%d = 0x%x",
+				i, hw_caps->camera_capability[i]);
+		}
+	} else {
+		if (hw_caps_info->num_caps_registers > 0) {
+			rc = of_property_read_u32_array(soc_info->pdev->dev.of_node,
+				"camera-capability", hw_caps->camera_capability,
+				hw_caps_info->num_caps_registers);
+			if (rc) {
+				CAM_ERR(CAM_CPAS, "no camera capability");
+				return rc;
+			}
+		}
+		for (i = 0; i < hw_caps_info->num_caps_registers; i++) {
+			CAM_DBG(CAM_CPAS, "camera_caps_%d = 0x%x", i,
+				hw_caps->camera_capability[i]);
+		}
 	}
 
 	return 0;
