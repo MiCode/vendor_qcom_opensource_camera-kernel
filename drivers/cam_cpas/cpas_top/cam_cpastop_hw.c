@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -491,9 +491,12 @@ static int cam_cpastop_setup_regbase_indices(struct cam_hw_soc_info *soc_info,
 }
 
 static int cam_cpastop_handle_errlogger(int camnoc_idx,
-	struct cam_cpas *cpas_core, struct cam_hw_soc_info *soc_info,
+	struct cam_cpas *cpas_core,
+	struct cam_hw_soc_info *soc_info,
 	struct cam_camnoc_irq_slave_err_data *slave_err)
 {
+	uint8_t log_buffer[512];
+	size_t buf_len = 0;
 	int regbase_idx = cpas_core->regbase_index[camnoc_info[camnoc_idx]->reg_base];
 	int err_code_index = 0;
 
@@ -502,18 +505,64 @@ static int cam_cpastop_handle_errlogger(int camnoc_idx,
 		return -EINVAL;
 	}
 
+	slave_err->mainctrl.value = cam_io_r_mb(
+		soc_info->reg_map[regbase_idx].mem_base +
+		camnoc_info[camnoc_idx]->err_logger->mainctrl);
+
+	slave_err->errvld.value = cam_io_r_mb(
+		soc_info->reg_map[regbase_idx].mem_base +
+		camnoc_info[camnoc_idx]->err_logger->errvld);
+
 	slave_err->errlog0_low.value = cam_io_r_mb(
 		soc_info->reg_map[regbase_idx].mem_base +
 		camnoc_info[camnoc_idx]->err_logger->errlog0_low);
+
+	slave_err->errlog0_high.value = cam_io_r_mb(
+		soc_info->reg_map[regbase_idx].mem_base +
+		camnoc_info[camnoc_idx]->err_logger->errlog0_high);
+
+	slave_err->errlog1_low.value = cam_io_r_mb(
+		soc_info->reg_map[regbase_idx].mem_base +
+		camnoc_info[camnoc_idx]->err_logger->errlog1_low);
+
+	slave_err->errlog1_high.value = cam_io_r_mb(
+		soc_info->reg_map[regbase_idx].mem_base +
+		camnoc_info[camnoc_idx]->err_logger->errlog1_high);
+
+	slave_err->errlog2_low.value = cam_io_r_mb(
+		soc_info->reg_map[regbase_idx].mem_base +
+		camnoc_info[camnoc_idx]->err_logger->errlog2_low);
+
+	slave_err->errlog2_high.value = cam_io_r_mb(
+		soc_info->reg_map[regbase_idx].mem_base +
+		camnoc_info[camnoc_idx]->err_logger->errlog2_high);
+
+	slave_err->errlog3_low.value = cam_io_r_mb(
+		soc_info->reg_map[regbase_idx].mem_base +
+		camnoc_info[camnoc_idx]->err_logger->errlog3_low);
+
+	slave_err->errlog3_high.value = cam_io_r_mb(
+		soc_info->reg_map[regbase_idx].mem_base +
+		camnoc_info[camnoc_idx]->err_logger->errlog3_high);
 
 	err_code_index = slave_err->errlog0_low.err_code;
 	if (err_code_index > CAMNOC_SLAVE_MAX_ERR_CODE)
 		err_code_index = CAMNOC_SLAVE_MAX_ERR_CODE;
 
-	CAM_ERR_RATE_LIMIT(CAM_CPAS,
-		"[%s] Possible memory configuration issue, fault at SMMU raised as CAMNOC SLAVE_IRQ err_code=%d(%s)",
-		camnoc_info[camnoc_idx]->camnoc_name, slave_err->errlog0_low.err_code,
-		camnoc_slave_err_code[err_code_index]);
+	CAM_ERR_BUF(CAM_CPAS, log_buffer, 512, &buf_len,
+		"%s NoC Error Info: %s, MAINCTL_LOW = 0x%x, ERRVLD_LOW = 0x%x",
+		camnoc_slave_err_code[err_code_index],
+		camnoc_info[camnoc_idx]->camnoc_name,  slave_err->mainctrl.value,
+		slave_err->errvld.value, log_buffer);
+
+	CAM_ERR_BUF(CAM_CPAS, log_buffer, 512, &buf_len,
+		"ERRLOG0_LOW = 0x%x, ERRLOG0_HIGH = 0x%x, ERRLOG1_LOW = 0x%x, ERRLOG1_HIGH = 0x%x, ERRLOG2_LOW = 0x%x, ERRLOG2_HIGH = 0x%x, ERRLOG3_LOW = 0x%x, ERRLOG3_HIGH = 0x%x",
+		 slave_err->errlog0_low.value, slave_err->errlog0_high.value,
+		 slave_err->errlog1_low.value, slave_err->errlog1_high.value,
+		 slave_err->errlog2_low.value, slave_err->errlog2_high.value,
+		 slave_err->errlog3_low.value, slave_err->errlog3_high.value);
+
+	CAM_ERR(CAM_CPAS, "%s", log_buffer);
 
 	return 0;
 }
@@ -798,8 +847,7 @@ static void cam_cpastop_work(struct work_struct *work)
 
 			switch (irq_type) {
 			case CAM_CAMNOC_HW_IRQ_SLAVE_ERROR:
-				cam_cpastop_handle_errlogger(camnoc_idx,
-					cpas_core, soc_info,
+				cam_cpastop_handle_errlogger(camnoc_idx, cpas_core, soc_info,
 					&irq_data.u.slave_err);
 				break;
 			case CAM_CAMNOC_HW_IRQ_IFE_UBWC_STATS_ENCODE_ERROR:
@@ -901,7 +949,7 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 	slave_err_irq_idx = cpas_core->slave_err_irq_idx[camnoc_idx];
 
 	/* Check for slave error irq */
-	if ((cpas_core->slave_err_irq_en[camnoc_idx]) && (payload->irq_status  &
+	if ((cpas_core->slave_err_irq_en[camnoc_idx]) && (payload->irq_status &
 		camnoc_info[camnoc_idx]->irq_err[slave_err_irq_idx].sbm_port)) {
 		struct cam_camnoc_irq_slave_err_data *slave_err = &irq_data.u.slave_err;
 
@@ -915,12 +963,13 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 		if (slave_err->errlog0_low.err_code == CAM_CAMNOC_ADDRESS_DECODE_ERROR) {
 			/* Notify clients about potential page fault */
 			if (!cpas_core->smmu_fault_handled) {
+				/* Dump error logger */
+				cam_cpastop_handle_errlogger(camnoc_idx, cpas_core, soc_info,
+					&irq_data.u.slave_err);
 				cam_cpastop_notify_clients(cpas_core, &irq_data, true);
-				CAM_ERR_RATE_LIMIT(CAM_CPAS,
-					"Fault at SMMU raised as CAMNOC SLAVE IRQ, address decode error");
 			}
-
 			cpas_core->smmu_fault_handled = true;
+
 			/* Skip bh if no other irq is set */
 			payload->irq_status &=
 				~camnoc_info[camnoc_idx]->irq_err[slave_err_irq_idx].sbm_port;
