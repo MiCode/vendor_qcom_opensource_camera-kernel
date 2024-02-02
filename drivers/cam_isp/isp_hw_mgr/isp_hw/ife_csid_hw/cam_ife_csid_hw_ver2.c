@@ -2239,6 +2239,7 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 			if (csid_reg->path_irq_desc[bit_pos].err_handler)
 				csid_reg->path_irq_desc[bit_pos].err_handler(csid_hw, res);
 		}
+
 		bit_pos++;
 		status >>= 1;
 	}
