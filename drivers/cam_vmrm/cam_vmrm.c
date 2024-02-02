@@ -2506,8 +2506,6 @@ static ssize_t cam_vmrm_set_driver_node_msg_test(struct file *file,
 	int rc = 0;
 	char input_buf[CAM_BUF_SIZE_MAX] = {'\0'};
 	uint32_t driver_id;
-	struct cam_driver_node *driver_pos;
-	struct cam_vmrm_intf_dev *vmrm_intf_dev;
 
 	if (size >= CAM_BUF_SIZE_MAX) {
 		CAM_ERR(CAM_VMRM, "%d size more than max size %d", size, CAM_BUF_SIZE_MAX);
@@ -2531,34 +2529,12 @@ static ssize_t cam_vmrm_set_driver_node_msg_test(struct file *file,
 		return size;
 	}
 
-	vmrm_intf_dev = cam_vmrm_get_intf_dev();
-
-	mutex_lock(&vmrm_intf_dev->lock);
-	driver_pos = cam_driver_node_lookup(driver_id);
-	if (!driver_pos) {
-		CAM_ERR(CAM_VMRM, "Do not find driver id 0x%x", driver_id);
-		mutex_unlock(&vmrm_intf_dev->lock);
-		return -EINVAL;
-	}
-	mutex_unlock(&vmrm_intf_dev->lock);
-
-	mutex_lock(&driver_pos->msg_comm_lock);
-	reinit_completion(&driver_pos->wait_response);
-	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_PVM, CAM_MSG_DST_TYPE_DRIVER_NODE,
-		driver_id, CAM_MSG_TYPE_MAX, false, true, NULL, 1, &driver_pos->wait_response, 0);
+	rc = cam_vmrm_send_driver_msg_wrapper(CAM_PVM, driver_id, CAM_MSG_TYPE_MAX, false, true,
+		NULL, 1, 0);
 	if (rc) {
-		CAM_ERR(CAM_VMRM, "send msg for driver node failed: 0x%x, rc: %d", driver_id, rc);
-		mutex_unlock(&driver_pos->msg_comm_lock);
+		CAM_ERR(CAM_VMRM, "send msg failed for driver node: 0x%x, rc: %d", driver_id, rc);
 		return rc;
 	}
-
-	rc = driver_pos->response_result;
-	if (!rc)
-		CAM_INFO(CAM_VMRM, "driver id 0x%x msg test succeed", driver_id);
-	else
-		CAM_ERR(CAM_VMRM, "driver id 0x%x msg test failed", driver_id);
-
-	mutex_unlock(&driver_pos->msg_comm_lock);
 
 	return size;
 }

@@ -142,6 +142,43 @@ int cam_vmrm_send_msg(uint32_t source_vmid, uint32_t des_vmid, uint32_t msg_dst_
 	void *msg_data, uint32_t data_size, struct completion *complete, uint32_t timeout);
 
 /**
+ * cam_vmrm_send_hw_msg_wrapper()
+ *
+ * @brief:        VMRM send HW message wrapper
+ *
+ * @dest_vm:      Destination vm id
+ * @hw_id:        Message destination hw id
+ * @msg_type:     Message type
+ * @response_msg  Whether response message or actual message
+ * @need_response Whether need response
+ * @msg:          Message data payload
+ * @msg_size:     Message data payload size
+ * @timeout:      Timeout for this message, if it is 0 then CAM_VMRM_INTER_VM_MSG_TIMEOUT will
+ *                be used as timeout value
+ */
+int cam_vmrm_send_hw_msg_wrapper(uint32_t dest_vm, uint32_t hw_id, uint32_t msg_type,
+	bool response_msg, bool need_response, void *msg, uint32_t msg_size, uint32_t timeout);
+
+/**
+ * cam_vmrm_send_driver_msg_wrapper()
+ *
+ * @brief:        VMRM send driver message wrapper
+ *
+ * @dest_vm:      Destination vm id
+ * @hw_id:        Message destination hw id
+ * @msg_type:     Message type
+ * @response_msg  Whether response message or actual message
+ * @need_response Whether need response
+ * @msg:          Message data payload
+ * @msg_size:     Message data payload size
+ * @timeout:      Timeout for this message, if it is 0 then CAM_VMRM_INTER_VM_MSG_TIMEOUT will
+ *                be used as timeout value
+ *
+ */
+int cam_vmrm_send_driver_msg_wrapper(uint32_t dest_vm, uint32_t driver_id, uint32_t msg_type,
+	bool response_msg, bool need_response, void *msg, uint32_t msg_size, uint32_t timeout);
+
+/**
  * cam_vmrm_soc_enable_disable_resources()
  *
  * @brief:        Vmrm soc enable or disable resources

@@ -649,10 +649,10 @@ end:
 	return rc;
 }
 
-int cam_vmrm_soc_enable_disable_resources(uint32_t hw_id, bool flag)
+int cam_vmrm_send_hw_msg_wrapper(uint32_t dest_vm, uint32_t hw_id, uint32_t msg_type,
+	bool response_msg, bool need_response, void *msg, uint32_t msg_size, uint32_t timeout)
 {
 	int rc = 0;
-	uint32_t msg_type;
 	struct cam_hw_instance *hw_pos;
 	struct cam_vmrm_intf_dev *vmrm_intf_dev;
 
@@ -660,7 +660,7 @@ int cam_vmrm_soc_enable_disable_resources(uint32_t hw_id, bool flag)
 	mutex_lock(&vmrm_intf_dev->lock);
 	hw_pos = cam_hw_instance_lookup(hw_id, 0, 0, 0);
 	if (!hw_pos) {
-		CAM_ERR(CAM_VMRM, "Do not find hw instance 0x%x", hw_id);
+		CAM_ERR(CAM_VMRM, "hw instance 0x%x look up failed", hw_id);
 		mutex_unlock(&vmrm_intf_dev->lock);
 		return -EINVAL;
 	}
@@ -669,14 +669,9 @@ int cam_vmrm_soc_enable_disable_resources(uint32_t hw_id, bool flag)
 	mutex_lock(&hw_pos->msg_comm_lock);
 	reinit_completion(&hw_pos->wait_response);
 
-	if (flag)
-		msg_type = CAM_SOC_ENABLE_RESOURCE;
-	else
-		msg_type = CAM_SOC_DISABLE_RESOURCE;
-
-	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
-		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, hw_id, msg_type, false, true, NULL, 1,
-		&hw_pos->wait_response, 0);
+	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), dest_vm,
+		CAM_MSG_DST_TYPE_HW_INSTANCE, hw_id, msg_type, response_msg, need_response, msg,
+		msg_size, &hw_pos->wait_response, timeout);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "send msg for hw id failed: 0x%x, rc: %d", hw_id, rc);
 		mutex_unlock(&hw_pos->msg_comm_lock);
@@ -685,11 +680,98 @@ int cam_vmrm_soc_enable_disable_resources(uint32_t hw_id, bool flag)
 
 	rc = hw_pos->response_result;
 	if (!rc)
-		CAM_DBG(CAM_VMRM, "soc enable/disable resources succeed 0x%x, %d", hw_id, flag);
+		CAM_DBG(CAM_VMRM, "send hw message succeed for hw_id:0x%x", hw_id);
 	else
-		CAM_ERR(CAM_VMRM, "soc enable/disable resources failed 0x%x, %d", hw_id, flag);
+		CAM_ERR(CAM_VMRM, "send hw message failed for hw_id:0x%x", hw_id);
 
 	mutex_unlock(&hw_pos->msg_comm_lock);
+
+	return rc;
+
+}
+
+int cam_vmrm_send_driver_msg_wrapper(uint32_t dest_vm, uint32_t driver_id, uint32_t msg_type,
+	bool response_msg, bool need_response, void *msg, uint32_t msg_size, uint32_t timeout)
+{
+	int rc = 0;
+	struct cam_driver_node *driver_pos;
+	struct cam_vmrm_intf_dev *vmrm_intf_dev;
+
+	vmrm_intf_dev = cam_vmrm_get_intf_dev();
+	mutex_lock(&vmrm_intf_dev->lock);
+	driver_pos = cam_driver_node_lookup(driver_id);
+	if (!driver_pos) {
+		CAM_ERR(CAM_VMRM, "driver instance 0x%x look up failed", driver_id);
+		mutex_unlock(&vmrm_intf_dev->lock);
+		return -EINVAL;
+	}
+	mutex_unlock(&vmrm_intf_dev->lock);
+
+	mutex_lock(&driver_pos->msg_comm_lock);
+	reinit_completion(&driver_pos->wait_response);
+
+	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), dest_vm,
+		CAM_MSG_DST_TYPE_DRIVER_NODE, driver_id, msg_type, response_msg, need_response,
+		msg, msg_size, &driver_pos->wait_response, timeout);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "send msg for driver id failed: 0x%x, rc: %d", driver_id, rc);
+		mutex_unlock(&driver_pos->msg_comm_lock);
+		return rc;
+	}
+
+	rc = driver_pos->response_result;
+	if (!rc)
+		CAM_DBG(CAM_VMRM, "send driver message succeed for hw_id:0x%x", driver_id);
+	else
+		CAM_ERR(CAM_VMRM, "send driver message failed for driver_id:0x%x", driver_id);
+
+	mutex_unlock(&driver_pos->msg_comm_lock);
+
+	return rc;
+
+}
+
+int cam_vmrm_set_clk_rate_level(uint32_t hw_id, int cesta_client_idx,
+	enum cam_vote_level clk_level_high, enum cam_vote_level clk_level_low,
+	bool do_not_set_src_clk, unsigned long clk_rate)
+{
+	int rc = 0;
+	struct cam_msg_set_clk_rate_level msg_set_clk_rate_level;
+
+
+	msg_set_clk_rate_level.cesta_client_idx = cesta_client_idx;
+	msg_set_clk_rate_level.clk_level_high = clk_level_high;
+	msg_set_clk_rate_level.clk_level_low = clk_level_low;
+	msg_set_clk_rate_level.do_not_set_src_clk = do_not_set_src_clk;
+	msg_set_clk_rate_level.clk_rate = clk_rate;
+
+
+	rc = cam_vmrm_send_hw_msg_wrapper(CAM_PVM, hw_id, CAM_CLK_SET_RATE_LEVEL, false, true,
+		&msg_set_clk_rate_level, sizeof(msg_set_clk_rate_level), 0);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "send msg for hw id failed: 0x%x, rc: %d", hw_id, rc);
+	}
+
+	return rc;
+}
+
+int cam_vmrm_soc_enable_disable_resources(uint32_t hw_id, bool flag)
+{
+	int rc = 0;
+	uint32_t msg_type;
+
+	if (flag)
+		msg_type = CAM_SOC_ENABLE_RESOURCE;
+	else
+		msg_type = CAM_SOC_DISABLE_RESOURCE;
+
+	rc = cam_vmrm_send_hw_msg_wrapper(CAM_PVM, hw_id, msg_type,
+		false, true, NULL, 1, 0);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "send msg for hw id:0x%x msg_type:0x%x failed rc: %d",
+			hw_id, msg_type, rc);
+		return rc;
+	}
 
 	return rc;
 }
@@ -698,91 +780,19 @@ int cam_vmrm_set_src_clk_rate(uint32_t hw_id, int cesta_client_idx,
 	unsigned long clk_rate_high, unsigned long clk_rate_low)
 {
 	int rc = 0;
-	struct cam_hw_instance *hw_pos;
-	struct cam_vmrm_intf_dev *vmrm_intf_dev;
 	struct cam_msg_set_clk_rate msg_set_clk_rate;
-
-	vmrm_intf_dev = cam_vmrm_get_intf_dev();
-	mutex_lock(&vmrm_intf_dev->lock);
-	hw_pos = cam_hw_instance_lookup(hw_id, 0, 0, 0);
-	if (!hw_pos) {
-		CAM_ERR(CAM_VMRM, "Do not find hw instance 0x%x", hw_id);
-		mutex_unlock(&vmrm_intf_dev->lock);
-		return -EINVAL;
-	}
-	mutex_unlock(&vmrm_intf_dev->lock);
 
 	msg_set_clk_rate.cesta_client_idx = cesta_client_idx;
 	msg_set_clk_rate.clk_rate_high = clk_rate_high;
 	msg_set_clk_rate.clk_rate_low = clk_rate_low;
 
-	mutex_lock(&hw_pos->msg_comm_lock);
-	reinit_completion(&hw_pos->wait_response);
 
-	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
-		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, hw_id, CAM_CLK_SET_RATE, false, true,
-		&msg_set_clk_rate, sizeof(msg_set_clk_rate), &hw_pos->wait_response, 0);
+	rc = cam_vmrm_send_hw_msg_wrapper(CAM_PVM, hw_id, CAM_CLK_SET_RATE, false, true,
+		&msg_set_clk_rate, sizeof(msg_set_clk_rate), 0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "send msg for hw id failed: 0x%x, rc: %d", hw_id, rc);
-		mutex_unlock(&hw_pos->msg_comm_lock);
 		return rc;
 	}
-
-	rc = hw_pos->response_result;
-	if (!rc)
-		CAM_DBG(CAM_VMRM, "set src clk rate succeed 0x%x", hw_id);
-	else
-		CAM_ERR(CAM_VMRM, "set src clk rate failed 0x%x", hw_id);
-
-	mutex_unlock(&hw_pos->msg_comm_lock);
-
-	return rc;
-}
-
-int cam_vmrm_set_clk_rate_level(uint32_t hw_id, int cesta_client_idx,
-	enum cam_vote_level clk_level_high, enum cam_vote_level clk_level_low,
-	bool do_not_set_src_clk, unsigned long clk_rate)
-{
-	int rc = 0;
-	struct cam_hw_instance *hw_pos;
-	struct cam_vmrm_intf_dev *vmrm_intf_dev;
-	struct cam_msg_set_clk_rate_level msg_set_clk_rate_level;
-
-	vmrm_intf_dev = cam_vmrm_get_intf_dev();
-	mutex_lock(&vmrm_intf_dev->lock);
-	hw_pos = cam_hw_instance_lookup(hw_id, 0, 0, 0);
-	if (!hw_pos) {
-		CAM_ERR(CAM_VMRM, "Do not find hw instance 0x%x", hw_id);
-		mutex_unlock(&vmrm_intf_dev->lock);
-		return -EINVAL;
-	}
-	mutex_unlock(&vmrm_intf_dev->lock);
-
-	msg_set_clk_rate_level.cesta_client_idx = cesta_client_idx;
-	msg_set_clk_rate_level.clk_level_high = clk_level_high;
-	msg_set_clk_rate_level.clk_level_low = clk_level_low;
-	msg_set_clk_rate_level.do_not_set_src_clk = do_not_set_src_clk;
-	msg_set_clk_rate_level.clk_rate = clk_rate;
-
-	mutex_lock(&hw_pos->msg_comm_lock);
-	reinit_completion(&hw_pos->wait_response);
-
-	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
-		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, hw_id, CAM_CLK_SET_RATE_LEVEL, false, true,
-		&msg_set_clk_rate_level, sizeof(msg_set_clk_rate_level), &hw_pos->wait_response);
-	if (rc) {
-		CAM_ERR(CAM_VMRM, "send msg for hw id failed: 0x%x, rc: %d", hw_id, rc);
-		mutex_unlock(&hw_pos->msg_comm_lock);
-		return rc;
-	}
-
-	rc = hw_pos->response_result;
-	if (!rc)
-		CAM_DBG(CAM_VMRM, "set src clk rate level succeed 0x%x", hw_id);
-	else
-		CAM_ERR(CAM_VMRM, "set src clk rate level failed 0x%x", hw_id);
-
-	mutex_unlock(&hw_pos->msg_comm_lock);
 
 	return rc;
 }
@@ -790,20 +800,7 @@ int cam_vmrm_set_clk_rate_level(uint32_t hw_id, int cesta_client_idx,
 int cam_vmrm_icc_vote(const char *name, uint64_t ab, uint64_t ib)
 {
 	int rc = 0;
-	struct cam_vmrm_intf_dev *vmrm_intf_dev;
-	struct cam_hw_instance *hw_pos;
 	struct cam_msg_icc_vote msg_icc_vote;
-
-	vmrm_intf_dev = cam_vmrm_get_intf_dev();
-
-	mutex_lock(&vmrm_intf_dev->lock);
-	hw_pos = cam_hw_instance_lookup(CAM_HW_ID_CPAS, 0, 0, 0);
-	if (!hw_pos) {
-		CAM_ERR(CAM_VMRM, "Do not find hw instance 0x%x", CAM_HW_ID_CPAS);
-		mutex_unlock(&vmrm_intf_dev->lock);
-		return -EINVAL;
-	}
-	mutex_unlock(&vmrm_intf_dev->lock);
 
 	CAM_DBG(CAM_VMRM, "name: %s icc vote [%llu] ib[%llu]", name, ab, ib);
 
@@ -811,25 +808,12 @@ int cam_vmrm_icc_vote(const char *name, uint64_t ab, uint64_t ib)
 	msg_icc_vote.ab = ab;
 	msg_icc_vote.ib = ib;
 
-	mutex_lock(&hw_pos->msg_comm_lock);
-	reinit_completion(&hw_pos->wait_response);
-
-	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
-		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, CAM_HW_ID_CPAS, CAM_ICC_VOTE, false, true,
-		&msg_icc_vote, sizeof(msg_icc_vote), &hw_pos->wait_response, 0);
+	rc = cam_vmrm_send_hw_msg_wrapper(CAM_PVM, CAM_HW_ID_CPAS, CAM_ICC_VOTE, false, true,
+		&msg_icc_vote, sizeof(msg_icc_vote), 0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "send msg for name %s failed rc: %d", name, rc);
-		mutex_unlock(&hw_pos->msg_comm_lock);
 		return rc;
 	}
-
-	rc = hw_pos->response_result;
-	if (!rc)
-		CAM_DBG(CAM_VMRM, "name %s icc vote succeed", name);
-	else
-		CAM_ERR(CAM_VMRM, "name %s icc vote failed", name);
-
-	mutex_unlock(&hw_pos->msg_comm_lock);
 
 	return rc;
 }
@@ -837,38 +821,13 @@ int cam_vmrm_icc_vote(const char *name, uint64_t ab, uint64_t ib)
 int cam_vmrm_sensor_power_up(uint32_t hw_id)
 {
 	int rc = 0;
-	struct cam_hw_instance *hw;
-	struct cam_vmrm_intf_dev *vmrm_intf_dev;
 
-	vmrm_intf_dev = cam_vmrm_get_intf_dev();
-
-	mutex_lock(&vmrm_intf_dev->lock);
-	hw = cam_hw_instance_lookup(hw_id, 0, 0, 0);
-	if (!hw) {
-		CAM_ERR(CAM_VMRM, "Look up hw failed 0x%x", hw_id);
-		mutex_unlock(&vmrm_intf_dev->lock);
-		return -EINVAL;
-	}
-	mutex_unlock(&vmrm_intf_dev->lock);
-
-	mutex_lock(&hw->msg_comm_lock);
-	reinit_completion(&hw->wait_response);
-
-	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE,
-		hw_id, CAM_HW_POWER_UP, false, true, NULL, 1, &hw->wait_response, 0);
+	rc = cam_vmrm_send_hw_msg_wrapper(CAM_PVM, hw_id, CAM_HW_POWER_UP, false, true, NULL, 1,
+		0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "hw id power up failed: 0x%x, rc: %d", hw_id, rc);
-		mutex_unlock(&hw->msg_comm_lock);
 		return rc;
 	}
-
-	rc = hw->response_result;
-	if (!rc)
-		CAM_DBG(CAM_VMRM, "hw id power up succeed 0x%x", hw_id);
-	else
-		CAM_ERR(CAM_VMRM, "hw id power up failed 0x%x", hw_id);
-
-	mutex_unlock(&hw->msg_comm_lock);
 
 	return rc;
 }
@@ -876,43 +835,16 @@ int cam_vmrm_sensor_power_up(uint32_t hw_id)
 int cam_vmrm_sensor_power_down(uint32_t hw_id)
 {
 	int rc = 0;
-	struct cam_hw_instance *hw;
-	struct cam_vmrm_intf_dev *vmrm_intf_dev;
 
-	vmrm_intf_dev = cam_vmrm_get_intf_dev();
-
-	mutex_lock(&vmrm_intf_dev->lock);
-	hw = cam_hw_instance_lookup(hw_id, 0, 0, 0);
-	if (!hw) {
-		CAM_ERR(CAM_VMRM, "Look up hw failed 0x%x", hw_id);
-		mutex_unlock(&vmrm_intf_dev->lock);
-		return -EINVAL;
-	}
-	mutex_unlock(&vmrm_intf_dev->lock);
-
-	mutex_lock(&hw->msg_comm_lock);
-	reinit_completion(&hw->wait_response);
-
-	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
-		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, hw_id, CAM_HW_POWER_DOWN, false, true,
-		NULL, 1, &hw->wait_response, 0);
+	rc = cam_vmrm_send_hw_msg_wrapper(CAM_PVM, hw_id, CAM_HW_POWER_DOWN, false, true, NULL, 1,
+		0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "hw id power down failed: 0x%x, rc: %d", hw_id, rc);
-		mutex_unlock(&hw->msg_comm_lock);
 		return rc;
 	}
 
-	rc = hw->response_result;
-	if (!rc)
-		CAM_DBG(CAM_VMRM, "hw id power down succeed 0x%x", hw_id);
-	else
-		CAM_ERR(CAM_VMRM, "hw id power down failed 0x%x", hw_id);
-
-	mutex_unlock(&hw->msg_comm_lock);
-
 	return rc;
 }
-
 #else
 bool cam_vmrm_is_supported(void)
 {
