@@ -7700,6 +7700,13 @@ static int cam_ife_mgr_stop_hw(void *hw_mgr_priv, void *stop_hw_args)
 		}
 	}
 
+	rc = cam_cdm_reset_hw(ctx->cdm_handle);
+	if (rc) {
+		CAM_WARN(CAM_ISP, "CDM: %u reset failed rc: %d in ctx: %u",
+			ctx->cdm_id, rc, ctx->ctx_index);
+		rc = 0;
+	}
+
 	/*
 	 * If Context does not have PIX resources and has only RDI resource
 	 * then take the first base index.
@@ -7796,16 +7803,6 @@ static int cam_ife_mgr_stop_hw(void *hw_mgr_priv, void *stop_hw_args)
 				"config done completion timeout for last applied req_id=%llu ctx_index %u",
 				ctx->applied_req_id, ctx->ctx_index);
 
-	}
-
-	/* Reset CDM for KMD internal stop */
-	if (stop_isp->is_internal_stop) {
-		rc = cam_cdm_reset_hw(ctx->cdm_handle);
-		if (rc) {
-			CAM_WARN(CAM_ISP, "CDM: %u reset failed rc: %d in ctx: %u",
-				ctx->cdm_id, rc, ctx->ctx_index);
-			rc = 0;
-		}
 	}
 
 	if (stop_isp->stop_only)
