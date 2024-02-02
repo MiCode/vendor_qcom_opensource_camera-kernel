@@ -134,10 +134,12 @@ int cam_vmrm_soc_release_resources(uint32_t hw_id);
  * @need_response Whether need response
  * @data_size:    Message data payload size
  * @complete:     Response completion
+ * @timeout:      Timeout for this message, if it is 0 then CAM_VMRM_INTER_VM_MSG_TIMEOUT will
+ *                be used as timeout value
  */
 int cam_vmrm_send_msg(uint32_t source_vmid, uint32_t des_vmid, uint32_t msg_dst_type,
 	uint32_t msg_dst_id, uint32_t msg_type, bool response_msg, bool need_response,
-	void *msg_data, uint32_t data_size, struct completion *complete);
+	void *msg_data, uint32_t data_size, struct completion *complete, uint32_t timeout);
 
 /**
  * cam_vmrm_soc_enable_disable_resources()

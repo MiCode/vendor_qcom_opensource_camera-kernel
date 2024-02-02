@@ -38,8 +38,8 @@
 /* message destination id for driver node*/
 #define CAM_DRIVER_ID_BASE          0xa000
 #define CAM_DRIVER_ID_ISP           (CAM_DRIVER_ID_BASE + 0)
-#define CAM_DRIVER_ID_ICP           (CAM_DRIVER_ID_BASE + 1)
-#define CAM_DRIVER_ID_CPAS          (CAM_DRIVER_ID_BASE + 2)
+#define CAM_DRIVER_ID_ICP           (CAM_DRIVER_ID_BASE + 0x100)
+#define CAM_DRIVER_ID_CPAS          (CAM_DRIVER_ID_BASE + 0x200)
 
 /*
  * camera irq label, there is a similar irq label defined in
@@ -72,6 +72,9 @@
 
 /* message receive buffer size */
 #define CAM_VMRM_RECV_MSG_BUF_SIZE        256
+
+/* default inter vm messaging timeout*/
+#define CAM_VMRM_INTER_VM_MSG_TIMEOUT     200
 
 /* resource request client name*/
 #define CAM_RESOURCE_REQ_CLIENT_NAME "cam_vmrm"

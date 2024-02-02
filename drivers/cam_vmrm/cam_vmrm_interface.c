@@ -348,7 +348,7 @@ int cam_vmrm_unregister_gh_callback(void)
 
 int cam_vmrm_send_msg(uint32_t source_vmid, uint32_t des_vmid, uint32_t msg_dst_type,
 	uint32_t msg_dst_id, uint32_t msg_type, bool response_msg, bool need_response,
-	void *msg_data, uint32_t data_size, struct completion *complete)
+	void *msg_data, uint32_t data_size, struct completion *complete, uint32_t timeout)
 {
 	int rc = 0;
 	struct cam_vmrm_msg *vm_msg;
@@ -362,6 +362,9 @@ int cam_vmrm_send_msg(uint32_t source_vmid, uint32_t des_vmid, uint32_t msg_dst_
 		CAM_ERR(CAM_VMRM, "msg mem allocate failed");
 		return -ENOMEM;
 	}
+
+	if (!timeout)
+		timeout = CAM_VMRM_INTER_VM_MSG_TIMEOUT;
 
 	vm_msg->source_vmid = source_vmid;
 	vm_msg->des_vmid = des_vmid;
@@ -406,7 +409,7 @@ int cam_vmrm_send_msg(uint32_t source_vmid, uint32_t des_vmid, uint32_t msg_dst_
 
 	if (need_response) {
 		rem_jiffies = cam_common_wait_for_completion_timeout(complete,
-			msecs_to_jiffies(200));
+			msecs_to_jiffies(timeout));
 		if (rem_jiffies == 0) {
 			CAM_ERR(CAM_VMRM, "hw 0x%x wait for response timeout", msg_dst_id);
 			rc = -EINVAL;
@@ -462,7 +465,7 @@ int cam_vmrm_soc_acquire_resources(uint32_t hw_id)
 		hw_pos->ref_count++;
 		mutex_unlock(&vmrm_intf_dev->lock);
 		rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_SVM1, CAM_MSG_DST_TYPE_VMRM,
-			hw_id, CAM_HW_RESOURCE_SET_ACQUIRE, false, false, NULL, 1, NULL);
+			hw_id, CAM_HW_RESOURCE_SET_ACQUIRE, false, false, NULL, 1, NULL, 0);
 		if (rc) {
 			CAM_ERR(CAM_VMRM, "vm rm send msg failed %d", rc);
 			goto end;
@@ -497,7 +500,7 @@ int cam_vmrm_soc_acquire_resources(uint32_t hw_id)
 				rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_PVM,
 					CAM_MSG_DST_TYPE_VMRM, CAM_HW_ID_CPAS,
 					CAM_HW_RESOURCE_ACQUIRE, false, true, NULL, 1,
-					&cpas_hw_pos->wait_response);
+					&cpas_hw_pos->wait_response, 0);
 				if (rc) {
 					CAM_ERR(CAM_VMRM, "vm rm send msg failed %d", rc);
 					mutex_unlock(&cpas_hw_pos->msg_comm_lock);
@@ -527,7 +530,7 @@ int cam_vmrm_soc_acquire_resources(uint32_t hw_id)
 			reinit_completion(&hw_pos->wait_response);
 			rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_PVM,
 				CAM_MSG_DST_TYPE_VMRM, hw_id, CAM_HW_RESOURCE_ACQUIRE, false, true,
-				NULL, 1, &hw_pos->wait_response);
+				NULL, 1, &hw_pos->wait_response, 0);
 			if (rc) {
 				CAM_ERR(CAM_VMRM, "vm rm send msg failed %d", rc);
 				mutex_unlock(&hw_pos->msg_comm_lock);
@@ -609,7 +612,7 @@ int cam_vmrm_soc_release_resources(uint32_t hw_id)
 
 	if (CAM_IS_PRIMARY_VM()) {
 		rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_SVM1, CAM_MSG_DST_TYPE_VMRM,
-			hw_id, CAM_HW_RESOURCE_SET_RELEASE, false, false, NULL, 1, NULL);
+			hw_id, CAM_HW_RESOURCE_SET_RELEASE, false, false, NULL, 1, NULL, 0);
 		if (rc) {
 			CAM_ERR(CAM_VMRM, "vmrm send msg failed %d", rc);
 			goto end;
@@ -673,7 +676,7 @@ int cam_vmrm_soc_enable_disable_resources(uint32_t hw_id, bool flag)
 
 	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
 		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, hw_id, msg_type, false, true, NULL, 1,
-		&hw_pos->wait_response);
+		&hw_pos->wait_response, 0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "send msg for hw id failed: 0x%x, rc: %d", hw_id, rc);
 		mutex_unlock(&hw_pos->msg_comm_lock);
@@ -718,7 +721,7 @@ int cam_vmrm_set_src_clk_rate(uint32_t hw_id, int cesta_client_idx,
 
 	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
 		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, hw_id, CAM_CLK_SET_RATE, false, true,
-		&msg_set_clk_rate, sizeof(msg_set_clk_rate), &hw_pos->wait_response);
+		&msg_set_clk_rate, sizeof(msg_set_clk_rate), &hw_pos->wait_response, 0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "send msg for hw id failed: 0x%x, rc: %d", hw_id, rc);
 		mutex_unlock(&hw_pos->msg_comm_lock);
@@ -813,7 +816,7 @@ int cam_vmrm_icc_vote(const char *name, uint64_t ab, uint64_t ib)
 
 	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
 		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, CAM_HW_ID_CPAS, CAM_ICC_VOTE, false, true,
-		&msg_icc_vote, sizeof(msg_icc_vote), &hw_pos->wait_response);
+		&msg_icc_vote, sizeof(msg_icc_vote), &hw_pos->wait_response, 0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "send msg for name %s failed rc: %d", name, rc);
 		mutex_unlock(&hw_pos->msg_comm_lock);
@@ -852,7 +855,7 @@ int cam_vmrm_sensor_power_up(uint32_t hw_id)
 	reinit_completion(&hw->wait_response);
 
 	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE,
-		hw_id, CAM_HW_POWER_UP, false, true, NULL, 1, &hw->wait_response);
+		hw_id, CAM_HW_POWER_UP, false, true, NULL, 1, &hw->wait_response, 0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "hw id power up failed: 0x%x, rc: %d", hw_id, rc);
 		mutex_unlock(&hw->msg_comm_lock);
@@ -892,7 +895,7 @@ int cam_vmrm_sensor_power_down(uint32_t hw_id)
 
 	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(),
 		CAM_PVM, CAM_MSG_DST_TYPE_HW_INSTANCE, hw_id, CAM_HW_POWER_DOWN, false, true,
-		NULL, 1, &hw->wait_response);
+		NULL, 1, &hw->wait_response, 0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "hw id power down failed: 0x%x, rc: %d", hw_id, rc);
 		mutex_unlock(&hw->msg_comm_lock);
@@ -964,7 +967,7 @@ int cam_vmrm_unregister_gh_callback(void)
 
 int cam_vmrm_send_msg(uint32_t source_vmid, uint32_t des_vmid, uint32_t msg_dst_type,
 	uint32_t msg_dst_id, uint32_t msg_type, bool response_msg, bool need_response,
-	void *msg_data, uint32_t data_size, struct completion *complete)
+	void *msg_data, uint32_t data_size, struct completion *complete, uint32_t timeout)
 {
 	return 0;
 }

@@ -2545,7 +2545,7 @@ static ssize_t cam_vmrm_set_driver_node_msg_test(struct file *file,
 	mutex_lock(&driver_pos->msg_comm_lock);
 	reinit_completion(&driver_pos->wait_response);
 	rc = cam_vmrm_send_msg(cam_vmrm_intf_get_vmid(), CAM_PVM, CAM_MSG_DST_TYPE_DRIVER_NODE,
-		driver_id, CAM_MSG_TYPE_MAX, false, true, NULL, 1, &driver_pos->wait_response);
+		driver_id, CAM_MSG_TYPE_MAX, false, true, NULL, 1, &driver_pos->wait_response, 0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "send msg for driver node failed: 0x%x, rc: %d", driver_id, rc);
 		mutex_unlock(&driver_pos->msg_comm_lock);
