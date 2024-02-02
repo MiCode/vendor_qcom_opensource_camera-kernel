@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -447,6 +447,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 		.debug_status_top                 = 0x0000AAD8,
 		.test_bus_ctrl                    = 0x0000AADC,
 		.top_irq_mask_0                   = 0x0000003C,
+		.wm_mode_shift                    = 16,
+		.wm_mode_val                      = { 0x0, 0x1, 0x2 },
+		.wm_en_shift                      = 0,
+		.frmheader_en_shift               = 2,
+		.virtual_frm_en_shift		  = 1,
 		.irq_reg_info = {
 			.num_registers            = 2,
 			.irq_reg_set              = vfe480_bus_irq_reg,
@@ -1337,6 +1342,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.mid           = vfe480_out_port_mid[3],
 			.num_mid       = 4,
 			.num_wm        = 2,
+			.line_based    = 1,
 			.wm_idx        = {
 				0,
 				1,
@@ -1354,6 +1360,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.mid           = vfe480_out_port_mid[4],
 			.num_mid       = 1,
 			.num_wm        = 1,
+			.line_based    = 1,
 			.wm_idx        = {
 				2,
 			},
@@ -1369,6 +1376,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.mid           = vfe480_out_port_mid[5],
 			.num_mid       = 1,
 			.num_wm        = 1,
+			.line_based    = 1,
 			.wm_idx        = {
 				3,
 			},
@@ -1384,6 +1392,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.mid           = vfe480_out_port_mid[6],
 			.num_mid       = 2,
 			.num_wm        = 1,
+			.line_based    = 1,
 			.wm_idx        = {
 				10,
 			},
@@ -1399,6 +1408,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.mid           = vfe480_out_port_mid[7],
 			.num_mid       = 3,
 			.num_wm        = 2,
+			.line_based    = 1,
 			.wm_idx        = {
 				8,
 				9,
@@ -1569,6 +1579,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.mid           = vfe480_out_port_mid[18],
 			.num_mid       = 4,
 			.num_wm        = 2,
+			.line_based    = 1,
 			.wm_idx        = {
 				4,
 				5,
@@ -1587,6 +1598,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.mid           = vfe480_out_port_mid[19],
 			.num_mid       = 1,
 			.num_wm        = 1,
+			.line_based    = 1,
 			.wm_idx        = {
 				6,
 			},
@@ -1602,6 +1614,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.mid           = vfe480_out_port_mid[20],
 			.num_mid       = 1,
 			.num_wm        = 1,
+			.line_based    = 1,
 			.wm_idx        = {
 				7,
 			},
@@ -1632,6 +1645,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe480_bus_hw_info = {
 			.mid           = vfe480_out_port_mid[22],
 			.num_mid       = 1,
 			.num_wm        = 1,
+			.line_based    = 1,
 			.wm_idx        = {
 				22,
 			},

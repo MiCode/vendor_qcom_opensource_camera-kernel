@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -187,6 +187,11 @@ static struct cam_vfe_bus_ver3_hw_info vfe_lite88x_bus_hw_info = {
 		.debug_status_top_cfg             = 0x000012F0,
 		.debug_status_top                 = 0x000012F4,
 		.test_bus_ctrl                    = 0x00001394,
+		.wm_mode_shift                    = 16,
+		.wm_mode_val                      = { 0x0, 0x1, 0x2 },
+		.wm_en_shift                      = 0,
+		.frmheader_en_shift               = 2,
+		.virtual_frm_en_shift		  = 1,
 		.irq_reg_info = {
 			.num_registers            = 1,
 			.irq_reg_set              = vfe_lite88x_bus_irq_reg,

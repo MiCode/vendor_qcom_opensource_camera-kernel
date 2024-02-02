@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -15,6 +15,13 @@
 #define CAM_VFE_BUS_VER3_MAX_MID_PER_PORT    4
 #define CAM_VFE_BUS_VER3_CONS_ERR_MAX        32
 #define CAM_VFE_BUS_VER3_MAX_CLIENTS         28
+
+enum cam_vfe_bus_wr_wm_mode {
+	CAM_VFE_WM_LINE_BASED_MODE,
+	CAM_VFE_WM_FRAME_BASED_MODE,
+	CAM_VFE_WM_INDEX_BASED_MODE,
+	CAM_VFE_WM_MODE_MAX,
+};
 
 enum cam_vfe_bus_ver3_vfe_core_id {
 	CAM_VFE_BUS_VER3_VFE_CORE_0,
@@ -145,6 +152,11 @@ struct cam_vfe_bus_ver3_reg_offset_common {
 	uint32_t mc_read_sel_shift;
 	uint32_t mc_write_sel_shift;
 	uint32_t mc_ctxt_mask;
+	uint32_t wm_mode_shift;
+	uint32_t wm_mode_val[CAM_VFE_WM_MODE_MAX];
+	uint32_t wm_en_shift;
+	uint32_t frmheader_en_shift;
+	uint32_t virtual_frm_en_shift;
 	uint32_t top_irq_mask_0;
 	struct cam_irq_controller_reg_info irq_reg_info;
 };
