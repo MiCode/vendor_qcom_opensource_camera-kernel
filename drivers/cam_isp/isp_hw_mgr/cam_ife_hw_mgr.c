@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -484,6 +484,8 @@ static int cam_ife_mgr_handle_reg_dump(struct cam_ife_hw_mgr_ctx *ctx,
 	bool user_triggered_dump)
 {
 	int rc = 0, i;
+	struct cam_hw_soc_skip_dump_args skip_dump_args;
+
 
 	if (cam_presil_mode_enabled()) {
 		if (g_ife_hw_mgr.debug_cfg.enable_presil_reg_dump) {
@@ -509,6 +511,16 @@ static int cam_ife_mgr_handle_reg_dump(struct cam_ife_hw_mgr_ctx *ctx,
 			"Reg dump values might be from more than one request, ctx_idx: %u",
 			ctx->ctx_index);
 
+	if ((meta_type != CAM_ISP_PACKET_META_REG_DUMP_ON_ERROR) &&
+			g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump) {
+		skip_dump_args.skip_regdump =
+			g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump;
+		skip_dump_args.start_offset =
+			g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump_start_offset;
+		skip_dump_args.stop_offset =
+			g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump_stop_offset;
+	}
+
 	for (i = 0; i < num_reg_dump_buf; i++) {
 		rc = cam_packet_util_validate_cmd_desc(&reg_dump_buf_desc[i]);
 		if (rc)
@@ -522,6 +534,7 @@ static int cam_ife_mgr_handle_reg_dump(struct cam_ife_hw_mgr_ctx *ctx,
 				ctx->applied_req_id,
 				cam_ife_mgr_regspace_data_cb,
 				soc_dump_args,
+				&skip_dump_args,
 				user_triggered_dump);
 			if (rc) {
 				CAM_ERR(CAM_ISP,
@@ -17958,6 +17971,12 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
 		isp_cap.fcg_supported;
 	max_ife_out_res =
 		g_ife_hw_mgr.isp_caps.max_vfe_out_res_type & 0xFF;
+	g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump =
+		isp_cap.skip_regdump_data.skip_regdump;
+	g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump_start_offset =
+		isp_cap.skip_regdump_data.skip_regdump_start_offset;
+	g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump_stop_offset =
+		isp_cap.skip_regdump_data.skip_regdump_stop_offset;
 	memset(&isp_cap, 0x0, sizeof(struct cam_isp_hw_cap));
 
 	for (i = 0; i < path_port_map.num_entries; i++) {

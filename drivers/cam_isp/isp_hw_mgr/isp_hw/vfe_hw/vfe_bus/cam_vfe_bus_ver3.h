@@ -291,6 +291,9 @@ struct cam_vfe_bus_ver3_hw_info {
 	uint32_t pack_align_shift;
 	uint32_t max_bw_counter_limit;
 	bool support_burst_limit;
+	bool skip_regdump;
+	uint32_t skip_regdump_start_offset;
+	uint32_t skip_regdump_stop_offset;
 };
 
 /**

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SOC_UTIL_H_
@@ -388,6 +388,21 @@ struct cam_hw_soc_dump_args {
 	uint64_t             request_id;
 	size_t               offset;
 	uint32_t             buf_handle;
+};
+
+/**
+ * struct cam_hw_soc_skip_dump :   SOC Dump args for skiping offset
+ *
+ * @skip_regdump         skip offset is required for dump or not
+ * @start_offset:        offset for skipping reg dump
+ * @stop_offset:         offset for stoping skip reg dump
+ * @reg_base_type:       register base type
+ */
+struct cam_hw_soc_skip_dump_args {
+	bool                skip_regdump;
+	uint32_t            start_offset;
+	uint32_t            stop_offset;
+	uint32_t            reg_base_type;
 };
 
 /*
@@ -859,6 +874,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 	struct cam_cmd_buf_desc *cmd_desc, uint64_t req_id,
 	cam_soc_util_regspace_data_cb reg_data_cb,
 	struct cam_hw_soc_dump_args *soc_dump_args,
+	struct cam_hw_soc_skip_dump_args *soc_skip_dump_args,
 	bool user_triggered_dump);
 
 /**

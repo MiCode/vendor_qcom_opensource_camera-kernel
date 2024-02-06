@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_H_
@@ -616,6 +616,25 @@ struct cam_isp_hw_intf_data {
 	uint32_t                num_hw_pid;
 	uint32_t                hw_pid[CAM_ISP_HW_MAX_PID_VAL];
 };
+
+
+/**
+ * struct cam_isp_hw_regiter_dump_data - ISP skip reg dump data
+ *
+ * @Brief:        ISP skip reg dump data
+ *
+ * @skip_regdump:              Regdump skip required for this target or not
+ * @skip_regdump_start_offset: Start register address which needs to skip register dump
+ * @skip_regdump_stop_offset:  Register address which needs to stop skiping register dump
+ *
+ */
+
+struct cam_isp_hw_regiter_dump_data {
+	bool                    skip_regdump;
+	uint32_t                skip_regdump_start_offset;
+	uint32_t                skip_regdump_stop_offset;
+};
+
 /**
  * struct cam_isp_hw_bus_cap:
  *
@@ -630,12 +649,13 @@ struct cam_isp_hw_intf_data {
  *
  */
 struct cam_isp_hw_cap {
-	uint32_t                max_out_res_type;
-	uint32_t                num_perf_counters;
-	uint32_t                max_fcg_ch_ctx;
-	uint32_t                max_fcg_predictions;
-	bool                    fcg_supported;
-	bool                    support_consumed_addr;
+	uint32_t                             max_out_res_type;
+	uint32_t                             num_perf_counters;
+	uint32_t                             max_fcg_ch_ctx;
+	uint32_t                             max_fcg_predictions;
+	bool                                 fcg_supported;
+	bool                                 support_consumed_addr;
+	struct cam_isp_hw_regiter_dump_data  skip_regdump_data;
 };
 
 /**

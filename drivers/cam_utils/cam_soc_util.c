@@ -3987,7 +3987,8 @@ static inline int cam_soc_util_reg_addr_validation(
 static int cam_soc_util_dump_cont_reg_range(
 	struct cam_hw_soc_info *soc_info,
 	struct cam_reg_range_read_desc *reg_read, uint32_t base_idx,
-	struct cam_reg_dump_out_buffer *dump_out_buf, uintptr_t cmd_buf_end)
+	struct cam_reg_dump_out_buffer *dump_out_buf,
+	uintptr_t cmd_buf_end)
 {
 	int         i = 0, rc = 0;
 	uint32_t    write_idx = 0, reg_map_size;
@@ -4048,11 +4049,14 @@ end:
 static int cam_soc_util_dump_dmi_ctxt_reg_range(
 	struct cam_hw_soc_info *soc_info,
 	struct cam_dmi_read_desc *reg_read, uint32_t base_idx,
-	struct cam_reg_dump_out_buffer *dump_out_buf, uintptr_t cmd_buf_end,
-	uint64_t type)
+	struct cam_reg_dump_out_buffer *dump_out_buf,
+	struct cam_hw_soc_skip_dump_args *soc_skip_dump_args,
+	uintptr_t cmd_buf_end, uint64_t type)
 {
 	int        i = 0, rc = 0;
-	uint32_t   write_idx = 0, reg_map_size, offset;
+	uint32_t   write_idx = 0, reg_map_size;
+	uint32_t   offset, start_offset, end_offset, reg_base_type;
+	bool skip_register_read = false;
 
 	if (!soc_info || !dump_out_buf || !reg_read || !cmd_buf_end) {
 		CAM_ERR(CAM_UTIL,
@@ -4137,10 +4141,28 @@ static int cam_soc_util_dump_dmi_ctxt_reg_range(
 				if (rc)
 					continue;
 			}
+
+			if (soc_skip_dump_args->skip_regdump) {
+				reg_base_type = soc_skip_dump_args->reg_base_type;
+				if (reg_base_type == CAM_REG_DUMP_BASE_TYPE_ISP_LEFT ||
+					reg_base_type == CAM_REG_DUMP_BASE_TYPE_ISP_RIGHT) {
+					start_offset = soc_skip_dump_args->start_offset;
+					end_offset = soc_skip_dump_args->stop_offset;
+					if (offset >= start_offset && offset <= end_offset)
+						skip_register_read = true;
+				}
+			}
+
 			dump_out_buf->dump_data[write_idx++] = offset;
-			dump_out_buf->dump_data[write_idx++] =
-				cam_soc_util_r_mb(soc_info, base_idx, offset);
+
+			if (skip_register_read)
+				dump_out_buf->dump_data[write_idx++] = 0X1234;
+			else
+				dump_out_buf->dump_data[write_idx++] =
+					cam_soc_util_r_mb(soc_info, base_idx, offset);
+
 			dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
+			skip_register_read = false;
 		}
 	}
 
@@ -4161,6 +4183,7 @@ end:
 static int cam_soc_util_dump_dmi_ctxt_reg_range_user_buf(
 	struct cam_hw_soc_info *soc_info,
 	struct cam_dmi_read_desc *reg_read, uint32_t base_idx,
+	struct cam_hw_soc_skip_dump_args *soc_skip_dump_args,
 	struct cam_hw_soc_dump_args *dump_args, uint32_t type)
 {
 	int                            i;
@@ -4168,10 +4191,12 @@ static int cam_soc_util_dump_dmi_ctxt_reg_range_user_buf(
 	size_t                         buf_len = 0;
 	uint8_t                       *dst;
 	size_t                         remain_len;
-	uint32_t                       min_len, reg_map_size = 0, offset;
+	uint32_t                       min_len, reg_map_size = 0;
 	uint32_t                      *waddr, *start;
 	uintptr_t                      cpu_addr;
 	struct cam_hw_soc_dump_header *hdr;
+	uint32_t   offset, start_offset, end_offset, reg_base_type;
+	bool skip_register_read = false;
 
 	if (!soc_info || !dump_args || !reg_read) {
 		CAM_ERR(CAM_UTIL,
@@ -4256,8 +4281,26 @@ static int cam_soc_util_dump_dmi_ctxt_reg_range_user_buf(
 					continue;
 			}
 
+			if (soc_skip_dump_args->skip_regdump) {
+				reg_base_type = soc_skip_dump_args->reg_base_type;
+				if (reg_base_type == CAM_REG_DUMP_BASE_TYPE_ISP_LEFT ||
+					reg_base_type == CAM_REG_DUMP_BASE_TYPE_ISP_RIGHT) {
+					offset = reg_read->dmi_data_read.offset;
+					start_offset = soc_skip_dump_args->start_offset;
+					end_offset = soc_skip_dump_args->stop_offset;
+					if (offset >= start_offset && offset <= end_offset)
+						skip_register_read = true;
+				}
+			}
+
 			*waddr++ = offset;
-			*waddr++ = cam_soc_util_r_mb(soc_info, base_idx, offset);
+
+			if (skip_register_read)
+				*waddr++ = 0X1234;
+			else
+				*waddr++ = cam_soc_util_r_mb(soc_info, base_idx, offset);
+
+			skip_register_read = false;
 		}
 	}
 
@@ -4365,6 +4408,7 @@ static int cam_soc_util_user_reg_dump(
 	struct cam_reg_dump_desc *reg_dump_desc,
 	struct cam_hw_soc_dump_args *dump_args,
 	struct cam_hw_soc_info *soc_info,
+	struct cam_hw_soc_skip_dump_args *soc_skip_dump_args,
 	uint32_t reg_base_idx)
 {
 	int rc = 0;
@@ -4393,6 +4437,7 @@ static int cam_soc_util_user_reg_dump(
 				soc_info,
 				&reg_read_info->dmi_read,
 				reg_base_idx,
+				soc_skip_dump_args,
 				dump_args,
 				reg_read_info->type);
 		} else {
@@ -4418,6 +4463,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 	struct cam_cmd_buf_desc *cmd_desc, uint64_t req_id,
 	cam_soc_util_regspace_data_cb reg_data_cb,
 	struct cam_hw_soc_dump_args *soc_dump_args,
+	struct cam_hw_soc_skip_dump_args *soc_skip_dump_args,
 	bool user_triggered_dump)
 {
 	int                               rc = 0, i, j;
@@ -4602,8 +4648,9 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 		 * user provided buffer and exit.
 		 */
 		if (user_triggered_dump) {
+			soc_skip_dump_args->reg_base_type = reg_base_type;
 			rc = cam_soc_util_user_reg_dump(reg_dump_desc,
-				soc_dump_args, soc_info, reg_base_idx);
+				soc_dump_args, soc_info, soc_skip_dump_args, reg_base_idx);
 			CAM_INFO(CAM_UTIL,
 				"%s reg_base_idx %d dumped offset %u",
 				soc_info->dev_name, reg_base_idx,
@@ -4619,6 +4666,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 			(uintptr_t)reg_dump_desc->dump_buffer_offset);
 		dump_out_buf->req_id = req_id;
 		dump_out_buf->bytes_written = 0;
+		soc_skip_dump_args->reg_base_type = reg_base_type;
 
 		for (j = 0; j < reg_dump_desc->num_read_range; j++) {
 			CAM_DBG(CAM_UTIL,
@@ -4634,7 +4682,8 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 					(reg_read_info->type == CAM_REG_DUMP_READ_TYPE_CTXT)) {
 				rc = cam_soc_util_dump_dmi_ctxt_reg_range(soc_info,
 					&reg_read_info->dmi_read, reg_base_idx,
-					dump_out_buf, cmd_buf_end, reg_read_info->type);
+					dump_out_buf, soc_skip_dump_args,
+					cmd_buf_end, reg_read_info->type);
 			} else {
 				CAM_ERR(CAM_UTIL,
 					"Invalid Reg dump read type: %d",

@@ -2586,6 +2586,9 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 	.max_out_res           = CAM_ISP_IFE_OUT_RES_BASE + 43,
 	.pack_align_shift      = 5,
 	.max_bw_counter_limit  = 0xFF,
+	.skip_regdump          = true,
+	.skip_regdump_start_offset = 0x800,
+	.skip_regdump_stop_offset = 0x209C,
 };
 
 static struct cam_vfe_irq_hw_info tfe980_irq_hw_info = {

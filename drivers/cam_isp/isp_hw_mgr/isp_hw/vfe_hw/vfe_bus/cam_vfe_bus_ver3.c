@@ -4989,6 +4989,12 @@ static int cam_vfe_bus_ver3_process_cmd(
 		vfe_bus_cap->max_out_res_type = bus_priv->max_out_res;
 		vfe_bus_cap->support_consumed_addr =
 			bus_priv->common_data.support_consumed_addr;
+		vfe_bus_cap->skip_regdump_data.skip_regdump =
+			bus_priv->bus_hw_info->skip_regdump;
+		vfe_bus_cap->skip_regdump_data.skip_regdump_start_offset =
+			bus_priv->bus_hw_info->skip_regdump_start_offset;
+		vfe_bus_cap->skip_regdump_data.skip_regdump_stop_offset =
+			bus_priv->bus_hw_info->skip_regdump_stop_offset;
 		break;
 	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
 		bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;

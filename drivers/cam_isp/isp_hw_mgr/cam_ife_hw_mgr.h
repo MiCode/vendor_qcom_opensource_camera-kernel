@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_HW_MGR_H_
@@ -446,6 +446,7 @@ struct cam_isp_ife_sfe_hw_caps {
 	uint32_t                num_ife_perf_counters;
 	uint32_t                num_sfe_perf_counters;
 	bool                    support_consumed_addr;
+	struct cam_isp_hw_regiter_dump_data skip_regdump_data;
 };
 
 /*
