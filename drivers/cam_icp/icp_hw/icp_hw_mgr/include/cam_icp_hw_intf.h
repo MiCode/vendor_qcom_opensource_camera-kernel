@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_ICP_HW_INTF_H
@@ -76,6 +76,8 @@ enum cam_icp_cmd_type {
 	CAM_ICP_CMD_HW_MINI_DUMP,
 	CAM_ICP_CMD_HW_REG_DUMP,
 	CAM_ICP_CMD_SET_HFI_HANDLE,
+	CAM_ICP_CMD_PREP_BOOT,
+	CAM_ICP_CMD_PREP_SHUTDOWN,
 	CAM_ICP_CMD_MAX,
 };
 

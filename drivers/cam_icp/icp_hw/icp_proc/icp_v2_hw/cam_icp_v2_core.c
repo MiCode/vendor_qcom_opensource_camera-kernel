@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_address.h>
@@ -309,12 +309,16 @@ int cam_icp_v2_hw_deinit(void *priv, void *args,
 
 	return rc;
 }
-
-static void prepare_boot(struct cam_hw_info *icp_v2_info,
-	struct cam_icp_boot_args *args)
+static int prepare_boot(struct cam_hw_info *icp_v2_info, struct cam_icp_boot_args *args)
 {
 	struct cam_icp_v2_core_info *core_info = icp_v2_info->core_info;
 	unsigned long flags;
+
+	if (!core_info) {
+		CAM_ERR(CAM_ICP, "invalid args: core_info is NULL icp_v2_info=%pK args=%pK",
+			icp_v2_info, args);
+		return -EINVAL;
+	}
 
 	if (!args->use_sec_pil) {
 		core_info->fw_params.fw_buf = args->firmware.iova;
@@ -326,12 +330,45 @@ static void prepare_boot(struct cam_hw_info *icp_v2_info,
 	core_info->irq_cb.data = args->irq_cb.data;
 	core_info->irq_cb.cb = args->irq_cb.cb;
 	spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
+
+	return 0;
 }
 
-static void prepare_shutdown(struct cam_hw_info *icp_v2_info)
+static int cam_icp_v2_prepare_boot(struct cam_hw_info *icp_v2_info,
+	struct cam_icp_boot_args *args, uint32_t arg_size)
+{
+	int rc;
+
+	if (!icp_v2_info || !args) {
+		CAM_ERR(CAM_ICP, "invalid args: icp_v2_info=%pK args=%pK", icp_v2_info, args);
+		return -EINVAL;
+	}
+
+	if (arg_size != sizeof(struct cam_icp_boot_args)) {
+		CAM_ERR(CAM_ICP, "invalid boot args size");
+		return -EINVAL;
+	}
+
+	rc = prepare_boot(icp_v2_info, args);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "prepare boot failed");
+		return rc;
+	}
+
+	((struct cam_icp_v2_core_info *)(icp_v2_info->core_info))->use_sec_pil = true;
+	return 0;
+
+}
+
+static int prepare_shutdown(struct cam_hw_info *icp_v2_info)
 {
 	struct cam_icp_v2_core_info *core_info = icp_v2_info->core_info;
 	unsigned long flags;
+
+	if (!core_info) {
+		CAM_ERR(CAM_ICP, "invalid args:core_info is NULL icp_v2_info=%pK", icp_v2_info);
+		return -EINVAL;
+	}
 
 	core_info->fw_params.fw_buf = 0x0;
 	core_info->fw_params.fw_kva_addr = 0x0;
@@ -341,6 +378,26 @@ static void prepare_shutdown(struct cam_hw_info *icp_v2_info)
 	core_info->irq_cb.data = NULL;
 	core_info->irq_cb.cb = NULL;
 	spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
+	return 0;
+}
+
+static int cam_icp_v2_prepare_shutdown(struct cam_hw_info *icp_v2_info)
+{
+	int rc;
+
+	if (!icp_v2_info) {
+		CAM_ERR(CAM_ICP, "invalid args: icp_v2_info is NULL");
+		return -EINVAL;
+	}
+
+	rc = prepare_shutdown(icp_v2_info);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "prepare shutdown failed");
+		return rc;
+	}
+
+	((struct cam_icp_v2_core_info *)(icp_v2_info->core_info))->use_sec_pil = false;
+	return 0;
 }
 
 /* Used if ICP_SYS is not protected */
@@ -571,7 +628,12 @@ static int cam_icp_v2_non_sec_boot(
 		return -EINVAL;
 	}
 
-	prepare_boot(icp_v2_info, args);
+	rc = prepare_boot(icp_v2_info, args);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "prepare boot failed");
+		return rc;
+	}
+
 
 	rc = __cam_non_sec_load_fw(icp_v2_info);
 	if (rc) {
@@ -689,7 +751,7 @@ out:
 static int cam_icp_v2_boot(struct cam_hw_info *icp_v2_info,
 	struct cam_icp_boot_args *args, uint32_t arg_size)
 {
-	int rc;
+	int rc = 0;
 	struct cam_icp_v2_core_info *core_info = NULL;
 	struct cam_icp_soc_info     *soc_priv;
 
@@ -711,7 +773,11 @@ static int cam_icp_v2_boot(struct cam_hw_info *icp_v2_info,
 	core_info = (struct cam_icp_v2_core_info *)icp_v2_info->core_info;
 	soc_priv = (struct cam_icp_soc_info *)icp_v2_info->soc_info.soc_private;
 
-	prepare_boot(icp_v2_info, args);
+	rc = prepare_boot(icp_v2_info, args);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "prepare boot failed");
+		return rc;
+	}
 
 #if IS_REACHABLE(CONFIG_QCOM_MDT_LOADER)
 	rc = __load_firmware(icp_v2_info->soc_info.pdev, soc_priv->fw_pas_id);
@@ -742,7 +808,11 @@ static int cam_icp_v2_shutdown(struct cam_hw_info *icp_v2_info)
 	struct cam_icp_soc_info *soc_priv =
 		(struct cam_icp_soc_info *)icp_v2_info->soc_info.soc_private;
 
-	prepare_shutdown(icp_v2_info);
+	rc = prepare_shutdown(icp_v2_info);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "prepare shutdown failed");
+		return rc;
+	}
 
 	if (core_info->use_sec_pil)
 		rc = qcom_scm_pas_shutdown(soc_priv->fw_pas_id);
@@ -1034,6 +1104,12 @@ int cam_icp_v2_process_cmd(void *priv, uint32_t cmd_type,
 		rc = 0;
 		break;
 	}
+	case CAM_ICP_CMD_PREP_BOOT:
+		rc = cam_icp_v2_prepare_boot(icp_v2_info, args, arg_size);
+		break;
+	case CAM_ICP_CMD_PREP_SHUTDOWN:
+		rc = cam_icp_v2_prepare_shutdown(icp_v2_info);
+		break;
 	default:
 		CAM_ERR(CAM_ICP, "invalid command type=%u", cmd_type);
 		break;
@@ -1061,6 +1137,7 @@ irqreturn_t cam_icp_v2_handle_irq(int irq_num, void *data)
 
 	status = cam_io_r_mb(irq_base + core_info->hw_info->ob_irq_status);
 
+	CAM_DBG(CAM_ICP, "irq icp[%d] received status 0x%x", icp_v2_info->soc_info.index, status);
 	cam_io_w_mb(status, irq_base + core_info->hw_info->ob_irq_clear);
 	cam_io_w_mb(ICP_V2_IRQ_CLEAR_CMD, irq_base + core_info->hw_info->ob_irq_cmd);
 

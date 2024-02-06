@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_ICP_HW_MGR_H
@@ -499,6 +499,7 @@ struct cam_icp_hw_ctx_data {
  * @synx_signaling_en: core to core fencing is enabled
  *                     using synx
  * @fw_based_sys_caching: to check llcc cache feature is enabled or not
+ * @hfi_init_done: hfi initialisation is done
  */
 struct cam_icp_hw_mgr {
 	struct mutex hw_mgr_mutex;
@@ -550,6 +551,7 @@ struct cam_icp_hw_mgr {
 	bool disable_ubwc_comp;
 	bool synx_signaling_en;
 	bool fw_based_sys_caching;
+	bool hfi_init_done;
 };
 
 /**
@@ -642,8 +644,24 @@ struct cam_icp_hw_mini_dump_info {
 	bool                               icp_use_pil;
 };
 
+/**
+ * struct cam_icp_mgr_hw_args
+ *
+ * @icp_pc: Indicate if we must enter power collapse, set true
+ *          if we should enter power collapse.
+ * @hfi_setup: Indicate if we should hfi initialization is done or needs to be done,
+ *             set true if hfi init needs to be done or was done.
+ * @use_proxy_boot_up: Indicate if proxy fw loading is needed,
+ *                     set true if proxy firmware loading is needed.
+ */
+struct cam_icp_mgr_hw_args {
+	bool icp_pc;
+	bool hfi_setup;
+	bool use_proxy_boot_up;
+};
+
 static int cam_icp_mgr_hw_close(void *hw_priv, void *hw_close_args);
 static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args);
-static int cam_icp_mgr_icp_resume(struct cam_icp_hw_mgr *hw_mgr);
-static int cam_icp_mgr_icp_power_collapse(struct cam_icp_hw_mgr *hw_mgr);
+static int cam_icp_mgr_icp_resume(struct cam_icp_hw_mgr *hw_mgr, void *resume_args);
+static int cam_icp_mgr_icp_power_collapse(struct cam_icp_hw_mgr *hw_mgr, void *args);
 #endif /* CAM_ICP_HW_MGR_H */
