@@ -3663,6 +3663,7 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 	struct cam_ife_csid_hw_caps *csid_caps = NULL;
 	bool can_use_lite = false;
 	int busy_count = 0, compat_count = 0;
+	bool is_secure_mode = false;
 
 	if (!ife_ctx || !csid_acquire) {
 		CAM_ERR(CAM_ISP,
@@ -3676,8 +3677,14 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE)
 		is_start_lower_idx =  true;
 
-	if (in_port->num_out_res)
-		out_port = &(in_port->data[0]);
+	/* Update the secure mode of CSID based on all the out ports */
+	for (i = 0; i < in_port->num_out_res; i++) {
+		out_port = &(in_port->data[i]);
+		if (out_port->secure_mode) {
+			is_secure_mode = true;
+			break;
+		}
+	}
 
 	ife_ctx->flags.is_dual = (bool)in_port->usage_type;
 
@@ -3697,9 +3704,9 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 				continue;
 			if (in_port->num_out_res &&
 				((csid_res_iterator->is_secure == 1 &&
-				out_port->secure_mode == 0) ||
+				is_secure_mode == false) ||
 				(csid_res_iterator->is_secure == 0 &&
-				out_port->secure_mode == 1)))
+				is_secure_mode == true)))
 				continue;
 			if (!in_port->num_out_res &&
 				csid_res_iterator->is_secure == 1)
