@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -51,6 +51,7 @@ int cam_ipe_init_hw(void *device_priv,
 	struct cam_hw_soc_info *soc_info = NULL;
 	struct cam_ipe_device_core_info *core_info = NULL;
 	struct cam_icp_cpas_vote cpas_vote;
+	unsigned long flags;
 	int rc = 0;
 
 	if (!device_priv) {
@@ -66,6 +67,14 @@ int cam_ipe_init_hw(void *device_priv,
 			soc_info, core_info);
 		return -EINVAL;
 	}
+
+	spin_lock_irqsave(&ipe_dev->hw_lock, flags);
+	if (ipe_dev->hw_state == CAM_HW_STATE_POWER_UP) {
+		core_info->power_on_cnt++;
+		spin_unlock_irqrestore(&ipe_dev->hw_lock, flags);
+		return 0;
+	}
+	spin_unlock_irqrestore(&ipe_dev->hw_lock, flags);
 
 	cpas_vote.ahb_vote.type = CAM_VOTE_ABSOLUTE;
 	cpas_vote.ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
@@ -100,6 +109,12 @@ int cam_ipe_init_hw(void *device_priv,
 		core_info->clk_enable = true;
 	}
 
+	spin_lock_irqsave(&ipe_dev->hw_lock, flags);
+	ipe_dev->hw_state = CAM_HW_STATE_POWER_UP;
+	core_info->power_on_cnt++;
+	spin_unlock_irqrestore(&ipe_dev->hw_lock, flags);
+	CAM_DBG(CAM_ICP, "IPE%u powered on", soc_info->index);
+
 error:
 	return rc;
 }
@@ -110,6 +125,7 @@ int cam_ipe_deinit_hw(void *device_priv,
 	struct cam_hw_info *ipe_dev = device_priv;
 	struct cam_hw_soc_info *soc_info = NULL;
 	struct cam_ipe_device_core_info *core_info = NULL;
+	unsigned long flags;
 	int rc = 0;
 
 	if (!device_priv) {
@@ -125,6 +141,21 @@ int cam_ipe_deinit_hw(void *device_priv,
 		return -EINVAL;
 	}
 
+	spin_lock_irqsave(&ipe_dev->hw_lock, flags);
+	if (ipe_dev->hw_state == CAM_HW_STATE_POWER_DOWN) {
+		spin_unlock_irqrestore(&ipe_dev->hw_lock, flags);
+		return 0;
+	}
+
+	core_info->power_on_cnt--;
+	if (core_info->power_on_cnt) {
+		spin_unlock_irqrestore(&ipe_dev->hw_lock, flags);
+		CAM_DBG(CAM_ICP, "IPE%u power on reference still held %u",
+			soc_info->index, core_info->power_on_cnt);
+		return 0;
+	}
+	spin_unlock_irqrestore(&ipe_dev->hw_lock, flags);
+
 	rc = cam_ipe_disable_soc_resources(soc_info, core_info->clk_enable);
 	if (rc)
 		CAM_ERR(CAM_ICP, "soc disable is failed : %d", rc);
@@ -137,6 +168,11 @@ int cam_ipe_deinit_hw(void *device_priv,
 			core_info->cpas_start = false;
 	}
 
+	spin_lock_irqsave(&ipe_dev->hw_lock, flags);
+	ipe_dev->hw_state = CAM_HW_STATE_POWER_DOWN;
+	spin_unlock_irqrestore(&ipe_dev->hw_lock, flags);
+
+	CAM_DBG(CAM_ICP, "IPE%u powered off", soc_info->index);
 	return rc;
 }
 

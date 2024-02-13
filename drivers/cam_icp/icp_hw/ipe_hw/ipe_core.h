@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_IPE_CORE_H
@@ -33,6 +34,7 @@ struct cam_ipe_device_hw_info {
 struct cam_ipe_device_core_info {
 	struct cam_ipe_device_hw_info *ipe_hw_info;
 	uint32_t cpas_handle;
+	uint32_t power_on_cnt;
 	bool cpas_start;
 	bool clk_enable;
 };

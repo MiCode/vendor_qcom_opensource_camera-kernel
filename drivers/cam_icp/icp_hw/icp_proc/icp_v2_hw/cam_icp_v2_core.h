@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ICP_V2_CORE_H_
@@ -30,6 +30,7 @@ struct cam_icp_v2_core_info {
 	struct cam_icp_v2_hw_info *hw_info;
 	int32_t reg_base_idx[ICP_V2_BASE_MAX];
 	uint32_t cpas_handle;
+	uint32_t power_on_cnt;
 	int hfi_handle;
 	enum cam_icp_v2_reg_base irq_regbase_idx;
 	struct {

@@ -226,6 +226,7 @@ int cam_icp_v2_hw_init(void *priv, void *args, uint32_t arg_size)
 
 	spin_lock_irqsave(&icp_v2->hw_lock, flags);
 	if (icp_v2->hw_state == CAM_HW_STATE_POWER_UP) {
+		core_info->power_on_cnt++;
 		spin_unlock_irqrestore(&icp_v2->hw_lock, flags);
 		return 0;
 	}
@@ -252,8 +253,10 @@ int cam_icp_v2_hw_init(void *priv, void *args, uint32_t arg_size)
 
 	spin_lock_irqsave(&icp_v2->hw_lock, flags);
 	icp_v2->hw_state = CAM_HW_STATE_POWER_UP;
+	core_info->power_on_cnt++;
 	spin_unlock_irqrestore(&icp_v2->hw_lock, flags);
 
+	CAM_DBG(CAM_ICP, "ICP%u powered on", icp_v2->soc_info.index);
 	return 0;
 
 soc_fail:
@@ -289,6 +292,14 @@ int cam_icp_v2_hw_deinit(void *priv, void *args,
 		spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
 		return 0;
 	}
+
+	core_info->power_on_cnt--;
+	if (core_info->power_on_cnt) {
+		spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
+		CAM_DBG(CAM_ICP, "power on reference still held %u",
+			core_info->power_on_cnt);
+		return 0;
+	}
 	spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
 
 	if (send_freq_info)
@@ -307,6 +318,7 @@ int cam_icp_v2_hw_deinit(void *priv, void *args,
 	icp_v2_info->hw_state = CAM_HW_STATE_POWER_DOWN;
 	spin_unlock_irqrestore(&icp_v2_info->hw_lock, flags);
 
+	CAM_DBG(CAM_ICP, "ICP%u powered off", icp_v2_info->soc_info.index);
 	return rc;
 }
 static int prepare_boot(struct cam_hw_info *icp_v2_info, struct cam_icp_boot_args *args)
