@@ -2288,7 +2288,7 @@ static int cam_icp_mgr_cleanup_ctx(struct cam_icp_hw_ctx_data *ctx_data)
 		if (!hfi_frame_process->request_id[i])
 			continue;
 		buf_data.request_id = hfi_frame_process->request_id[i];
-		icp_evt_data.evt_id = CAM_CTX_EVT_ID_SUCCESS;
+		icp_evt_data.evt_id = CAM_CTX_EVT_ID_ERROR;
 		icp_evt_data.buf_done_data = &buf_data;
 		ctx_data->ctxt_event_cb(ctx_data->context_priv,
 			CAM_ICP_EVT_ID_BUF_DONE, &icp_evt_data);
