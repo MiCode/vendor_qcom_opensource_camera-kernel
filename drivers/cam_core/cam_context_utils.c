@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -1858,7 +1858,7 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 		if (start_addr + bytes_written + bytes_required > end_addr)
 			goto exit;
 
-		io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
+		io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload_flex +
 			packet->io_configs_offset / 4);
 		req_md->io_cfg = (struct cam_buf_io_cfg *)(start_addr + bytes_written);
 		memcpy(req_md->io_cfg, io_cfg, bytes_required);

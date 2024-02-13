@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_TFE_H__
@@ -225,7 +225,10 @@ struct cam_isp_tfe_in_port_info {
 	__u32                            sensor_fps;
 	__u32                            init_frame_drop;
 	__u32                            num_out_res;
-	struct cam_isp_tfe_out_port_info data[1];
+	union {
+		struct cam_isp_tfe_out_port_info data[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_tfe_out_port_info, data_flex);
+	};
 };
 
 /**
@@ -311,7 +314,10 @@ struct cam_isp_tfe_in_port_info_v2 {
 	__u32                            reserve_field_4;
 	__u32                            reserve_field_5;
 	__u32                            reserve_field_6;
-	struct cam_isp_tfe_out_port_info data[1];
+	union {
+		struct cam_isp_tfe_out_port_info data[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_tfe_out_port_info, data_flex);
+	};
 };
 
 /**
@@ -368,7 +374,10 @@ struct cam_isp_tfe_port_hfr_config {
 struct cam_isp_tfe_resource_hfr_config {
 	__u32                              num_ports;
 	__u32                              reserved;
-	struct cam_isp_tfe_port_hfr_config port_hfr_config[1];
+	union {
+		struct cam_isp_tfe_port_hfr_config port_hfr_config[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_tfe_port_hfr_config, port_hfr_config_flex);
+	};
 } __attribute__((packed));
 
 /**
@@ -400,7 +409,10 @@ struct cam_isp_tfe_dual_stripe_config {
 struct cam_isp_tfe_dual_config {
 	__u32                                 num_ports;
 	__u32                                 reserved;
-	struct cam_isp_tfe_dual_stripe_config stripes[1];
+	union {
+		struct cam_isp_tfe_dual_stripe_config stripes[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_tfe_dual_stripe_config, stripes_flex);
+	};
 } __attribute__((packed));
 
 /**
@@ -423,7 +435,10 @@ struct cam_isp_tfe_clock_config {
 	__u32                       num_rdi;
 	__u64                       left_pix_hz;
 	__u64                       right_pix_hz;
-	__u64                       rdi_hz[1];
+	union {
+		__u64                   rdi_hz[1];
+		__DECLARE_FLEX_ARRAY(__u64, rdi_hz_flex);
+	};
 } __attribute__((packed));
 
 /**
@@ -448,7 +463,10 @@ struct cam_isp_tfe_csid_clock_config {
 struct cam_isp_tfe_bw_config_v2 {
 	__u32                             usage_type;
 	__u32                             num_paths;
-	struct cam_axi_per_path_bw_vote   axi_path[1];
+	union {
+		struct cam_axi_per_path_bw_vote   axi_path[1];
+		__DECLARE_FLEX_ARRAY(struct cam_axi_per_path_bw_vote, axi_path_flex);
+	};
 } __attribute__((packed));
 
 /**
@@ -502,7 +520,11 @@ struct cam_isp_tfe_wm_bw_limiter_config {
 struct cam_isp_tfe_out_rsrc_bw_limiter_config {
 	__u32                                       version;
 	__u32                                       num_ports;
-	struct cam_isp_tfe_wm_bw_limiter_config     bw_limiter_config[1];
+	union {
+		struct cam_isp_tfe_wm_bw_limiter_config     bw_limiter_config[1];
+		__DECLARE_FLEX_ARRAY(
+			struct cam_isp_tfe_wm_bw_limiter_config, bw_limiter_config_flex);
+	};
 };
 
 #define CAM_TFE_ACQUIRE_COMMON_VER0         0x1000

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_ICP_H__
@@ -120,7 +120,10 @@ struct cam_icp_clk_bw_request_v2 {
 	__u32                           rt_flag;
 	__u32                           reserved;
 	__u32                           num_paths;
-	struct cam_axi_per_path_bw_vote axi_path[1];
+	union {
+		struct cam_axi_per_path_bw_vote axi_path[1];
+		__DECLARE_FLEX_ARRAY(struct cam_axi_per_path_bw_vote, axi_path_flex);
+	};
 };
 
 /**
@@ -284,7 +287,10 @@ struct cam_icp_acquire_dev_info {
 	__s32                   chain_info;
 	struct cam_icp_res_info in_res;
 	__u32                   num_out_res;
-	struct cam_icp_res_info out_res[1];
+	union {
+		struct cam_icp_res_info out_res[1];
+		__DECLARE_FLEX_ARRAY(struct cam_icp_res_info, out_res_flex);
+	};
 } __attribute__((__packed__));
 
 #endif /* __UAPI_CAM_ICP_H__ */

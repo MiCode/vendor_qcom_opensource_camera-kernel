@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -1220,7 +1220,7 @@ static int cam_generic_fence_handle_dma_create(
 	}
 
 	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
-		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_cfg = &fence_input_info->fence_cfg_flex[i];
 		fence_input_info->num_fences_processed++;
 		fence_cfg->reason_code = 0;
 
@@ -1272,7 +1272,7 @@ static int cam_generic_fence_handle_dma_release(
 	}
 
 	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
-		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_cfg = &fence_input_info->fence_cfg_flex[i];
 		fence_input_info->num_fences_processed++;
 		fence_cfg->reason_code = 0;
 
@@ -1330,7 +1330,7 @@ static int cam_generic_fence_handle_dma_import(
 	}
 
 	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
-		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_cfg = &fence_input_info->fence_cfg_flex[i];
 		fence_input_info->num_fences_processed++;
 		fence_cfg->reason_code = 0;
 
@@ -1611,7 +1611,7 @@ static int cam_generic_fence_handle_synx_create(
 	}
 
 	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
-		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_cfg = &fence_input_info->fence_cfg_flex[i];
 		fence_input_info->num_fences_processed++;
 		fence_cfg->reason_code = 0;
 		fence_flag = 0;
@@ -1667,7 +1667,7 @@ static int cam_generic_fence_handle_synx_release(
 	}
 
 	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
-		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_cfg = &fence_input_info->fence_cfg_flex[i];
 		fence_input_info->num_fences_processed++;
 		fence_cfg->reason_code = 0;
 
@@ -1768,7 +1768,7 @@ static int cam_generic_fence_handle_synx_import(
 	}
 
 	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
-		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_cfg = &fence_input_info->fence_cfg_flex[i];
 		fence_input_info->num_fences_processed++;
 		fence_cfg->reason_code = 0;
 		is_sync_obj_signaled = false;
@@ -1952,7 +1952,7 @@ static int cam_generic_fence_handle_sync_create(
 	}
 
 	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
-		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_cfg = &fence_input_info->fence_cfg_flex[i];
 		fence_input_info->num_fences_processed++;
 		fence_cfg->reason_code = 0;
 
@@ -2160,7 +2160,7 @@ static int cam_generic_fence_handle_sync_release(
 	}
 
 	for (i = 0; i < fence_input_info->num_fences_requested; i++) {
-		fence_cfg = &fence_input_info->fence_cfg[i];
+		fence_cfg = &fence_input_info->fence_cfg_flex[i];
 		fence_input_info->num_fences_processed++;
 		/* Reset fields */
 		fence_cfg->reason_code = 0;

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_CUSTOM_H__
@@ -149,7 +150,10 @@ struct cam_custom_in_port_info {
 	__u32                           custom_info1;
 	__u32                           custom_info2;
 	__u32                           num_out_res;
-	struct cam_custom_out_port_info data[1];
+	union {
+		struct cam_custom_out_port_info data[1];
+		__DECLARE_FLEX_ARRAY(struct cam_custom_out_port_info, data_flex);
+	};
 };
 
 /**

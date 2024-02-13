@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1093,7 +1093,7 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 
 	if (csl_packet->num_cmd_buf)
 		cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint32_t *)&csl_packet->payload +
+			((uint32_t *)&csl_packet->payload_flex +
 			csl_packet->cmd_buf_offset / 4);
 	else {
 		CAM_ERR(CAM_CSIPHY, "num_cmd_buffer = %d", csl_packet->num_cmd_buf);

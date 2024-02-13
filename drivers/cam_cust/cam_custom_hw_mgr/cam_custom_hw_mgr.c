@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -981,8 +981,8 @@ static int cam_custom_hw_mgr_acquire_get_unified_dev_str(
 	}
 
 	for (i = 0; i < in->num_out_res; i++) {
-		port_info->data[i].res_type     = in->data[i].res_type;
-		port_info->data[i].format       = in->data[i].format;
+		port_info->data[i].res_type     = in->data_flex[i].res_type;
+		port_info->data[i].format       = in->data_flex[i].format;
 	}
 
 	*gen_port_info = port_info;
@@ -1130,7 +1130,7 @@ static int cam_custom_add_io_buffers(
 	bool                                is_buf_secure;
 
 	io_cfg = (struct cam_buf_io_cfg *)((uint8_t *)
-			&prepare->packet->payload +
+			&prepare->packet->payload_flex +
 			prepare->packet->io_configs_offset);
 	prepare_hw_data =
 			(struct cam_custom_prepare_hw_update_data *)
@@ -1254,7 +1254,7 @@ static int cam_custom_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 	/* Test purposes-check the data in cmd buffer */
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint8_t *)&prepare->packet->payload +
+		((uint8_t *)&prepare->packet->payload_flex +
 		prepare->packet->cmd_buf_offset);
 	rc = cam_packet_util_get_cmd_mem_addr(
 			cmd_desc->mem_handle, &ptr, &len);

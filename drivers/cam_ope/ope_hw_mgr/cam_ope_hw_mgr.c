@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -350,7 +350,7 @@ static int cam_ope_dump_hang_patches(struct cam_packet *packet,
 
 	/* process patch descriptor */
 	patch_desc = (struct cam_patch_desc *)
-		((uint32_t *) &packet->payload +
+		((uint32_t *) &packet->payload_flex +
 		packet->patch_offset/4);
 
 	for (i = 0; i < packet->num_patches; i++) {
@@ -434,7 +434,7 @@ static int cam_ope_mgr_put_cmd_buf(struct cam_packet *packet)
 	struct cam_cmd_buf_desc *cmd_desc = NULL;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
+		((uint32_t *) &packet->payload_flex + packet->cmd_buf_offset/4);
 
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
@@ -560,7 +560,7 @@ static int cam_ope_dump_frame_process(struct cam_packet *packet,
 	uintptr_t cpu_addr = 0;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
+		((uint32_t *) &packet->payload_flex + packet->cmd_buf_offset/4);
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
 		if (rc)
@@ -2307,7 +2307,7 @@ static int cam_ope_mgr_process_cmd_desc(struct cam_ope_hw_mgr *hw_mgr,
 	uintptr_t cpu_addr = 0;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
+		((uint32_t *) &packet->payload_flex + packet->cmd_buf_offset/4);
 
 	*ope_cmd_buf_addr = 0;
 	for (i = 0; i < packet->num_cmd_buf; i++, num_cmd_buf++) {
@@ -2372,7 +2372,7 @@ static bool cam_ope_mgr_is_valid_inconfig(struct cam_packet *packet)
 	bool in_config_valid = false;
 	struct cam_buf_io_cfg *io_cfg_ptr = NULL;
 
-	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload +
+	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload_flex +
 					packet->io_configs_offset/4);
 
 	for (i = 0 ; i < packet->num_io_configs; i++)
@@ -2399,7 +2399,7 @@ static bool cam_ope_mgr_is_valid_outconfig(struct cam_packet *packet)
 	bool out_config_valid = false;
 	struct cam_buf_io_cfg *io_cfg_ptr = NULL;
 
-	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload +
+	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload_flex +
 					packet->io_configs_offset/4);
 
 	for (i = 0 ; i < packet->num_io_configs; i++)
@@ -3178,15 +3178,18 @@ static int cam_ope_packet_generic_blob_handler(void *user_data,
 		clk_info_v2->num_paths = soc_req_v2->num_paths;
 
 		for (i = 0; i < soc_req_v2->num_paths; i++) {
-			clk_info_v2->axi_path[i].usage_data = soc_req_v2->axi_path[i].usage_data;
+			clk_info_v2->axi_path[i].usage_data =
+				soc_req_v2->axi_path_flex[i].usage_data;
 			clk_info_v2->axi_path[i].transac_type =
-				soc_req_v2->axi_path[i].transac_type;
+				soc_req_v2->axi_path_flex[i].transac_type;
 			clk_info_v2->axi_path[i].path_data_type =
-				soc_req_v2->axi_path[i].path_data_type;
+				soc_req_v2->axi_path_flex[i].path_data_type;
 			clk_info_v2->axi_path[i].vote_level = 0;
-			clk_info_v2->axi_path[i].camnoc_bw = soc_req_v2->axi_path[i].camnoc_bw;
-			clk_info_v2->axi_path[i].mnoc_ab_bw = soc_req_v2->axi_path[i].mnoc_ab_bw;
-			clk_info_v2->axi_path[i].mnoc_ib_bw = soc_req_v2->axi_path[i].mnoc_ib_bw;
+			clk_info_v2->axi_path[i].camnoc_bw = soc_req_v2->axi_path_flex[i].camnoc_bw;
+			clk_info_v2->axi_path[i].mnoc_ab_bw =
+				soc_req_v2->axi_path_flex[i].mnoc_ab_bw;
+			clk_info_v2->axi_path[i].mnoc_ib_bw =
+				soc_req_v2->axi_path_flex[i].mnoc_ib_bw;
 		}
 
 		/* Use v1 structure for clk fields */
@@ -3221,7 +3224,7 @@ static int cam_ope_process_generic_cmd_buffer(
 	cmd_generic_blob.io_buf_addr = io_buf_addr;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
+		((uint32_t *) &packet->payload_flex + packet->cmd_buf_offset/4);
 
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
@@ -4245,7 +4248,7 @@ static void cam_ope_mgr_dump_pf_data(
 	CAM_INFO(CAM_OPE, "Fault port %d", *resource_type);
 
 stripedump:
-	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
+	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload_flex +
 			packet->io_configs_offset / 4);
 
 	if (!ope_request)

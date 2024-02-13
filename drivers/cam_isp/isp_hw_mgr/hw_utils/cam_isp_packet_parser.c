@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <media/cam_defs.h>
@@ -200,9 +200,9 @@ static int cam_isp_update_dual_config(
 				CAM_PACKET_MAX_PLANES)) +
 				(i * CAM_PACKET_MAX_PLANES);
 
-			if (dual_config->stripes[ports_plane_idx].port_id == 0)
+			if (dual_config->stripes_flex[ports_plane_idx].port_id == 0)
 				continue;
-			port_id = dual_config->stripes[ports_plane_idx].port_id;
+			port_id = dual_config->stripes_flex[ports_plane_idx].port_id;
 			hw_mgr_res = &res_list_isp_out[out_map[port_id & 0xFF]];
 			if (!hw_mgr_res) {
 				CAM_ERR(CAM_ISP,
@@ -311,7 +311,7 @@ int cam_isp_add_command_buffers(
 	 * packet
 	 */
 	cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint8_t *)&prepare->packet->payload +
+			((uint8_t *)&prepare->packet->payload_flex +
 			prepare->packet->cmd_buf_offset);
 
 	CAM_DBG(CAM_ISP, "split id = %d, number of command buffers:%d",
@@ -527,7 +527,7 @@ int cam_sfe_add_command_buffers(
 	 * packet
 	 */
 	cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint8_t *)&prepare->packet->payload +
+			((uint8_t *)&prepare->packet->payload_flex +
 			prepare->packet->cmd_buf_offset);
 
 	CAM_DBG(CAM_ISP, "split id = %d, number of command buffers:%d",
@@ -1140,7 +1140,7 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info)
 	uint32_t                            major_version = 0;
 
 	io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
-			&io_info->prepare->packet->payload +
+			&io_info->prepare->packet->payload_flex +
 			io_info->prepare->packet->io_configs_offset);
 	curr_used_bytes = io_info->kmd_buf_info->used_bytes;
 
@@ -1608,7 +1608,7 @@ int cam_isp_add_csid_command_buffers(
 	 * packet
 	 */
 	cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint8_t *)&prepare->packet->payload +
+			((uint8_t *)&prepare->packet->payload_flex +
 			prepare->packet->cmd_buf_offset);
 
 	CAM_DBG(CAM_ISP, "split id = %d, number of command buffers:%d",
@@ -1913,7 +1913,7 @@ int cam_isp_get_cmd_buf_count(
 	int                             rc = 0;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint8_t *)&prepare->packet->payload +
+			((uint8_t *)&prepare->packet->payload_flex +
 			prepare->packet->cmd_buf_offset);
 
 	for (i = 0; i < prepare->packet->num_cmd_buf; i++) {

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_DEFS_H__
@@ -586,7 +586,10 @@ struct cam_packet {
 	__u32                        num_patches;
 	__u32                        kmd_cmd_buf_index;
 	__u32                        kmd_cmd_buf_offset;
-	__u64                        payload[1];
+	union {
+		__u64                    payload[1];
+		__DECLARE_FLEX_ARRAY(__u64, payload_flex);
+	};
 
 };
 
@@ -882,7 +885,10 @@ struct cam_cmd_mem_region_info {
 struct cam_cmd_mem_regions {
 	__u32 version;
 	__u32 num_regions;
-	struct cam_cmd_mem_region_info map_info_array[1];
+	union {
+		struct cam_cmd_mem_region_info map_info_array[1];
+		__DECLARE_FLEX_ARRAY(struct cam_cmd_mem_region_info, map_info_array_flex);
+	};
 };
 
 /**
@@ -959,7 +965,10 @@ struct cam_reg_read_info {
 struct cam_reg_dump_out_buffer {
 	__u64   req_id;
 	__u32   bytes_written;
-	__u32   dump_data[1];
+	union {
+		__u32   dump_data[1];
+		__DECLARE_FLEX_ARRAY(__u32, dump_data_flex);
+	};
 };
 
 /**
@@ -977,7 +986,10 @@ struct cam_reg_dump_desc {
 	__u32                    dump_buffer_offset;
 	__u32                    dump_buffer_size;
 	__u32                    num_read_range;
-	struct cam_reg_read_info read_range[1];
+	union {
+		struct cam_reg_read_info read_range[1];
+		__DECLARE_FLEX_ARRAY(struct cam_reg_read_info, read_range_flex);
+	};
 };
 
 /**
@@ -989,7 +1001,10 @@ struct cam_reg_dump_desc {
  */
 struct cam_reg_dump_input_info {
 	__u32                   num_dump_sets;
-	__u32                   dump_set_offsets[1];
+	union {
+		__u32                   dump_set_offsets[1];
+		__DECLARE_FLEX_ARRAY(__u32, dump_set_offsets_flex);
+	};
 };
 
 /**

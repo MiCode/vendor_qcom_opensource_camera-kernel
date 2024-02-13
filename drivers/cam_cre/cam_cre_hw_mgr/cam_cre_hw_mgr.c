@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/mutex.h>
@@ -137,7 +137,7 @@ static int cam_cre_mgr_process_cmd_io_buf_req(struct cam_cre_hw_mgr *hw_mgr,
 	struct   cam_buf_io_cfg *io_cfg_ptr = NULL;
 	struct   cam_cre_io_buf_info *acq_io_buf;
 
-	io_cfg_ptr = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
+	io_cfg_ptr = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload_flex +
 			packet->io_configs_offset / 4);
 
 	cre_request = ctx_data->req_list[req_idx];
@@ -1432,7 +1432,7 @@ static bool cam_cre_mgr_is_valid_inconfig(struct cam_packet *packet)
 	bool in_config_valid = false;
 	struct cam_buf_io_cfg *io_cfg_ptr = NULL;
 
-	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload +
+	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload_flex +
 					packet->io_configs_offset/4);
 
 	for (i = 0 ; i < packet->num_io_configs; i++)
@@ -1459,7 +1459,7 @@ static bool cam_cre_mgr_is_valid_outconfig(struct cam_packet *packet)
 	bool out_config_valid = false;
 	struct cam_buf_io_cfg *io_cfg_ptr = NULL;
 
-	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload +
+	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload_flex +
 					packet->io_configs_offset/4);
 
 	for (i = 0 ; i < packet->num_io_configs; i++)
@@ -2112,14 +2112,15 @@ static int cam_cre_packet_generic_blob_handler(void *user_data,
 		clk_info_v2.num_paths = soc_req->num_paths;
 
 		for (i = 0; i < soc_req->num_paths; i++) {
-			clk_info_v2.axi_path[i].usage_data = soc_req->axi_path[i].usage_data;
-			clk_info_v2.axi_path[i].transac_type = soc_req->axi_path[i].transac_type;
+			clk_info_v2.axi_path[i].usage_data = soc_req->axi_path_flex[i].usage_data;
+			clk_info_v2.axi_path[i].transac_type =
+				soc_req->axi_path_flex[i].transac_type;
 			clk_info_v2.axi_path[i].path_data_type =
-				soc_req->axi_path[i].path_data_type;
+				soc_req->axi_path_flex[i].path_data_type;
 			clk_info_v2.axi_path[i].vote_level = 0;
-			clk_info_v2.axi_path[i].camnoc_bw = soc_req->axi_path[i].camnoc_bw;
-			clk_info_v2.axi_path[i].mnoc_ab_bw = soc_req->axi_path[i].mnoc_ab_bw;
-			clk_info_v2.axi_path[i].mnoc_ib_bw = soc_req->axi_path[i].mnoc_ib_bw;
+			clk_info_v2.axi_path[i].camnoc_bw = soc_req->axi_path_flex[i].camnoc_bw;
+			clk_info_v2.axi_path[i].mnoc_ab_bw = soc_req->axi_path_flex[i].mnoc_ab_bw;
+			clk_info_v2.axi_path[i].mnoc_ib_bw = soc_req->axi_path_flex[i].mnoc_ib_bw;
 		}
 
 		/* Use v1 structure for clk fields */
@@ -2154,7 +2155,7 @@ static int cam_cre_process_generic_cmd_buffer(
 	cmd_generic_blob.io_buf_addr = io_buf_addr;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
+		((uint32_t *) &packet->payload_flex + packet->cmd_buf_offset/4);
 
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);

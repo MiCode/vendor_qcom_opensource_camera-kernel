@@ -371,7 +371,7 @@ static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 
 		io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
-			&csl_packet->payload +
+			&csl_packet->payload_flex +
 			csl_packet->io_configs_offset);
 
 		if (io_cfg == NULL) {
@@ -471,7 +471,7 @@ static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		goto end;
 	}
 
-	offset = (uint32_t *)&csl_packet->payload;
+	offset = (uint32_t *)&csl_packet->payload_flex;
 	offset += csl_packet->cmd_buf_offset / 4;
 	cmd_desc = (struct cam_cmd_buf_desc *)(offset);
 	cmd_buf_type = cmd_desc->meta_data;
@@ -848,7 +848,7 @@ int32_t cam_handle_mem_ptr(uint64_t handle, uint32_t cmd,
 	}
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *)&pkt->payload + pkt->cmd_buf_offset/4);
+		((uint32_t *)&pkt->payload_flex + pkt->cmd_buf_offset/4);
 	if (cmd_desc == NULL) {
 		CAM_ERR(CAM_SENSOR, "command descriptor pos is invalid");
 		rc = -EINVAL;

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -380,7 +380,10 @@ struct cam_generic_fence_input_info {
 	__u32 num_valid_params;
 	__u32 valid_param_mask;
 	__s32 params[3];
-	struct cam_generic_fence_config fence_cfg[1];
+	union {
+		struct cam_generic_fence_config fence_cfg[1];
+		__DECLARE_FLEX_ARRAY(struct cam_generic_fence_config, fence_cfg_flex);
+	};
 };
 
 /**

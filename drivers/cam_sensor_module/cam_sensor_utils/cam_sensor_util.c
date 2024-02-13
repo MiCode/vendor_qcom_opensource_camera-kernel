@@ -299,9 +299,9 @@ int32_t cam_sensor_handle_random_write(
 	for (cnt = 0; cnt < (cam_cmd_i2c_random_wr->header.count);
 		cnt++) {
 		i2c_list->i2c_settings.reg_setting[cnt].reg_addr =
-			cam_cmd_i2c_random_wr->random_wr_payload[cnt].reg_addr;
+			cam_cmd_i2c_random_wr->random_wr_payload_flex[cnt].reg_addr;
 		i2c_list->i2c_settings.reg_setting[cnt].reg_data =
-			cam_cmd_i2c_random_wr->random_wr_payload[cnt].reg_data;
+			cam_cmd_i2c_random_wr->random_wr_payload_flex[cnt].reg_data;
 		i2c_list->i2c_settings.reg_setting[cnt].data_mask = 0;
 	}
 	*offset = cnt;
@@ -352,7 +352,7 @@ int32_t cam_sensor_handle_continuous_write(
 		i2c_list->i2c_settings.reg_setting[cnt].reg_addr =
 			cam_cmd_i2c_continuous_wr->reg_addr;
 		i2c_list->i2c_settings.reg_setting[cnt].reg_data =
-			cam_cmd_i2c_continuous_wr->data_read[cnt].reg_data;
+			cam_cmd_i2c_continuous_wr->data_read_flex[cnt].reg_data;
 		i2c_list->i2c_settings.reg_setting[cnt].data_mask = 0;
 	}
 	*offset = cnt;
@@ -501,7 +501,7 @@ int32_t cam_sensor_handle_random_read(
 		for (cnt = 0; cnt < (cmd_i2c_random_rd->header.count);
 			cnt++) {
 			i2c_list->i2c_settings.reg_setting[cnt].reg_addr =
-				cmd_i2c_random_rd->data_read[cnt].reg_data;
+				cmd_i2c_random_rd->data_read_flex[cnt].reg_data;
 		}
 		*offset = cnt;
 		*list = &(i2c_list->list);
@@ -1477,9 +1477,9 @@ int32_t cam_sensor_update_power_settings(void *cmd_buf,
 
 			for (i = 0; i < pwr_cmd->count; i++, pwr_up++) {
 				power_info->power_setting[pwr_up].seq_type =
-				pwr_cmd->power_settings[i].power_seq_type;
+				pwr_cmd->power_settings_flex[i].power_seq_type;
 				power_info->power_setting[pwr_up].config_val =
-				pwr_cmd->power_settings[i].config_val_low;
+				pwr_cmd->power_settings_flex[i].config_val_low;
 				power_info->power_setting[pwr_up].delay = 0;
 				if (i) {
 					scr = scr +
@@ -1586,9 +1586,9 @@ int32_t cam_sensor_update_power_settings(void *cmd_buf,
 				pwr_settings =
 				&power_info->power_down_setting[pwr_down];
 				pwr_settings->seq_type =
-				pwr_cmd->power_settings[i].power_seq_type;
+				pwr_cmd->power_settings_flex[i].power_seq_type;
 				pwr_settings->config_val =
-				pwr_cmd->power_settings[i].config_val_low;
+				pwr_cmd->power_settings_flex[i].config_val_low;
 				power_info->power_down_setting[pwr_down].delay
 					= 0;
 				if (i) {

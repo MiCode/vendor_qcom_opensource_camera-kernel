@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_CPAS_H__
@@ -403,7 +403,10 @@ struct cam_sys_cache_config {
 struct cam_sys_cache_config_request {
 	__u32                       num;
 	__u32                       reserved;
-	struct cam_sys_cache_config sys_cache_config[1];
+	union {
+		struct cam_sys_cache_config sys_cache_config[1];
+		__DECLARE_FLEX_ARRAY(struct cam_sys_cache_config, sys_cache_config_flex);
+	};
 };
 
 #endif /* __UAPI_CAM_CPAS_H__ */

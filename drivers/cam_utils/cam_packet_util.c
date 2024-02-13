@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/types.h>
@@ -167,7 +167,7 @@ int cam_packet_util_get_kmd_buffer(struct cam_packet *packet,
 
 	/* Take first command descriptor and add offset to it for kmd*/
 	cmd_desc = (struct cam_cmd_buf_desc *) ((uint8_t *)
-		&packet->payload + packet->cmd_buf_offset);
+		&packet->payload_flex + packet->cmd_buf_offset);
 	cmd_desc += packet->kmd_cmd_buf_index;
 
 	rc = cam_packet_util_validate_cmd_desc(cmd_desc);
@@ -236,7 +236,7 @@ void cam_packet_util_dump_patch_info(struct cam_packet *packet,
 	}
 
 	patch_desc = (struct cam_patch_desc *)
-			((uint32_t *) &packet->payload +
+			((uint32_t *) &packet->payload_flex +
 			packet->patch_offset/4);
 
 	if (pf_args) {
@@ -385,7 +385,7 @@ int cam_packet_util_process_patches(struct cam_packet *packet,
 
 	/* process patch descriptor */
 	patch_desc = (struct cam_patch_desc *)
-			((uint32_t *) &packet->payload +
+			((uint32_t *) &packet->payload_flex +
 			packet->patch_offset/4);
 	CAM_DBG(CAM_UTIL, "packet = %pK patch_desc = %pK size = %lu",
 			(void *)packet, (void *)patch_desc,
@@ -484,7 +484,7 @@ void cam_packet_util_dump_io_bufs(struct cam_packet *packet,
 		return;
 	}
 
-	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
+	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload_flex +
 		packet->io_configs_offset / 4);
 
 	buf_fd = pf_args->pf_smmu_info->buf_info;
@@ -684,7 +684,8 @@ int cam_presil_retrieve_buffers_from_packet(struct cam_packet *packet, int iommu
 	}
 
 	CAM_DBG(CAM_PRESIL, "Retrieving output buffer corresponding to res: 0x%x", out_res_id);
-	io_cfg = (struct cam_buf_io_cfg *)((uint8_t *)&packet->payload + packet->io_configs_offset);
+	io_cfg = (struct cam_buf_io_cfg *)((uint8_t *)&packet->payload_flex +
+		packet->io_configs_offset);
 	for (i = 0; i < packet->num_io_configs; i++) {
 		if ((io_cfg[i].direction != CAM_BUF_OUTPUT) ||
 			(io_cfg[i].resource_type != out_res_id))
@@ -770,7 +771,8 @@ int cam_presil_send_buffers_from_packet(struct cam_packet *packet, int img_iommu
 	}
 
 	/* Adding IO config buffer handles to list*/
-	io_cfg = (struct cam_buf_io_cfg *)((uint8_t *)&packet->payload + packet->io_configs_offset);
+	io_cfg = (struct cam_buf_io_cfg *)((uint8_t *)&packet->payload_flex +
+		packet->io_configs_offset);
 	for (i = 0; i < packet->num_io_configs; i++) {
 		if (io_cfg[i].direction == CAM_BUF_OUTPUT)
 			continue;
@@ -803,7 +805,7 @@ send_cmd_buffers:
 	}
 
 	/* Adding CMD buffer handles to list*/
-	cmd_desc = (struct cam_cmd_buf_desc *) ((uint8_t *)&packet->payload +
+	cmd_desc = (struct cam_cmd_buf_desc *) ((uint8_t *)&packet->payload_flex +
 		packet->cmd_buf_offset);
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
@@ -816,7 +818,8 @@ send_cmd_buffers:
 	}
 
 	/* Adding Patch src buffer handles to list */
-	patch_desc = (struct cam_patch_desc *) ((uint8_t *)&packet->payload + packet->patch_offset);
+	patch_desc = (struct cam_patch_desc *) ((uint8_t *)&packet->payload_flex +
+		packet->patch_offset);
 	for (i = 0; i < packet->num_patches; i++) {
 		CAM_DBG(CAM_PRESIL, "Adding Patch src buffer:%d", patch_desc[i].src_buf_hdl);
 		cam_presil_add_unique_buf_hdl_to_list(patch_desc[i].src_buf_hdl,

@@ -4238,7 +4238,7 @@ static int cam_vfe_bus_ver3_update_stripe_cfg(void *priv, void *cmd_args,
 	for (i = 0; i < vfe_out_data->num_wm; i++) {
 		wm_data = vfe_out_data->wm_res[i].res_priv;
 		stripe_config = (struct cam_isp_dual_stripe_config  *)
-			&stripe_args->dual_cfg->stripes[ports_plane_idx + i];
+			&stripe_args->dual_cfg->stripes_flex[ports_plane_idx + i];
 		wm_data->cfg.width = stripe_config->width;
 
 		/*

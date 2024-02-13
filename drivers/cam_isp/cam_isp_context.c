@@ -373,7 +373,7 @@ static void __cam_isp_ctx_req_mini_dump(struct cam_ctx_request *req,
 		if (start_addr + *bytes_updated + bytes_required > end_addr)
 			return;
 
-		io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
+		io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload_flex +
 			    packet->io_configs_offset / 4);
 		req_md->io_cfg = (struct cam_buf_io_cfg *)((uint8_t *)start_addr + *bytes_updated);
 		memcpy(req_md->io_cfg, io_cfg, bytes_required);
