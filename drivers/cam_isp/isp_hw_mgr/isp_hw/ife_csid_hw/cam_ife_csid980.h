@@ -262,6 +262,7 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_980_path_irq_desc[] = {
 		.bitmask = BIT(26),
 		.desc = "UNBOUNDED_FRAME",
 	},
+	{0},
 	{
 		.bitmask = BIT(28),
 		.desc = "SENSOR_SWITCH_OUT_OF_SYNC_FRAME_DROP",

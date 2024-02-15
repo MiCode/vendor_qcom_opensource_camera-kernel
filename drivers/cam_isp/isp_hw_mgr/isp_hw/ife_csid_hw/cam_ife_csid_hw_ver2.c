@@ -2231,11 +2231,17 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 
 	status = irq_status & err_mask;
 	while (status) {
+		if (bit_pos >= csid_reg->num_path_err_irqs) {
+			CAM_ERR(CAM_ISP, "Invalid bit position: %u for path reg", bit_pos);
+			break;
+		}
+
 		if ((csid_reg->path_irq_desc[bit_pos].bitmask != 0) && (status & 0x1)) {
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len, "%s",
 				csid_reg->path_irq_desc[bit_pos].desc);
 			if (csid_reg->path_irq_desc[bit_pos].err_type)
 				err_type |=  csid_reg->path_irq_desc[bit_pos].err_type;
+
 			if (csid_reg->path_irq_desc[bit_pos].err_handler)
 				csid_reg->path_irq_desc[bit_pos].err_handler(csid_hw, res);
 		}
@@ -2252,6 +2258,11 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	status = irq_status & csid_hw->debug_info.path_mask;
 	bit_pos = 0;
 	while (status) {
+		if (bit_pos >= csid_reg->num_path_err_irqs) {
+			CAM_ERR(CAM_ISP, "Invalid bit position: %u for path reg", bit_pos);
+			break;
+		}
+
 		if ((csid_reg->path_irq_desc[bit_pos].bitmask != 0) && (status & 0x1))
 			CAM_INFO(CAM_ISP, "CSID[%u] IRQ %s %s timestamp:[%lld.%09lld]",
 				csid_hw->hw_intf->hw_idx, irq_reg_tag[index],
