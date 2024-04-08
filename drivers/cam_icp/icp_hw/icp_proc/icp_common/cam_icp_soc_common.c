@@ -9,28 +9,26 @@
 
 #include "cam_debug_util.h"
 #include "cam_soc_util.h"
-#include "lx7_soc.h"
 #include "hfi_intf.h"
+#include "cam_icp_soc_common.h"
 
 static int __ubwc_config_get(struct device_node *np, char *name, uint32_t *cfg)
 {
 	int nconfig;
-	int i;
+	int i, rc;
 
 	nconfig = of_property_count_u32_elems(np, name);
-	if (nconfig < 0 || nconfig > UBWC_CONFIG_MAX) {
-		CAM_ERR(CAM_ICP, "invalid number of UBWC configs[=%d]",
+	if (nconfig < 0 || nconfig > ICP_UBWC_CFG_MAX) {
+		CAM_ERR(CAM_ICP, "Invalid number of UBWC configs[=%d]",
 			nconfig);
 		return -EINVAL;
 	}
 
 	for (i = 0; i < nconfig; i++) {
-		int rc;
-
 		rc = of_property_read_u32_index(np, name, i, &cfg[i]);
 		if (rc) {
 			CAM_ERR(CAM_ICP,
-				"node %pOF has no valid %s prop at index=%d",
+				"Node %pOF has no valid %s prop at index=%d",
 				np, name, i);
 			return rc;
 		}
@@ -39,51 +37,91 @@ static int __ubwc_config_get(struct device_node *np, char *name, uint32_t *cfg)
 	return 0;
 }
 
-static int cam_lx7_ubwc_config_get(struct lx7_soc_info *lx7_soc_info,
-				struct device_node *np)
+static int cam_icp_soc_ubwc_config_get(struct device_node *np,
+	struct cam_icp_soc_info *icp_soc_info)
 {
+	struct cam_icp_ubwc_cfg *ubwc_cfg_ext = NULL;
 	int rc;
+	uint32_t dev_type;
 
-	rc = __ubwc_config_get(np, "ubwc-ipe-fetch-cfg",
-			lx7_soc_info->ubwc_cfg.ipe_fetch);
-	if (rc)
+	dev_type = icp_soc_info->dev_type;
+	ubwc_cfg_ext = &icp_soc_info->uconfig.ubwc_cfg_ext;
+
+	rc = __ubwc_config_get(np, "ubwc-ipe-fetch-cfg", ubwc_cfg_ext->ipe_fetch);
+	if (rc) {
+		if (dev_type == CAM_ICP_DEV_ICP_V1) {
+			rc = __ubwc_config_get(np, "ubwc-cfg", icp_soc_info->uconfig.ubwc_cfg);
+			if (rc)
+				return rc;
+			icp_soc_info->is_ubwc_cfg = true;
+		}
 		return rc;
+	}
 
 	rc = __ubwc_config_get(np, "ubwc-ipe-write-cfg",
-			lx7_soc_info->ubwc_cfg.ipe_write);
+		icp_soc_info->uconfig.ubwc_cfg_ext.ipe_write);
 	if (rc)
 		return rc;
 
 	rc = __ubwc_config_get(np, "ubwc-bps-fetch-cfg",
-			lx7_soc_info->ubwc_cfg.bps_fetch);
+		icp_soc_info->uconfig.ubwc_cfg_ext.bps_fetch);
 	if (rc)
 		return rc;
 
 	rc = __ubwc_config_get(np, "ubwc-bps-write-cfg",
-			lx7_soc_info->ubwc_cfg.bps_write);
-	if (rc)
-		return rc;
+		icp_soc_info->uconfig.ubwc_cfg_ext.bps_write);
 
-	return 0;
+	return rc;
 }
 
-static inline void cam_lx7_qos_get(
-	struct lx7_soc_info *lx7_soc_info,
-	struct device_node *np)
+static inline void cam_icp_soc_qos_get(struct device_node *np,
+	struct cam_icp_soc_info *icp_soc_info)
 {
-	int rc;
-
-	rc = of_property_read_u32(np, "qos-val",
-		&lx7_soc_info->icp_qos_val);
-	if (rc < 0) {
-		CAM_WARN(CAM_ICP, "QoS need not be set");
-		lx7_soc_info->icp_qos_val = 0;
+	if (of_property_read_u32(np, "qos-val", &icp_soc_info->qos_val)) {
+		CAM_WARN(CAM_ICP, "QoS not set for device: %d",
+			icp_soc_info->dev_type);
+		icp_soc_info->qos_val = 0;
 	}
 }
 
-static int cam_lx7_dt_properties_get(struct cam_hw_soc_info *soc_info)
+static int cam_icp_soc_get_hw_version(struct device_node *np,
+	struct cam_icp_soc_info *icp_soc_info)
 {
 	int rc;
+	uint32_t version;
+
+	rc = of_property_read_u32(np, "icp-version", &version);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "read icp-version failed rc=%d", rc);
+		return -ENODEV;
+	}
+
+	switch (version) {
+	case CAM_ICP_V1_VERSION:
+	case CAM_ICP_V2_VERSION:
+	case CAM_ICP_V2_1_VERSION:
+		icp_soc_info->hw_version = version;
+		break;
+	default:
+		CAM_ERR(CAM_ICP, "Invalid ICP version: %u", version);
+		rc = -ENODEV;
+	}
+	return rc;
+}
+
+static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
+{
+	struct cam_icp_soc_info *icp_soc_info;
+	struct device_node *np;
+	int rc;
+
+	if (!soc_info->soc_private) {
+		CAM_ERR(CAM_ICP, "soc private is NULL");
+		return -EINVAL;
+	}
+
+	icp_soc_info = (struct cam_icp_soc_info *)soc_info->soc_private;
+	np = soc_info->pdev->dev.of_node;
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc) {
@@ -91,25 +129,29 @@ static int cam_lx7_dt_properties_get(struct cam_hw_soc_info *soc_info)
 		return rc;
 	}
 
-	rc = cam_lx7_ubwc_config_get(soc_info->soc_private,
-				soc_info->pdev->dev.of_node);
+	rc = cam_icp_soc_ubwc_config_get(np, icp_soc_info);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "failed to get UBWC config props rc=%d", rc);
 		return rc;
 	}
 
-	cam_lx7_qos_get(soc_info->soc_private,
-		soc_info->pdev->dev.of_node);
+	cam_icp_soc_qos_get(np, icp_soc_info);
+
+	rc = cam_icp_soc_get_hw_version(np, icp_soc_info);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Get ICP HW version failed");
+		return rc;
+	}
 
 	return 0;
 }
 
-int cam_lx7_soc_resources_init(struct cam_hw_soc_info *soc_info,
-			irq_handler_t handler, void *data)
+int cam_icp_soc_resources_init(struct cam_hw_soc_info *soc_info,
+	irq_handler_t handler, void *data)
 {
 	int rc;
 
-	rc = cam_lx7_dt_properties_get(soc_info);
+	rc = cam_icp_soc_dt_properties_get(soc_info);
 	if (rc)
 		return rc;
 
@@ -123,7 +165,7 @@ int cam_lx7_soc_resources_init(struct cam_hw_soc_info *soc_info,
 	return 0;
 }
 
-int cam_lx7_soc_resources_deinit(struct cam_hw_soc_info *soc_info)
+int cam_icp_soc_resources_deinit(struct cam_hw_soc_info *soc_info)
 {
 	int rc;
 
@@ -135,19 +177,19 @@ int cam_lx7_soc_resources_deinit(struct cam_hw_soc_info *soc_info)
 	return rc;
 }
 
-int cam_lx7_soc_resources_enable(struct cam_hw_soc_info *soc_info)
+int cam_icp_soc_resources_enable(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
 	rc = cam_soc_util_enable_platform_resource(soc_info, true,
-						CAM_SVS_VOTE, true);
+		CAM_SVS_VOTE, true);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to enable soc resources rc=%d", rc);
 
 	return rc;
 }
 
-int cam_lx7_soc_resources_disable(struct cam_hw_soc_info *soc_info)
+int cam_icp_soc_resources_disable(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
@@ -158,7 +200,7 @@ int cam_lx7_soc_resources_disable(struct cam_hw_soc_info *soc_info)
 	return rc;
 }
 
-int cam_lx7_update_clk_rate(struct cam_hw_soc_info *soc_info,
+int cam_icp_soc_update_clk_rate(struct cam_hw_soc_info *soc_info,
 	int32_t clk_level)
 {
 	int32_t src_clk_idx = 0;
@@ -166,7 +208,7 @@ int cam_lx7_update_clk_rate(struct cam_hw_soc_info *soc_info,
 	int rc = 0;
 
 	if (!soc_info) {
-		CAM_ERR(CAM_ICP, "Invalid args");
+		CAM_ERR(CAM_ICP, "Invalid soc_info");
 		return -EINVAL;
 	}
 

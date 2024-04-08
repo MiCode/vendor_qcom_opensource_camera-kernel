@@ -67,6 +67,11 @@ static int32_t cam_flash_driver_cmd(struct cam_flash_ctrl *fctrl,
 
 		flash_acq_dev.device_handle =
 			cam_create_device_hdl(&bridge_params);
+		if (flash_acq_dev.device_handle <= 0) {
+			rc = -EFAULT;
+			CAM_ERR(CAM_FLASH, "Can not create device handle");
+			goto release_mutex;
+		}
 		fctrl->bridge_intf.device_hdl =
 			flash_acq_dev.device_handle;
 		fctrl->bridge_intf.session_hdl =
@@ -407,6 +412,7 @@ static int cam_flash_component_bind(struct device *dev,
 	int32_t rc = 0, i = 0;
 	struct cam_flash_ctrl *fctrl = NULL;
 	struct device_node *of_parent = NULL;
+	bool i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
 
 	CAM_DBG(CAM_FLASH, "Binding flash component");
@@ -414,6 +420,10 @@ static int cam_flash_component_bind(struct device *dev,
 		CAM_ERR(CAM_FLASH, "of_node NULL");
 		return -EINVAL;
 	}
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return 0;
 
 	fctrl = kzalloc(sizeof(struct cam_flash_ctrl), GFP_KERNEL);
 	if (!fctrl)
@@ -531,7 +541,12 @@ static void cam_flash_component_unbind(struct device *dev,
 	struct device *master_dev, void *data)
 {
 	struct cam_flash_ctrl *fctrl;
+	bool i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
+
+	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
+	if (i3c_i2c_target)
+		return;
 
 	fctrl = platform_get_drvdata(pdev);
 	if (!fctrl) {

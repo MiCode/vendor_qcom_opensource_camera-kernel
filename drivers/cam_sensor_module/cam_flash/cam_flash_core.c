@@ -169,7 +169,7 @@ int cam_flash_i2c_power_ops(struct cam_flash_ctrl *fctrl,
 			}
 		}
 
-		rc = cam_sensor_core_power_up(power_info, soc_info);
+		rc = cam_sensor_core_power_up(power_info, soc_info, NULL);
 		if (rc) {
 			CAM_ERR(CAM_FLASH, "power up the core is failed:%d",
 				rc);
@@ -381,7 +381,10 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 	soc_private = (struct cam_flash_private_soc *)
 		flash_ctrl->soc_info.soc_private;
 
-	if (op == CAMERA_SENSOR_FLASH_OP_FIRELOW) {
+	if ((op == CAMERA_SENSOR_FLASH_OP_FIRELOW) ||
+		// MIUI ADD: Camera_HWCapabilityLimit
+		(op == CAMERA_SENSOR_FLASH_OP_LOW_FIREDURATION)) {
+		// END Camera_HWCapabilityLimit
 		for (i = 0; i < flash_ctrl->torch_num_sources; i++) {
 			if (flash_ctrl->torch_trigger[i]) {
 				max_current = soc_private->torch_max_current[i];
@@ -439,8 +442,31 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 				return rc;
 			}
 		}
+		// MIUI ADD: Camera_HWCapabilityLimit
+		else if (op == CAMERA_SENSOR_FLASH_OP_LOW_FIREDURATION) {
+			struct flash_led_param param;
+
+			param.off_time_ms =
+				flash_data->flash_active_time_ms;
+			param.on_time_ms = flash_data->flash_on_wait_time_ms;
+			CAM_DBG(CAM_FLASH,
+				"LowPrecise flash_on time: %u, Precise flash_off time: %u",
+				param.on_time_ms, param.off_time_ms);
+			rc = qti_flash_led_set_param(
+				flash_ctrl->switch_trigger,
+				param);
+			if (rc) {
+				CAM_ERR(CAM_FLASH,
+					"LowPrecise LED set param fail rc= %d, but process go on", rc);
+				rc = 0;
+			}
+		}
+		// END Camera_HWCapabilityLimit
 #else
-		if (op == CAMERA_SENSOR_FLASH_OP_FIREDURATION) {
+		if ((op == CAMERA_SENSOR_FLASH_OP_FIREDURATION) ||
+			// MIUI ADD: Camera_HWCapabilityLimit
+			(op == CAMERA_SENSOR_FLASH_OP_LOW_FIREDURATION)) {
+			// END Camera_HWCapabilityLimit
 			CAM_ERR(CAM_FLASH, "FIREDURATION op not supported");
 			return -EINVAL;
 		}
@@ -539,6 +565,39 @@ static int cam_flash_duration(struct cam_flash_ctrl *fctrl,
 
 	return rc;
 }
+
+// MIUI ADD: Camera_HWCapabilityLimit
+/**
+ * cam_flash_low_duration
+ * @brief  set off time to switch then enable torch node
+ * @param  fctrl: flash control handle
+ *         flash_data: user config info
+ * @return error number
+ */
+static int cam_flash_low_duration(struct cam_flash_ctrl *fctrl,
+	struct cam_flash_frame_setting *flash_data)
+{
+	int i = 0, rc = 0;
+
+	if (!flash_data) {
+		CAM_ERR(CAM_FLASH, "Flash Data NULL");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < fctrl->flash_num_sources; i++)
+		if (fctrl->flash_trigger[i])
+			cam_res_mgr_led_trigger_event(
+				fctrl->flash_trigger[i],
+				LED_OFF);
+
+	rc = cam_flash_ops(fctrl, flash_data,
+		CAMERA_SENSOR_FLASH_OP_LOW_FIREDURATION);
+	if (rc)
+		CAM_ERR(CAM_FLASH, "Fire LowPreciseFlash Failed: %d", rc);
+
+	return rc;
+}
+// END Camera_HWCapabilityLimit
 
 static int cam_flash_i2c_delete_req(struct cam_flash_ctrl *fctrl,
 	uint64_t req_id)
@@ -912,6 +971,21 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 					goto apply_setting_err;
 				}
 			}
+		// MIUI ADD: Camera_HWCapabilityLimit
+		} else if ((flash_data->opcode ==
+			CAMERA_SENSOR_FLASH_OP_LOW_FIREDURATION) &&
+			(flash_data->cmn_attr.is_settings_valid) &&
+			(flash_data->cmn_attr.request_id == req_id)) {
+			if (fctrl->flash_state == CAM_FLASH_STATE_START) {
+				rc = cam_flash_low_duration(fctrl, flash_data);
+				if (rc) {
+					CAM_ERR(CAM_FLASH,
+						"PreciaseFlash op failed:%d",
+						rc);
+					goto apply_setting_err;
+				}
+			}
+		// END Camera_HWCapabilityLimit
 		} else if (flash_data->opcode == CAM_PKT_NOP_OPCODE) {
 			CAM_DBG(CAM_FLASH, "NOP Packet");
 		} else {
@@ -1368,7 +1442,7 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 		CAM_WARN(CAM_FLASH,
 			"reject request %lld, last request to flush %d",
 			csl_packet->header.request_id, fctrl->last_flush_req);
-		rc = -EINVAL;
+		rc = -EBADR;
 		return rc;
 	}
 
@@ -1552,8 +1626,12 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 				"FLASH_CMD_TYPE op:%d, req:%lld",
 				flash_data->opcode, csl_packet->header.request_id);
 
-			if (flash_data->opcode ==
-				CAMERA_SENSOR_FLASH_OP_FIREDURATION) {
+			if ((flash_data->opcode ==
+				CAMERA_SENSOR_FLASH_OP_FIREDURATION) ||
+				// MIUI ADD: Camera_HWCapabilityLimit
+				(flash_data->opcode ==
+				CAMERA_SENSOR_FLASH_OP_LOW_FIREDURATION)) {
+				// END Camera_HWCapabilityLimit
 				/* Active time for the preflash */
 				flash_data->flash_active_time_ms =
 				(flash_operation_info->time_on_duration_ns)

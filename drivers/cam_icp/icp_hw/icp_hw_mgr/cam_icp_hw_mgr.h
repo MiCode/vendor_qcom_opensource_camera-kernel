@@ -9,11 +9,11 @@
 
 #include <linux/types.h>
 #include <linux/completion.h>
+#include <linux/semaphore.h>
 #include <media/cam_icp.h>
 #include "cam_icp_hw_intf.h"
 #include "cam_hw_mgr_intf.h"
 #include "cam_hw_intf.h"
-#include "cam_a5_hw_intf.h"
 #include "hfi_session_defs.h"
 #include "hfi_intf.h"
 #include "cam_req_mgr_workq.h"
@@ -171,7 +171,7 @@ struct cam_icp_clk_bw_req_internal_v2 {
 	uint32_t rt_flag;
 	uint32_t reserved;
 	uint32_t num_paths;
-	struct cam_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
+	struct cam_cpas_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
 };
 
 #define HANG_DUMP_REGIONS_MAX 10
@@ -187,6 +187,18 @@ struct cam_icp_clk_bw_req_internal_v2 {
 struct cam_hangdump_mem_regions {
 	uint32_t num_mem_regions;
 	struct cam_cmd_mem_region_info mem_info_array[HANG_DUMP_REGIONS_MAX];
+};
+
+/**
+ * struct cam_icp_ctx_perf_stats -
+ *        ICP general Perf stats per ctx
+ *
+ * @total_resp_time: accumulative FW response time
+ * @total_requests : accumulative submitted requests
+ */
+struct cam_icp_ctx_perf_stats {
+	uint64_t total_resp_time;
+	uint64_t total_requests;
 };
 
 /**
@@ -245,7 +257,7 @@ struct cam_ctx_clk_info {
 	uint64_t compressed_bw;
 	int32_t clk_rate[CAM_MAX_VOTE];
 	uint32_t num_paths;
-	struct cam_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
+	struct cam_cpas_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
 	bool bw_included;
 };
 
@@ -272,6 +284,9 @@ struct cam_ctx_clk_info {
  * @icp_dev_io_info: io config resource
  * @last_flush_req: last flush req for this ctx
  * @err_inject_params: Error injection data for hw_mgr_ctx
+ * @perf_stats: performance statistics info
+ * @unified_dev_type: Unified dev type which does not hold any priority info.
+ *                    It's either IPE/BPS
  * @abort_timed_out: Indicates if abort timed out
  */
 struct cam_icp_hw_ctx_data {
@@ -297,6 +312,8 @@ struct cam_icp_hw_ctx_data {
 	uint64_t last_flush_req;
 	char ctx_id_string[128];
 	struct cam_hw_err_param err_inject_params;
+	struct cam_icp_ctx_perf_stats perf_stats;
+	uint32_t unified_dev_type;
 	bool abort_timed_out;
 };
 
@@ -336,7 +353,7 @@ struct cam_icp_clk_info {
 	uint64_t uncompressed_bw;
 	uint64_t compressed_bw;
 	uint32_t num_paths;
-	struct cam_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
+	struct cam_cpas_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
 	uint32_t hw_type;
 	struct cam_req_mgr_timer *watch_dog;
 	uint32_t watch_dog_reset_counter;
@@ -393,6 +410,8 @@ struct cam_icp_clk_info {
  * @recovery: Flag to validate if in previous session FW
  *            reported a fatal error or wdt. If set FW is
  *            re-downloaded for new camera session.
+ * @frame_in_process: Counter for frames in process
+ * @frame_in_process_ctx_id: Contxt id processing frame
  */
 struct cam_icp_hw_mgr {
 	struct mutex hw_mgr_mutex;
@@ -443,6 +462,9 @@ struct cam_icp_hw_mgr {
 	bool bps_clk_state;
 	bool disable_ubwc_comp;
 	atomic_t recovery;
+	uint64_t icp_svs_clk;
+	atomic_t frame_in_process;
+	int frame_in_process_ctx_id;
 };
 
 /**

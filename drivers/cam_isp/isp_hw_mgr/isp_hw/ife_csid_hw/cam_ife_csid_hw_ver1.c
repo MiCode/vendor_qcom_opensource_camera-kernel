@@ -3756,6 +3756,10 @@ static int cam_ife_csid_ver1_process_cmd(void *hw_priv,
 		/* Not supported for V1 */
 		rc = 0;
 		break;
+	case CAM_ISP_HW_CMD_DRV_CONFIG:
+		/* Not supported for V1 */
+		rc = 0;
+		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",
 			csid_hw->hw_intf->hw_idx, cmd_type);
@@ -4724,7 +4728,7 @@ int cam_ife_csid_hw_ver1_init(struct cam_hw_intf  *hw_intf,
 		init_completion(&ife_csid_hw->irq_complete[i]);
 
 	rc = cam_ife_csid_init_soc_resources(&ife_csid_hw->hw_info->soc_info,
-			cam_ife_csid_irq, ife_csid_hw, is_custom);
+			cam_ife_csid_irq, NULL, ife_csid_hw, is_custom);
 	if (rc < 0) {
 		CAM_ERR(CAM_ISP, "CSID:%d Failed to init_soc",
 			hw_intf->hw_idx);

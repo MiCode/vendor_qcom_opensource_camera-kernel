@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -9,6 +10,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
+#include <hwid.h>
 #include "cam_debug_util.h"
 #include "cam_res_mgr_api.h"
 #include "cam_res_mgr_private.h"
@@ -713,8 +715,6 @@ static int cam_res_mgr_shared_pinctrl_init(
 	}
 
 	for (i = 0; i < dt->num_shared_pctrl_gpio; i++) {
-		memset(pctrl_active, '\0', sizeof(pctrl_active));
-		memset(pctrl_suspend, '\0', sizeof(pctrl_suspend));
 		snprintf(pctrl_active, sizeof(pctrl_active),
 			"%s%s",
 			cam_res->dt.pctrl_name[i],
@@ -727,6 +727,24 @@ static int cam_res_mgr_shared_pinctrl_init(
 			"_suspend");
 		CAM_DBG(CAM_RES, "pctrl_suspend at index: %d name: %s",
 			i, pctrl_suspend);
+
+		if (!strcmp(product_name_get(), "nuwa") &&
+			(get_hw_version_build() != 0x9))
+		{
+			snprintf(pctrl_active, sizeof(pctrl_active),
+				"%s%s",
+				cam_res->dt.pctrl_name[i],
+				"_version_active");
+			CAM_DBG(CAM_RES, "pctrl_active at index: %d name: %s",
+				i, pctrl_active);
+			snprintf(pctrl_suspend, sizeof(pctrl_suspend),
+				"%s%s",
+				cam_res->dt.pctrl_name[i],
+				"_version_suspend");
+			CAM_DBG(CAM_RES, "pctrl_suspend at index: %d name: %s",
+				i, pctrl_suspend);
+		}
+
 		cam_res->pctrl_res[i].active =
 			pinctrl_lookup_state(cam_res->pinctrl,
 			pctrl_active);

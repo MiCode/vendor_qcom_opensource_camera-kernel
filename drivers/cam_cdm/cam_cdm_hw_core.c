@@ -24,6 +24,7 @@
 #include "cam_cdm_hw_reg_1_2.h"
 #include "cam_cdm_hw_reg_2_0.h"
 #include "cam_cdm_hw_reg_2_1.h"
+#include "cam_cdm_hw_reg_2_2.h"
 #include "camera_main.h"
 #include "cam_trace.h"
 #include "cam_req_mgr_workq.h"
@@ -81,6 +82,10 @@ static const struct of_device_id msm_cam_hw_cdm_dt_match[] = {
 		.compatible = CAM_HW_CDM_OPE_NAME_2_1,
 		.data = &cam_cdm_2_1_reg_offset,
 	},
+	{
+		.compatible  = CAM_HW_CDM_RT_NAME_2_2,
+		.data = &cam_cdm_2_2_reg_offset,
+	},
 	{},
 };
 
@@ -116,7 +121,9 @@ static enum cam_cdm_id cam_hw_cdm_get_id_by_name(char *name)
 	if (strnstr(name, CAM_HW_CDM_OPE_NAME_2_1,
 			strlen(CAM_HW_CDM_OPE_NAME_2_1)))
 		return CAM_CDM_OPE;
-
+	if (strnstr(name, CAM_HW_CDM_RT_NAME_2_2,
+			strlen(CAM_HW_CDM_RT_NAME_2_2)))
+		return CAM_CDM_RT;
 	return CAM_CDM_MAX;
 }
 
@@ -164,10 +171,25 @@ static int cam_hw_cdm_pause_core(struct cam_hw_info *cdm_hw, bool pause)
 {
 	int rc = 0;
 	struct cam_cdm *core = (struct cam_cdm *)cdm_hw->core_info;
-	uint32_t val = 0x1;
+	uint32_t val = 0x1, core_en_reg, cdm_status_reg;
 
 	if (pause)
 		val |= 0x2;
+
+	if (core->offsets->cmn_reg->cdm_status) {
+		cam_cdm_read_hw_reg(cdm_hw,
+			core->offsets->cmn_reg->core_en, &core_en_reg);
+		cam_cdm_read_hw_reg(cdm_hw,
+			core->offsets->cmn_reg->cdm_status, &cdm_status_reg);
+
+		/* In both pause or resume, further action need not/cannot be taken */
+		if ((core_en_reg & CAM_CDM_PAUSE_CORE_ENABLE_MASK) &&
+			!(cdm_status_reg & CAM_CDM_PAUSE_CORE_DONE_MASK)) {
+			if (!pause)
+				CAM_ERR(CAM_CDM, "Pause core not done yet, can't resume core");
+			return -EAGAIN;
+		}
+	}
 
 	if (cam_cdm_write_hw_reg(cdm_hw,
 			core->offsets->cmn_reg->core_en, val)) {
@@ -175,6 +197,23 @@ static int cam_hw_cdm_pause_core(struct cam_hw_info *cdm_hw, bool pause)
 			cdm_hw->soc_info.label_name,
 			cdm_hw->soc_info.index);
 		rc = -EIO;
+	}
+	if (pause && core->offsets->cmn_reg->cdm_status) {
+		uint32_t us_wait_time = 0;
+
+		while (us_wait_time < CAM_CDM_PAUSE_CORE_US_TIMEOUT) {
+			cam_cdm_read_hw_reg(cdm_hw,
+				core->offsets->cmn_reg->cdm_status,
+				&cdm_status_reg);
+			if (cdm_status_reg & CAM_CDM_PAUSE_CORE_DONE_MASK) {
+				CAM_DBG(CAM_CDM, "Pause core time (us): %lu",
+					us_wait_time);
+				break;
+			}
+			us_wait_time += 100;
+			usleep_range(100, 110);
+		}
+		CAM_WARN(CAM_CDM, "Pause core operation not successful");
 	}
 
 	return rc;
@@ -324,10 +363,8 @@ void cam_hw_cdm_dump_core_debug_registers(struct cam_hw_info *cdm_hw,
 		cdm_hw->soc_info.label_name, cdm_hw->soc_info.index);
 
 
-	if (pause_core) {
+	if (pause_core)
 		cam_hw_cdm_pause_core(cdm_hw, true);
-		usleep_range(1000, 1010);
-	}
 
 	cam_cdm_read_hw_reg(cdm_hw, core->offsets->cmn_reg->cdm_hw_version,
 		&cdm_version);
@@ -464,10 +501,8 @@ void cam_hw_cdm_dump_core_debug_registers(struct cam_hw_info *cdm_hw,
 		cam_cdm_read_hw_reg(cdm_hw,
 			core->offsets->cmn_reg->core_en, &dump_reg[0]);
 		is_core_paused_already = (bool)(dump_reg[0] & 0x20);
-		if (!is_core_paused_already) {
+		if (!is_core_paused_already)
 			cam_hw_cdm_pause_core(cdm_hw, true);
-			usleep_range(1000, 1010);
-		}
 
 		cam_hw_cdm_dump_bl_fifo_data(cdm_hw);
 
@@ -864,6 +899,10 @@ int cam_hw_cdm_submit_gen_irq(
 		return -EIO;
 	}
 
+	CAM_DBG(CAM_CDM, "GenIRQ BL: First Word: 0x%llx Second Word: 0x%llx",
+		*(cdm_cmd->genirq_buff->cpu_addr + (cdm_cmd->genirq_buff->used_bytes / 4)),
+		*(cdm_cmd->genirq_buff->cpu_addr + (cdm_cmd->genirq_buff->used_bytes / 4) + 1));
+
 	cdm_cmd->genirq_buff->used_bytes += genirq_cmd_size;
 	cdm_cmd->genirq_buff->offset += genirq_cmd_size;
 
@@ -873,7 +912,7 @@ int cam_hw_cdm_submit_gen_irq(
 			cdm_cmd->genirq_buff->handle, core->iommu_hdl.non_secure);
 
 		rc = cam_mem_mgr_send_buffer_to_presil(core->iommu_hdl.non_secure,
-			0);
+			cdm_cmd->genirq_buff->handle);
 		if (rc) {
 			CAM_ERR(CAM_PRESIL,
 				"Failed to send CDM gen irq cmd buffer fifo_idx:%d mem_handle:%d rc:%d",
@@ -1630,36 +1669,16 @@ int cam_hw_cdm_reset_hw(struct cam_hw_info *cdm_hw, uint32_t handle)
 
 	reinit_completion(&cdm_core->reset_complete);
 
-	/* First pause CDM, If it fails still proceed to reset CDM HW */
 	cam_hw_cdm_pause_core(cdm_hw, true);
-	usleep_range(1000, 1010);
 
-	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
-		if (!cdm_core->bl_fifo[i].bl_depth)
-			continue;
-
-		reset_val = reset_val |
-			(1 << (i + CAM_CDM_BL_FIFO_FLUSH_SHIFT));
-		if (cam_cdm_write_hw_reg(cdm_hw,
-				cdm_core->offsets->irq_reg[i]->irq_mask,
-				0x70003)) {
-			CAM_ERR(CAM_CDM, "Failed to Write %s%u HW IRQ mask",
-				soc_info->label_name,
-				soc_info->index);
-			goto end;
-		}
-	}
-
-	if (cam_cdm_write_hw_reg(cdm_hw,
-			cdm_core->offsets->cmn_reg->rst_cmd, reset_val)) {
+	if (cam_cdm_write_hw_reg(cdm_hw, cdm_core->offsets->cmn_reg->rst_cmd, reset_val)) {
 		CAM_ERR(CAM_CDM, "Failed to Write %s%u HW reset",
 			soc_info->label_name,
 			soc_info->index);
 		goto end;
 	}
 
-	CAM_DBG(CAM_CDM, "Waiting for %s%u HW reset done",
-		soc_info->label_name, soc_info->index);
+	CAM_DBG(CAM_CDM, "Waiting for %s%u HW reset done", soc_info->label_name, soc_info->index);
 	time_left = cam_common_wait_for_completion_timeout(
 			&cdm_core->reset_complete,
 			msecs_to_jiffies(CAM_CDM_HW_RESET_TIMEOUT));
@@ -1672,6 +1691,7 @@ int cam_hw_cdm_reset_hw(struct cam_hw_info *cdm_hw, uint32_t handle)
 			soc_info->index, rc);
 
 		cam_hw_cdm_dump_core_debug_registers(cdm_hw, false);
+		cam_hw_cdm_pause_core(cdm_hw, false);
 		goto end;
 	}
 
@@ -1726,7 +1746,6 @@ int cam_hw_cdm_handle_error_info(
 		goto end;
 	}
 
-	/* First pause CDM, If it fails still proceed to dump debug info */
 	cam_hw_cdm_pause_core(cdm_hw, true);
 
 	rc = cam_cdm_read_hw_reg(cdm_hw,
@@ -2015,26 +2034,15 @@ int cam_hw_cdm_init(void *hw_priv,
 	}
 
 	rc = cam_hw_cdm_reset_hw(cdm_hw, reset_hw_hdl);
-
 	if (rc) {
 		CAM_ERR(CAM_CDM, "%s%u HW reset Wait failed rc=%d",
 			soc_info->label_name,
 			soc_info->index, rc);
 		goto disable_return;
-	} else {
-		CAM_DBG(CAM_CDM, "%s%u Init success",
-			soc_info->label_name, soc_info->index);
-		for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
-			if (!cdm_core->bl_fifo[i].bl_depth)
-				continue;
-
-			cam_cdm_write_hw_reg(cdm_hw,
-					cdm_core->offsets->irq_reg[i]->irq_mask,
-					0x70003);
-		}
-		rc = 0;
-		goto end;
 	}
+
+	CAM_DBG(CAM_CDM, "%s%u Init success", soc_info->label_name, soc_info->index);
+	return 0;
 
 disable_return:
 	rc = -EIO;
@@ -2126,9 +2134,7 @@ int cam_hw_cdm_deinit(void *hw_priv,
 	set_bit(CAM_CDM_RESET_HW_STATUS, &cdm_core->cdm_status);
 	reinit_completion(&cdm_core->reset_complete);
 
-	/* First pause CDM, If it fails still proceed to reset CDM HW */
 	cam_hw_cdm_pause_core(cdm_hw, true);
-	usleep_range(1000, 1010);
 
 	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
 		if (!cdm_core->bl_fifo[i].bl_depth)
@@ -2179,7 +2185,7 @@ int cam_hw_cdm_deinit(void *hw_priv,
 	return rc;
 }
 
-#if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
+#ifdef CONFIG_CAM_TEST_IRQ_LINE
 static int cam_cdm_test_irq_line(void *hw_priv)
 {
 	struct cam_hw_info *cdm_hw = hw_priv;

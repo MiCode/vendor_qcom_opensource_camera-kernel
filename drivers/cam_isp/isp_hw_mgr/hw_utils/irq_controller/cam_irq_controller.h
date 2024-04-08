@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IRQ_CONTROLLER_H_
@@ -37,8 +38,6 @@ enum cam_irq_event_group {
 	CAM_IRQ_EVT_GROUP_1,
 	CAM_IRQ_EVT_GROUP_2,
 };
-
-#define CAM_IRQ_MAX_DEPENDENTS 2
 
 /*
  * struct cam_irq_register_set:

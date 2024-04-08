@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_cdm.h"
@@ -178,6 +179,7 @@ static struct cam_cdm_common_regs cdm_hw_2_1_cmn_reg_offset = {
 	.core_cfg = 0x18,
 	.core_en = 0x1c,
 	.fe_cfg = 0x20,
+	.cdm_status = 0x0,
 	.irq_context_status = 0x2c,
 	.bl_fifo_rb = 0x60,
 	.bl_fifo_base_rb = 0x64,

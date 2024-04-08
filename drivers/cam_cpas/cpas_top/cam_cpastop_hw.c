@@ -45,7 +45,7 @@ struct cam_cpas_camnoc_qchannel *qchannel_info;
 
 
 #define CAMNOC_SLAVE_MAX_ERR_CODE 7
-static const char * const camnoc_salve_err_code[] = {
+static const char * const camnoc_slave_err_code[] = {
 	"Target Error",              /* err code 0 */
 	"Address decode error",      /* err code 1 */
 	"Unsupported request",       /* err code 2 */
@@ -417,94 +417,17 @@ static int cam_cpastop_handle_errlogger(struct cam_cpas *cpas_core,
 		return -EINVAL;
 	}
 
-	slave_err->mainctrl.value = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
-		camnoc_info->err_logger->mainctrl);
-
-	slave_err->errvld.value = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
-		camnoc_info->err_logger->errvld);
-
 	slave_err->errlog0_low.value = cam_io_r_mb(
 		soc_info->reg_map[camnoc_index].mem_base +
 		camnoc_info->err_logger->errlog0_low);
-
-	slave_err->errlog0_high.value = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
-		camnoc_info->err_logger->errlog0_high);
-
-	slave_err->errlog1_low.value = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
-		camnoc_info->err_logger->errlog1_low);
-
-	slave_err->errlog1_high.value = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
-		camnoc_info->err_logger->errlog1_high);
-
-	slave_err->errlog2_low.value = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
-		camnoc_info->err_logger->errlog2_low);
-
-	slave_err->errlog2_high.value = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
-		camnoc_info->err_logger->errlog2_high);
-
-	slave_err->errlog3_low.value = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
-		camnoc_info->err_logger->errlog3_low);
-
-	slave_err->errlog3_high.value = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
-		camnoc_info->err_logger->errlog3_high);
-
-	CAM_ERR_RATE_LIMIT(CAM_CPAS,
-		"Possible memory configuration issue, fault at SMMU raised as CAMNOC SLAVE_IRQ");
-
-	CAM_ERR_RATE_LIMIT(CAM_CPAS,
-		"mainctrl[0x%x 0x%x] errvld[0x%x 0x%x] stall_en=%d, fault_en=%d, err_vld=%d",
-		camnoc_info->err_logger->mainctrl,
-		slave_err->mainctrl.value,
-		camnoc_info->err_logger->errvld,
-		slave_err->errvld.value,
-		slave_err->mainctrl.stall_en,
-		slave_err->mainctrl.fault_en,
-		slave_err->errvld.err_vld);
 
 	err_code_index = slave_err->errlog0_low.err_code;
 	if (err_code_index > CAMNOC_SLAVE_MAX_ERR_CODE)
 		err_code_index = CAMNOC_SLAVE_MAX_ERR_CODE;
 
 	CAM_ERR_RATE_LIMIT(CAM_CPAS,
-		"errlog0 low[0x%x 0x%x] high[0x%x 0x%x] loginfo_vld=%d, word_error=%d, non_secure=%d, device=%d, opc=%d, err_code=%d(%s) sizef=%d, addr_space=%d, len1=%d",
-		camnoc_info->err_logger->errlog0_low,
-		slave_err->errlog0_low.value,
-		camnoc_info->err_logger->errlog0_high,
-		slave_err->errlog0_high.value,
-		slave_err->errlog0_low.loginfo_vld,
-		slave_err->errlog0_low.word_error,
-		slave_err->errlog0_low.non_secure,
-		slave_err->errlog0_low.device,
-		slave_err->errlog0_low.opc,
-		slave_err->errlog0_low.err_code,
-		camnoc_salve_err_code[err_code_index],
-		slave_err->errlog0_low.sizef,
-		slave_err->errlog0_low.addr_space,
-		slave_err->errlog0_high.len1);
-
-	CAM_ERR_RATE_LIMIT(CAM_CPAS,
-		"errlog1_low[0x%x 0x%x]  errlog1_high[0x%x 0x%x] errlog2_low[0x%x 0x%x]  errlog2_high[0x%x 0x%x] errlog3_low[0x%x 0x%x]  errlog3_high[0x%x 0x%x]",
-		camnoc_info->err_logger->errlog1_low,
-		slave_err->errlog1_low.value,
-		camnoc_info->err_logger->errlog1_high,
-		slave_err->errlog1_high.value,
-		camnoc_info->err_logger->errlog2_low,
-		slave_err->errlog2_low.value,
-		camnoc_info->err_logger->errlog2_high,
-		slave_err->errlog2_high.value,
-		camnoc_info->err_logger->errlog3_low,
-		slave_err->errlog3_low.value,
-		camnoc_info->err_logger->errlog3_high,
-		slave_err->errlog3_high.value);
+		"Possible memory configuration issue, fault at SMMU raised as CAMNOC SLAVE_IRQ err_code=%d(%s)",
+		slave_err->errlog0_low.err_code, camnoc_slave_err_code[err_code_index]);
 
 	return 0;
 }
@@ -604,14 +527,58 @@ static void cam_cpastop_check_test_irq(struct cam_hw_info *cpas_hw, uint32_t irq
 }
 #endif
 
-static int cam_cpastop_reset_irq(struct cam_hw_info *cpas_hw)
+static void cam_cpastop_enable_camnoc_irqs(
+	struct cam_hw_info *cpas_hw)
 {
 	int i;
+	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 
+	cpas_core->smmu_fault_handled = false;
+
+	/* clear and enable all errors */
+	for (i = 0; i < camnoc_info->irq_err_size; i++) {
+		if (camnoc_info->irq_err[i].enable) {
+			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
+				&camnoc_info->irq_err[i].err_clear);
+			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
+				&camnoc_info->irq_err[i].err_enable);
+		}
+	}
+
+	/* On poweron reset enable all error irqs applicable for the target */
+	cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
+		&camnoc_info->irq_sbm->sbm_enable);
+}
+
+static void cam_cpastop_handle_camnoc_irqs(
+	uint32_t irq_status, struct cam_hw_info *cpas_hw)
+{
+	int i;
+	uint32_t updated_sbm_mask = 0;
+	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
+
+	for (i = 0; i < camnoc_info->irq_err_size; i++) {
+		if ((camnoc_info->irq_err[i].enable) &&
+			(camnoc_info->irq_err[i].sbm_port & irq_status)) {
+			/* Clear the error status */
+			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
+				&camnoc_info->irq_err[i].err_clear);
+			updated_sbm_mask |= camnoc_info->irq_err[i].sbm_port;
+		}
+	}
+
+	/* Disable all serviced irqs */
+	cam_io_w(((~updated_sbm_mask) & (camnoc_info->irq_sbm->sbm_enable.value)),
+		soc_info->reg_map[CAM_CPAS_REG_CAMNOC].mem_base +
+		camnoc_info->irq_sbm->sbm_enable.offset);
+}
+
+static int cam_cpastop_reset_irq(uint32_t irq_status,
+	struct cam_hw_info *cpas_hw)
+{
 #if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
 	static int counter;
 	bool wait_for_irq = false;
-	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 
 	if (counter == 0)  {
 		CAM_INFO(CAM_CPAS, "Enabling camnoc test irq");
@@ -631,19 +598,12 @@ static int cam_cpastop_reset_irq(struct cam_hw_info *cpas_hw)
 
 	cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 		&camnoc_info->irq_sbm->sbm_clear);
-	for (i = 0; i < camnoc_info->irq_err_size; i++) {
-		if (camnoc_info->irq_err[i].enable)
-			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
-				&camnoc_info->irq_err[i].err_clear);
-	}
 
-	cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
-		&camnoc_info->irq_sbm->sbm_enable);
-	for (i = 0; i < camnoc_info->irq_err_size; i++) {
-		if (camnoc_info->irq_err[i].enable)
-			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
-				&camnoc_info->irq_err[i].err_enable);
-	}
+	if (irq_status)
+		cam_cpastop_handle_camnoc_irqs(irq_status, cpas_hw);
+	else
+		/* poweron reset */
+		cam_cpastop_enable_camnoc_irqs(cpas_hw);
 
 #if (defined(CONFIG_CAM_TEST_IRQ_LINE) && defined(CONFIG_CAM_TEST_IRQ_LINE_AT_PROBE))
 	if (wait_for_irq) {
@@ -657,7 +617,7 @@ static int cam_cpastop_reset_irq(struct cam_hw_info *cpas_hw)
 }
 
 static void cam_cpastop_notify_clients(struct cam_cpas *cpas_core,
-	struct cam_cpas_irq_data *irq_data)
+	struct cam_cpas_irq_data *irq_data, bool force_notify)
 {
 	int i;
 	struct cam_cpas_client *cpas_client;
@@ -680,7 +640,7 @@ static void cam_cpastop_notify_clients(struct cam_cpas *cpas_core,
 					cpas_client->data.client_handle,
 					cpas_client->data.userdata,
 					irq_data);
-				if (error_handled)
+				if (error_handled && !force_notify)
 					break;
 			}
 		}
@@ -759,7 +719,7 @@ static void cam_cpastop_work(struct work_struct *work)
 				break;
 			}
 
-			cam_cpastop_notify_clients(cpas_core, &irq_data);
+			cam_cpastop_notify_clients(cpas_core, &irq_data, false);
 
 			payload->irq_status &=
 				~camnoc_info->irq_err[i].sbm_port;
@@ -783,6 +743,7 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 	int camnoc_index = cpas_core->regbase_index[CAM_CPAS_REG_CAMNOC];
 	struct cam_cpas_work_payload *payload;
+	struct cam_cpas_irq_data irq_data;
 
 	if (!atomic_inc_not_zero(&cpas_core->irq_count)) {
 		CAM_ERR(CAM_CPAS, "CPAS off");
@@ -793,8 +754,8 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 	if (!payload)
 		goto done;
 
-	payload->irq_status = cam_io_r_mb(
-		soc_info->reg_map[camnoc_index].mem_base +
+	/* Read irq status */
+	payload->irq_status = cam_io_r_mb(soc_info->reg_map[camnoc_index].mem_base +
 		camnoc_info->irq_sbm->sbm_status.offset);
 
 	CAM_DBG(CAM_CPAS, "IRQ callback, irq_status=0x%x", payload->irq_status);
@@ -803,13 +764,46 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 	cam_cpastop_check_test_irq(cpas_hw, payload->irq_status);
 #endif
 
+	/* Clear irq */
+	cam_cpastop_reset_irq(payload->irq_status, cpas_hw);
+
+	/* Check for slave error irq */
+	if ((cpas_core->slave_err_irq_en) && (payload->irq_status  &
+		camnoc_info->irq_err[cpas_core->slave_err_irq_idx].sbm_port)) {
+		struct cam_camnoc_irq_slave_err_data *slave_err = &irq_data.u.slave_err;
+
+		irq_data.irq_type = (enum cam_camnoc_irq_type)
+			camnoc_info->irq_err[cpas_core->slave_err_irq_idx].irq_type;
+		slave_err->errlog0_low.value = cam_io_r_mb(
+			soc_info->reg_map[camnoc_index].mem_base +
+			camnoc_info->err_logger->errlog0_low);
+
+		/* Validate address decode error */
+		if (slave_err->errlog0_low.err_code == CAM_CAMNOC_ADDRESS_DECODE_ERROR) {
+			/* Notify clients about potential page fault */
+			if (!cpas_core->smmu_fault_handled) {
+				cam_cpastop_notify_clients(cpas_core, &irq_data, true);
+				CAM_ERR_RATE_LIMIT(CAM_CPAS,
+					"Fault at SMMU raised as CAMNOC SLAVE IRQ, address decode error");
+			}
+
+			cpas_core->smmu_fault_handled = true;
+			/* Skip bh if no other irq is set */
+			payload->irq_status &=
+				~camnoc_info->irq_err[cpas_core->slave_err_irq_idx].sbm_port;
+			if (!payload->irq_status) {
+				kfree(payload);
+				goto done;
+			}
+		}
+	}
+
 	payload->hw = cpas_hw;
 	INIT_WORK((struct work_struct *)&payload->work, cam_cpastop_work);
 
-	cam_cpastop_reset_irq(cpas_hw);
-
 	payload->workq_scheduled_ts = ktime_get();
 	queue_work(cpas_core->work_queue, &payload->work);
+
 done:
 	atomic_dec(&cpas_core->irq_count);
 	wake_up(&cpas_core->irq_count_wq);
@@ -861,7 +855,7 @@ static int cam_cpastop_poweron(struct cam_hw_info *cpas_hw)
 		camnoc_info->errata_wa_list;
 	struct cam_cpas_hw_errata_wa *errata_wa;
 
-	cam_cpastop_reset_irq(cpas_hw);
+	cam_cpastop_reset_irq(0x0, cpas_hw);
 	for (i = 0; i < camnoc_info->specific_size; i++) {
 		if (camnoc_info->specific[i].enable) {
 			CAM_DBG(CAM_CPAS, "Updating QoS settings for %d %s",
@@ -1027,7 +1021,7 @@ static int cam_cpastop_qchannel_handshake(struct cam_hw_info *cpas_hw,
 static int cam_cpastop_init_hw_version(struct cam_hw_info *cpas_hw,
 	struct cam_cpas_hw_caps *hw_caps)
 {
-	int rc = 0;
+	int rc = 0, i;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	qchannel_info = NULL;
@@ -1128,6 +1122,18 @@ static int cam_cpastop_init_hw_version(struct cam_hw_info *cpas_hw,
 	}
 
 	cpas_core->camnoc_info = camnoc_info;
+
+	/* Check if slave error irq is enabled */
+	for (i = 0; i < camnoc_info->irq_err_size; i++) {
+		if (camnoc_info->irq_err[i].irq_type == CAM_CAMNOC_HW_IRQ_SLAVE_ERROR) {
+			if (camnoc_info->irq_err[i].enable) {
+				cpas_core->slave_err_irq_en = true;
+				cpas_core->slave_err_irq_idx = i;
+				break;
+			}
+		}
+	}
+
 	return 0;
 }
 

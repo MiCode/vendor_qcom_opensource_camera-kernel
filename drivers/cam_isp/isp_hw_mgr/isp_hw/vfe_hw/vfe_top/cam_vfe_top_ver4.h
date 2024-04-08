@@ -13,7 +13,7 @@
 
 #define CAM_VFE_RDI_VER2_MAX                           4
 #define CAM_VFE_CAMIF_LITE_EVT_MAX                     256
-#define CAM_VFE_TOP_DBG_REG_MAX                        17
+#define CAM_VFE_TOP_DBG_REG_MAX                        19
 #define CAM_VFE_PERF_COUNTER_MAX                       2
 
 struct cam_vfe_top_ver4_perf_count_reg_offset {

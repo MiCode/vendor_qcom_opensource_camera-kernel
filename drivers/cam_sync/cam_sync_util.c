@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sync_util.h"
@@ -147,7 +148,8 @@ clean_children_info:
 	return rc;
 }
 
-int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx)
+int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx,
+	struct cam_sync_check_for_dma_release *check_for_dma_release)
 {
 	struct sync_table_row      *row = table + idx;
 	struct sync_child_info     *child_info, *temp_child;
@@ -276,6 +278,22 @@ int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx)
 			&row->callback_list, list) {
 		list_del_init(&sync_cb->list);
 		kfree(sync_cb);
+	}
+
+	/* Decrement ref cnt for imported dma fence */
+	if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &row->ext_fence_mask)) {
+		cam_dma_fence_get_put_ref(false, row->dma_fence_info.dma_fence_row_idx);
+
+		/* Check if same dma fence is being released with the sync obj */
+		if (check_for_dma_release) {
+			if (row->dma_fence_info.dma_fence_fd ==
+				check_for_dma_release->dma_fence_fd) {
+				check_for_dma_release->sync_created_with_dma =
+					row->dma_fence_info.sync_created_with_dma;
+				check_for_dma_release->dma_fence_row_idx =
+					row->dma_fence_info.dma_fence_row_idx;
+			}
+		}
 	}
 
 	memset(row, 0, sizeof(*row));

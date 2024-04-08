@@ -17,6 +17,7 @@
 #define CAM_CPAS_INFLIGHT_WORKS              5
 #define CAM_CPAS_MAX_CLIENTS                 42
 #define CAM_CPAS_MAX_AXI_PORTS               6
+#define CAM_CPAS_MAX_DRV_PORTS               4
 #define CAM_CPAS_MAX_TREE_LEVELS             4
 #define CAM_CPAS_MAX_RT_WR_NIU_NODES         10
 #define CAM_CPAS_MAX_GRAN_PATHS_PER_CLIENT   32
@@ -63,6 +64,66 @@ enum cam_cpas_access_type {
 	CAM_REG_TYPE_READ,
 	CAM_REG_TYPE_WRITE,
 	CAM_REG_TYPE_READ_WRITE,
+};
+
+/**
+ * enum cam_cpas_vote_type - Enum for cpas vote type
+ */
+enum cam_cpas_vote_type {
+	CAM_CPAS_VOTE_TYPE_HLOS,
+	CAM_CPAS_VOTE_TYPE_DRV,
+};
+
+/**
+ * struct cam_cpas_vdd_ahb_mapping : Voltage to ahb level mapping
+ *
+ * @vdd_corner : Voltage corner value
+ * @ahb_level : AHB vote level corresponds to this vdd_corner
+ *
+ */
+struct cam_cpas_vdd_ahb_mapping {
+	unsigned int vdd_corner;
+	enum cam_vote_level ahb_level;
+};
+
+/**
+ * struct cam_cpas_bw_vote : AXI bw vote
+ *
+ * @ab: AB bw value
+ * @ib: IB bw value
+ *
+ */
+struct cam_cpas_bw_vote {
+	uint64_t ab;
+	uint64_t ib;
+};
+
+/**
+ * struct cam_cpas_drv_vote : DRV bw vote
+ *
+ * @high: Active bw values
+ * @low:  Sleep bw values
+ *
+ */
+struct cam_cpas_drv_vote {
+	struct cam_cpas_bw_vote high;
+	struct cam_cpas_bw_vote low;
+};
+
+/**
+ * struct cam_cpas_axi_bw_info : AXI bw info
+ *
+ * @vote_type:  HLOS or DRV vote type
+ * @hlos_vote: HLOS bw values
+ * @drv_vote:  DRV bw values
+ *
+ */
+struct cam_cpas_axi_bw_info {
+	enum cam_cpas_vote_type vote_type;
+	union {
+		struct cam_cpas_bw_vote hlos_vote;
+		struct cam_cpas_drv_vote drv_vote;
+	};
 };
 
 /**
@@ -124,6 +185,7 @@ struct cam_cpas_reg {
  * @registered: Whether client has registered with cpas
  * @started: Whether client has streamed on
  * @tree_node_valid: Indicates whether tree node has at least one valid node
+ * @is_drv_dyn: Indicates whether this client is DRV dynamic voting client
  * @ahb_level: Determined/Applied ahb level for the client
  * @axi_vote: Determined/Applied axi vote for the client
  * @axi_port: Client's parent axi port
@@ -135,6 +197,7 @@ struct cam_cpas_client {
 	bool registered;
 	bool started;
 	bool tree_node_valid;
+	bool is_drv_dyn;
 	enum cam_vote_level ahb_level;
 	struct cam_axi_vote axi_vote;
 	struct cam_cpas_axi_port *axi_port;
@@ -168,12 +231,13 @@ struct cam_cpas_bus_client {
  * @ib_bw_voting_needed: if this port can update ib bw dynamically
  * @is_rt: if this port represents a real time axi port
  * @axi_port_node: Node representing AXI Port info in device tree
- * @ab_bw: AB bw value for this port
- * @ib_bw: IB bw value for this port
+ * @drv_idx: DRV index for axi port node
+ * @cam_rsc_dev: Cam RSC device for DRV
+ * @is_drv_started: Indicates if DRV started for RSC device corresponding to port
+ * @curr_bw: Current voted bw after cpas consolidation
  * @camnoc_bw: CAMNOC bw value for this port
  * @additional_bw: Additional bandwidth to cover non-hw cpas clients
- * @applied_ab_bw: applied ab bw for this port
- * @applied_ib_bw: applied ib bw for this port
+ * @applied_bw: Actual applied bw to port
  */
 struct cam_cpas_axi_port {
 	const char *axi_port_name;
@@ -181,31 +245,30 @@ struct cam_cpas_axi_port {
 	bool ib_bw_voting_needed;
 	bool is_rt;
 	struct device_node *axi_port_node;
-	uint64_t ab_bw;
-	uint64_t ib_bw;
+	uint32_t drv_idx;
+	const struct device *cam_rsc_dev;
+	bool is_drv_started;
+	struct cam_cpas_axi_bw_info curr_bw;
 	uint64_t camnoc_bw;
 	uint64_t additional_bw;
-	uint64_t applied_ab_bw;
-	uint64_t applied_ib_bw;
+	struct cam_cpas_axi_bw_info applied_bw;
 };
 
 /**
  * struct cam_cpas_axi_port_debug_info : AXI port information
  *
  * @axi_port_name: Name of this AXI port
- * @ab_bw: AB bw value for this port
- * @ib_bw: IB bw value for this port
+ * @curr_bw: Current voted bw after cpas consolidation
  * @camnoc_bw: CAMNOC bw value for this port
- * @applied_ab_bw: applied ab bw for this port
- * @applied_ib_bw: applied ib bw for this port
+ * @applied_bw: Actual applied bw to port
+ * @is_drv_started: Indicates if DRV started for RSC device corresponding to port
  */
 struct cam_cpas_axi_port_debug_info {
 	const char *axi_port_name;
-	uint64_t ab_bw;
-	uint64_t ib_bw;
+	struct cam_cpas_axi_bw_info curr_bw;
 	uint64_t camnoc_bw;
-	uint64_t applied_ab_bw;
-	uint64_t applied_ib_bw;
+	struct cam_cpas_axi_bw_info applied_bw;
+	bool is_drv_started;
 };
 
 /**
@@ -263,6 +326,9 @@ struct cam_cpas_monitor {
  * @num_camnoc_axi_ports: Total number of camnoc axi ports found in device tree
  * @registered_clients: Number of Clients registered currently
  * @streamon_clients: Number of Clients that are in start state currently
+ * @slave_err_irq_idx: Index of slave error in irq error data structure,
+ *                     avoids iterating the entire structure to find this
+ *                     idx in irq th
  * @regbase_index: Register base indices for CPAS register base IDs
  * @ahb_bus_client: AHB Bus client info
  * @axi_port: AXI port info for a specific axi index
@@ -276,9 +342,13 @@ struct cam_cpas_monitor {
  * @applied_camnoc_axi_rate: applied camnoc axi clock rate
  * @monitor_head: Monitor array head
  * @monitor_entries: cpas monitor array
+ * @camnoc_info: Pointer to camnoc header info
  * @full_state_dump: Whether to enable full cpas state dump or not
  * @smart_qos_dump: Whether to dump smart qos information on update
- * @camnoc_info: Pointer to camnoc header info
+ * @slave_err_irq_en: Whether slave error irq is enabled to detect memory
+ *                    config issues
+ * @smmu_fault_handled: Handled address decode error, on fault at SMMU
+ * @force_hlos_drv: Whether to force disable DRV voting
  */
 struct cam_cpas {
 	struct cam_cpas_hw_caps hw_caps;
@@ -290,6 +360,7 @@ struct cam_cpas {
 	uint32_t num_camnoc_axi_ports;
 	uint32_t registered_clients;
 	uint32_t streamon_clients;
+	uint32_t slave_err_irq_idx;
 	int32_t regbase_index[CAM_CPAS_REG_MAX];
 	struct cam_cpas_bus_client ahb_bus_client;
 	struct cam_cpas_axi_port axi_port[CAM_CPAS_MAX_AXI_PORTS];
@@ -303,9 +374,12 @@ struct cam_cpas {
 	uint64_t applied_camnoc_axi_rate;
 	atomic64_t  monitor_head;
 	struct cam_cpas_monitor monitor_entries[CAM_CPAS_MONITOR_MAX_ENTRIES];
+	void *camnoc_info;
 	bool full_state_dump;
 	bool smart_qos_dump;
-	void *camnoc_info;
+	bool slave_err_irq_en;
+	bool smmu_fault_handled;
+	bool force_hlos_drv;
 };
 
 int cam_camsstop_get_internal_ops(struct cam_cpas_internal_ops *internal_ops);

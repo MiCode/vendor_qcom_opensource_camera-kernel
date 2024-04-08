@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -400,8 +401,9 @@ static int cam_vfe_camif_ver3_resource_start(
 	}
 
 	/* config debug status registers */
-	cam_io_w_mb(rsrc_data->reg_data->top_debug_cfg_en, rsrc_data->mem_base +
-		rsrc_data->common_reg->top_debug_cfg);
+	val = cam_io_r(rsrc_data->mem_base + rsrc_data->common_reg->top_debug_cfg);
+	val |= rsrc_data->reg_data->top_debug_cfg_en;
+	cam_io_w_mb(val, rsrc_data->mem_base + rsrc_data->common_reg->top_debug_cfg);
 
 	val = cam_io_r_mb(rsrc_data->mem_base +
 		rsrc_data->common_reg->core_cfg_0);
@@ -1281,7 +1283,7 @@ print_state:
 	if ((err_type == CAM_VFE_IRQ_STATUS_OVERFLOW) &&
 		((camif_priv->cam_common_cfg.input_mux_sel_pp & 0x3) ||
 		(bus_overflow_status)))
-		cam_cpas_log_votes();
+		cam_cpas_log_votes(false);
 }
 
 static int cam_vfe_camif_ver3_handle_irq_top_half(uint32_t evt_id,

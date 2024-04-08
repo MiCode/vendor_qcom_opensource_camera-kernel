@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -14,6 +15,8 @@
 #include "cam_common_util.h"
 
 #define CAM_IRQ_LINE_TEST_TIMEOUT_MS 1000
+#define CAM_IRQ_MAX_DEPENDENTS 9
+#define CAM_IRQ_CTRL_NAME_LEN 16
 
 /**
  * struct cam_irq_evt_handler:
@@ -66,6 +69,7 @@ struct cam_irq_evt_handler {
  *                          after subscribe/unsubscribe calls
  * @dependent_read_mask:    Mask to check if any dependent controllers' read needs to triggered
  *                          from independent controller
+ * @dirty_clear:            Flag to identify if clear register contains non-zero value
  */
 struct cam_irq_register_obj {
 	uint32_t                     index;
@@ -78,6 +82,7 @@ struct cam_irq_register_obj {
 	uint32_t                     top_half_enable_mask[CAM_IRQ_PRIORITY_MAX];
 	uint32_t                     aggr_mask;
 	uint32_t                     dependent_read_mask[CAM_IRQ_MAX_DEPENDENTS];
+	bool                         dirty_clear;
 };
 
 /**
@@ -114,7 +119,7 @@ struct cam_irq_register_obj {
  *                          and spinlock in regular case
  */
 struct cam_irq_controller {
-	const char                     *name;
+	char                            name[CAM_IRQ_CTRL_NAME_LEN];
 	void __iomem                   *mem_base;
 	uint32_t                        num_registers;
 	struct cam_irq_register_obj    *irq_register_arr;
@@ -386,7 +391,7 @@ int cam_irq_controller_init(const char       *name,
 		goto evt_mask_alloc_error;
 	}
 
-	controller->name = name;
+	strscpy(controller->name, name, CAM_IRQ_CTRL_NAME_LEN);
 
 	CAM_DBG(CAM_IRQ_CTRL, "num_registers: %d",
 		register_info->num_registers);
@@ -404,6 +409,7 @@ int cam_irq_controller_init(const char       *name,
 			register_info->irq_reg_set[i].test_set_val;
 		controller->irq_register_arr[i].test_sub_val =
 			register_info->irq_reg_set[i].test_sub_val;
+		controller->irq_register_arr[i].dirty_clear = true;
 		CAM_DBG(CAM_IRQ_CTRL, "i %d mask_reg_offset: 0x%x", i,
 			controller->irq_register_arr[i].mask_reg_offset);
 		CAM_DBG(CAM_IRQ_CTRL, "i %d clear_reg_offset: 0x%x", i,
@@ -484,6 +490,7 @@ static inline void __cam_irq_controller_enable_irq(
 		irq_register = &controller->irq_register_arr[i];
 		irq_register->top_half_enable_mask[priority] |= update_mask[i];
 		irq_register->aggr_mask |= update_mask[i];
+		irq_register->dirty_clear = true;
 		cam_io_w_mb(irq_register->aggr_mask, controller->mem_base +
 			irq_register->mask_reg_offset);
 	}
@@ -862,6 +869,32 @@ static void __cam_irq_controller_read_registers(struct cam_irq_controller *contr
 			controller->irq_register_arr[i].status_reg_offset,
 			controller->irq_status_arr[i]);
 
+		/**
+		 * If this status register has not caused the interrupt to be
+		 * triggered, we can skip writing to the clear register as long
+		 * as no previous writes have been made to it that will cause
+		 * bits of interest to be cleared (i.e. clear register is
+		 * dirty).
+		 *
+		 * The dirty clear flag will never cause false negatives (i.e.
+		 * valid writes to be missed) since hardware cannot set any bits
+		 * in the clear register to 1 and will only clear the entire
+		 * register upon resetting the hardware.
+		 */
+		if (!(controller->irq_status_arr[i] & irq_register->aggr_mask)) {
+			if (!irq_register->dirty_clear)
+				continue;
+			else
+				irq_register->dirty_clear = false;
+		} else {
+			irq_register->dirty_clear = true;
+		}
+
+		CAM_DBG(CAM_IRQ_CTRL, "(%s) Write irq clear%d (0x%x) = 0x%x (dirty=%s)",
+			controller->name, i, controller->irq_register_arr[i].clear_reg_offset,
+			controller->irq_status_arr[i],
+			CAM_BOOL_TO_YESNO(irq_register->dirty_clear));
+
 		cam_io_w(controller->irq_status_arr[i],
 			controller->mem_base + irq_register->clear_reg_offset);
 	}
@@ -871,6 +904,26 @@ static void __cam_irq_controller_read_registers(struct cam_irq_controller *contr
 			controller->mem_base + controller->global_irq_cmd_offset);
 		CAM_DBG(CAM_IRQ_CTRL, "Global Clear done from %s",
 			controller->name);
+	}
+}
+
+static void __cam_irq_controller_sanitize_clear_registers(struct cam_irq_controller *controller)
+{
+	struct cam_irq_register_obj *irq_register;
+	int i;
+
+	for (i = 0; i < controller->num_registers; i++) {
+		irq_register = &controller->irq_register_arr[i];
+		if (!irq_register->dirty_clear)
+			continue;
+
+		irq_register->dirty_clear = false;
+
+		CAM_DBG(CAM_IRQ_CTRL, "(%s) Write irq clear%d (0x%x) = 0x%x (dirty=%s)",
+			controller->name, i, controller->irq_register_arr[i].clear_reg_offset,
+			0x0, CAM_BOOL_TO_YESNO(irq_register->dirty_clear));
+
+		cam_io_w(0x0, controller->mem_base + irq_register->clear_reg_offset);
 	}
 }
 
@@ -894,14 +947,21 @@ static void cam_irq_controller_read_registers(struct cam_irq_controller *control
 	}
 
 	for (j = 0; j < CAM_IRQ_MAX_DEPENDENTS; j++) {
+		dep_controller = controller->dependent_controller[j];
+		if (!dep_controller)
+			continue;
+
+		cam_irq_controller_lock(dep_controller);
 		if (need_reg_read[j]) {
-			dep_controller = controller->dependent_controller[j];
 			CAM_DBG(CAM_IRQ_CTRL, "Reading dependent registers for %s",
 				dep_controller->name);
-			cam_irq_controller_lock(dep_controller);
 			__cam_irq_controller_read_registers(dep_controller);
-			cam_irq_controller_unlock(dep_controller);
+		} else {
+			CAM_DBG(CAM_IRQ_CTRL, "Sanitize registers for %s",
+				dep_controller->name);
+			__cam_irq_controller_sanitize_clear_registers(dep_controller);
 		}
+		cam_irq_controller_unlock(dep_controller);
 	}
 
 	if (controller->global_irq_cmd_offset && controller->delayed_global_clear) {

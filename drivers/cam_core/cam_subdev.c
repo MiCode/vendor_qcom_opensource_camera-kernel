@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2018, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_subdev.h"
@@ -54,8 +55,10 @@ static long cam_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd,
 
 	switch (cmd) {
 	case VIDIOC_CAM_CONTROL:
+		cam_req_mgr_rwsem_read_op(CAM_SUBDEV_LOCK);
 		rc = cam_node_handle_ioctl(node,
 			(struct cam_control *) arg);
+		cam_req_mgr_rwsem_read_op(CAM_SUBDEV_UNLOCK);
 		break;
 	case CAM_SD_SHUTDOWN:
 		if (!cam_req_mgr_is_shutdown()) {

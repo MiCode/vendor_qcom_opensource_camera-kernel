@@ -25,19 +25,15 @@
 #include <cam_sensor_io.h>
 #include "cam_debug_util.h"
 #include "cam_context.h"
+/* xiaomi add for cci debug start */
+#include "cam_cci_debug_util.h"
+/* xiaomi add for cci debug end */
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
-
-#undef CDBG
-#ifdef CAM_SENSOR_DEBUG
-#define CDBG(fmt, args...) pr_err(fmt, ##args)
-#else
-#define CDBG(fmt, args...) pr_debug(fmt, ##args)
-#endif
-
-#define SENSOR_DRIVER_I2C "cam-i2c-sensor"
-#define CAMX_SENSOR_DEV_NAME "cam-sensor-driver"
+#define SENSOR_DRIVER_I2C                          "cam-i2c-sensor"
+#define CAMX_SENSOR_DEV_NAME                       "cam-sensor-driver"
+#define SENSOR_DRIVER_I3C                          "i3c_camera_sensor"
 
 enum cam_sensor_state_t {
 	CAM_SENSOR_INIT,
@@ -63,16 +59,41 @@ struct sensor_intf_params {
 };
 
 /**
+ * struct cam_sensor_dev_res_info
+ *
+ * @res_index        : The resolution index that gets updated
+ *                     during a mode switch
+ * @fps              : Frame rate
+ * @width            : Pixel width to output to csiphy
+ * @height           : Pixel height to output to csiphy
+ * @num_exposures    : For sHDR, etc purposes, 1, or more
+ * @caps             : Specifies capability sensor is configured
+ *                     for, (eg, XCFA, HFR), num_exposures and
+ *                     PDAF type
+ */
+struct cam_sensor_dev_res_info {
+	uint16_t   res_index;
+	uint32_t   fps;
+	uint32_t   width;
+	uint32_t   height;
+	int64_t    request_id;
+	char       caps[64];
+};
+
+/**
  * struct cam_sensor_ctrl_t: Camera control structure
  * @device_name: Sensor device name
  * @pdev: Platform device
  * @cam_sensor_mutex: Sensor mutex
  * @sensordata: Sensor board Information
+ * @sensor_res: Sensor resolution index and other info
+ *              accompanying a mode index switch
  * @cci_i2c_master: I2C structure
  * @io_master_info: Information about the communication master
  * @sensor_state: Sensor states
  * @is_probe_succeed: Probe succeeded or not
  * @id: Cell Index
+ * @is_i3c_device: A Flag to indicate whether this sensor is an I3C Device.
  * @of_node: Of node ptr
  * @v4l2_dev_str: V4L2 device structure
  * @sensor_probe_addr_type: Sensor probe address type
@@ -88,20 +109,25 @@ struct sensor_intf_params {
  * @pipeline_delay: Sensor pipeline delay
  * @sensor_name: Sensor name
  * @aon_camera_id: AON Camera ID associated with this sensor
+ * @last_applied_req: Last applied request id
+ * @is_stopped_by_user: Indicate if sensor has been stopped by userland
+ * @stream_off_after_eof: Indicates if sensor needs to stream off after eof
+ * @cci_debug: Sensor debugfs info and entry
  */
 struct cam_sensor_ctrl_t {
-	char                           device_name[
-		CAM_CTX_DEV_NAME_MAX_LENGTH];
+	char                           device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
 	struct platform_device        *pdev;
 	struct cam_hw_soc_info         soc_info;
 	struct mutex                   cam_sensor_mutex;
 	struct cam_sensor_board_info  *sensordata;
+	struct cam_sensor_dev_res_info sensor_res;
 	enum cci_i2c_master_t          cci_i2c_master;
 	enum cci_device_num            cci_num;
 	struct camera_io_master        io_master_info;
 	enum cam_sensor_state_t        sensor_state;
 	uint8_t                        is_probe_succeed;
 	uint32_t                       id;
+	bool                           is_i3c_device;
 	struct device_node            *of_node;
 	struct cam_subdev              v4l2_dev_str;
 	uint8_t                        sensor_probe_addr_type;
@@ -117,6 +143,12 @@ struct cam_sensor_ctrl_t {
 	uint16_t                       pipeline_delay;
 	char                           sensor_name[CAM_SENSOR_NAME_MAX_SIZE];
 	uint8_t                        aon_camera_id;
+	int64_t                        last_applied_req;
+	bool                           is_stopped_by_user;
+	bool                           stream_off_after_eof;
+	/* xiaomi add for cci debug start */
+	void                          *cci_debug;
+	/* xiaomi add for cci debug end */
 };
 
 /**

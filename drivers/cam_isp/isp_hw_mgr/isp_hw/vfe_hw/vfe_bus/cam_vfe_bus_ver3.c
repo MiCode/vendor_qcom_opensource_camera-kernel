@@ -234,6 +234,9 @@ static int cam_vfe_bus_ver3_process_cmd(
 	struct cam_isp_resource_node *priv,
 	uint32_t cmd_type, void *cmd_args, uint32_t arg_size);
 
+static int cam_vfe_bus_ver3_config_ubwc_regs(
+	struct cam_vfe_bus_ver3_wm_resource_data *wm_data);
+
 static int cam_vfe_bus_ver3_get_evt_payload(
 	struct cam_vfe_bus_ver3_common_data  *common_data,
 	struct cam_vfe_bus_irq_evt_payload  **evt_payload)
@@ -305,13 +308,19 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 	case CAM_VFE_BUS_VER3_VFE_OUT_RDI0:
 	case CAM_VFE_BUS_VER3_VFE_OUT_RDI1:
 	case CAM_VFE_BUS_VER3_VFE_OUT_RDI2:
+	case CAM_VFE_BUS_VER3_VFE_OUT_RDI3:
 	case CAM_VFE_BUS_VER3_VFE_OUT_FULL_DISP:
 	case CAM_VFE_BUS_VER3_VFE_OUT_DS4_DISP:
 	case CAM_VFE_BUS_VER3_VFE_OUT_DS16_DISP:
-		return true;
-
 	case CAM_VFE_BUS_VER3_VFE_OUT_2PD:
 	case CAM_VFE_BUS_VER3_VFE_OUT_LCR:
+	case CAM_VFE_BUS_VER3_VFE_OUT_PDAF:
+	case CAM_VFE_BUS_VER3_VFE_OUT_SPARSE_PD:
+	case CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_2PD:
+	case CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED:
+	case CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_RAW:
+		return true;
+
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_HDR_BE:
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_HDR_BHIST:
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_TL_BG:
@@ -323,6 +332,12 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_IHIST:
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_CAF:
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_BAYER_RS:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_ALSC:
+	case CAM_VFE_BUS_VER3_VFE_OUT_AWB_BFW:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_AEC_BE:
+	case CAM_VFE_BUS_VER3_VFE_OUT_LTM_STATS:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_GTM_BHIST:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_BG:
 	default:
 		return false;
 	}
@@ -437,6 +452,9 @@ static enum cam_vfe_bus_ver3_vfe_out_type
 		break;
 	case CAM_ISP_IFE_OUT_RES_PDAF_PARSED_DATA:
 		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED;
+		break;
+	case CAM_ISP_IFE_OUT_RES_STATS_ALSC:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_STATS_ALSC;
 		break;
 	default:
 		CAM_WARN(CAM_ISP, "Invalid isp res id: %d , assigning max",
@@ -559,6 +577,9 @@ static int cam_vfe_bus_ver3_get_comp_vfe_out_res_id_list(
 
 	if (comp_mask & (BIT_ULL(CAM_VFE_BUS_VER3_VFE_OUT_PDAF_PARSED)))
 		out_list[count++] = CAM_ISP_IFE_OUT_RES_PDAF_PARSED_DATA;
+
+	if (comp_mask & (BIT_ULL(CAM_VFE_BUS_VER3_VFE_OUT_STATS_ALSC)))
+		out_list[count++] = CAM_ISP_IFE_OUT_RES_STATS_ALSC;
 
 	*num_out = count;
 	return 0;
@@ -1033,9 +1054,7 @@ static int cam_vfe_bus_ver3_acquire_wm(
 {
 	int32_t wm_idx = 0, rc;
 	struct cam_vfe_bus_ver3_wm_resource_data  *rsrc_data = NULL;
-	char wm_mode[50];
-
-	memset(wm_mode, '\0', sizeof(wm_mode));
+	char wm_mode[50] = {'\0'};
 
 	if (wm_res->res_state != CAM_ISP_RESOURCE_STATE_AVAILABLE) {
 		CAM_ERR(CAM_ISP, "WM:%d not available state:%d",
@@ -1220,7 +1239,8 @@ static int cam_vfe_bus_ver3_acquire_wm(
 		rsrc_data->width  = rsrc_data->width / 2;
 		rsrc_data->en_cfg = 0x1;
 
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_AWB_BFW) {
+	} else if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_AWB_BFW) ||
+		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_ALSC)) {
 		switch (rsrc_data->format) {
 		case CAM_FORMAT_PLAIN64:
 			rsrc_data->width = 0;
@@ -1422,6 +1442,12 @@ static int cam_vfe_bus_ver3_start_wm(struct cam_isp_resource_node *wm_res)
 				rsrc_data->index, rsrc_data->en_ubwc);
 			return -EINVAL;
 		}
+
+		if (rsrc_data->ubwc_updated) {
+			cam_vfe_bus_ver3_config_ubwc_regs(rsrc_data);
+			rsrc_data->ubwc_updated = false;
+		}
+
 		val = cam_io_r_mb(common_data->mem_base + ubwc_regs->mode_cfg);
 		val |= 0x1;
 		if (disable_ubwc_comp) {
@@ -3714,16 +3740,6 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 		}
 
 		wm_data = vfe_out_data->wm_res[i].res_priv;
-
-		if (((!bus_priv->common_data.is_lite && wm_data->index > 22) ||
-			bus_priv->common_data.is_lite) &&
-			hfr_cfg->subsample_period > 3) {
-			CAM_ERR(CAM_ISP,
-				"RDI doesn't support irq subsample period %d",
-				hfr_cfg->subsample_period);
-			return -EINVAL;
-		}
-
 		if ((wm_data->framedrop_pattern !=
 			hfr_cfg->framedrop_pattern) ||
 			!wm_data->hfr_cfg_done) {

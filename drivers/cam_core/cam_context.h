@@ -22,6 +22,11 @@ struct cam_context;
 /* max device name string length*/
 #define CAM_CTX_DEV_NAME_MAX_LENGTH 20
 
+/* xiaomi add for mipi phy backup setting begin*/
+#define CAM_PHY_MAX_CTRL_NO 8
+#define CAM_PHY_DTS_NAME 50
+/* xiaomi add for mipi phy backup setting end*/
+
 /* max request number */
 #define CAM_CTX_REQ_MAX              20
 #define CAM_CTX_ICP_REQ_MAX          40
@@ -267,6 +272,12 @@ struct cam_context {
 	struct cam_hw_fence_map_entry **out_map_entries;
 	cam_ctx_mini_dump_cb_func      mini_dump_cb;
 	int                            img_iommu_hdl;
+	/*xiaomi added*/
+	uint64_t                       dbg_timestamp;
+	uint64_t                       dbg_frame;
+	int32_t                        exlink;
+	uint32_t                       batchsize;
+
 };
 
 /**

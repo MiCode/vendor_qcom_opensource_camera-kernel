@@ -8,22 +8,25 @@
 #define _CAM_SENSOR_IO_H_
 
 #include <media/cam_sensor.h>
-
 #include "cam_sensor_cmn_header.h"
 
-#define CCI_MASTER 1
-#define I2C_MASTER 2
-#define SPI_MASTER 3
+/* Master Types */
+#define CCI_MASTER           1
+#define I2C_MASTER           2
+#define SPI_MASTER           3
+#define I3C_MASTER           4
 
 /**
  * @master_type: CCI master type
- * @client: I2C client information structure
+ * @i2c_client: I2C client information structure
+ * @i3c_client: I3C client information structure
  * @cci_client: CCI client information structure
  * @spi_client: SPI client information structure
  */
 struct camera_io_master {
 	int master_type;
 	struct i2c_client *client;
+	struct i3c_device *i3c_client;
 	struct cam_sensor_cci_client *cci_client;
 	struct cam_sensor_spi_client *spi_client;
 };
@@ -116,4 +119,6 @@ int32_t camera_io_dev_poll(struct camera_io_master *io_master_info,
 
 #include "cam_sensor_i2c.h"
 #include "cam_sensor_spi.h"
+#include "cam_sensor_i3c.h"
+
 #endif /* _CAM_SENSOR_IO_H_ */

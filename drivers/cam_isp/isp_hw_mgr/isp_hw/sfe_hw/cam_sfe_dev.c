@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -12,6 +13,7 @@
 #include "cam_sfe_soc.h"
 #include "cam_sfe680.h"
 #include "cam_sfe780.h"
+#include "cam_sfe880.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
 
@@ -237,6 +239,10 @@ static const struct of_device_id cam_sfe_dt_match[] = {
 	{
 		.compatible = "qcom,sfe780",
 		.data = &cam_sfe780_hw_info,
+	},
+	{
+		.compatible = "qcom,sfe880",
+		.data = &cam_sfe880_hw_info,
 	},
 	{}
 };

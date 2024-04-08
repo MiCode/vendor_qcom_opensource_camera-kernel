@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include "cam_icp_utils.h"
+#include "cam_icp_proc_common.h"
+#include "cam_compat.h"
+#include "cam_icp_hw_intf.h"
+#include "hfi_intf.h"
 
 int32_t cam_icp_validate_fw(const uint8_t *elf,
 	uint32_t machine_id)
@@ -71,7 +75,7 @@ int32_t cam_icp_get_fw_size(
 			continue;
 
 		seg_mem_size = (prg_hdr->p_memsz + prg_hdr->p_align - 1) &
-					~(prg_hdr->p_align - 1);
+			~(prg_hdr->p_align - 1);
 		seg_mem_size += prg_hdr->p_paddr;
 		CAM_DBG(CAM_ICP, "memsz:%x align:%x addr:%x seg_mem_size:%x",
 			(int)prg_hdr->p_memsz, (int)prg_hdr->p_align,
@@ -127,4 +131,98 @@ int32_t cam_icp_program_fw(const uint8_t *elf,
 	}
 
 	return rc;
+}
+
+int cam_icp_proc_cpas_vote(uint32_t cpas_handle,
+	struct cam_icp_cpas_vote *vote)
+{
+	int rc;
+
+	if (!vote)
+		return -EINVAL;
+
+	if (vote->ahb_vote_valid) {
+		rc = cam_cpas_update_ahb_vote(cpas_handle, &vote->ahb_vote);
+		if (rc) {
+			CAM_ERR(CAM_ICP, "AHB vote update failed rc=%d", rc);
+			return rc;
+		}
+	}
+
+	if (vote->axi_vote_valid) {
+		rc = cam_cpas_update_axi_vote(cpas_handle, &vote->axi_vote);
+		if (rc) {
+			CAM_ERR(CAM_ICP, "AXI vote update failed rc=%d", rc);
+			return rc;
+		}
+	}
+
+	return 0;
+}
+
+int cam_icp_proc_mini_dump(struct cam_icp_hw_dump_args *args,
+	uintptr_t fw_kva_addr, uint64_t fw_buf_len)
+{
+	u8                          *dest;
+	u8                          *src;
+	struct cam_icp_hw_dump_args *dump_args = args;
+
+	if (!dump_args) {
+		CAM_ERR(CAM_ICP, "Invalid param %pK", dump_args);
+		return -EINVAL;
+	}
+
+	if (!fw_kva_addr || !dump_args->cpu_addr) {
+		CAM_ERR(CAM_ICP, "invalid params %pK, 0x%zx",
+			fw_kva_addr, dump_args->cpu_addr);
+		return -EINVAL;
+	}
+
+	if (dump_args->buf_len < fw_buf_len) {
+		CAM_WARN(CAM_ICP, "Insufficient Len %lu fw_len %llu",
+			dump_args->buf_len, fw_buf_len);
+		return -ENOSPC;
+	}
+
+	dest = (u8 *)dump_args->cpu_addr;
+	src = (u8 *)fw_kva_addr;
+	memcpy_fromio(dest, src, fw_buf_len);
+	dump_args->offset = fw_buf_len;
+
+	return 0;
+}
+
+int cam_icp_proc_ubwc_configure(struct cam_icp_ubwc_cfg ubwc_cfg,
+	uint32_t force_disable_ubwc)
+{
+	int i = 0, ddr_type, rc;
+	uint32_t ipe_ubwc_cfg[ICP_UBWC_CFG_MAX];
+	uint32_t bps_ubwc_cfg[ICP_UBWC_CFG_MAX];
+
+	ddr_type = cam_get_ddr_type();
+
+	if (ddr_type == DDR_TYPE_LPDDR5 || ddr_type == DDR_TYPE_LPDDR5X)
+		i = 1;
+
+	ipe_ubwc_cfg[0] = ubwc_cfg.ipe_fetch[i];
+	ipe_ubwc_cfg[1] = ubwc_cfg.ipe_write[i];
+
+	bps_ubwc_cfg[0] = ubwc_cfg.bps_fetch[i];
+	bps_ubwc_cfg[1] = ubwc_cfg.bps_write[i];
+
+	if (force_disable_ubwc) {
+		ipe_ubwc_cfg[1] &= ~CAM_ICP_UBWC_COMP_EN;
+		bps_ubwc_cfg[1] &= ~CAM_ICP_UBWC_COMP_EN;
+		CAM_DBG(CAM_ICP,
+			"Force disable UBWC compression, ipe_ubwc_cfg: 0x%x, bps_ubwc_cfg: 0x%x",
+			ipe_ubwc_cfg[1], bps_ubwc_cfg[1]);
+	}
+
+	rc = hfi_cmd_ubwc_config_ext(ipe_ubwc_cfg, bps_ubwc_cfg);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed to write UBWC configure rc=%d", rc);
+		return rc;
+	}
+
+	return 0;
 }

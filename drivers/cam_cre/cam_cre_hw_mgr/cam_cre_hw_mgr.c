@@ -362,7 +362,7 @@ static int cam_cre_update_cpas_vote(struct cam_cre_hw_mgr *hw_mgr,
 	memcpy(&bw_update.axi_vote.axi_path[0],
 		&clk_info->axi_path[0],
 		bw_update.axi_vote.num_paths *
-		sizeof(struct cam_axi_per_path_bw_vote));
+		sizeof(struct cam_cpas_axi_per_path_bw_vote));
 
 	bw_update.axi_vote_valid = true;
 	for (i = 0; i < cre_hw_mgr->num_cre; i++) {
@@ -484,7 +484,7 @@ static bool cam_cre_update_bw_v2(struct cam_cre_hw_mgr *hw_mgr,
 
 	memcpy(&ctx_data->clk_info.axi_path[0],
 		&clk_info->axi_path[0],
-		clk_info->num_paths * sizeof(struct cam_axi_per_path_bw_vote));
+		clk_info->num_paths * sizeof(struct cam_cpas_axi_per_path_bw_vote));
 
 	/*
 	 * Add new vote of this context in hw mgr.
@@ -2045,7 +2045,7 @@ static int cam_cre_packet_generic_blob_handler(void *user_data,
 	struct cam_cre_ctx *ctx_data;
 	uint32_t index;
 	size_t clk_update_size = 0;
-	int rc = 0;
+	int rc = 0, i;
 
 	if (!blob_data || (blob_size == 0)) {
 		CAM_ERR(CAM_CRE, "Invalid blob info %pK %d", blob_data,
@@ -2099,10 +2099,23 @@ static int cam_cre_packet_generic_blob_handler(void *user_data,
 
 		clk_info = &ctx_data->req_list[index]->clk_info;
 		clk_info_v2 = &ctx_data->req_list[index]->clk_info_v2;
+		clk_info_v2.budget_ns = soc_req->budget_ns;
+		clk_info_v2.frame_cycles = soc_req->frame_cycles;
+		clk_info_v2.rt_flag = soc_req->rt_flag;
+		clk_info_v2.num_paths = soc_req->num_paths;
 
-		memcpy(clk_info_v2, soc_req, clk_update_size);
+		for (i = 0; i < soc_req->num_paths; i++) {
+			clk_info_v2.axi_path[i].usage_data = soc_req->axi_path[i].usage_data;
+			clk_info_v2.axi_path[i].transac_type = soc_req->axi_path[i].transac_type;
+			clk_info_v2.axi_path[i].path_data_type =
+				soc_req->axi_path[i].path_data_type;
+			clk_info_v2.axi_path[i].vote_level = 0;
+			clk_info_v2.axi_path[i].camnoc_bw = soc_req->axi_path[i].camnoc_bw;
+			clk_info_v2.axi_path[i].mnoc_ab_bw = soc_req->axi_path[i].mnoc_ab_bw;
+			clk_info_v2.axi_path[i].mnoc_ib_bw = soc_req->axi_path[i].mnoc_ib_bw;
+		}
 
-		/* Use v2 structure for clk fields */
+		/* Use v1 structure for clk fields */
 		clk_info->budget_ns = clk_info_v2->budget_ns;
 		clk_info->frame_cycles = clk_info_v2->frame_cycles;
 		clk_info->rt_flag = clk_info_v2->rt_flag;

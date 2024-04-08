@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -36,6 +37,17 @@ static struct cam_bps_device_hw_info cam_bps680_hw_info = {
 	.pwr_status = 0x44,
 	.top_rst_cmd = 0x508,
 	.top_irq_status = 0x50C,
+	.cdm_rst_cmd = 0x10,
+	.cdm_irq_status = 0x44,
+	.cdm_rst_val = 0x7F,
+};
+
+static struct cam_bps_device_hw_info cam_bps880_hw_info = {
+	.hw_idx = 0,
+	.pwr_ctrl = 0x48,
+	.pwr_status = 0x44,
+	.top_rst_cmd = 0x1008,
+	.top_irq_status = 0x100C,
 	.cdm_rst_cmd = 0x10,
 	.cdm_irq_status = 0x44,
 	.cdm_rst_val = 0x7F,
@@ -234,6 +246,10 @@ static const struct of_device_id cam_bps_dt_match[] = {
 	{
 		.compatible = "qcom,cam-bps680",
 		.data = &cam_bps680_hw_info,
+	},
+	{
+		.compatible = "qcom,cam-bps880",
+		.data = &cam_bps880_hw_info,
 	},
 	{}
 };

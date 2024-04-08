@@ -76,7 +76,6 @@ struct cam_vfe_mux_ver4_data {
 	uint32_t                           last_line;
 	uint32_t                           hbi_value;
 	uint32_t                           vbi_value;
-	bool                               enable_sof_irq_debug;
 	uint32_t                           irq_debug_cnt;
 	uint32_t                           camif_debug;
 	uint32_t                           horizontal_bin;
@@ -84,18 +83,19 @@ struct cam_vfe_mux_ver4_data {
 	uint32_t                           dual_hw_idx;
 	uint32_t                           is_dual;
 	uint32_t                           epoch_factor;
-	bool                               is_fe_enabled;
-	bool                               is_offline;
-	bool                               is_lite;
-	bool                               is_pixel_path;
-	bool                               sfe_binned_epoch_cfg;
-
 	struct timespec64                  sof_ts;
 	struct timespec64                  epoch_ts;
 	struct timespec64                  eof_ts;
 	struct timespec64                  error_ts;
 	enum cam_vfe_top_ver4_fsm_state    fsm_state;
 	uint32_t                           n_frame_irqs;
+	bool                               is_fe_enabled;
+	bool                               is_offline;
+	bool                               is_lite;
+	bool                               is_pixel_path;
+	bool                               sfe_binned_epoch_cfg;
+	bool                               enable_sof_irq_debug;
+	bool                               handle_camif_irq;
 };
 
 static int cam_vfe_top_ver4_get_path_port_map(struct cam_vfe_top_ver4_priv *top_priv,
@@ -446,7 +446,6 @@ static void cam_vfe_top_ver4_print_debug_reg_status(
 		}
 		CAM_INFO(CAM_ISP, "VFE[%u]: Top Debug Status: %s", soc_info->index, log_buf);
 		len = 0;
-		memset(log_buf, 0, sizeof(uint8_t)*CAM_VFE_LEN_LOG_BUF);
 	}
 
 	cam_vfe_top_ver4_check_module_status(num_reg, reg_val,
@@ -474,6 +473,9 @@ int cam_vfe_top_ver4_dump_timestamps(
 		}
 
 		vfe_priv  = res->res_priv;
+
+		if (!vfe_priv->frame_irq_handle)
+			continue;
 
 		if (vfe_priv->is_pixel_path) {
 			camif_res = res;
@@ -523,7 +525,11 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 	struct cam_vfe_soc_private *soc_private = NULL;
 	uint32_t                             violation_status = 0, bus_overflow_status = 0, tmp;
 	uint32_t                             i = 0;
-	int                                  res_id = *((int *)(cmd_args));
+	int                                  res_id;
+	struct cam_isp_hw_overflow_info     *overflow_info = NULL;
+
+	overflow_info = (struct cam_isp_hw_overflow_info *)cmd_args;
+	res_id = overflow_info->res_id;
 
 	common_data = &top_priv->common_data;
 	soc_info = top_priv->top_common.soc_info;
@@ -538,9 +544,11 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 		soc_info->index, top_priv->sof_cnt, soc_info->applied_src_clk_rate / 1000000,
 		CAM_BOOL_TO_YESNO(bus_overflow_status), CAM_BOOL_TO_YESNO(violation_status));
 
-	if (bus_overflow_status)
+	if (bus_overflow_status) {
+		overflow_info->is_bus_overflow = true;
 		CAM_INFO(CAM_ISP, "VFE[%d] Bus overflow status: 0x%x",
 			soc_info->index, bus_overflow_status);
+	}
 
 	tmp = bus_overflow_status;
 	while (tmp) {
@@ -554,7 +562,7 @@ static int cam_vfe_top_ver4_print_overflow_debug_info(
 	cam_vfe_top_ver4_dump_timestamps(top_priv, res_id);
 	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
 	if (bus_overflow_status)
-		cam_cpas_log_votes();
+		cam_cpas_log_votes(false);
 
 	if (violation_status)
 		CAM_INFO(CAM_ISP, "VFE[%d] Bus violation status: 0x%x",
@@ -739,6 +747,7 @@ int cam_vfe_top_acquire_resource(
 	res_data->hbi_value      = 0;
 	res_data->sfe_binned_epoch_cfg =
 		acquire_data->vfe_in.in_port->sfe_binned_epoch_cfg;
+	res_data->handle_camif_irq   = acquire_data->vfe_in.handle_camif_irq;
 
 	if (res_data->is_dual)
 		res_data->dual_hw_idx = acquire_data->vfe_in.dual_hw_idx;
@@ -964,6 +973,10 @@ int cam_vfe_top_ver4_stop(void *device_priv,
 				top_priv->common_data.common_reg->perf_count_reg[i].perf_count_cfg);
 		top_priv->perf_counters[i].dump_counter = false;
 	}
+
+	if (top_priv->common_data.hw_info->num_pdaf_lcr_res)
+		cam_io_w(1, soc_info->reg_map[VFE_CORE_BASE_IDX].mem_base +
+			top_priv->common_data.common_reg->pdaf_input_cfg_1);
 
 	atomic_set(&top_priv->overflow_pending, 0);
 	return rc;
@@ -1278,8 +1291,8 @@ static int cam_vfe_handle_eof(struct cam_vfe_mux_ver4_data *vfe_priv,
 	struct cam_isp_hw_event_info *evt_info)
 {
 	CAM_DBG(CAM_ISP, "VFE:%d Received EOF", vfe_priv->hw_intf->hw_idx);
-	vfe_priv->epoch_ts.tv_sec = payload->ts.mono_time.tv_sec;
-	vfe_priv->epoch_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
+	vfe_priv->eof_ts.tv_sec = payload->ts.mono_time.tv_sec;
+	vfe_priv->eof_ts.tv_nsec = payload->ts.mono_time.tv_nsec;
 
 	cam_cpas_notify_event("IFE EOF", vfe_priv->hw_intf->hw_idx);
 	return 0;
@@ -1595,9 +1608,11 @@ skip_core_cfg:
 	/* Skip subscribing to timing irqs in these scenarios:
 	 *     1. Resource is dual IFE slave
 	 *     2. Resource is not primary RDI
+	 *     3. non-sfe use cases, such cases are taken care in CSID.
 	 */
 	if (((rsrc_data->sync_mode == CAM_ISP_HW_SYNC_SLAVE) && rsrc_data->is_dual) ||
-		(!rsrc_data->is_pixel_path && !vfe_res->is_rdi_primary_res))
+		(!rsrc_data->is_pixel_path && !vfe_res->is_rdi_primary_res) ||
+		!rsrc_data->handle_camif_irq)
 		goto subscribe_err;
 
 	irq_mask[CAM_IFE_IRQ_CAMIF_REG_STATUS1] = rsrc_data->reg_data->sof_irq_mask |

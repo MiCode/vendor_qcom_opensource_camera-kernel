@@ -12,6 +12,10 @@
 #include "cam_ife_csid_soc.h"
 #include "cam_ife_csid_common.h"
 
+#define IFE_CSID_VER2_TOP_INFO_VOTE_UP                BIT(16)
+#define IFE_CSID_VER2_TOP_INFO_VOTE_DN                BIT(17)
+#define IFE_CSID_VER2_TOP_ERR_NO_VOTE_DN              BIT(18)
+
 #define IFE_CSID_VER2_RX_DL0_EOT_CAPTURED             BIT(0)
 #define IFE_CSID_VER2_RX_DL1_EOT_CAPTURED             BIT(1)
 #define IFE_CSID_VER2_RX_DL2_EOT_CAPTURED             BIT(2)
@@ -76,13 +80,12 @@
 #define IFE_CSID_VER2_CUST_NODE_IDX_1                      0x2
 #define IFE_CSID_VER2_CUST_NODE_IDX_2                      0x4
 
-#define IFE_CSID_VER2_TOP_IRQ_STATUS_BUF_DONE                    BIT(13)
-
 enum cam_ife_csid_ver2_input_core_sel {
 	CAM_IFE_CSID_INPUT_CORE_SEL_NONE,
 	CAM_IFE_CSID_INPUT_CORE_SEL_INTERNAL,
 	CAM_IFE_CSID_INPUT_CORE_SEL_SFE_0,
 	CAM_IFE_CSID_INPUT_CORE_SEL_SFE_1,
+	CAM_IFE_CSID_INPUT_CORE_SEL_SFE_2,
 	CAM_IFE_CSID_INPUT_CORE_SEL_CUST_NODE_0,
 	CAM_IFE_CSID_INPUT_CORE_SEL_CUST_NODE_1,
 	CAM_IFE_CSID_INPUT_CORE_SEL_CUST_NODE_2,
@@ -114,7 +117,8 @@ struct cam_ife_csid_ver2_top_cfg {
 
 struct cam_ife_csid_ver2_evt_payload {
 	struct list_head            list;
-	uint32_t                    irq_reg_val[CAM_IFE_CSID_IRQ_REG_MAX];
+	uint32_t                    irq_reg_val;
+	struct timespec64           timestamp;
 };
 
 /*
@@ -131,8 +135,10 @@ struct cam_ife_csid_ver2_camif_data {
 /*
  * struct cam_ife_csid_ver2_path_cfg: place holder for path parameters
  *
- * @camif_data:             CAMIF data
  * @error_ts:               Error timestamp
+ * @sof_ts:                 SOF timestamp
+ * @epoch_ts:               Epoch timestamp
+ * @eof_ts:                 EOF timestamp
  * @cid:                    cid value for path
  * @path_format:            Array of Path format which contains format
  *                          info i.e Decode format, Packing format etc
@@ -157,6 +163,8 @@ struct cam_ife_csid_ver2_camif_data {
  * @irq_reg_idx:            IRQ Reg index
  * @sof_cnt:                SOF counter
  * @num_frames_discard:     number of frames to discard
+ * @epoch_cfg:              Epoch configured value
+ * @switch_out_of_sync_cnt: Sensor out of sync error cnt
  * @sync_mode   :           Sync mode--> master/slave/none
  * @vfr_en   :              flag to indicate if variable frame rate is enabled
  * @frame_id_dec_en:        flag to indicate if frame id decoding is enabled
@@ -173,8 +181,10 @@ struct cam_ife_csid_ver2_camif_data {
  *
  */
 struct cam_ife_csid_ver2_path_cfg {
-	struct cam_ife_csid_ver2_camif_data  camif_data;
 	struct timespec64                    error_ts;
+	struct timespec64                    sof_ts;
+	struct timespec64                    epoch_ts;
+	struct timespec64                    eof_ts;
 	struct cam_ife_csid_path_format      path_format[CAM_ISP_VC_DT_CFG];
 	struct cam_csid_secondary_evt_config sec_evt_config;
 	uint32_t                             cid;
@@ -193,23 +203,26 @@ struct cam_ife_csid_ver2_path_cfg {
 	uint32_t                             qcfa_bin;
 	uint32_t                             hor_ver_bin;
 	uint32_t                             num_bytes_out;
+	uint32_t                             top_irq_handle;
 	uint32_t                             irq_handle;
 	uint32_t                             err_irq_handle;
 	uint32_t                             discard_irq_handle;
 	uint32_t                             irq_reg_idx;
 	uint32_t                             sof_cnt;
 	uint32_t                             num_frames_discard;
+	uint32_t                             epoch_cfg;
+	atomic_t                             switch_out_of_sync_cnt;
 	enum cam_isp_hw_sync_mode            sync_mode;
 	bool                                 vfr_en;
 	bool                                 frame_id_dec_en;
 	bool                                 crop_enable;
 	bool                                 drop_enable;
-	bool                                 handle_camif_irq;
 	bool                                 discard_init_frames;
 	bool                                 skip_discard_frame_cfg;
 	bool                                 sfe_shdr;
 	bool                                 lcr_en;
 	bool                                 csid_out_unpack_msb;
+	bool                                 handle_camif_irq;
 };
 
 struct cam_ife_csid_ver2_top_reg_info {
@@ -298,6 +311,9 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t epoch1_cfg_batch_id4_addr;
 	uint32_t epoch0_cfg_batch_id5_addr;
 	uint32_t epoch1_cfg_batch_id5_addr;
+	uint32_t secure_mask_cfg0;
+	uint32_t path_batch_status;
+	uint32_t path_frame_id;
 
 	/*Shift Bit Configurations*/
 	uint32_t start_mode_master;
@@ -348,7 +364,11 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t fatal_err_mask;
 	uint32_t non_fatal_err_mask;
 	uint32_t pix_pattern_shift;
-	uint32_t camif_irq_mask;
+	uint32_t rup_irq_mask;
+	uint32_t sof_irq_mask;
+	uint32_t eof_irq_mask;
+	uint32_t epoch0_irq_mask;
+	uint32_t epoch1_irq_mask;
 	uint32_t rup_aup_mask;
 	uint32_t top_irq_mask;
 	uint32_t epoch0_cfg_val;
@@ -380,6 +400,13 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t buf_done_irq_set_addr;
 	uint32_t test_bus_ctrl;
 	uint32_t test_bus_debug;
+	uint32_t path_domain_id_cfg0;
+	uint32_t path_domain_id_cfg1;
+	uint32_t drv_cfg0_addr;
+	uint32_t drv_cfg1_addr;
+	uint32_t drv_cfg2_addr;
+	uint32_t debug_drv_0_addr;
+	uint32_t debug_drv_1_addr;
 
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;
@@ -438,6 +465,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t shdr_slave_rdi1_shift;
 	uint32_t shdr_master_rdi0_shift;
 	uint32_t shdr_master_slave_en_shift;
+	uint32_t drv_en_shift;
+	uint32_t drv_rup_en_shift;
 	/* config Values */
 	uint32_t major_version;
 	uint32_t minor_version;
@@ -466,6 +495,9 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t only_master_rup;
 	uint32_t sfe_ipp_input_rdi_res;
 	bool     timestamp_enabled_in_cfg0;
+	bool     camif_irq_support;
+	uint32_t drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_MAX];
+	uint32_t drv_path_idle_en_val_map[CAM_ISP_MAX_PATHS];
 
 	/* Masks */
 	uint32_t pxl_cnt_mask;
@@ -493,13 +525,43 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t top_err_irq_mask;
 	uint32_t top_reset_irq_mask;
 	uint32_t top_buf_done_irq_mask;
-	uint32_t epoch_div_factor;
+	uint32_t epoch_factor;
 	uint32_t decode_format_payload_only;
 };
 
+/**
+ * struct cam_ife_csid_secure_info: Contains all relevant info to be
+ *                                  programmed for targets supporting
+ *                                  this feature
+ * @phy_sel:          Intermediate value for this mask. CSID passes
+ *                    phy_sel.This variable's position at the top is to
+ *                    be left unchanged, to have it be used correctly
+ *                    in the cam_subdev_notify_message callback for
+ *                    csiphy
+ * @lane_cfg:         This value is similar to lane_assign in the PHY
+ *                    driver, and is used to identify the particular
+ *                    PHY instance with which this IFE session is
+ *                    connected to.
+ * @vc_mask:          Virtual channel masks (Unused for mobile usecase)
+ * @csid_hw_idx_mask: Bit position denoting CSID(s) in use for secure
+ *                    session
+ * @cdm_hw_idx_mask:  Bit position denoting CDM in use for secure
+ *                    session
+ */
+struct cam_ife_csid_secure_info {
+	uint32_t phy_sel;
+	uint32_t lane_cfg;
+	uint64_t vc_mask;
+	uint32_t csid_hw_idx_mask;
+	uint32_t cdm_hw_idx_mask;
+};
+
 struct cam_ife_csid_ver2_reg_info {
-	struct cam_irq_controller_reg_info               *irq_reg_info;
+	struct cam_irq_controller_reg_info               *top_irq_reg_info;
+	struct cam_irq_controller_reg_info               *rx_irq_reg_info;
 	struct cam_irq_controller_reg_info               *buf_done_irq_reg_info;
+	struct cam_irq_controller_reg_info               *path_irq_reg_info[
+		CAM_IFE_PIX_PATH_RES_MAX];
 	const struct cam_ife_csid_ver2_common_reg_info   *cmn_reg;
 	const struct cam_ife_csid_csi2_rx_reg_info       *csi2_reg;
 	const struct cam_ife_csid_ver2_path_reg_info     *path_reg[
@@ -548,9 +610,12 @@ struct cam_ife_csid_ver2_reg_info {
  * @tasklet:                  Tasklet for irq events
  * @reset_irq_handle:         Reset irq handle
  * @buf_done_irq_handle:      Buf done irq handle
+ * @top_err_irq_handle:       Top Err IRQ handle
+ * @top_info_irq_handle:      Top Info IRQ handle
  * @sync_mode:                Master/Slave modes
  * @mup:                      MUP for incoming VC of next frame
  * @discard_frame_per_path:   Count of paths dropping initial frames
+ * @drv_init_done:            Indicates if drv init config is done
  *
  */
 struct cam_ife_csid_ver2_hw {
@@ -572,7 +637,9 @@ struct cam_ife_csid_ver2_hw {
 	spinlock_t                             lock_state;
 	spinlock_t                             path_payload_lock;
 	spinlock_t                             rx_payload_lock;
-	void                                  *csid_irq_controller;
+	void                                  *top_irq_controller;
+	void                                  *rx_irq_controller;
+	void                                  *path_irq_controller[CAM_IFE_PIX_PATH_RES_MAX];
 	void                                  *buf_done_irq_controller;
 	struct cam_hw_intf                    *hw_intf;
 	struct cam_hw_info                    *hw_info;
@@ -588,9 +655,11 @@ struct cam_ife_csid_ver2_hw {
 	int                                    reset_irq_handle;
 	int                                    buf_done_irq_handle;
 	int                                    top_err_irq_handle;
+	int                                    top_info_irq_handle;
 	enum cam_isp_hw_sync_mode              sync_mode;
 	uint32_t                               mup;
 	atomic_t                               discard_frame_per_path;
+	bool                                   drv_init_done;
 };
 
 /*
@@ -633,5 +702,7 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(void *csid_hw, void 
 void cam_ife_csid_ver2_print_format_measure_info(void *csid_hw, void *res);
 void cam_ife_csid_hw_ver2_mup_mismatch_handler(void *csid_hw, void *res);
 void cam_ife_csid_hw_ver2_rdi_line_buffer_conflict_handler(void *csid_hw);
+void cam_ife_csid_hw_ver2_drv_err_handler(void *csid);
+
 
 #endif

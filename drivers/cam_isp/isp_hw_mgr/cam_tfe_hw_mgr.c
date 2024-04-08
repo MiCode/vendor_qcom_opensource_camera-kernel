@@ -375,7 +375,7 @@ static void cam_tfe_hw_mgr_stop_hw_res(
 				CAM_ISP_HW_CMD_STOP_BUS_ERR_IRQ,
 				&dummy_args, sizeof(dummy_args));
 		}
-		isp_hw_res->hw_res[i]->rdi_only_ctx = false;
+		isp_hw_res->hw_res[i]->is_rdi_primary_res = false;
 	}
 }
 
@@ -605,7 +605,7 @@ static int cam_tfe_mgr_csid_stop_hw(
 		hw_intf->hw_ops.stop(hw_intf->hw_priv, &stop, sizeof(stop));
 
 		for (i = 0; i < cnt; i++)
-			stop_res[i]->rdi_only_ctx = false;
+			stop_res[i]->is_rdi_primary_res = false;
 	}
 
 	return 0;
@@ -2462,7 +2462,7 @@ static int cam_tfe_classify_vote_info(
 					memcpy(&isp_vote->axi_path[j],
 						&bw_config->axi_path[i],
 						sizeof(struct
-						cam_axi_per_path_bw_vote));
+						cam_cpas_axi_per_path_bw_vote));
 					j++;
 				}
 			}
@@ -2479,7 +2479,7 @@ static int cam_tfe_classify_vote_info(
 					memcpy(&isp_vote->axi_path[j],
 						&bw_config->axi_path[i],
 						sizeof(struct
-						cam_axi_per_path_bw_vote));
+						cam_cpas_axi_per_path_bw_vote));
 					j++;
 				}
 			}
@@ -2500,7 +2500,7 @@ static int cam_tfe_classify_vote_info(
 				memcpy(&isp_vote->axi_path[j],
 					&bw_config->axi_path[i],
 					sizeof(struct
-					cam_axi_per_path_bw_vote));
+					cam_cpas_axi_per_path_bw_vote));
 				j++;
 			}
 		}
@@ -2618,7 +2618,7 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 	struct cam_cdm_bl_request *cdm_cmd;
 	struct cam_tfe_hw_mgr_ctx *ctx;
 	struct cam_isp_prepare_hw_update_data *hw_update_data;
-	bool cdm_hang_detect = false;
+	bool is_cdm_hung = false;
 
 	if (!hw_mgr_priv || !config_hw_args) {
 		CAM_ERR(CAM_ISP, "Invalid arguments");
@@ -2644,12 +2644,15 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 
 	if (cfg->reapply_type && cfg->cdm_reset_before_apply) {
 		if (ctx->last_cdm_done_req < cfg->request_id) {
-			cdm_hang_detect =
-				cam_cdm_detect_hang_error(ctx->cdm_handle);
+			is_cdm_hung = !cam_cdm_detect_hang_error(ctx->cdm_handle);
 			CAM_ERR_RATE_LIMIT(CAM_ISP,
-				"CDM callback not received for req: %lld, last_cdm_done_req: %lld, cdm_hang_detect: %d",
+				"CDM callback not received for req: %lld, last_cdm_done_req: %lld, is_cdm_hung: %d",
 				cfg->request_id, ctx->last_cdm_done_req,
-				cdm_hang_detect);
+				is_cdm_hung);
+
+			if (!is_cdm_hung)
+				cam_cdm_dump_debug_registers(ctx->cdm_handle);
+
 			rc = cam_cdm_reset_hw(ctx->cdm_handle);
 			if (rc) {
 				CAM_ERR_RATE_LIMIT(CAM_ISP,
@@ -3283,7 +3286,7 @@ start_only:
 		case CAM_ISP_TFE_OUT_RES_RDI_1:
 		case CAM_ISP_TFE_OUT_RES_RDI_2:
 			if (!res_rdi_context_set && ctx->is_rdi_only_context) {
-				hw_mgr_res->hw_res[0]->rdi_only_ctx =
+				hw_mgr_res->hw_res[0]->is_rdi_primary_res =
 					ctx->is_rdi_only_context;
 				res_rdi_context_set = true;
 				primary_rdi_out_res = hw_mgr_res->res_id;
@@ -3313,7 +3316,7 @@ start_only:
 		 * subscription should be sufficient
 		 */
 		if (primary_rdi_in_res == hw_mgr_res->res_id)
-			hw_mgr_res->hw_res[0]->rdi_only_ctx =
+			hw_mgr_res->hw_res[0]->is_rdi_primary_res =
 				ctx->is_rdi_only_context;
 
 		rc = cam_tfe_hw_mgr_start_hw_res(hw_mgr_res, ctx);
@@ -3863,7 +3866,7 @@ static int cam_isp_tfe_blob_clock_update(
 static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 	uint32_t blob_type, uint32_t blob_size, uint8_t *blob_data)
 {
-	int rc = 0;
+	int rc = 0, i;
 	struct cam_isp_generic_blob_info  *blob_info = user_data;
 	struct cam_hw_prepare_update_args *prepare = NULL;
 	struct cam_tfe_hw_mgr_ctx *tfe_mgr_ctx = NULL;
@@ -3981,6 +3984,7 @@ static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 		struct cam_isp_tfe_bw_config_v2    *bw_config =
 			(struct cam_isp_tfe_bw_config_v2 *)blob_data;
 		struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+		struct cam_cpas_axi_per_path_bw_vote *path_vote;
 
 		if (blob_size < sizeof(struct cam_isp_tfe_bw_config_v2)) {
 			CAM_ERR(CAM_ISP, "Invalid blob size %u", blob_size);
@@ -4027,15 +4031,22 @@ static int cam_isp_tfe_packet_generic_blob_handler(void *user_data,
 			return -EINVAL;
 		}
 
-		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
-			prepare->priv;
-
+		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *) prepare->priv;
 		memset(&prepare_hw_data->bw_clk_config.bw_config_v2,
 			0, sizeof(prepare_hw_data->bw_clk_config.bw_config_v2));
-		bw_config_size = sizeof(struct cam_isp_tfe_bw_config_v2) +
-			((bw_config->num_paths - 1) *
-			sizeof(struct cam_axi_per_path_bw_vote));
-		memcpy(&prepare_hw_data->bw_clk_config.bw_config_v2, bw_config, bw_config_size);
+		prepare_hw_data->bw_clk_config.bw_config_v2.usage_type = bw_config->usage_type;
+		prepare_hw_data->bw_clk_config.bw_config_v2.num_paths = bw_config->num_paths;
+
+		for (i = 0; i < bw_config->num_paths; i++) {
+			path_vote = &prepare_hw_data->bw_clk_config.bw_config_v2.axi_path[i];
+			path_vote.usage_data = bw_config->axi_path[i].usage_data;
+			path_vote.transac_type = bw_config->axi_path[i].transac_type;
+			path_vote.path_data_type = bw_config->axi_path[i].path_data_type;
+			path_vote.vote_level = 0;
+			path_vote.camnoc_bw = bw_config->axi_path[i].camnoc_bw;
+			path_vote.mnoc_ab_bw = bw_config->axi_path[i].mnoc_ab_bw;
+			path_vote.mnoc_ib_bw = bw_config->axi_path[i].mnoc_ib_bw;
+		}
 
 		tfe_mgr_ctx->bw_config_version = CAM_ISP_BW_CONFIG_V2;
 		prepare_hw_data->bw_clk_config.bw_config_valid = true;
@@ -5258,7 +5269,6 @@ static int cam_tfe_hw_mgr_handle_csid_event(
 			break;
 
 		error_event_data.error_type = err_type;
-		error_event_data.error_code = CAM_REQ_MGR_CSID_FATAL_ERROR;
 		cam_tfe_hw_mgr_find_affected_ctx(&error_event_data,
 			event_info->hw_idx,
 			&recovery_data);
@@ -5307,8 +5317,6 @@ static int cam_tfe_hw_mgr_handle_hw_err(
 		error_event_data.recovery_enabled = true;
 	else
 		error_event_data.recovery_enabled = false;
-
-	error_event_data.error_code = CAM_REQ_MGR_ISP_UNREPORTED_ERROR;
 
 	rc = cam_tfe_hw_mgr_find_affected_ctx(&error_event_data,
 		core_idx, &recovery_data);

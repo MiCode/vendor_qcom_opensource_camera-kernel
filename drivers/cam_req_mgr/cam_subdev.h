@@ -20,6 +20,7 @@
 enum cam_subdev_message_type_t {
 	CAM_SUBDEV_MESSAGE_REG_DUMP = 0x1,
 	CAM_SUBDEV_MESSAGE_APPLY_CSIPHY_AUX,
+	CAM_SUBDEV_MESSAGE_DOMAIN_ID_SECURE_PARAMS,
 };
 
 /* Enum for close sequence priority */
@@ -28,6 +29,11 @@ enum cam_subdev_close_seq_priority {
 	CAM_SD_CLOSE_MEDIUM_PRIORITY,
 	CAM_SD_CLOSE_MEDIUM_LOW_PRIORITY,
 	CAM_SD_CLOSE_LOW_PRIORITY
+};
+
+enum cam_subdev_rwsem {
+	CAM_SUBDEV_LOCK = 1,
+	CAM_SUBDEV_UNLOCK,
 };
 
 /**
@@ -131,6 +137,15 @@ int cam_register_subdev(struct cam_subdev *sd);
  * @sd:                    Pointer to struct cam_subdev.
  */
 int cam_unregister_subdev(struct cam_subdev *sd);
+
+/**
+ * cam_req_mgr_rwsem_read_op()
+ *
+ * @brief : API to acquire read semaphore lock to platform framework.
+ *
+ * @lock  : value indicates to lock or unlock the read lock
+ */
+void cam_req_mgr_rwsem_read_op(enum cam_subdev_rwsem lock);
 
 /**
  * cam_req_mgr_is_open()

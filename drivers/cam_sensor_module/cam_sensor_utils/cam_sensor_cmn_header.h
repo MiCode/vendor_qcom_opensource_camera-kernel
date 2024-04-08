@@ -8,6 +8,7 @@
 #define _CAM_SENSOR_CMN_HEADER_
 
 #include <linux/i2c.h>
+#include <linux/i3c/master.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -19,10 +20,13 @@
 #include <media/cam_sensor.h>
 #include <media/cam_req_mgr.h>
 
-#define MAX_POWER_CONFIG    12
-
-#define MAX_PER_FRAME_ARRAY 32
-#define BATCH_SIZE_MAX      16
+#define MAX_POWER_CONFIG                       12
+#define MAX_PER_FRAME_ARRAY                    32
+#define BATCH_SIZE_MAX                         16
+#define CAM_I3C_DEV_PROBE_TIMEOUT_MS           10
+#define CAM_I3C_DEV_PROBE_TIMEOUT_US          (CAM_I3C_DEV_PROBE_TIMEOUT_MS * 1000)
+#define I3C_SENSOR_DEV_ID_DT_PATH              "/soc/qcom,cam-i3c-id-table"
+#define MAX_I3C_DEVICE_ID_ENTRIES              (MAX_CAMERAS * 2)
 
 #define CAM_SENSOR_NAME    "cam-sensor"
 #define CAM_ACTUATOR_NAME  "cam-actuator"
@@ -34,6 +38,8 @@
 
 #define MAX_SYSTEM_PIPELINE_DELAY 2
 
+#define CAM_FRAME_SKIP_OPCODE 126
+
 #define CAM_PKT_NOP_OPCODE 127
 
 enum camera_flash_opcode {
@@ -42,6 +48,9 @@ enum camera_flash_opcode {
 	CAMERA_SENSOR_FLASH_OP_FIRELOW,
 	CAMERA_SENSOR_FLASH_OP_FIREHIGH,
 	CAMERA_SENSOR_FLASH_OP_FIREDURATION,
+	// MIUI ADD: Camera_HWCapabilityLimit
+	CAMERA_SENSOR_FLASH_OP_LOW_FIREDURATION,
+	// END Camera_HWCapabilityLimit
 	CAMERA_SENSOR_FLASH_OP_MAX,
 };
 
@@ -107,6 +116,10 @@ enum msm_camera_power_seq_type {
 	SENSOR_CUSTOM_GPIO1,
 	SENSOR_CUSTOM_GPIO2,
 	SENSOR_VANA1,
+/* xiaomi add begin*/
+	SENSOR_BOB,
+	SENSOR_BOB2,
+/* xiaomi add end*/
 	SENSOR_SEQ_TYPE_MAX,
 };
 
@@ -244,6 +257,8 @@ struct i2c_data_settings {
 	struct i2c_settings_array *frame_skip;
 	struct i2c_settings_array reg_bank_unlock_settings;
 	struct i2c_settings_array reg_bank_lock_settings;
+	struct i2c_settings_array parklens_settings; //xiaomi add
+	struct i2c_settings_array write_settings; //xiaomi add
 };
 
 struct cam_sensor_power_ctrl_t {
@@ -258,10 +273,10 @@ struct cam_sensor_power_ctrl_t {
 };
 
 struct cam_camera_slave_info {
-	uint16_t sensor_slave_addr;
-	uint16_t sensor_id_reg_addr;
-	uint16_t sensor_id;
-	uint16_t sensor_id_mask;
+	uint32_t sensor_slave_addr;
+	uint32_t sensor_id_reg_addr;
+	uint32_t sensor_id;
+	uint32_t sensor_id_mask;
 };
 
 struct msm_sensor_init_params {
@@ -307,6 +322,7 @@ struct cam_sensor_power_setting {
 	long config_val;
 	unsigned short delay;
 	void *data[10];
+	bool valid_config;
 };
 
 struct cam_sensor_board_info {
@@ -327,6 +343,11 @@ enum msm_camera_vreg_name_t {
 	CAM_VDIG,
 	CAM_VIO,
 	CAM_VANA,
+/* xiaomi add begin*/
+	CAM_VANA1,
+	CAM_BOB,
+	CAM_BOB2,
+/* xiaomi add end*/
 	CAM_VAF,
 	CAM_V_CUSTOM1,
 	CAM_V_CUSTOM2,

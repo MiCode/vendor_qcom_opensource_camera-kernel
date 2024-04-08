@@ -607,9 +607,7 @@ static const char *cam_soc_util_get_supported_clk_levels(
 {
 	int i = 0;
 
-	memset(supported_clk_info, 0, sizeof(supported_clk_info));
-	strlcat(supported_clk_info, "Supported levels: ",
-		sizeof(supported_clk_info));
+	scnprintf(supported_clk_info, sizeof(supported_clk_info), "Supported levels: ");
 
 	for (i = 0; i < CAM_MAX_VOTE; i++) {
 		if (soc_info->clk_level_valid[i] == true) {
@@ -1940,6 +1938,12 @@ static int cam_soc_util_get_dt_regulator_info
 		return 0;
 	}
 
+	if (soc_info->num_rgltr > CAM_SOC_MAX_REGULATOR) {
+		CAM_ERR(CAM_UTIL, "Invalid regulator count:%d",
+			soc_info->num_rgltr);
+		return -EINVAL;
+	}
+
 	for (i = 0; i < soc_info->num_rgltr; i++) {
 		rc = of_property_read_string_index(of_node,
 			"regulator-names", i, &soc_info->rgltr_name[i]);
@@ -2310,8 +2314,6 @@ static int cam_soc_util_request_pinctrl(
 	}
 
 	for (i = 0; i < num_of_map_idx; i++) {
-		memset(pctrl_active, '\0', sizeof(pctrl_active));
-		memset(pctrl_suspend, '\0', sizeof(pctrl_suspend));
 		of_property_read_u32_index(of_node,
 			"pctrl-idx-mapping", i, &idx);
 
@@ -2396,6 +2398,13 @@ static int cam_soc_util_regulator_enable_default(
 {
 	int j = 0, rc = 0;
 	uint32_t num_rgltr = soc_info->num_rgltr;
+
+	if (num_rgltr > CAM_SOC_MAX_REGULATOR) {
+		CAM_ERR(CAM_UTIL,
+			"%s has invalid regulator number %d",
+			soc_info->dev_name, num_rgltr);
+		return -EINVAL;
+	}
 
 	for (j = 0; j < num_rgltr; j++) {
 		if (soc_info->rgltr_ctrl_support == true) {

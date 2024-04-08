@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -33,6 +34,14 @@ int32_t cam_actuator_parse_dt(struct cam_actuator_ctrl_t *a_ctrl,
 	}
 
 	of_node = soc_info->dev->of_node;
+
+	rc = of_property_read_bool(of_node, "i3c-target");
+	if (rc) {
+		a_ctrl->is_i3c_device = true;
+		a_ctrl->io_master_info.master_type = I3C_MASTER;
+	}
+
+	CAM_DBG(CAM_SENSOR, "I3C Target: %s", CAM_BOOL_TO_YESNO(a_ctrl->is_i3c_device));
 
 	if (a_ctrl->io_master_info.master_type == CCI_MASTER) {
 		rc = of_property_read_u32(of_node, "cci-master",

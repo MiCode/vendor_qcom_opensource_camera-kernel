@@ -28,6 +28,16 @@
  */
 #define CAM_ISP_RES_NAME_LEN      16
 
+/* Access core_info of isp resource node */
+#define cam_isp_res_core_info(res) (((struct cam_hw_info *)res->hw_intf->hw_priv)->core_info)
+
+enum cam_isp_exposure_type {
+	CAM_ISP_LAST_EXPOSURE,
+	CAM_ISP_LAST_1_EXPOSURE,
+	CAM_ISP_LAST_2_EXPOSURE,
+	CAM_ISP_EXPOSURE_MAX
+};
+
 enum cam_isp_bw_control_action {
 	CAM_ISP_BW_CONTROL_EXCLUDE       = 0,
 	CAM_ISP_BW_CONTROL_INCLUDE       = 1
@@ -206,6 +216,7 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_BUS_MINI_DUMP,
 	CAM_ISP_HW_USER_DUMP,
 	CAM_ISP_HW_CMD_RDI_LCR_CFG,
+	CAM_ISP_HW_CMD_DRV_CONFIG,
 	CAM_ISP_HW_CMD_MAX,
 };
 
@@ -534,6 +545,19 @@ struct cam_isp_hw_path_port_map {
 struct cam_isp_hw_init_config_update {
 	struct cam_isp_resource_node   *node_res;
 	struct cam_isp_init_config     *init_config;
+};
+
+/*
+ * struct cam_isp_hw_overflow_info:
+ *
+ * @Brief:                  ISP hw bus overflow info
+ *
+ * @res_id:                 Resource type
+ * @is_bus_overflow:        Indicate whether bus overflow happened
+ */
+struct cam_isp_hw_overflow_info {
+	int                     res_id;
+	bool                    is_bus_overflow;
 };
 
 #endif /* _CAM_ISP_HW_H_ */
