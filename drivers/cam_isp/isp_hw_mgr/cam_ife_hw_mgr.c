@@ -43,6 +43,7 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_MAX               \
 	(CAM_ISP_GENERIC_BLOB_TYPE_CSID_QCFA_CONFIG + 1)
 
+
 #define MAX_INTERNAL_RECOVERY_ATTEMPTS    1
 
 #define MAX_PARAMS_FOR_IRQ_INJECT     5
@@ -77,12 +78,12 @@ typedef int (*cam_isp_irq_inject_cmd_parse_handler)(
 	 CAM_ISP_HW_ERROR_CSID_MISSING_PKT_HDR_DATA  |   \
 	 CAM_ISP_HW_ERROR_CSID_FATAL                 |   \
 	 CAM_ISP_HW_ERROR_CSID_UNBOUNDED_FRAME       |   \
-	 CAM_ISP_HW_ERROR_CSID_MISSING_EOT           |   \
-	 CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED)
+	 CAM_ISP_HW_ERROR_CSID_MISSING_EOT)
 
 #define CAM_ISP_RECOVERABLE_CSID_ERRORS              \
 	(CAM_ISP_HW_ERROR_CSID_SENSOR_SWITCH_ERROR   |   \
-	 CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP)
+	 CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP   |   \
+	 CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED)
 
 static uint32_t blob_type_hw_cmd_map[CAM_ISP_GENERIC_BLOB_TYPE_MAX] = {
 	CAM_ISP_HW_CMD_GET_HFR_UPDATE,
@@ -941,7 +942,7 @@ static bool cam_ife_hw_mgr_is_sfe_rd_res(
 
 static int cam_ife_hw_mgr_reset_csid(
 	struct cam_ife_hw_mgr_ctx  *ctx,
-	int reset_type)
+	int reset_type, bool power_on_rst)
 {
 	int i;
 	int rc = 0;
@@ -967,6 +968,7 @@ static int cam_ife_hw_mgr_reset_csid(
 
 			reset_args.reset_type = reset_type;
 			reset_args.node_res = hw_mgr_res->hw_res[i];
+			reset_args.power_on_reset = power_on_rst;
 			rc  = hw_intf->hw_ops.reset(hw_intf->hw_priv,
 				&reset_args, sizeof(reset_args));
 			if (rc)
@@ -1189,7 +1191,7 @@ static void cam_ife_hw_mgr_deinit_hw(
 	hw_mgr = ctx->hw_mgr;
 
 	if (hw_mgr->csid_global_reset_en)
-		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL);
+		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL, false);
 
 	/* Deinit IFE CSID */
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
@@ -1260,6 +1262,7 @@ static int cam_ife_hw_mgr_init_hw(
 	struct cam_ife_hw_mgr_ctx *ctx)
 {
 	struct cam_isp_hw_mgr_res *hw_mgr_res;
+	struct cam_ife_hw_mgr     *hw_mgr;
 	int rc = 0, i;
 
 	/* INIT IFE SRC */
@@ -1335,6 +1338,16 @@ static int cam_ife_hw_mgr_init_hw(
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Can not INIT IFE CSID(id :%d), ctx_idx:%u",
 				 hw_mgr_res->res_id, ctx->ctx_index);
+			goto deinit;
+		}
+	}
+
+	hw_mgr = ctx->hw_mgr;
+	if (hw_mgr->csid_global_reset_en) {
+		rc = cam_ife_hw_mgr_reset_csid(ctx,
+			CAM_IFE_CSID_RESET_GLOBAL, true);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "CSID reset failed, ctx_idx:%u", ctx->ctx_index);
 			goto deinit;
 		}
 	}
@@ -3615,6 +3628,10 @@ static int cam_ife_hw_mgr_acquire_csid_hw(
 		return -EINVAL;
 	}
 
+	/*add by xiaomi begin*/
+	csid_acquire->crc_error_divisor = ife_ctx->crc_error_divisor;
+	/*add by xiaomi end*/
+
 	ife_hw_mgr = ife_ctx->hw_mgr;
 
 	if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE)
@@ -5612,6 +5629,9 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->res_list_sfe_out = NULL;
 	ife_ctx->left_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ife_ctx->right_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
+	/*add by xiaomi begin*/
+	ife_ctx->crc_error_divisor = acquire_args->crc_error_divisor;
+	/*add by xiaomi end*/
 
 	acquire_hw_info = (struct cam_isp_acquire_hw_info *) acquire_args->acquire_info;
 
@@ -7355,7 +7375,7 @@ skip_bw_clk_update:
 			(ctx->ctx_config & CAM_IFE_CTX_CFG_SW_SYNC_ON)) {
 			rem_jiffies = cam_common_wait_for_completion_timeout(
 				&ctx->config_done_complete,
-				msecs_to_jiffies(60));
+				msecs_to_jiffies(600));//XM mod 500 -> 600
 			if (rem_jiffies == 0) {
 				CAM_ERR(CAM_ISP,
 					"config done completion timeout for req_id=%llu ctx_index %u",
@@ -8327,7 +8347,7 @@ static int cam_ife_mgr_reset(void *hw_mgr_priv, void *hw_reset_args)
 
 	CAM_DBG(CAM_ISP, "Reset CSID and VFE, ctx_idx: %u", ctx->ctx_index);
 
-	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH);
+	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH, false);
 
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed to reset CSID:%d rc: %d ctx_idx: %u",
@@ -13496,7 +13516,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 	}
 
 	/* add reg update commands */
-	if (hw_mgr->csid_rup_en)
+	if (hw_mgr->csid_aup_rup_en)
 		rc = cam_ife_mgr_csid_add_reg_update(ctx,
 			prepare, &prepare_hw_data->kmd_cmd_buff_info);
 
@@ -13505,8 +13525,8 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 			prepare, &prepare_hw_data->kmd_cmd_buff_info);
 
 	if (rc) {
-		CAM_ERR(CAM_ISP, "Add RUP fail csid_rup_en %d, ctx_idx: %u",
-			hw_mgr->csid_rup_en, ctx->ctx_index);
+		CAM_ERR(CAM_ISP, "Add RUP fail csid_aup_rup_en %d, ctx_idx: %u",
+			hw_mgr->csid_aup_rup_en, ctx->ctx_index);
 		goto end;
 	}
 
@@ -14228,8 +14248,7 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 			break;
 		case CAM_ISP_HW_MGR_CMD_CTX_TYPE:
 			if (ctx->flags.is_fe_enabled && ctx->flags.is_offline)
-				isp_hw_cmd_args->u.ctx_type =
-					CAM_ISP_CTX_OFFLINE;
+				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_OFFLINE;
 			else if (ctx->flags.is_fe_enabled && !ctx->flags.is_offline &&
 				ctx->ctx_type != CAM_IFE_CTX_TYPE_SFE)
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_FS2;
@@ -14238,6 +14257,7 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_RDI;
 			else
 				isp_hw_cmd_args->u.ctx_type = CAM_ISP_CTX_PIX;
+
 			break;
 		case CAM_ISP_HW_MGR_GET_PACKET_OPCODE:
 			packet = (struct cam_packet *)
@@ -14646,7 +14666,7 @@ static int cam_ife_mgr_recover_hw(void *priv, void *data)
 		for (i = 0; i < recovery_data->no_of_context; i++) {
 			ctx = recovery_data->affected_ctx[i];
 			rc = cam_ife_hw_mgr_reset_csid(ctx,
-				CAM_IFE_CSID_RESET_PATH);
+				CAM_IFE_CSID_RESET_PATH, false);
 
 			if (rc) {
 				CAM_ERR(CAM_ISP, "Failed RESET, ctx_idx: %u", ctx->ctx_index);
@@ -14952,7 +14972,6 @@ static int cam_ife_hw_mgr_handle_csid_error(
 		CAM_ISP_HW_ERROR_CSID_CAMIF_FRAME_DROP))
 		cam_ife_hw_mgr_check_and_notify_overflow(event_info,
 			ctx, &is_bus_overflow);
-
 	if (err_type & CAM_ISP_NON_RECOVERABLE_CSID_ERRORS) {
 		recovery_data.error_type = err_type;
 		recoverable = false;
@@ -15996,8 +16015,8 @@ static int cam_ife_hw_mgr_sort_dev_with_caps(
 
 		ife_hw_mgr->csid_global_reset_en =
 			ife_hw_mgr->csid_hw_caps[i].global_reset_en;
-		ife_hw_mgr->csid_rup_en =
-			ife_hw_mgr->csid_hw_caps[i].rup_en;
+		ife_hw_mgr->csid_aup_rup_en =
+			ife_hw_mgr->csid_hw_caps[i].aup_rup_en;
 		ife_hw_mgr->csid_camif_irq_support =
 			ife_hw_mgr->csid_hw_caps[i].camif_irq_support;
 	}

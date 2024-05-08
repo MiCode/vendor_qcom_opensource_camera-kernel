@@ -38,7 +38,7 @@ int cam_common_util_get_string_index(const char **strings,
 
 	for (i = 0; i < num_strings; i++) {
 		if (strnstr(strings[i], matching_string, strlen(strings[i]))) {
-			CAM_DBG(CAM_UTIL, "matched %s : %d\n",
+			CAM_DBG(CAM_OIS, "matched %s : %d\n",
 				matching_string, i);
 			*index = i;
 			return 0;
@@ -825,6 +825,30 @@ undefined_param:
 	}
 
 	return ret;
+}
+
+// xiaomi add cam_retry_kcalloc
+void *cam_retry_kcalloc(
+	const char *func,
+	int line,
+	size_t n,
+	size_t s,
+	gfp_t gfp)
+{
+	void *p = NULL;
+	int   i;
+
+	for (i = 0; i < 3; ++i) {
+		p = kcalloc(n, s, gfp);
+		if (NULL != p) {
+			break;
+		} else {
+			CAM_ERR(CAM_UTIL, "Failed to kcalloc size:%lu count:%lu function:%s line:%d at times %d",
+				n, s, func, line, i);
+		}
+		msleep(10);
+	}
+	return p;
 }
 
 static const struct kernel_param_ops cam_common_evt_inject = {

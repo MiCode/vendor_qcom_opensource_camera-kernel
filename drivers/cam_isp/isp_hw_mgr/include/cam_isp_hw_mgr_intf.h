@@ -498,9 +498,9 @@ enum cam_isp_ctx_type {
  * @cmd_type:              HW command type
  * @cmd_data:              Command data
  * @sof_irq_enable:        To debug if SOF irq is enabled
- * @ctx_type:              RDI_ONLY, PIX and RDI, or FS2
  * @packet_op_code:        Packet opcode
  * @last_cdm_done:         Last cdm done request
+ * @ctx_info:              Gives info about context(RDI, PIX, bubble recovery)
  * @sof_ts:                SOF timestamps (current, boot and previous)
  * @cdm_done_ts:           CDM callback done timestamp
  */
@@ -509,13 +509,13 @@ struct cam_isp_hw_cmd_args {
 	void                             *cmd_data;
 	union {
 		uint32_t                         sof_irq_enable;
-		uint32_t                         ctx_type;
+        	uint32_t                         ctx_type; 
 		uint32_t                         packet_op_code;
 		uint64_t                         last_cdm_done;
 		struct {
-			uint64_t                      curr;
-			uint64_t                      prev;
-			uint64_t                      boot;
+			uint64_t                 curr;
+			uint64_t                 prev;
+			uint64_t                 boot;
 		} sof_ts;
 	} u;
 	struct timespec64 cdm_done_ts;

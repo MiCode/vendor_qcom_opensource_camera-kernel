@@ -25,6 +25,11 @@
 #include "cam_ife_hw_mgr.h"
 #include "cam_subdev.h"
 
+/*xiaomi added detect framerate begin*/
+static uint frame_interval_para;
+module_param(frame_interval_para, uint, 0644);
+/*xiaomi added detect framerate end*/
+
 static const char isp_dev_name[] = "cam-isp";
 
 static struct cam_isp_ctx_debug isp_ctx_debug;
@@ -56,6 +61,12 @@ static int __cam_isp_ctx_check_deferred_buf_done(
 	struct cam_isp_context *ctx_isp,
 	struct cam_isp_hw_done_event_data *done,
 	uint32_t bubble_state);
+
+// xiaomi add
+static int __cam_isp_notify_mqs_event(
+	uint32_t error_type, uint32_t error_code,
+	uint64_t error_request_id, struct cam_context *ctx);
+// xiaomi add
 
 static const char *__cam_isp_evt_val_to_type(
 	uint32_t evt_id)
@@ -1619,6 +1630,15 @@ static void __cam_isp_ctx_send_sof_timestamp(
 	ctx_isp->reported_frame_id = ctx_isp->frame_id;
 	shutter_event.status = sof_event_status;
 
+	/*xiaomi added detect framerate begin*/
+	if (frame_interval_para > 1)
+	{
+		cam_isp_detect_framerate(ctx_isp, frame_interval_para);
+	}else if(frame_interval_para == 1){
+		CAM_DBG(MI_PERF, "ERROR, the frame interval num must greater than 1");
+	}
+	/*xiaomi added detect framerate end*/
+
 	if ((ctx_isp->v4l2_event_sub_ids & (1 << V4L_EVENT_CAM_REQ_MGR_SOF_UNIFIED_TS))
 		&& !ctx_isp->use_frame_header_ts) {
 		__cam_isp_ctx_send_unified_timestamp(ctx_isp, request_id, &shutter_event);
@@ -1924,8 +1944,7 @@ static int __cam_isp_ctx_handle_buf_done_for_request(
 				continue;
 
 			for (k = 0; k < req_isp->num_fence_map_out; k++)
-				if (comp_grp->res_id[j] ==
-					req_isp->fence_map_out[k].resource_handle)
+				if (comp_grp->res_id[j] == req_isp->fence_map_out[k].resource_handle)
 					break;
 
 			if ((k == req_isp->num_fence_map_out) && (j != comp_grp->num_res - 1))
@@ -2305,7 +2324,7 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 				ctx_isp->isp_device_type, done->resource_handle),
 				done->last_consumed_addr, cmp_addr);
 			if (done->last_consumed_addr == cmp_addr) {
-				CAM_INFO(CAM_ISP, "found...");
+				CAM_DBG(CAM_ISP, "found...");
 				not_found = false;
 				break;
 			}
@@ -2407,6 +2426,13 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 					"WARNING: req_id %lld num_deferred_acks %d > map_out %d, ctx_idx:%u link[0x%x]",
 					req->request_id, req_isp->num_deferred_acks,
 					req_isp->num_fence_map_out, ctx->ctx_id, ctx->link_hdl);
+				continue;
+			}
+
+			if (deferred_indx >= CAM_ISP_CTX_RES_MAX) {
+				CAM_WARN(CAM_ISP, "ctx: %u req: %llu number of Deferred buf done %u is more than %u",
+				ctx->ctx_id, req->request_id,
+				deferred_indx, CAM_ISP_CTX_RES_MAX);
 				continue;
 			}
 
@@ -3432,14 +3458,26 @@ static int __cam_isp_ctx_epoch_in_applied(struct cam_isp_context *ctx_isp,
 		 * The previous req is applied after SOF and there is only
 		 * one applied req, we don't need to report bubble for this case.
 		 */
+
 		if (wait_req_cnt == 1 && !ctx_isp->is_tfe_shdr) {
-			req = list_first_entry(&ctx->wait_req_list,
-				struct cam_ctx_request, list);
-			request_id = req->request_id;
-			CAM_INFO(CAM_ISP,
-				"ctx:%d Don't report the bubble for req:%lld",
-				ctx->ctx_id, request_id);
-			goto end;
+			/*xiaomi added resolve CamxResultExtCoreShutterTimestampError begin*/
+			if(list_empty(&ctx->active_req_list)) {
+			/*xiaomi added resolve CamxResultExtCoreShutterTimestampError end*/
+				req = list_first_entry(&ctx->wait_req_list,
+					struct cam_ctx_request, list);
+				request_id = req->request_id;
+				CAM_INFO(CAM_ISP,
+					"ctx:%d Don't report the bubble for req:%lld",
+					ctx->ctx_id, request_id);
+				goto end;
+			/*xiaomi added resolve CamxResultExtCoreShutterTimestampError begin*/
+			} else {
+				CAM_INFO(CAM_ISP,
+					"ctx:%d req:%lld, active_req_list is not empty call __cam_isp_ctx_notify_sof_in_activated_state",
+					ctx->ctx_id, request_id);
+				__cam_isp_ctx_notify_sof_in_activated_state(ctx_isp, evt_data);
+			}
+			/*xiaomi added resolve CamxResultExtCoreShutterTimestampError end*/
 		}
 	}
 
@@ -3680,6 +3718,15 @@ static int __cam_isp_ctx_epoch_in_bubble_applied(
 		ctx->ctx_id, ctx->link_hdl, req_isp->bubble_report, req->request_id);
 	req_isp->reapply_type = CAM_CONFIG_REAPPLY_IO;
 	req_isp->cdm_reset_before_apply = false;
+
+
+	// xiaomi add
+	__cam_isp_notify_mqs_event(
+		V4L_EVENT_CAM_MQS_ISP,
+		V4L_EVENT_CAM_MQS_BUBBLE,
+		req->request_id,
+		ctx);
+	// xiaomi add
 
 	if (req_isp->bubble_report) {
 		__cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF, CRM_KMD_ERR_BUBBLE,
@@ -6948,7 +6995,13 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		goto free_req_and_buf_tracker_list;
 	}
 
-	hw_update_data = cfg.priv;
+	/*xiaomi added detect framerate begin*/
+	if (frame_interval_para > 1){
+		cam_isp_get_frame_batchsize(ctx,packet);
+	}
+	/*xiaomi added detect framerate end*/
+
+        hw_update_data = cfg.priv;
 	req_isp->num_cfg = cfg.num_hw_update_entries;
 	req_isp->num_fence_map_out = cfg.num_out_map_entries;
 	req_isp->num_fence_map_in = cfg.num_in_map_entries;
@@ -7330,8 +7383,8 @@ static int __cam_isp_ctx_acquire_dev_in_available(struct cam_context *ctx,
 	for (i = 0; i < CAM_ISP_CTX_EVENT_MAX; i++)
 		atomic64_set(&ctx_isp->dbg_monitors.event_record_head[i], -1);
 
-	CAM_INFO(CAM_ISP, "Ctx_type: %u, ctx_id: %u, hw_mgr_ctx: %u", isp_hw_cmd_args.u.ctx_type,
-		ctx->ctx_id, param.hw_mgr_ctx_id);
+	CAM_INFO(CAM_ISP, "Ctx_type: %u, ctx_id: %u, hw_mgr_ctx: %u",
+		isp_hw_cmd_args.u.ctx_type, ctx->ctx_id, param.hw_mgr_ctx_id);
 	kfree(isp_res);
 	isp_res = NULL;
 
@@ -7443,8 +7496,10 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 	param.acquire_info_size = cmd->data_size;
 	param.acquire_info = (uint64_t) acquire_hw_info;
 	param.mini_dump_cb = __cam_isp_ctx_minidump_cb;
+	/*add by xiaomi begin*/
+	param.crc_error_divisor = cmd->crc_error_divisor;
+	/*add by xiaomi end*/
 	param.link_hdl = ctx->link_hdl;
-
 	rc = __cam_isp_ctx_allocate_mem_hw_entries(ctx,
 		&param);
 	if (rc) {
@@ -7614,8 +7669,10 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 	param.acquire_info_size = cmd->data_size;
 	param.acquire_info = (uint64_t) acquire_hw_info;
 	param.mini_dump_cb = __cam_isp_ctx_minidump_cb;
+	/*add by xiaomi begin*/
+	param.crc_error_divisor = cmd->crc_error_divisor;
+	/*add by xiaomi end*/
 	param.link_hdl = ctx->link_hdl;
-
 	/* call HW manager to reserve the resource */
 	rc = ctx->hw_mgr_intf->hw_acquire(ctx->hw_mgr_intf->hw_mgr_priv,
 		&param);
@@ -9376,3 +9433,102 @@ int cam_isp_context_deinit(struct cam_isp_context *ctx)
 
 	return 0;
 }
+/*xiaomi added detect framerate begin*/
+void cam_isp_detect_framerate(struct cam_isp_context *ctx, uint interval)
+{
+	uint32_t timespan;
+	uint64_t frame_rate;
+
+	if ((ctx->base->exlink != ctx->base->link_hdl) || (ctx->frame_id == 1)){
+		ctx->base->exlink        = ctx->base->link_hdl;
+		ctx->base->dbg_timestamp = ctx->sof_timestamp_val;
+		ctx->base->dbg_frame     = ctx->frame_id;
+	}else{
+		switch (ctx->frame_id % interval){
+			case 0:{
+				timespan = (ctx->sof_timestamp_val - ctx->base->dbg_timestamp) / 1000000;
+				frame_rate = ctx->base->batchsize * (1000000 * (ctx->frame_id - ctx->base->dbg_frame)) / timespan;
+				CAM_DBG(MI_PERF,
+						"link hdl 0x%x frame number %d, Time Span(ms): %d Frame Rate(fps): %d.%03d ctx %d",
+						ctx->base->link_hdl, ctx->frame_id, timespan, frame_rate / 1000, frame_rate % 1000, ctx->base->ctx_id);
+				break;
+			}
+			case 1:{
+				ctx->base->dbg_timestamp = ctx->sof_timestamp_val;
+				ctx->base->dbg_frame = ctx->frame_id;
+				break;
+			}
+			default:
+				break;
+		}
+	}
+}
+
+void cam_isp_get_frame_batchsize(struct cam_context *ctx, struct cam_packet *cpkt)
+{
+	int                                rc        = 0;
+	int                                i;
+	struct cam_cmd_buf_desc            *cmd_desc = NULL;
+	struct cam_isp_resource_hfr_config *hfr_config;
+	uintptr_t                          cpu_addr = 0;
+	size_t                             buf_size;
+	uint32_t                           *blob_ptr;
+	uint32_t                           blob_type, blob_size, blob_block_size, len_read;
+
+	cmd_desc = (struct cam_cmd_buf_desc *)((uint8_t *)cpkt->payload + cpkt->cmd_buf_offset);
+
+	for (i = 0;i < cpkt->num_cmd_buf; i++)
+	{
+		if (cmd_desc[i].meta_data == CAM_ISP_PACKET_META_GENERIC_BLOB_COMMON){
+			rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle, &cpu_addr, &buf_size);
+			blob_ptr = (uint32_t *)(((uint8_t *)cpu_addr) + cmd_desc[i].offset);
+			len_read = 0;
+
+			while(len_read < cmd_desc[i].length){
+				blob_type = ((*blob_ptr)& CAM_GENERIC_BLOB_CMDBUFFER_TYPE_MASK) >> CAM_GENERIC_BLOB_CMDBUFFER_TYPE_SHIFT;
+				blob_size = ((*blob_ptr)& CAM_GENERIC_BLOB_CMDBUFFER_SIZE_MASK) >> CAM_GENERIC_BLOB_CMDBUFFER_SIZE_SHIFT;
+				blob_block_size = sizeof(uint32_t) + (((blob_size + sizeof(uint32_t)-1)/sizeof(uint32_t))*sizeof(uint32_t));
+				len_read += blob_block_size;
+				if (blob_type == CAM_ISP_GENERIC_BLOB_TYPE_HFR_CONFIG){
+					hfr_config = (struct cam_isp_resource_hfr_config *)(uint8_t *)(blob_ptr + 1);
+					ctx->batchsize = hfr_config->port_hfr_config[10].subsample_period + 1;
+					break;
+				}
+				blob_ptr += (blob_block_size/sizeof(uint32_t));
+			}
+		}
+	}
+}
+/*xiaomi added detect framerate end*/
+
+// xiaomi add
+static int __cam_isp_notify_mqs_event(
+	uint32_t error_type, uint32_t error_code,
+	uint64_t error_request_id, struct cam_context *ctx)
+{
+	int                         rc = 0;
+	struct cam_req_mgr_message  req_msg;
+
+	req_msg.session_hdl = ctx->session_hdl;
+	req_msg.u.err_msg.device_hdl = ctx->dev_hdl;
+	req_msg.u.err_msg.error_type = error_type;
+	req_msg.u.err_msg.link_hdl = ctx->link_hdl;
+	req_msg.u.err_msg.request_id = error_request_id;
+	req_msg.u.err_msg.resource_size = 0x0;
+	req_msg.u.err_msg.error_code = error_code;
+
+	CAM_INFO(CAM_ISP,
+		"[DMQS] MQS event [type: %u code: %u] for req: %llu in ctx: %u on link: 0x%x notified",
+		error_type, error_code, error_request_id, ctx->ctx_id, ctx->link_hdl);
+
+	rc = cam_req_mgr_notify_message(&req_msg,
+			V4L_EVENT_CAM_MQS_ISP,
+			V4L_EVENT_CAM_MQS_EVENT);
+	if (rc)
+		CAM_ERR(CAM_ISP,
+			"[DMQS] Notifying MQS event error [type: %u code: %u] failed for req id:%llu in ctx %u on link: 0x%x",
+			error_request_id, ctx->ctx_id);
+
+	return rc;
+}
+// xiaomi add

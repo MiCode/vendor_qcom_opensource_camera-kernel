@@ -447,6 +447,13 @@ static inline int camera_component_compare_dev(struct device *dev, void *data)
 	return dev == data;
 }
 
+#if IS_ENABLED(CONFIG_MIISP)
+static inline int camera_component_compare_ispv4_dev(struct device *dev, void *data)
+{
+        return !strcmp(dev_name(dev), "ispv4-cam");
+}
+#endif
+
 /* Add component matches to list for master of aggregate driver */
 int camera_component_match_add_drivers(struct device *master_dev,
 	struct component_match **match_list)
@@ -461,6 +468,11 @@ int camera_component_match_add_drivers(struct device *master_dev,
 		rc = -EINVAL;
 		goto end;
 	}
+
+#if IS_ENABLED(CONFIG_MIISP)
+        component_match_add(master_dev, match_list,
+                            camera_component_compare_ispv4_dev, NULL);
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(cam_component_platform_drivers); i++) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
@@ -811,7 +823,6 @@ bool cam_secure_get_vfe_fd_port_config(void)
 	return true;
 #endif
 }
-
 #if KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE
 int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam)
 {

@@ -88,6 +88,8 @@ enum flush_type_t {
  * @handle_type:        User pointer or shared memory handle
  * @reserved:           Reserved field for 64 bit alignment
  * @handle:             Control command payload
+ * @crc_error_divisor:  Width/divisor pixels per line report crc errors will trigger
+ *                      internal recovery, only for CPHY
  */
 struct cam_control {
 	__u32        op_code;
@@ -95,6 +97,9 @@ struct cam_control {
 	__u32        handle_type;
 	__u32        reserved;
 	__u64        handle;
+	/*add by xiaomi begin*/
+	__u32        crc_error_divisor;
+	/*add by xiaomi end*/
 };
 
 /**
@@ -257,7 +262,8 @@ struct cam_iommu_handle {
 #define CAM_PACKET_DEV_LRME                     17
 #define CAM_PACKET_DEV_TFE                      18
 #define CAM_PACKET_DEV_OPE                      19
-#define CAM_PACKET_DEV_MAX                      20
+#define CAM_PACKET_DEV_APERTURE                 20
+#define CAM_PACKET_DEV_MAX                      21
 
 /* Register base type */
 #define CAM_REG_DUMP_BASE_TYPE_ISP_LEFT         1
@@ -593,6 +599,8 @@ struct cam_query_cap_cmd {
  * @handle_type:        Resource handle type:
  *                      1 = user pointer, 2 = mem handle
  * @num_resources:      Number of the resources to be acquired
+ * @crc_error_divisor:  Width/divisor pixels per line report crc errors will trigger
+ *                      internal recovery, only for CPHY
  * @resources_hdl:      Resource handle that refers to the actual
  *                      resource array. Each item in this
  *                      array is device specific resource structure
@@ -603,6 +611,9 @@ struct cam_acquire_dev_cmd {
 	__s32        dev_handle;
 	__u32        handle_type;
 	__u32        num_resources;
+	/*add by xiaomi begin*/
+	__u32        crc_error_divisor;
+	/*add by xiaomi end*/
 	__u64        resource_hdl;
 };
 
@@ -639,6 +650,8 @@ struct cam_acquire_dev_cmd {
  *                      1 = user pointer, 2 = mem handle
  * @data_size:          Total size of data contained in memory pointed
  *                      to by resource_hdl
+ * @crc_error_divisor:  Width/divisor pixels per line report crc errors will trigger
+ *                      internal recovery, only for CPHY
  * @resource_hdl:       Resource handle that refers to the actual
  *                      resource data.
  */
@@ -649,6 +662,9 @@ struct cam_acquire_hw_cmd_v1 {
 	__s32        dev_handle;
 	__u32        handle_type;
 	__u32        data_size;
+	/*add by xiaomi begin*/
+	__u32        crc_error_divisor;
+	/*add by xiaomi end*/
 	__u64        resource_hdl;
 };
 
@@ -683,6 +699,8 @@ struct cam_acquired_hw_info {
  *                      1 = user pointer, 2 = mem handle
  * @data_size:          Total size of data contained in memory pointed
  *                      to by resource_hdl
+ * @crc_error_divisor:  Width/divisor pixels per line report crc errors will trigger
+ *                      internal recovery, only for CPHY
  * @resource_hdl:       Resource handle that refers to the actual
  *                      resource data.
  */
@@ -693,6 +711,9 @@ struct cam_acquire_hw_cmd_v2 {
 	__s32                    dev_handle;
 	__u32                    handle_type;
 	__u32                    data_size;
+	/*add by xiaomi begin*/
+	__u32                    crc_error_divisor;
+	/*add by xiaomi end*/
 	__u64                    resource_hdl;
 	struct cam_acquired_hw_info hw_info;
 };

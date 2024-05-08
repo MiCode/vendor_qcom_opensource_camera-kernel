@@ -1197,16 +1197,24 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 				cam_io_w_mb(reg_data,
 					csiphybase + reg_addr);
 			break;
+/* xiaomi add channel log - begin */
 			case CSIPHY_SHORT_CHANNEL_PARAMS:
 				if (channel_type == CAM_CSIPHY_DATARATE_SHORT_CHANNEL)
+				{
 					cam_io_w_mb(reg_data,
 						csiphybase + reg_addr);
+					CAM_DBG(CAM_CSIPHY, "param_type:%d,channel_type == CAM_CSIPHY_DATARATE_SHORT_CHANNEL",reg_param_type);
+				}
 			break;
 			case CSIPHY_STANDARD_CHANNEL_PARAMS:
 				if (channel_type == CAM_CSIPHY_DATARATE_STANDARD_CHANNEL)
+				{
 					cam_io_w_mb(reg_data,
 						csiphybase + reg_addr);
+					CAM_DBG(CAM_CSIPHY, "param_type:%d,channel_type == CAM_CSIPHY_DATARATE_STANDARD_CHANNEL",reg_param_type);
+				}
 			break;
+/* xiaomi add channel log - end */
 			case CSIPHY_SETTLE_CNT_LOWER_BYTE:
 				cam_io_w_mb(settle_cnt & 0xFF,
 					csiphybase + reg_addr);
@@ -1451,6 +1459,17 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 	do_div(intermediate_var, 200000000);
 	settle_cnt = intermediate_var;
 	skew_cal_enable = csiphy_dev->csiphy_info[index].mipi_flags;
+
+	/* xiaomi add DPHY log - begin */
+	if (!csiphy_dev->csiphy_info[index].csiphy_3phase){
+		for (i = 0; i < cfg_size; i++) {
+			CAM_DBG(MI_DEBUG,
+				"register index: %d/%d, param_type: %d, writing reg: %x, val: %x, delay: %dus",
+				i, cfg_size, reg_array[i].csiphy_param_type, reg_array[i].reg_addr,
+				reg_array[i].reg_data, reg_array[i].delay);
+		}
+	}
+	/* xiaomi add DPHY log - end */
 
 	for (i = 0; i < cfg_size; i++) {
 		switch (reg_array[i].csiphy_param_type) {

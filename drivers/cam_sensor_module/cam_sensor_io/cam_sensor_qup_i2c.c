@@ -9,6 +9,9 @@
 #include "cam_sensor_io.h"
 
 #define I2C_REG_MAX_BUF_SIZE   8
+/* xiaomi add for i2c to prevent continuous write failure start*/
+#define CAM_MAX_NUM_QUPI2C_PAYLOAD_BYTES   11
+/* xiaomi add for i2c to prevent continuous write failure end*/
 
 static int i2c_lookahead_en = 1;
 module_param(i2c_lookahead_en, uint, 0644);
@@ -369,7 +372,9 @@ static inline int32_t cam_qup_i2c_write_optimized(struct camera_io_master *clien
 				reg_setting++;
 				isLookAhead =
 					((reg_setting_previous->reg_addr + 1) ==
-					 reg_setting->reg_addr) ? true : false;
+/* xiaomi add "&& data_type + len <= CAM_MAX_NUM_QUPI2C_PAYLOAD_BYTES" start*/
+					reg_setting->reg_addr && data_type + len <= CAM_MAX_NUM_QUPI2C_PAYLOAD_BYTES) ? true : false;
+/* xiaomi add "&& data_type + len <= CAM_MAX_NUM_QUPI2C_PAYLOAD_BYTES" end*/
 			} else {
 				break;
 			}
@@ -403,10 +408,16 @@ int32_t cam_qup_i2c_write_table(struct camera_io_master *client,
 	if (!client || !write_setting)
 		return rc;
 
-	msgs = kcalloc(write_setting->size, sizeof(struct i2c_msg), GFP_KERNEL);
+	/* xiaomi add */
+	msgs = (struct i2c_msg *)vmalloc(write_setting->size * sizeof(struct i2c_msg));
 	if (!msgs) {
 		CAM_ERR(CAM_SENSOR, "Message Buffer memory allocation failed");
-		return -ENOMEM;
+		msgs = (struct i2c_msg *)vmalloc(write_setting->size * sizeof(struct i2c_msg));
+		if (!msgs)
+		{
+			CAM_ERR(CAM_SENSOR, "Vmalloc still failed");
+			return -ENOMEM;
+		}
 	}
 
 	buf = kzalloc(write_setting->size*I2C_REG_MAX_BUF_SIZE, GFP_KERNEL|GFP_DMA);
@@ -447,7 +458,7 @@ int32_t cam_qup_i2c_write_table(struct camera_io_master *client,
 
 deallocate_buffer:
 	kfree(buf);
-	kfree(msgs);
+	vfree(msgs);
 
 	return rc;
 }

@@ -11,9 +11,19 @@
 #include "cam_ife_csid_hw_intf.h"
 #include "cam_ife_csid_soc.h"
 
-#define CAM_IFE_CSID_VER_1_0  0x100
-#define CAM_IFE_CSID_VER_2_0  0x200
-#define CAM_IFE_CSID_MAX_ERR_COUNT  100
+#define CAM_IFE_CSID_VER_1_0                              0x100
+#define CAM_IFE_CSID_VER_2_0                              0x200
+#define CAM_IFE_CSID_MAX_ERR_COUNT                        100
+
+/*
+ * CRC error threshold is set to be 1% of frame width and
+ * this macro is used as divisor in calculation
+ */
+#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR                  100
+/*add by xiaomi start*/
+#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR_XIAOMI           65536
+#define CAM_IFE_CSID_MIN_CRC_ERR_DIVISOR_XIAOMI           0
+/*add by xiaomi end*/
 
 #define CAM_IFE_CSID_HW_CAP_IPP                           0x1
 #define CAM_IFE_CSID_HW_CAP_RDI                           0x2
@@ -299,11 +309,13 @@ struct cam_ife_csid_core_info {
  * @csi2_reserve_cnt:       Reserve count for csi2
  * @irq_debug_cnt:          irq debug counter
  * @error_irq_count:        error irq counter
+ * @crc_error_irq_count:    crc error irq counter
  */
 struct cam_ife_csid_hw_counters {
 	uint32_t                          csi2_reserve_cnt;
 	uint32_t                          irq_debug_cnt;
 	uint32_t                          error_irq_count;
+	uint32_t                          crc_error_irq_count;
 };
 
 /*
@@ -456,4 +468,9 @@ int cam_ife_csid_get_base(struct cam_hw_soc_info *soc_info,
 const char *cam_ife_csid_reset_type_to_string(enum cam_ife_csid_reset_type reset_type);
 
 const uint8_t **cam_ife_csid_get_irq_reg_tag_ptr(void);
+
+/* xiaomi add mipi_error_flag begin */
+void count_mipi_error(uint32_t res_type);
+/* xiaomi add mipi_error_flag end */
+
 #endif /*_CAM_IFE_CSID_COMMON_H_ */

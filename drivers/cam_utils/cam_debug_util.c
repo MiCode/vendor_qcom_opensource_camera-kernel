@@ -11,6 +11,11 @@
 #include "cam_trace.h"
 
 #include "cam_debug_util.h"
+/* xiaomi add hw trigger - begin */
+#include <linux/gpio.h>
+#include "cam_res_mgr_api.h"
+#include <cam_soc_util.h>
+/* xiaomi add hw trigger - end */
 
 unsigned long long debug_mdl;
 module_param(debug_mdl, ullong, 0644);
@@ -29,6 +34,61 @@ uint debug_bypass_drivers;
 module_param(debug_bypass_drivers, uint, 0644);
 
 struct camera_debug_settings cam_debug;
+
+/* xiaomi add hw trigger - begin */
+static int cam_hw_trigger_cnt  = 5;
+// cam_hw_trigger[5] = {gpio, value, module_id, gpio_module, delay}
+static uint cam_hw_trigger[5] = {0, 0, 0, 0, 1000};
+module_param_array(cam_hw_trigger, uint, &cam_hw_trigger_cnt, 0644);
+
+int cam_debug_hw_trigger(unsigned int module_id, bool status)
+{
+	int rc = 0;
+	int restore_value = 0;
+
+	if (!status ||	0 == cam_hw_trigger[0] ||
+			0 == cam_hw_trigger[4] ||
+			!(cam_hw_trigger[2] & module_id))
+		return rc;
+
+	rc = gpio_request_one(cam_hw_trigger[0], cam_hw_trigger[3], "CAM_HW_TRIGGER");
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "[cam_hw_trigger] GPIO %d:%s request failed, rc = %d",
+			cam_hw_trigger[0], "CAM_HW_TRIGGER", rc);
+		return rc;
+	}
+
+	restore_value = gpio_get_value_cansleep(cam_hw_trigger[0]);
+	if (restore_value != 0 && restore_value != 1) {
+		CAM_ERR(CAM_UTIL, "[cam_hw_trigger] Failed to get GPIO %d:%s status",
+			cam_hw_trigger[0], "CAM_HW_TRIGGER");
+		rc = -EIO;
+		goto end_free;
+	}
+
+	if (restore_value == cam_hw_trigger[1]) {
+		CAM_ERR(CAM_UTIL, "[cam_hw_trigger] GPIO %d:%s is already in state %d",
+			cam_hw_trigger[0], "CAM_HW_TRIGGER", cam_hw_trigger[1]);
+		goto end_free;
+	}
+
+	gpio_set_value_cansleep(cam_hw_trigger[0], cam_hw_trigger[1]);
+	CAM_DBG(CAM_UTIL, "[cam_hw_trigger] %s success, GPIO:%d value:%d",
+		CAM_DBG_MOD_NAME(module_id), cam_hw_trigger[0],
+		cam_hw_trigger[1]);
+
+	usleep_range(cam_hw_trigger[4], (cam_hw_trigger[4] + 100));
+
+	gpio_set_value_cansleep(cam_hw_trigger[0], restore_value);
+	CAM_DBG(CAM_UTIL, "[cam_hw_trigger] %s restore, GPIO:%d value:%d",
+		CAM_DBG_MOD_NAME(module_id), cam_hw_trigger[0], restore_value);
+
+end_free:
+	gpio_free(cam_hw_trigger[0]);
+	return rc;
+}
+/* xiaomi add hw trigger - end */
+
 
 struct dentry *cam_debugfs_root;
 
@@ -284,14 +344,22 @@ void cam_print_log(int type, int module, int tag, const char *func,
 	int line, const char *fmt, ...)
 {
 	char buf[CAM_LOG_BUF_LEN] = {0,};
+
+	struct timespec64 ts;
+	uint64_t          ms=0, sec=0, min=0, hrs=0;
+
 	va_list args;
 
 	if (!type)
 		return;
 
+	CAM_GET_TIMESTAMP(ts);
+	CAM_CONVERT_TIMESTAMP_FORMAT(ts, hrs, min, sec, ms);
+
 	va_start(args, fmt);
 	vscnprintf(buf, CAM_LOG_BUF_LEN, fmt, args);
 	__cam_print_log(type, __CAM_LOG_FMT,
+		hrs, min, sec, ms,
 		CAM_LOG_TAG_NAME(tag), CAM_DBG_MOD_NAME(module), func,
 		line, buf);
 	va_end(args);

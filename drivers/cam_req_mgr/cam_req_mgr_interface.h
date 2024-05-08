@@ -215,6 +215,9 @@ enum cam_req_mgr_device_id {
 	CAM_REQ_MGR_DEVICE_EXTERNAL_2,
 	CAM_REQ_MGR_DEVICE_EXTERNAL_3,
 	CAM_REQ_MGR_DEVICE_TPG,
+	CAM_REQ_MGR_DEVICE_APERTURE,   //xiaomi add
+	CAM_REQ_MGR_DEVICE_ISPV4,      //xiaomi add
+	CAM_REQ_MGR_DEVICE_OIS,        //xiaomi add
 	CAM_REQ_MGR_DEVICE_ID_MAX,
 };
 

@@ -25,6 +25,9 @@
 #include <cam_sensor_io.h>
 #include "cam_debug_util.h"
 #include "cam_context.h"
+/* xiaomi add for cci debug start */
+#include "cam_cci_debug_util.h"
+/* xiaomi add for cci debug end */
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
@@ -115,6 +118,7 @@ struct cam_sensor_dev_res_info {
  * @is_stopped_by_user: Indicate if sensor has been stopped by userland
  * @stream_off_after_eof: Indicates if sensor needs to stream off after eof
  * @is_res_info_updated: Indicate if resolution info is updated
+ * @cci_debug: Sensor debugfs info and entry
  * @hw_no_ops: To determine whether HW operations need to be disabled
  */
 struct cam_sensor_ctrl_t {
@@ -153,6 +157,9 @@ struct cam_sensor_ctrl_t {
 	bool                           is_stopped_by_user;
 	bool                           stream_off_after_eof;
 	bool                           is_res_info_updated;
+	/* xiaomi add for cci debug start */
+	void                          *cci_debug;
+	/* xiaomi add for cci debug end */
 	bool                           hw_no_ops;
 };
 

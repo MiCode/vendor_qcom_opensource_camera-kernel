@@ -1865,6 +1865,7 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 		bytes_written += bytes_required;
 		req_md->num_io_cfg = packet->num_io_configs;
 	}
+
 exit:
 	cam_packet_util_put_packet_addr(req->pf_data.packet_handle);
 end:

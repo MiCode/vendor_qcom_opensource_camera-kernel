@@ -105,7 +105,7 @@ enum cam_ife_csid_secondary_evt_type {
  * @sfe_ipp_input_rdi_res: RDI Res as an input to SFE
  * @is_lite:               is the ife_csid lite
  * @global_reset_en:       flag to indicate if global reset is enabled
- * @rup_en:                flag to indicate if rup is on csid side
+ * @aup_rup_en:            flag to indicate if AUP RUP is on csid side
  * @only_master_rup:       flag to indicate if only master RUP
  * @camif_irq_support:     flag to indicate if CSID supports CAMIF irq
  * @is_ife_sfe_mapped:     flag to indicate if IFE & SFE are one-one mapped
@@ -120,7 +120,7 @@ struct cam_ife_csid_hw_caps {
 	uint32_t      sfe_ipp_input_rdi_res;
 	bool          is_lite;
 	bool          global_reset_en;
-	bool          rup_en;
+	bool          aup_rup_en;
 	bool          only_master_rup;
 	bool          camif_irq_support;
 	bool          is_ife_sfe_mapped;
@@ -239,7 +239,10 @@ struct cam_csid_secondary_evt_config {
  * @sfe_en:              Flag to indicate if SFE is enabled
  * @use_wm_pack:         [OUT]Flag to indicate if WM packing is to be used for packing
  * @handle_camif_irq:    Flag to indicate if CSID IRQ is enabled
- *
+ * * add by xiaomi begin
+ * @crc_error_divisor:   Width/divisor pixels per line report crc errors will trigger
+ *                       internal recovery, only for CPHY
+ * add by xiaomi end
  */
 struct cam_csid_hw_reserve_resource_args {
 	enum cam_isp_resource_type                res_type;
@@ -265,6 +268,9 @@ struct cam_csid_hw_reserve_resource_args {
 	bool                                      sfe_en;
 	bool                                      use_wm_pack;
 	bool                                      handle_camif_irq;
+	/*add by xiaomi begin*/
+	uint32_t                                  crc_error_divisor;
+	/*add by xiaomi end*/
 };
 
 /**
@@ -358,11 +364,13 @@ enum cam_ife_csid_reset_type {
  * struct cam_ife_csid_reset_cfg-  csid reset configuration
  * @ reset_type : Global reset or path reset
  * @res_node :   resource need to be reset
+ * @power_on_reset : Set if the reset is issued prior to streaming
  *
  */
 struct cam_csid_reset_cfg_args {
 	enum cam_ife_csid_reset_type   reset_type;
 	struct cam_isp_resource_node  *node_res;
+	bool power_on_reset;
 };
 
 /**

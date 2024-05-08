@@ -410,4 +410,24 @@ int cam_common_register_evt_inject_cb(
 	cam_common_evt_inject_cb evt_inject_cb,
 	enum cam_common_evt_inject_hw_id hw_id);
 
+// xiaomi add cam_retry_kcalloc
+/**
+ * cam_retry_kcalloc()
+ *
+ * @brief                  retry kcalloc
+ *
+ * @func:                  the name of the function that called this function.
+ * @line:                  line of code.
+ * @n:                     how many bytes of memory are required.
+ * @s:                     how many bytes of memory are required.
+ * @flags:                 the type of memory to allocate (see kmalloc).
+ *
+ */
+void *cam_retry_kcalloc(
+	const char *func,
+	int line,
+	size_t n,
+	size_t s,
+	gfp_t gfp);
+
 #endif /* _CAM_COMMON_UTIL_H_ */

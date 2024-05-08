@@ -274,6 +274,12 @@ struct cam_context {
 	cam_ctx_mini_dump_cb_func      mini_dump_cb;
 	int                            img_iommu_hdl;
 	struct timespec64              cdm_done_ts;
+	/*xiaomi added detect framerate begin*/
+	uint64_t                       dbg_timestamp;
+	uint64_t                       dbg_frame;
+	int32_t                        exlink;
+	uint32_t                       batchsize;
+	/*xiaomi added detect framerate end*/
 };
 
 /**

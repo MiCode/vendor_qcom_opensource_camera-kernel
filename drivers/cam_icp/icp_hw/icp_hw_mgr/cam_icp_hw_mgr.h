@@ -43,7 +43,7 @@
 #define ICP_FRAME_PROCESS_FAILURE 1
 
 /* size of buffer to drain from msg/dbq queue */
-#define ICP_MSG_BUF_SIZE_IN_WORDS 512
+#define ICP_MSG_BUF_SIZE_IN_WORDS 256
 #define ICP_DBG_BUF_SIZE_IN_WORDS 25600
 
 #define ICP_OVER_CLK_THRESHOLD  5

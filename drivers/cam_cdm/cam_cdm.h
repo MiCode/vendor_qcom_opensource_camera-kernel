@@ -25,7 +25,7 @@
 #define CAM_MAX_SW_CDM_VERSION_SUPPORTED  1
 #define CAM_SW_CDM_INDEX                  0
 #define CAM_CDM_INFLIGHT_WORKS            5
-#define CAM_CDM_HW_RESET_TIMEOUT          300
+#define CAM_CDM_HW_RESET_TIMEOUT          1000
 #define CAM_CDM_PAUSE_CORE_US_TIMEOUT     10000
 
 /*

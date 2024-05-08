@@ -1713,7 +1713,8 @@ static int __cam_vfe_handle_frame_timing_irqs(struct cam_isp_resource_node *vfe_
 	struct cam_vfe_mux_ver4_data *vfe_priv = vfe_res->res_priv;
 
 	if (!event) {
-		CAM_WARN(CAM_ISP, "VFE:%u missed %s", vfe_priv->hw_intf->hw_idx,
+		// xiaomi update log level
+		CAM_DBG(CAM_ISP, "VFE:%u missed %s", vfe_priv->hw_intf->hw_idx,
 			cam_isp_hw_evt_type_to_string(event_type));
 	} else {
 		handle_irq_fn(vfe_priv, payload, evt_info);
@@ -2033,9 +2034,7 @@ skip_core_cfg:
 		!rsrc_data->handle_camif_irq))
 		goto skip_frame_irq_subscribe;
 
-	irq_mask[rsrc_data->common_reg->frame_timing_irq_reg_idx] =
-		rsrc_data->reg_data->sof_irq_mask | rsrc_data->reg_data->epoch0_irq_mask |
-		rsrc_data->reg_data->eof_irq_mask;
+	irq_mask[rsrc_data->common_reg->frame_timing_irq_reg_idx] = rsrc_data->reg_data->epoch0_irq_mask;
 
 	rsrc_data->n_frame_irqs =
 		hweight32(irq_mask[rsrc_data->common_reg->frame_timing_irq_reg_idx]);

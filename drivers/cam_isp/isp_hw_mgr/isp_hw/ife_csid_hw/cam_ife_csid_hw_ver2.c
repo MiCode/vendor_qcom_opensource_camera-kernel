@@ -36,7 +36,8 @@
 #define CAM_IFE_CSID_TIMEOUT_SLEEP_US                  1000
 #define CAM_IFE_CSID_TIMEOUT_ALL_US                    100000
 
-#define CAM_IFE_CSID_RESET_TIMEOUT_MS                  100
+/* Xiaomi change this value from 100ms to 200ms */
+#define CAM_IFE_CSID_RESET_TIMEOUT_MS                  200
 
 /*
  * Constant Factors needed to change QTimer ticks to nanoseconds
@@ -57,6 +58,27 @@
 #define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         3
 
 #define CAM_CSID_IRQ_CTRL_NAME_LEN                     10
+
+/* xiaomi add ife_mqs_node1 begin */
+static int ife_mqs_node1_cnt  = 20;
+static long ife_mqs_node1[20] = {0};
+module_param_array(ife_mqs_node1, long, &ife_mqs_node1_cnt, 0644);
+
+static void count_ife_error(uint32_t index)
+{
+	struct timespec64   timestamp;
+	uint32_t            phy_id = 0;
+	if (index < ife_mqs_node1_cnt && index >= 0)
+	{
+		phy_id = index;
+		CAM_GET_TIMESTAMP(timestamp);
+		ife_mqs_node1[phy_id] = timestamp.tv_sec;
+		CAM_ERR(CAM_ISP, "set ife error node1: phy_id: %d, timestamp: sec: %ld, nsec: %ld",
+				phy_id, timestamp.tv_sec, timestamp.tv_nsec);
+	}
+}
+
+/* xiaomi add ife_mqs_node1 end */
 
 static void cam_ife_csid_ver2_print_debug_reg_status(
 	struct cam_ife_csid_ver2_hw *csid_hw,
@@ -132,7 +154,7 @@ static uint64_t __cam_ife_csid_ver2_get_time_stamp(void __iomem *mem_base,
 		CAM_IFE_CSID_QTIMER_DIV_FACTOR);
 }
 
-static void cam_ife_csid_ver2_print_camif_timestamps(
+static noinline void cam_ife_csid_ver2_print_camif_timestamps(
 	struct cam_ife_csid_ver2_hw  *csid_hw)
 {
 	struct   cam_ife_csid_ver2_path_cfg    *path_cfg;
@@ -156,12 +178,10 @@ static void cam_ife_csid_ver2_print_camif_timestamps(
 		case CAM_IFE_PIX_PATH_RES_RDI_2:
 		case CAM_IFE_PIX_PATH_RES_RDI_3:
 		case CAM_IFE_PIX_PATH_RES_RDI_4:
-			if (path_cfg->handle_camif_irq &&
-				res->is_rdi_primary_res)
+			if (path_cfg->handle_camif_irq)
 				found = true;
 			break;
 		case CAM_IFE_PIX_PATH_RES_IPP:
-			if (path_cfg->handle_camif_irq)
 				found = true;
 			break;
 		default:
@@ -181,6 +201,13 @@ static void cam_ife_csid_ver2_print_camif_timestamps(
 			path_cfg->sof_ts.tv_sec, path_cfg->sof_ts.tv_nsec,
 			path_cfg->epoch_ts.tv_sec, path_cfg->epoch_ts.tv_nsec,
 			path_cfg->eof_ts.tv_sec, path_cfg->eof_ts.tv_nsec);
+
+
+		if (found && path_cfg->handle_camif_irq)
+			CAM_INFO(CAM_ISP,
+				"CSID[%u] %s EPOCH[%lld:%lld]",
+				csid_hw->hw_intf->hw_idx, res->res_name,
+				path_cfg->epoch_ts.tv_sec, path_cfg->epoch_ts.tv_nsec);
 
 		if (!path_reg) {
 			CAM_ERR(CAM_ISP, "CSID:%d no path registers for res :%d",
@@ -651,8 +678,7 @@ static int cam_ife_csid_ver2_path_top_half(
 
 	evt_payload->irq_reg_val = th_payload->evt_status_arr[0];
 
-	if ((evt_payload->irq_reg_val & path_reg->sof_irq_mask)
-		&& path_cfg->handle_camif_irq) {
+	if (evt_payload->irq_reg_val & path_reg->sof_irq_mask){
 		evt_payload->sof_ts_reg_val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			path_reg->timestamp_curr1_sof_addr);
 		evt_payload->sof_ts_reg_val = (evt_payload->sof_ts_reg_val << 32) |
@@ -1073,14 +1099,32 @@ static int cam_ife_csid_ver2_rx_err_top_half(
 	}
 
 	if (status & csi2_reg->part_fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG0]) {
-		if (status & IFE_CSID_VER2_RX_CPHY_SOT_RECEPTION)
+		if (status & IFE_CSID_VER2_RX_CPHY_SOT_RECEPTION) {
 			csid_hw->counters.error_irq_count++;
+			CAM_INFO(CAM_ISP, "CSID[%u] Recoverable Error Count:%u",
+				csid_hw->hw_intf->hw_idx,
+				csid_hw->counters.error_irq_count);
+		}
 
-		CAM_DBG(CAM_ISP, "CSID[%u] Recoverable Error Count:%u",
-			csid_hw->hw_intf->hw_idx,
-			csid_hw->counters.error_irq_count);
+		if (status & IFE_CSID_VER2_RX_ERROR_CRC) {
+			csid_hw->counters.crc_error_irq_count++;
+			CAM_INFO(CAM_ISP,
+				"CSID[%u] Recoverable CRC Error Count:%u, CRC Error threshold: %u",
+				csid_hw->hw_intf->hw_idx,
+				csid_hw->counters.crc_error_irq_count,
+				csid_hw->crc_error_threshold);
+		}
 
-		if (csid_hw->counters.error_irq_count > CAM_IFE_CSID_MAX_ERR_COUNT) {
+		if ((csid_hw->counters.error_irq_count > CAM_IFE_CSID_MAX_ERR_COUNT) ||
+			(csid_hw->counters.crc_error_irq_count > csid_hw->crc_error_threshold) ||
+			/*add by xiaomi begin*/
+			((csid_hw->rx_cfg.lane_type != CAM_ISP_LANE_TYPE_CPHY) && 
+			csid_hw->counters.crc_error_irq_count)) {
+			CAM_INFO(CAM_ISP,
+				"CSID[%u] lane_type :%u",
+				csid_hw->hw_intf->hw_idx,
+				csid_hw->rx_cfg.lane_type);
+			/*add by xiaomi end*/
 			csid_hw->flags.fatal_err_detected = true;
 			cam_ife_csid_ver2_stop_csi2_in_err(csid_hw);
 		}
@@ -1345,6 +1389,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 	uint32_t                                    long_pkt_ftr_val;
 	uint32_t                                    total_crc;
 	int                                         data_idx = 0;
+	int                                         phy_idx = 0;
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params");
@@ -1364,6 +1409,9 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 
 	irq_status = payload->irq_reg_val &
 			csi2_reg->fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG0];
+
+
+	phy_idx = (int)(csid_hw->rx_cfg.phy_sel - csid_reg->cmn_reg->phy_sel_base_idx);
 
 	if (!csid_hw->flags.device_enabled) {
 		CAM_DBG(CAM_ISP, "CSID[%u] bottom-half after stop [0x%x]",
@@ -1396,12 +1444,17 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"INPUT_FIFO_OVERFLOW [Lanes:%s]: Skew/Less Data on lanes/ Slow csid clock:%luHz",
 				tmp_buf, cam_soc_util_get_applied_src_clk(soc_info, true));
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_ERROR_CPHY_PH_CRC) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_PKT_HDR_CORRUPTED;
+
+			count_ife_error(phy_idx);
+
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"CPHY_PH_CRC: Pkt Hdr CRC mismatch");
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_STREAM_UNDERFLOW) {
@@ -1409,24 +1462,32 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 				csi2_reg->captured_long_pkt_0_addr);
 
+			count_ife_error(phy_idx);
+
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"STREAM_UNDERFLOW: Fewer bytes rcvd than WC:%d in pkt hdr",
 				val & 0xFFFF);
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_ERROR_ECC) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_PKT_HDR_CORRUPTED;
+
+			count_ife_error(phy_idx);
+
 			CAM_ERR_BUF(CAM_ISP, log_buf,
 				CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"DPHY_ERROR_ECC: Pkt hdr errors unrecoverable. ECC: 0x%x",
 				 cam_io_r_mb(soc_info->reg_map[0].mem_base +
 					csi2_reg->captured_long_pkt_1_addr));
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_UNBOUNDED_FRAME) {
 			event_type |= CAM_ISP_HW_ERROR_CSID_UNBOUNDED_FRAME;
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"UNBOUNDED_FRAME: Frame started with EOF or No EOF");
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_CPHY_EOT_RECEPTION) {
@@ -1436,6 +1497,58 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 				(csid_hw->rx_cfg.epd_supported & CAM_ISP_EPD_SUPPORT) ? 'Y' : 'N',
 				(csid_hw->rx_cfg.lane_type) ? "cphy" : "dphy",
 				csid_hw->rx_cfg.lane_type);
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
+		}
+
+		/**
+		 * Starting from v780, CRC errors wil be treated as part fatal errors and
+		 * only be flagged after happening several times. Leave this for backward
+		 * compatibility.
+		 */
+		if (irq_status & IFE_CSID_VER2_RX_ERROR_CRC) {
+			event_type |= CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED;
+			long_pkt_ftr_val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+				csi2_reg->captured_long_pkt_ftr_addr);
+			total_crc = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+				csi2_reg->total_crc_err_addr);
+
+			count_ife_error(phy_idx);
+
+			if (csid_hw->rx_cfg.lane_type == CAM_ISP_LANE_TYPE_CPHY) {
+				val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+					csi2_reg->captured_cphy_pkt_hdr_addr);
+
+				CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
+					"PHY_CRC_ERROR: Long pkt payload CRC mismatch. Totl CRC Errs: %u, Rcvd CRC: 0x%x Caltd CRC: 0x%x, VC:%d DT:%d WC:%d",
+					total_crc, long_pkt_ftr_val & 0xffff,
+					long_pkt_ftr_val >> 16, val >> 22,
+					(val >> 16) & 0x3F, val & 0xFFFF);
+			} else {
+				CAM_ERR_BUF(CAM_ISP, log_buf,
+					CAM_IFE_CSID_LOG_BUF_LEN, &len,
+					"PHY_CRC_ERROR: Long pkt payload CRC mismatch. Totl CRC Errs: %u, Rcvd CRC: 0x%x Caltd CRC: 0x%x",
+					total_crc, long_pkt_ftr_val & 0xffff,
+					long_pkt_ftr_val >> 16);
+			}
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
+		}
+
+		CAM_ERR(CAM_ISP, "CSID[%u] Fatal Errors: %s", csid_hw->hw_intf->hw_idx, log_buf);
+
+		rx_irq_status |= irq_status;
+		csid_hw->flags.fatal_err_detected = true;
+	}
+
+	irq_status = payload->irq_reg_val &
+			csi2_reg->part_fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG0];
+
+	if (irq_status) {
+		len = 0;
+		if (irq_status & IFE_CSID_VER2_RX_CPHY_SOT_RECEPTION) {
+			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
+				"CPHY_SOT_RECEPTION: Less SOTs on lane/s");
+			count_ife_error(phy_idx);
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_ERROR_CRC) {
@@ -1463,22 +1576,6 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			}
 		}
 
-		CAM_ERR(CAM_ISP, "CSID[%u] Fatal Errors: %s", csid_hw->hw_intf->hw_idx, log_buf);
-
-		rx_irq_status |= irq_status;
-		csid_hw->flags.fatal_err_detected = true;
-	}
-
-	irq_status = payload->irq_reg_val &
-			csi2_reg->part_fatal_err_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG0];
-
-	if (irq_status) {
-		len = 0;
-		if (irq_status & IFE_CSID_VER2_RX_CPHY_SOT_RECEPTION) {
-			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
-				"CPHY_SOT_RECEPTION: Less SOTs on lane/s");
-		}
-
 		CAM_ERR(CAM_ISP, "CSID[%u] Partly fatal errors: %s",
 			csid_hw->hw_intf->hw_idx, log_buf);
 		rx_irq_status |= irq_status;
@@ -1496,6 +1593,7 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"MMAPPED_VC_DT: VC:%d DT:%d mapped to more than 1 csid paths",
 				(val >> 22), ((val >> 16) & 0x3F));
+			count_mipi_error(csid_hw->res_type);//add by xiaomi
 		}
 
 		CAM_ERR(CAM_ISP, "CSID[%u] Non-fatal-errors: %s",
@@ -2422,7 +2520,7 @@ int cam_ife_csid_ver2_get_hw_caps(void *hw_priv,
 	hw_caps->minor_version = csid_reg->cmn_reg->minor_version;
 	hw_caps->version_incr = csid_reg->cmn_reg->version_incr;
 	hw_caps->global_reset_en = csid_reg->cmn_reg->global_reset;
-	hw_caps->rup_en = csid_reg->cmn_reg->rup_supported;
+	hw_caps->aup_rup_en = csid_reg->cmn_reg->aup_rup_supported;
 	hw_caps->only_master_rup = csid_reg->cmn_reg->only_master_rup;
 	hw_caps->is_lite = soc_private->is_ife_csid_lite;
 	hw_caps->sfe_ipp_input_rdi_res = csid_reg->cmn_reg->sfe_ipp_input_rdi_res;
@@ -2496,6 +2594,14 @@ static int cam_ife_csid_ver2_wait_for_reset(
 {
 	unsigned long rem_jiffies = 0;
 	int rc = 0;
+	struct cam_ife_csid_ver2_reg_info *csid_reg;
+	struct cam_hw_soc_info                *soc_info;
+	void __iomem *mem_base;
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
+	soc_info = &csid_hw->hw_info->soc_info;
+	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 
 	rem_jiffies = cam_common_wait_for_completion_timeout(
 		&csid_hw->hw_info->hw_complete,
@@ -2544,7 +2650,7 @@ static int cam_ife_csid_ver2_reset_irq_top_half(uint32_t    evt_id,
 }
 
 static int cam_ife_csid_ver2_internal_reset(
-	struct cam_ife_csid_ver2_hw *csid_hw,
+	struct cam_ife_csid_ver2_hw *csid_hw, bool power_on_rst,
 	uint32_t rst_cmd, uint32_t rst_location, uint32_t rst_mode)
 {
 	uint32_t val = 0;
@@ -2573,8 +2679,17 @@ static int cam_ife_csid_ver2_internal_reset(
 		cam_io_w_mb(0x0, mem_base + csi2_reg->cfg1_addr);
 	}
 
-	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_SLAVE)
+	/*
+	 * After power on once the connection has been established
+	 * between master and slave CSIDs, issuing a reset to master
+	 * will also reset the slave. Reset to the slave is only needed
+	 * when powering on the cores since at this point the master-slave
+	 * connection is not established yet
+	 */
+	if ((csid_hw->sync_mode == CAM_ISP_HW_SYNC_SLAVE) && (!power_on_rst))
 		goto wait_only;
+
+	CAM_DBG(CAM_ISP, "CSID[%u] issuing reset", csid_hw->hw_intf->hw_idx);
 
 	reinit_completion(&csid_hw->hw_info->hw_complete);
 
@@ -2636,14 +2751,16 @@ int cam_ife_csid_ver2_reset(void *hw_priv,
 
 	switch (reset->reset_type) {
 	case CAM_IFE_CSID_RESET_GLOBAL:
-		rc = cam_ife_csid_ver2_internal_reset(csid_hw,
+		rc = cam_ife_csid_ver2_internal_reset(
+			csid_hw, reset->power_on_reset,
 			CAM_IFE_CSID_RESET_CMD_SW_RST,
 			CAM_IFE_CSID_RESET_LOC_COMPLETE,
 			CAM_CSID_HALT_IMMEDIATELY);
 		break;
 
 	case CAM_IFE_CSID_RESET_PATH:
-		rc = cam_ife_csid_ver2_internal_reset(csid_hw,
+		rc = cam_ife_csid_ver2_internal_reset(
+			csid_hw, reset->power_on_reset,
 			CAM_IFE_CSID_RESET_CMD_HW_RST,
 			CAM_IFE_CSID_RESET_LOC_PATH_ONLY,
 			CAM_CSID_HALT_IMMEDIATELY);
@@ -2906,9 +3023,6 @@ static bool cam_ife_csid_hw_ver2_need_unpack_mipi(
 	  * We still need to set need_unpack here so that we unpack incoming data (say MIPI10)
 	  * into MSB. If default_out_format can be set to 16_10/16_12/16_14 - then we can remove
 	  */
-	case CAM_FORMAT_PLAIN16_10:
-	case CAM_FORMAT_PLAIN16_12:
-	case CAM_FORMAT_PLAIN16_14:
 	case CAM_FORMAT_PLAIN16_16:
 		need_unpack = (bool)(path_reg->capabilities & CAM_IFE_CSID_CAP_RDI_UNPACK_MSB);
 		break;
@@ -3439,6 +3553,9 @@ int cam_ife_csid_ver2_reserve(void *hw_priv,
 	path_cfg->handle_camif_irq = reserve->handle_camif_irq;
 	csid_hw->flags.offline_mode = reserve->is_offline;
 	reserve->need_top_cfg = csid_reg->need_top_cfg;
+	/*add by xiaomi begin*/
+	csid_hw->crc_error_divisor = reserve->crc_error_divisor;
+	/*add by xiaomi end*/
 
 	CAM_DBG(CAM_ISP, "CSID[%u] Resource[id: %d name:%s] state %d cid %d",
 		csid_hw->hw_intf->hw_idx, reserve->res_id, res->res_name,
@@ -4208,6 +4325,22 @@ static int cam_ife_csid_ver2_program_rdi_path(
 
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+
+	/* Set crc error threshold for primary rdi path */
+	if (res->is_rdi_primary_res) {
+		/*add by xiaomi begin*/
+		if (csid_hw->crc_error_divisor > CAM_IFE_CSID_MIN_CRC_ERR_DIVISOR_XIAOMI &&
+			csid_hw->crc_error_divisor < CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR_XIAOMI) {
+			csid_hw->crc_error_threshold = path_cfg->width / csid_hw->crc_error_divisor;
+
+			CAM_DBG(CAM_ISP, "CSID:%u override crc error threshold: %u",
+				csid_hw->hw_intf->hw_idx, csid_hw->crc_error_threshold);
+		}
+		else
+		/*add by xiaomi end*/
+			csid_hw->crc_error_threshold = path_cfg->width / CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR;
+	} //add by xiaomi
+
 	if (!csid_hw->flags.offline_mode) {
 		CAM_DBG(CAM_ISP, "CSID:%u Rdi res: %d",
 			csid_hw->hw_intf->hw_idx, res->res_id);
@@ -4221,8 +4354,7 @@ static int cam_ife_csid_ver2_program_rdi_path(
 
 	if (res->is_rdi_primary_res) {
 		val |= path_reg->rup_irq_mask;
-		if (path_cfg->handle_camif_irq)
-			val |= path_reg->sof_irq_mask | path_reg->eof_irq_mask;
+		val |= path_reg->sof_irq_mask | path_reg->eof_irq_mask;
 	}
 
 	/* Enable secondary events dictated by HW mgr for RDI paths */
@@ -4297,6 +4429,21 @@ static int cam_ife_csid_ver2_program_ipp_path(
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
 
+	/* Set crc error threshold for ipp path */
+	if (res->res_id == CAM_IFE_PIX_PATH_RES_IPP) {
+		/*add by xiaomi begin*/
+		if (csid_hw->crc_error_divisor > CAM_IFE_CSID_MIN_CRC_ERR_DIVISOR_XIAOMI &&
+			csid_hw->crc_error_divisor < CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR_XIAOMI) {
+			csid_hw->crc_error_threshold = path_cfg->width / csid_hw->crc_error_divisor;
+
+			CAM_DBG(CAM_ISP, "CSID:%u override crc error threshold: %u",
+				csid_hw->hw_intf->hw_idx, csid_hw->crc_error_threshold);
+		}
+		else
+		/*add by xiaomi end*/
+			csid_hw->crc_error_threshold = path_cfg->width / CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR;
+	} //add by xiaomi
+
 	cam_io_w_mb(path_cfg->epoch_cfg << path_reg->epoch0_shift_val,
 		mem_base + path_reg->epoch_irq_cfg_addr);
 
@@ -4316,9 +4463,9 @@ static int cam_ife_csid_ver2_program_ipp_path(
 		if (path_cfg->sync_mode == CAM_ISP_HW_SYNC_NONE ||
 			path_cfg->sync_mode == CAM_ISP_HW_SYNC_MASTER) {
 			val |= path_reg->rup_irq_mask;
+			val |= path_reg->sof_irq_mask | path_reg->eof_irq_mask;
 			if (path_cfg->handle_camif_irq)
-				val |= path_reg->sof_irq_mask | path_reg->epoch0_irq_mask |
-				path_reg->eof_irq_mask;
+				val |= path_reg->epoch0_irq_mask;
 		}
 	}
 
@@ -5269,6 +5416,7 @@ static int cam_ife_csid_ver2_disable_core(
 			csid_hw->hw_intf->hw_idx);
 
 	csid_hw->counters.error_irq_count = 0;
+	csid_hw->counters.crc_error_irq_count = 0;
 	return rc;
 }
 
@@ -5734,6 +5882,7 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 
 	/* Issue a halt & reset to ensure there is no HW activity post the halt block */
 	reset.reset_type = CAM_IFE_CSID_RESET_PATH;
+	reset.power_on_reset = false;
 	cam_ife_csid_ver2_reset(hw_priv, &reset,
 		sizeof(struct cam_csid_reset_cfg_args));
 
@@ -7099,6 +7248,9 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 				cmd_args)->node_res;
 			cam_ife_csid_ver2_print_hbi_vbi(csid_hw, res);
 		}
+
+		/* Reset CRC error count during SOF */
+		csid_hw->counters.crc_error_irq_count = 0;
 		break;
 	case CAM_IFE_CSID_SET_CSID_DEBUG:
 		rc = cam_ife_csid_ver2_set_debug(csid_hw,

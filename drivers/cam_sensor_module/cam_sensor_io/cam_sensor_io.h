@@ -16,6 +16,12 @@
 #define SPI_MASTER           3
 #define I3C_MASTER           4
 
+#define MAX_IO_FAIL_COUNT    3
+#define MAX_DAMAGE_COUNT     3
+
+#define IS_DEV_IO_ERROR(damege_count, io_fail_count) \
+	(((damege_count) >= MAX_DAMAGE_COUNT || (io_fail_count) >= MAX_IO_FAIL_COUNT) ?  true : false)
+
 /**
  * @master_type: CCI master type
  * @i2c_client: I2C client information structure

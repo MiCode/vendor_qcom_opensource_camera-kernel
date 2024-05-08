@@ -36,6 +36,12 @@
 #define CAM_CRE_DEVICE_TYPE       (CAM_DEVICE_TYPE_BASE + 17)
 #define CAM_TPG_DEVICE_TYPE       (CAM_DEVICE_TYPE_BASE + 18)
 #define CAM_TFE_MC_DEVICE_TYPE    (CAM_DEVICE_TYPE_BASE + 19)
+#define CAM_APERTURE_DEVICE_TYPE  (CAM_DEVICE_TYPE_BASE + 20)
+#define CAM_ISPV4_DEVICE_TYPE     (CAM_DEVICE_TYPE_BASE + 21)
+
+/*Below is for MI ISP events which will notify user space*/
+/* V4L event type which user space will subscribe to */
+#define V4L_EVENT_MIISP_EVENT       (V4L_EVENT_CAM_REQ_MGR_EVENT | 0x200)
 
 /* cam_req_mgr hdl info */
 #define CAM_REQ_MGR_HDL_IDX_POS           8
@@ -47,7 +53,8 @@
  * It includes both session and device handles
  */
 #define CAM_REQ_MGR_MAX_HANDLES           64
-#define CAM_REQ_MGR_MAX_HANDLES_V2        256
+/* Xiaomi: enlarge from 256 to 300 */
+#define CAM_REQ_MGR_MAX_HANDLES_V2        300
 #define MAX_LINKS_PER_SESSION             2
 
 /* Interval for cam_info_rate_limit_custom() */
@@ -64,6 +71,41 @@
 #define V4L_EVENT_CAM_REQ_MGR_NODE_EVENT                                4
 #define V4L_EVENT_CAM_REQ_MGR_SOF_UNIFIED_TS                            5
 #define V4L_EVENT_CAM_REQ_MGR_PF_ERROR                                  6
+
+/* Add by xiaomi V4L event type for Hw event*/
+#define V4L_EVENT_HW_ISSUE_EVENT       		(V4L2_EVENT_PRIVATE_START + 1)
+
+/* Specific event ids to get notified in user space */
+#define V4L_EVENT_HW_ISSUE_CCI_ERROR					0
+#define V4L_EVENT_HW_ISSUE_POWER_ERROR					1
+
+/**
+ * HW ISSUE : error message err type
+ * @HW_ISSUE_ERROR_TYPE_SENSOR_POWER: Sensor Power error
+ * @HW_ISSUE_ERROR_TYPE_SENSOR_CCI: Sensor CCI error
+ * @HW_ISSUE_ERROR_TYPE_ACTUATOR_POWER: Actuator Power error
+ * @HW_ISSUE_ERROR_TYPE_ACTUATOR_CCI: Actuator CCI error
+ * @HW_ISSUE_ERROR_TYPE_EEPROM_POWER: EEprom Power error
+ * @HW_ISSUE_ERROR_TYPE_EEPROM_CCI: EEprom CCI error
+ */
+#define HW_ISSUE_ERROR_TYPE_SENSOR_POWER				0
+#define HW_ISSUE_ERROR_TYPE_SENSOR_CCI					1
+#define HW_ISSUE_ERROR_TYPE_ACTUATOR_POWER				3
+#define HW_ISSUE_ERROR_TYPE_ACTUATOR_CCI				4
+#define HW_ISSUE_ERROR_TYPE_EEPROM_POWER				5
+#define HW_ISSUE_ERROR_TYPE_EEPROM_CCI					6
+
+/**
+ * HW ISSUE : error message err code
+ * @HW_ISSUE_HW_CCI_READ_ERROR					: CCI_READ_ERROR
+ * @HW_ISSUE_HW_CCI_WRITE_ERROR					: CCI_WRITE_ERROR
+ * @HW_ISSUE_HW_CCI_POLL_ERROR					: CCI_POLL_ERROR
+ */
+#define HW_ISSUE_HW_CCI_READ_ERROR                   	 0
+#define HW_ISSUE_HW_CCI_WRITE_ERROR                  	 1
+#define HW_ISSUE_HW_CCI_POLL_ERROR                   	 2
+/*end xiaomi*/
+
 
 /* SOF Event status */
 #define CAM_REQ_MGR_SOF_EVENT_SUCCESS           0
@@ -907,4 +949,36 @@ struct cam_req_mgr_message {
 		struct cam_req_mgr_pf_err_msg pf_err_msg;
 	} u;
 };
+
+enum miisp_message_type {
+	MIISP_RPMSG_MSG_TYPE,
+	MIISP_SOF_MSG_TYPE,
+	MIISP_EOF_MSG_TYPE,
+	MIISP_EXCEPTION_MSG_TYPE,
+	MIISP_COREDUMP_MSG_TYPE,
+	MIISP_WDT_MSG_TYPE,
+	MIISP_THERMAL_MSG_TYPE,
+	MIISP_RPMSG_TIMEOUT_TYPE,
+	MIISP_MSG_TYPE_MAX,
+};
+
+#define MIISP_MSG_MAX_LEN 13
+struct cam_miisp_message {
+	__s32 session_hdl;
+	union {
+		enum miisp_message_type msg_type;
+		__s32 reserved_type;
+	};
+	union {
+		__u32 data[MIISP_MSG_MAX_LEN];  /*52 Max*/
+	} u;
+	uint32_t len;
+};
+
+// xiaomi add
+#define V4L_EVENT_CAM_MQS_EVENT           (V4L2_EVENT_PRIVATE_START + 7)
+#define V4L_EVENT_CAM_MQS_ISP             1
+#define V4L_EVENT_CAM_MQS_BUBBLE          (V4L_EVENT_CAM_MQS_ISP << 16) + 1
+// xiaomi add
+
 #endif /* __UAPI_LINUX_CAM_REQ_MGR_H */

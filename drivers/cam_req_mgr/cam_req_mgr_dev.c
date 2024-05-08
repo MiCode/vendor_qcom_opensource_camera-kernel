@@ -30,7 +30,9 @@
 #include "cam_compat.h"
 #include "camera_main.h"
 
-#define CAM_REQ_MGR_EVENT_MAX 30
+/* Xiaomi: enlarge from 30 to 200 */
+#define CAM_REQ_MGR_EVENT_MAX 200
+/* Xiaomi: enlarge from 30 to 200 */
 #define CAM_I3C_MASTER_COMPAT "qcom,geni-i3c"
 
 static struct cam_req_mgr_device g_dev;
@@ -47,6 +49,7 @@ static const struct of_device_id cam_sensor_module_dt_match[] = {
 	{ .compatible = "qcom,eeprom" },
 	{.compatible = "qcom,actuator"},
 	{ .compatible = "qcom,ois" },
+	{.compatible = "qcom,aperture"},
 	{.compatible = "qcom,camera-flash", .data = NULL},
 	{}
 };

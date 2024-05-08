@@ -310,7 +310,6 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	struct hfi_q_hdr *q;
 	uint32_t new_read_idx, size_in_words, word_diff, temp;
 	uint32_t *read_q, *read_ptr, *write_ptr;
-	uint32_t size_upper_bound = 0;
 	struct mutex *q_lock;
 	int rc = 0;
 
@@ -352,15 +351,6 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	q_tbl_ptr = (struct hfi_qtbl *)hfi->map.qtbl.kva;
 	q = &q_tbl_ptr->q_hdr[q_id];
 
-	if (q->qhdr_read_idx == q->qhdr_write_idx) {
-		CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d Q not ready, state:%u, r idx:%u, w idx:%u",
-			hfi->client_name, client_handle, hfi->hfi_state,
-			q->qhdr_read_idx, q->qhdr_write_idx);
-		rc = -EIO;
-		goto err;
-	}
-
-	size_upper_bound = q->qhdr_q_size;
 	if (q_id == Q_MSG)
 		read_q = (uint32_t *)hfi->map.msg_q.kva;
 	else
@@ -369,15 +359,20 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	read_ptr = (uint32_t *)(read_q + q->qhdr_read_idx);
 	write_ptr = (uint32_t *)(read_q + q->qhdr_write_idx);
 
-	if (write_ptr > read_ptr)
+	if (write_ptr >= read_ptr)
 		size_in_words = write_ptr - read_ptr;
 	else {
 		word_diff = read_ptr - write_ptr;
 		size_in_words =  q->qhdr_q_size -  word_diff;
 	}
 
-	if ((size_in_words == 0) ||
-		(size_in_words > size_upper_bound)) {
+	if (size_in_words == 0) {
+		CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d Q not ready, state:%u, r idx:%u, w idx:%u",
+			hfi->client_name, client_handle, hfi->hfi_state,
+			q->qhdr_read_idx, q->qhdr_write_idx);
+		rc = -EIO;
+		goto err;
+	} else if (size_in_words > q->qhdr_q_size) {
 		CAM_ERR(CAM_HFI, "[%s] Invalid HFI message packet size - 0x%08x hfi hdl:%d",
 			hfi->client_name, size_in_words << BYTE_WORD_SHIFT,
 			client_handle);
@@ -387,10 +382,10 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	}
 
 	if (size_in_words > buf_words_size) {
-		CAM_ERR(CAM_HFI,
+		CAM_WARN(CAM_HFI,
 			"[%s] hdl: %d Size of buffer: %u is smaller than size to read from queue: %u",
 			hfi->client_name, client_handle, buf_words_size, size_in_words);
-		rc = -EIO;
+		rc = -ENOMEM;
 		goto err;
 	}
 

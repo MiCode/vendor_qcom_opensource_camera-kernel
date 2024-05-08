@@ -41,6 +41,23 @@ int32_t cam_sensor_get_sub_module_index(struct device_node *of_node,
 		of_node_put(src_node);
 	}
 
+	//xiaomi add
+	src_node = of_parse_phandle(of_node, "aperture-src", 0);
+	if (!src_node) {
+		CAM_DBG(CAM_SENSOR, "src_node NULL");
+	} else {
+		rc = of_property_read_u32(src_node, "cell-index", &val);
+		CAM_DBG(CAM_SENSOR, "aperture cell index %d, rc %d", val, rc);
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR, "failed %d", rc);
+			of_node_put(src_node);
+			return rc;
+		}
+		sensor_info->subdev_id[SUB_MODULE_APERTURE] = val;
+		of_node_put(src_node);
+	}
+	//xiaomi end
+
 	src_node = of_parse_phandle(of_node, "ois-src", 0);
 	if (!src_node) {
 		CAM_DBG(CAM_SENSOR, "src_node NULL");
@@ -312,6 +329,7 @@ int32_t cam_sensor_parse_dt(struct cam_sensor_ctrl_t *s_ctrl)
 
 	/* Initialize mutex */
 	mutex_init(&(s_ctrl->cam_sensor_mutex));
+	init_power_sync_mutex(s_ctrl->io_master_info.cci_client, s_ctrl->cci_i2c_master);//xiaomi add
 
 	/* Initialize default parameters */
 	for (i = 0; i < soc_info->num_clk; i++) {
