@@ -46,6 +46,11 @@ extern struct i2c_driver cam_sensor_i2c_driver;
 extern struct platform_driver cam_flash_platform_driver;
 #endif
 #endif
+
+#ifdef CONFIG_FLASHLIGHT_PWM
+extern struct platform_driver pm6450_flash_gpio_platform_driver;
+#endif
+
 #ifdef CONFIG_SPECTRA_ICP
 extern struct platform_driver cam_a5_driver;
 extern struct platform_driver cam_lx7_driver;
@@ -116,6 +121,9 @@ static struct platform_driver *const cam_component_platform_drivers[] = {
 	IS_REACHABLE(CONFIG_LEDS_QTI_FLASH)
 	&cam_flash_platform_driver,
 #endif
+#endif
+#ifdef CONFIG_FLASHLIGHT_PWM
+	&pm6450_flash_gpio_platform_driver,
 #endif
 #ifdef CONFIG_SPECTRA_ICP
 	&cam_a5_driver,

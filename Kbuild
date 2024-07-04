@@ -101,6 +101,7 @@ camera-y := \
 	drivers/cam_cdm/cam_cdm_virtual_core.o \
 	drivers/cam_cdm/cam_cdm_hw_core.o
 
+
 ifeq (,$(filter $(CONFIG_CAM_PRESIL),y m))
 	camera-y += drivers/cam_presil/stub/cam_presil_hw_access_stub.o
 	camera-y += drivers/cam_utils/cam_io_util.o
@@ -109,6 +110,10 @@ else
 	camera-y += drivers/cam_presil/presil/cam_presil_hw_access.o
 	camera-y += drivers/cam_presil/presil_framework_dev/cam_presil_framework_dev.o
 	ccflags-y += -DCONFIG_CAM_PRESIL=1
+endif
+
+ifeq ($(FACTORY_MODE_BUILD),1)
+	ccflags-y += -DCONFIG_FACTORY_MODE=1
 endif
 
 camera-$(CONFIG_QCOM_CX_IPEAK) += drivers/cam_utils/cam_cx_ipeak.o
@@ -237,6 +242,9 @@ camera-$(CONFIG_SPECTRA_SENSOR) += \
 	drivers/cam_sensor_module/cam_flash/cam_flash_dev.o \
 	drivers/cam_sensor_module/cam_flash/cam_flash_core.o \
 	drivers/cam_sensor_module/cam_flash/cam_flash_soc.o
+
+camera-$(CONFIG_FLASHLIGHT_PWM) += \
+	drivers/cam_sensor_module/cam_flash_pm6450_gpio/pm6450_flash_gpio.o
 
 camera-$(CONFIG_SPECTRA_CUSTOM) += \
 	drivers/cam_cust/cam_custom_hw_mgr/cam_custom_hw1/cam_custom_sub_mod_soc.o \

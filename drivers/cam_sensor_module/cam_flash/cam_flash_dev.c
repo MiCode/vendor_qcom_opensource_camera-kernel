@@ -11,7 +11,266 @@
 #include "cam_flash_core.h"
 #include "cam_common_util.h"
 #include "camera_main.h"
+#define WT_FLASHLIGHT_DEVNAME		   "factory_test_flash"
+int flash_state = 0;
 
+//add for pwm test start
+int flash_mode = 0;
+int pwm_period = 50000;
+int pwm_duty = 80;
+//add for pwm test end
+
+//add for breath test start
+int dutyBreathStart = 1800;
+int dutyBreathEnd = 50000;
+int dutyChange = 600;
+//add for breath test end
+
+struct platform_device *pdev_factory_test_flash;
+#ifdef CONFIG_FLASHLIGHT_PWM
+extern int cam_gpio_flash_on(struct cam_flash_ctrl *flash_ctrl,struct pwm_setting * pwm);
+extern int cam_gpio_flash_off(struct cam_flash_ctrl *flash_ctrl,struct pwm_setting * pwm);
+extern void cam_torch_on(struct cam_flash_ctrl *flash_ctrl, struct pwm_setting *pwm);
+extern void cam_torch_off(struct cam_flash_ctrl *flash_ctrl,struct pwm_setting *pwm);
+
+static ssize_t show_flashduty(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", flash_state);
+}
+static ssize_t store_flashduty(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct cam_flash_ctrl *fctrl = NULL;
+	struct pwm_setting pwm;
+	int dutyCnt = 0;
+	CAM_DBG(CAM_FLASH, "Enter!\n");
+	flash_state = simple_strtol(buf, NULL, 10);
+	CAM_DBG(CAM_FLASH, "torch:set flash_state= %d\n", flash_state);
+	fctrl = platform_get_drvdata(pdev_factory_test_flash);
+	switch(flash_state) {
+		case 0: //torch mode off
+			pwm.period_ns = 50000;
+			pwm.duty_ns = 50000;
+			cam_torch_off(fctrl,&pwm);
+		break;
+
+		case 1: //torch mode on
+			pwm.period_ns = 50000;
+			pwm.duty_ns = 50000;
+			cam_torch_on(fctrl,&pwm);
+		break;
+
+		case 2: //flash mode on-off
+			pwm.period_ns = 50000;
+			pwm.duty_ns = 50000;
+			cam_gpio_flash_on(fctrl,&pwm);
+			msleep(700);
+			cam_gpio_flash_off(fctrl,&pwm);
+			msleep(1000);
+
+			pwm.duty_ns = 30000;
+			cam_gpio_flash_on(fctrl,&pwm);
+			msleep(700);
+			cam_gpio_flash_off(fctrl,&pwm);
+			msleep(1000);
+
+			pwm.duty_ns = 10000;
+			cam_gpio_flash_on(fctrl,&pwm);
+			msleep(700);
+			cam_gpio_flash_off(fctrl,&pwm);
+		break;
+		case 3: //torch mode switch pwm on
+			pwm.period_ns = 50000;
+			pwm.duty_ns = 50000;
+			cam_torch_on(fctrl,&pwm);
+			msleep(1000);
+
+			pwm.duty_ns = 30000;
+			cam_torch_on(fctrl,&pwm);
+			msleep(1000);
+
+			pwm.duty_ns = 10000;
+			cam_torch_on(fctrl,&pwm);
+		break;
+
+//add for pwm test start
+		case 4:
+			if(!flash_mode) {
+				CAM_DBG(CAM_FLASH, "torch mode pwm test!\n");
+				pwm.period_ns = pwm_period;
+				pwm.duty_ns = pwm_duty;
+				cam_torch_on(fctrl,&pwm);
+			}
+			else {
+				CAM_DBG(CAM_FLASH, "flash mode pwm test!\n");
+				pwm.period_ns = pwm_period;
+				pwm.duty_ns = pwm_duty;
+				cam_gpio_flash_on(fctrl,&pwm);
+				msleep(700);
+				cam_gpio_flash_off(fctrl,&pwm);
+			}
+		break;
+//add for pwm test end
+
+//add for breath test start
+		case 5:
+			pwm.period_ns = pwm_period;
+			pwm.duty_ns = pwm_period;
+			cam_torch_on(fctrl,&pwm);
+			msleep(5);
+			dutyCnt = dutyBreathStart; //1800 50000*3.6%;1400 50000*2.8%
+			while(dutyCnt <= dutyBreathEnd) { //50000 50000*100%
+				pwm.duty_ns = dutyCnt;
+				CAM_ERR(CAM_FLASH, "breath up change duty_ns %d",pwm.duty_ns);
+				cam_torch_on(fctrl,&pwm);
+				msleep(20);	//wait 20ms in loop
+				dutyCnt += dutyChange; //600 50000*1.2%
+			}
+			dutyCnt = dutyBreathEnd;
+			msleep(200); //wait 200ms
+			while(dutyCnt >= dutyBreathStart) { //1800 50000*3.6%;200 50000*0.4%
+				pwm.duty_ns = dutyCnt;
+				CAM_ERR(CAM_FLASH, "breath down change duty_ns %d",pwm.duty_ns);
+				cam_torch_on(fctrl,&pwm);
+				msleep(20);
+				dutyCnt -= dutyChange;
+			}
+		break;
+//add for breath test end
+
+        default:
+            cam_torch_off(fctrl,&pwm);
+		break;
+	}
+	CAM_DBG(CAM_FLASH, "Exit!\n");
+	return count;
+}
+static DEVICE_ATTR(rear_flash, 0664, show_flashduty, store_flashduty);
+
+static ssize_t pwm_mode_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", flash_mode);
+}
+static ssize_t pwm_mode_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	CAM_DBG(CAM_FLASH, "Enter!\n");
+	flash_mode = simple_strtol(buf, NULL, 10);
+	CAM_DBG(CAM_FLASH, "[pwm_mode_store]set flash_mode= %d\n", flash_mode);
+	CAM_DBG(CAM_FLASH, "Exit!\n");
+	return count;
+}
+static DEVICE_ATTR(pwm_mode_flash, 0664, pwm_mode_show, pwm_mode_store);
+
+static ssize_t pwm_duty_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", pwm_duty);
+}
+static ssize_t pwm_duty_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	CAM_DBG(CAM_FLASH, "Enter!\n");
+	pwm_duty = simple_strtol(buf, NULL, 10);
+	CAM_DBG(CAM_FLASH, "[pwm_duty_store]set pwm_duty= %d\n", pwm_duty);
+	CAM_DBG(CAM_FLASH, "Exit!\n");
+	return count;
+}
+static DEVICE_ATTR(pwm_duty_flash, 0664, pwm_duty_show, pwm_duty_store);
+
+static ssize_t pwm_period_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", pwm_period);
+}
+static ssize_t pwm_period_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	CAM_DBG(CAM_FLASH, "Enter!\n");
+	pwm_period = simple_strtol(buf, NULL, 10);
+	CAM_DBG(CAM_FLASH, "[pwm_period_store]set pwm_period= %d\n", pwm_period);
+	CAM_DBG(CAM_FLASH, "Exit!\n");
+	return count;
+}
+static DEVICE_ATTR(pwm_period_flash, 0664, pwm_period_show, pwm_period_store);
+
+
+static ssize_t breath_start_duty_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", dutyBreathStart);
+}
+static ssize_t breath_start_duty_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	CAM_DBG(CAM_FLASH, "Enter!\n");
+	dutyBreathStart = simple_strtol(buf, NULL, 10);
+	CAM_DBG(CAM_FLASH, "[breath_start_duty_store]set dutyBreathStart= %d\n", dutyBreathStart);
+	CAM_DBG(CAM_FLASH, "Exit!\n");
+	return count;
+}
+static DEVICE_ATTR(breath_start_duty, 0664, breath_start_duty_show, breath_start_duty_store);
+
+static ssize_t breath_end_duty_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", dutyBreathEnd);
+}
+static ssize_t breath_end_duty_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	CAM_DBG(CAM_FLASH, "Enter!\n");
+	dutyBreathEnd = simple_strtol(buf, NULL, 10);
+	CAM_DBG(CAM_FLASH, "[breath_end_duty_store]set dutyBreathEnd= %d\n", dutyBreathEnd);
+	CAM_DBG(CAM_FLASH, "Exit!\n");
+	return count;
+}
+static DEVICE_ATTR(breath_end_duty, 0664, breath_end_duty_show, breath_end_duty_store);
+
+static ssize_t breath_climb_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", dutyChange);
+}
+static ssize_t breath_climb_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	CAM_DBG(CAM_FLASH, "Enter!\n");
+	dutyChange = simple_strtol(buf, NULL, 10);
+	CAM_DBG(CAM_FLASH, "[breath_climb_store]set dutyChange= %d\n", dutyChange);
+	CAM_DBG(CAM_FLASH, "Exit!\n");
+	return count;
+}
+static DEVICE_ATTR(breath_climb, 0664, breath_climb_show, breath_climb_store);
+
+static int cam_flash_factory_test_creat()
+{
+	static struct class *wt_flashlight_class;
+	static struct device *wt_flashlight_device;
+
+	wt_flashlight_class = class_create(THIS_MODULE, "camera");   //  /sys/class/camera
+	if (IS_ERR(wt_flashlight_class)) {
+		CAM_ERR(CAM_FLASH, "[flashlight_probe] Unable to create class, err = %d ~",
+			(int)PTR_ERR(wt_flashlight_class));
+		return -1 ;
+	}
+	wt_flashlight_device =
+		device_create(wt_flashlight_class, NULL, MKDEV(0,1), NULL, WT_FLASHLIGHT_DEVNAME);  //   /sys/class/camera/factory_test_flash
+	if (NULL == wt_flashlight_device) {
+		CAM_ERR(CAM_FLASH, "[flashlight_probe] device_create fail ~");
+	}
+	if (device_create_file(wt_flashlight_device,&dev_attr_rear_flash)) { // /sys/class/camera/factory_test_flash/rear_flash
+		CAM_ERR(CAM_FLASH, "[flashlight_probe]device_create_file rear_flash fail!\n");
+	}
+	if (device_create_file(wt_flashlight_device,&dev_attr_pwm_mode_flash)) { // /sys/class/camera/factory_test_flash/pwm_mode_flash
+		CAM_ERR(CAM_FLASH, "[flashlight_probe]device_create_file pwm_mode_flash fail!\n");
+	}
+	if (device_create_file(wt_flashlight_device,&dev_attr_pwm_period_flash)) { // /sys/class/camera/factory_test_flash/pwm_period_flash
+		CAM_ERR(CAM_FLASH, "[flashlight_probe]device_create_file pwm_period_flash fail!\n");
+	}
+	if (device_create_file(wt_flashlight_device,&dev_attr_pwm_duty_flash)) { // /sys/class/camera/factory_test_flash/pwm_duty_flash
+		CAM_ERR(CAM_FLASH, "[flashlight_probe]device_create_file pwm_duty_flash fail!\n");
+	}
+	if (device_create_file(wt_flashlight_device,&dev_attr_breath_start_duty)) { // /sys/class/camera/factory_test_flash/breath_start_duty
+		CAM_ERR(CAM_FLASH, "[flashlight_probe]device_create_file breath_start_duty fail!\n");
+	}
+	if (device_create_file(wt_flashlight_device,&dev_attr_breath_end_duty)) { // /sys/class/camera/factory_test_flash/breath_end_duty
+		CAM_ERR(CAM_FLASH, "[flashlight_probe]device_create_file breath_end_duty fail!\n");
+	}
+	if (device_create_file(wt_flashlight_device,&dev_attr_breath_climb)) { // /sys/class/camera/factory_test_flash/breath_climb
+		CAM_ERR(CAM_FLASH, "[flashlight_probe]device_create_file breath_climb fail!\n");
+	}
+	return 0;
+}
+#endif
 static int32_t cam_flash_driver_cmd(struct cam_flash_ctrl *fctrl,
 		void *arg, struct cam_flash_private_soc *soc_private)
 {
@@ -179,6 +438,9 @@ static int32_t cam_flash_driver_cmd(struct cam_flash_ctrl *fctrl,
 		flash_cap.flash_type = soc_private->flash_type;
 		flash_cap.version = 1;
 		flash_cap.num_valid_params = 0;
+		CAM_DBG(CAM_FLASH, "ts1218 dts flash_type is %d, it should same with camx&chi flash_type",
+		 soc_private->flash_type);
+		CAM_DBG(CAM_FLASH, "ts1218 get flash_enabel_gpio %d", soc_private->flash_gpio_enable);
 		for (i = 0; i < fctrl->flash_num_sources; i++) {
 			flash_cap.max_current_flash[i] =
 				soc_private->flash_max_current[i];
@@ -583,6 +845,10 @@ static int cam_flash_component_bind(struct device *dev,
 	fctrl->bridge_intf.ops.apply_req = cam_flash_apply_request;
 	fctrl->bridge_intf.ops.flush_req = cam_flash_flush_request;
 	fctrl->last_flush_req = 0;
+	#ifdef CONFIG_FLASHLIGHT_PWM
+	cam_flash_factory_test_creat();
+	#endif
+	pdev_factory_test_flash = pdev;
 
 	mutex_init(&(fctrl->flash_mutex));
 

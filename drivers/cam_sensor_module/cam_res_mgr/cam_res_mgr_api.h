@@ -86,7 +86,7 @@ int cam_res_mgr_gpio_request(struct device *dev, unsigned int gpio,
  */
 void cam_res_mgr_gpio_free_arry(struct device *dev,
 	const struct gpio *array, size_t num);
-
+void cam_res_mgr_gpio_free(struct device *dev, uint gpio);
 /**
  * @brief: Set GPIO power level
  *

@@ -348,4 +348,10 @@ struct msm_camera_gpio_conf {
 	struct msm_camera_gpio_num_info *gpio_num_info;
 };
 
+struct pwm_setting {
+	uint32_t	pre_period_ns;
+  	uint32_t	period_ns;
+  	uint32_t	duty_ns;
+};
+
 #endif /* _CAM_SENSOR_CMN_HEADER_ */

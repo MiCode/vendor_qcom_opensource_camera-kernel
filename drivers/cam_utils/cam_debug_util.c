@@ -11,6 +11,7 @@
 #include "cam_debug_util.h"
 
 unsigned long long debug_mdl;
+
 module_param(debug_mdl, ullong, 0644);
 
 /* 0x0 - only logs, 0x1 - only trace, 0x2 - logs + trace */

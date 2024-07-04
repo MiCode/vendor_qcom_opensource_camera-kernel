@@ -716,6 +716,7 @@ int32_t cam_handle_mem_ptr(uint64_t handle, uint32_t cmd,
 		if (cmd_desc[i].offset >= len) {
 			CAM_ERR(CAM_SENSOR,
 				"offset past length of buffer");
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 			rc = -EINVAL;
 			goto end;
 		}
@@ -723,6 +724,7 @@ int32_t cam_handle_mem_ptr(uint64_t handle, uint32_t cmd,
 		if (cmd_desc[i].length > remain_len) {
 			CAM_ERR(CAM_SENSOR,
 				"Not enough buffer provided for cmd");
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 			rc = -EINVAL;
 			goto end;
 		}
@@ -736,6 +738,7 @@ int32_t cam_handle_mem_ptr(uint64_t handle, uint32_t cmd,
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR,
 				"Failed to parse the command Buffer Header");
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 			goto end;
 		}
 		cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
@@ -845,11 +848,21 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 	if (s_ctrl->hw_no_ops)
 		return rc;
 
-	rc = camera_io_dev_read(
-		&(s_ctrl->io_master_info),
-		slave_info->sensor_id_reg_addr,
-		&chipid, CAMERA_SENSOR_I2C_TYPE_WORD,
-		CAMERA_SENSOR_I2C_TYPE_WORD);
+	if (slave_info->sensor_id == 0x02e0)
+	{
+		rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			slave_info->sensor_id_reg_addr,
+			&chipid, CAMERA_SENSOR_I2C_TYPE_BYTE,
+			CAMERA_SENSOR_I2C_TYPE_WORD);
+	}
+	else {
+		rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			slave_info->sensor_id_reg_addr,
+			&chipid, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_WORD);
+	}
 
 	CAM_DBG(CAM_SENSOR, "%s read id: 0x%x expected id 0x%x:",
 		s_ctrl->sensor_name, chipid, slave_info->sensor_id);
@@ -1576,33 +1589,41 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 {
 	int rc = 0, offset, i;
 	uint64_t top = 0, del_req_id = 0;
+	int size = 0;
+	int index =0;
 	struct i2c_settings_array *i2c_set = NULL;
 	struct i2c_settings_list *i2c_list;
-
+	CAM_DBG(CAM_SENSOR, "sensorseqTS: opcode = %d, req_id = %d", opcode, req_id);
 	if (req_id == 0) {
 		switch (opcode) {
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMON: {
 			i2c_set = &s_ctrl->i2c_data.streamon_settings;
+			CAM_DBG(CAM_SENSOR, "sensorseqTS: streamon_settings");
 			break;
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG: {
 			i2c_set = &s_ctrl->i2c_data.init_settings;
+			CAM_DBG(CAM_SENSOR, "sensorseqTS: init_settings");
 			break;
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_CONFIG: {
 			i2c_set = &s_ctrl->i2c_data.config_settings;
+			CAM_DBG(CAM_SENSOR, "sensorseqTS: config_settings");
 			break;
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
 			i2c_set = &s_ctrl->i2c_data.streamoff_settings;
+			CAM_DBG(CAM_SENSOR, "sensorseqTS: streamoff_settings");
 			break;
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_UNLOCK: {
 			i2c_set = &s_ctrl->i2c_data.reg_bank_unlock_settings;
+			CAM_DBG(CAM_SENSOR, "sensorseqTS: reg_bank_unlock_settings");
 			break;
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_LOCK: {
 			i2c_set = &s_ctrl->i2c_data.reg_bank_lock_settings;
+			CAM_DBG(CAM_SENSOR, "sensorseqTS: reg_bank_lock_settings");
 			break;
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_UPDATE:
@@ -1615,15 +1636,42 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 		if (i2c_set->is_settings_valid == 1) {
 			list_for_each_entry(i2c_list,
 				&(i2c_set->list_head), list) {
-				if (!s_ctrl->hw_no_ops)
-					rc = cam_sensor_i2c_modes_util(
-						&(s_ctrl->io_master_info),
-						i2c_list);
+				if (!s_ctrl->hw_no_ops){
+					rc = cam_sensor_i2c_modes_util(&(s_ctrl->io_master_info),i2c_list);
+				}
 				if (rc < 0) {
-					CAM_ERR(CAM_SENSOR,
-						"Failed to apply settings: %d",
-						rc);
+					CAM_ERR(CAM_SENSOR,"Failed to apply settings: %d",rc);
 					return rc;
+				}
+				else{
+					CAM_DBG(CAM_SENSOR, "sensorseqTS: req_id:%d, i2c size:%d",req_id, i2c_list->i2c_settings.size);
+					size = i2c_list->i2c_settings.size;
+					for(index =0 ; index < size; index++) {
+					if(CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG != opcode) {
+						if(size <= 15) {
+							CAM_DBG(CAM_SENSOR, "sensorseqTS: req_id:%d, [i2c_settings] :addr:0x%x, data:0x%x",
+							req_id,
+							i2c_list->i2c_settings.reg_setting[index].reg_addr,
+							i2c_list->i2c_settings.reg_setting[index].reg_data);
+						}
+						else {
+							if (index < 5) {
+								CAM_DBG(CAM_SENSOR, "sensorseqTS: req_id:%d, first five i2c data[%d]:addr:0x%x, data:0x%x",
+								req_id,
+								index,
+								i2c_list->i2c_settings.reg_setting[index].reg_addr,
+								i2c_list->i2c_settings.reg_setting[index].reg_data);
+							}
+							if (index >  (size-6)) {
+								CAM_DBG(CAM_SENSOR, "sensorseqTS: req_id:%d, last five i2c data[%d]:addr:0x%x, data:0x%x",
+								req_id,
+								index,
+								i2c_list->i2c_settings.reg_setting[index].reg_addr,
+								i2c_list->i2c_settings.reg_setting[index].reg_data);
+							}
+						}
+					}
+					}
 				}
 			}
 		}
@@ -1639,18 +1687,47 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 			i2c_set[offset].request_id == req_id) {
 			list_for_each_entry(i2c_list,
 				&(i2c_set[offset].list_head), list) {
-				if (!s_ctrl->hw_no_ops)
-					rc = cam_sensor_i2c_modes_util(
-						&(s_ctrl->io_master_info),
-						i2c_list);
+				if (!s_ctrl->hw_no_ops){
+					rc = cam_sensor_i2c_modes_util(&(s_ctrl->io_master_info), i2c_list);
+				}
 				if (rc < 0) {
-					CAM_ERR(CAM_SENSOR,
-						"Failed to apply settings: %d",
-						rc);
+					CAM_ERR(CAM_SENSOR,"Failed to apply settings: %d", rc);
 					return rc;
 				}
+				else {
+					CAM_DBG(CAM_SENSOR, "sensorseqTS: req_id:%d, i2c size:%d",
+					req_id,
+					i2c_list->i2c_settings.size);
+
+					size = i2c_list->i2c_settings.size;
+					for(index =0 ; index < size; index++) {
+					if(CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG != opcode) {
+						if(size <= 15) {
+							CAM_DBG(CAM_SENSOR, "sensorseqTS: req_id:%d, [i2c_settings] :addr:0x%x, data:0x%x",
+							req_id,
+							i2c_list->i2c_settings.reg_setting[index].reg_addr,
+							i2c_list->i2c_settings.reg_setting[index].reg_data);
+						}
+						else {
+							if (index < 5) {
+								CAM_DBG(CAM_SENSOR, "sensorseqTS: req_id:%d, first five i2c data[%d]:addr:0x%x, data:0x%x",
+								req_id,
+								index,
+								i2c_list->i2c_settings.reg_setting[index].reg_addr,
+								i2c_list->i2c_settings.reg_setting[index].reg_data);
+							}
+							if (index >  (size-6)) {
+								CAM_DBG(CAM_SENSOR, "sensorseqTS: req_id:%d, last five i2c data[%d]:addr:0x%x, data:0x%x",
+								req_id,
+								index,
+								i2c_list->i2c_settings.reg_setting[index].reg_addr,
+								i2c_list->i2c_settings.reg_setting[index].reg_data);
+							}
+						}
+					}
+					}
+				}
 			}
-			CAM_DBG(CAM_SENSOR, "applied req_id: %llu", req_id);
 		} else {
 			CAM_DBG(CAM_SENSOR,
 				"Invalid/NOP request to apply: %lld", req_id);

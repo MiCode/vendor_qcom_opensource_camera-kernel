@@ -72,6 +72,7 @@ struct cam_mem_buf_queue {
 	dma_addr_t vaddr;
 	uintptr_t kmdvaddr;
 	bool active;
+	bool release_deferred;
 	bool is_imported;
 	bool is_internal;
 	struct timespec64 timestamp;

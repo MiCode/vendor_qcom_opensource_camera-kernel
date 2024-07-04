@@ -21,6 +21,11 @@ endif
 
 # Clear shell environment variables from previous android module during build
 include $(CLEAR_VARS)
+$(info ts01220-FACTORY_BUILD $(FACTORY_BUILD))
+ifneq ($(FACTORY_BUILD), )
+$(info ts01221-FACTORY_BUILD $(FACTORY_BUILD))
+KBUILD_OPTIONS += FACTORY_MODE_BUILD=1
+endif
 # For incremental compilation support.
 LOCAL_SRC_FILES             :=  \
                                 $(shell find $(LOCAL_PATH)/config -L -type f)      \

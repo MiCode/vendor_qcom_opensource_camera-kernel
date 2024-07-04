@@ -74,6 +74,8 @@ static int32_t cam_get_source_node_info(
 	struct device_node *flash_src_node = NULL;
 	struct device_node *torch_src_node = NULL;
 	struct device_node *switch_src_node = NULL;
+	int16_t gpio_array_size = 0;
+	uint16_t *gpio_array = NULL;
 
 	soc_private->is_wled_flash =
 		of_property_read_bool(of_node, "wled-flash-support");
@@ -84,7 +86,23 @@ static int32_t cam_get_source_node_info(
 		CAM_ERR(CAM_FLASH, "flash-type read failed rc=%d", rc);
 		soc_private->flash_type = CAM_FLASH_TYPE_PMIC;
 	}
-
+	else if(soc_private->flash_type == CAM_FLASH_TYPE_GPIO) {
+		gpio_array_size = of_gpio_count(of_node);
+		if (gpio_array_size > 0){
+			gpio_array = kcalloc(gpio_array_size, sizeof(uint16_t), GFP_KERNEL);
+			if (!gpio_array) {
+				CAM_ERR(CAM_FLASH, "flash gpio array alloc fail");
+			} else {
+				for (i = 0; i < gpio_array_size; i++) {
+					gpio_array[i] = of_get_gpio(of_node, i);
+					CAM_DBG(CAM_FLASH, "flash dts gpio_array[%d] = %d name is %s %s", i, gpio_array[i], of_node->name, of_node->full_name);
+				}
+				soc_private->flash_gpio_enable = gpio_array[0];
+				CAM_DBG(CAM_FLASH, "flash gpio enable %d",soc_private->flash_gpio_enable);
+				kfree(gpio_array);
+			}
+		} 
+	}
 	switch_src_node = of_parse_phandle(of_node, "switch-source", 0);
 	if (!switch_src_node) {
 		CAM_WARN(CAM_FLASH, "switch_src_node NULL");

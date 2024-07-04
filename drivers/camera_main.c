@@ -58,7 +58,7 @@
 #include "cam_tfe_csid.h"
 #include "cam_csid_ppi100.h"
 #include "camera_main.h"
-
+#include "pm6450_flash_gpio.h"
 #ifdef CONFIG_CAM_PRESIL
 extern int cam_presil_framework_dev_init_from_main(void);
 extern void cam_presil_framework_dev_exit_from_main(void);
@@ -113,6 +113,9 @@ static const struct camera_submodule_component camera_sensor[] = {
 	{&cam_eeprom_driver_init, &cam_eeprom_driver_exit},
 	{&cam_ois_driver_init, &cam_ois_driver_exit},
 	{&cam_flash_init_module, &cam_flash_exit_module},
+#endif
+#ifdef CONFIG_FLASHLIGHT_PWM
+	{&pm6450_flash_gpio_init_module, &pm6450_flash_gpio_exit_module},
 #endif
 };
 

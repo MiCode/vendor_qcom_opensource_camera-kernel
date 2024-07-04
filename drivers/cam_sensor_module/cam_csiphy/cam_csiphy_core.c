@@ -680,6 +680,7 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 		CAM_ERR(CAM_CSIPHY,
 			"Inval cam_packet strut size: %zu, len_of_buff: %zu",
 			 sizeof(struct cam_packet), len);
+		cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 		rc = -EINVAL;
 		return rc;
 	}
@@ -691,6 +692,7 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 	if (cam_packet_util_validate_packet(csl_packet,
 		remain_len)) {
 		CAM_ERR(CAM_CSIPHY, "Invalid packet params");
+        cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 		rc = -EINVAL;
 		return rc;
 	}
@@ -716,6 +718,7 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 	if (rc < 0) {
 		CAM_ERR(CAM_CSIPHY,
 			"Failed to get cmd buf Mem address : %d", rc);
+		cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 		return rc;
 	}
 
@@ -723,6 +726,8 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 		(cmd_desc->offset > (len - sizeof(struct cam_csiphy_info)))) {
 		CAM_ERR(CAM_CSIPHY,
 			"Not enough buffer provided for cam_cisphy_info");
+		cam_mem_put_cpu_buf(cmd_desc->mem_handle);
+		cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 		rc = -EINVAL;
 		return rc;
 	}

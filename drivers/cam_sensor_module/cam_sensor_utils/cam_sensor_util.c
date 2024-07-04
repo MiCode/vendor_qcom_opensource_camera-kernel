@@ -288,6 +288,7 @@ static int32_t cam_sensor_get_io_buffer(
 			CAM_ERR(CAM_SENSOR,
 				"invalid size:io_cfg->offsets[0]: %d, buf_size: %d",
 				io_cfg->offsets[0], buf_size);
+			cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 			return -EINVAL;
 		}
 		i2c_settings->read_buff =
@@ -540,6 +541,7 @@ int cam_sensor_i2c_command_parser(
 			(cmd_desc[i].offset >
 			(len_of_buff - sizeof(struct common_header)))) {
 			CAM_ERR(CAM_SENSOR, "buffer provided too small");
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 			return -EINVAL;
 		}
 		cmd_buf = (uint32_t *)generic_ptr;
@@ -548,6 +550,7 @@ int cam_sensor_i2c_command_parser(
 		remain_len -= cmd_desc[i].offset;
 		if (remain_len < cmd_desc[i].length) {
 			CAM_ERR(CAM_SENSOR, "buffer provided too small");
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 			return -EINVAL;
 		}
 
@@ -1002,14 +1005,19 @@ int32_t msm_camera_fill_vreg_params(
 						"i: %d j: %d cam_vdig", i, j);
 					power_setting[i].seq_val = j;
 
-					if (VALIDATE_VOLTAGE(
-						soc_info->rgltr_min_volt[j],
-						soc_info->rgltr_max_volt[j],
-						power_setting[i].config_val)) {
-						soc_info->rgltr_min_volt[j] =
-						soc_info->rgltr_max_volt[j] =
-						power_setting[i].config_val;
-					}
+					CAM_DBG(CAM_SENSOR,
+						"cam_vdig rgltr_min_volt=%d, rgltr_max_volt=%d, config_val=%d",
+								soc_info->rgltr_min_volt[j],
+								soc_info->rgltr_max_volt[j],
+								power_setting[i].config_val);
+					// if (VALIDATE_VOLTAGE(
+					// 	soc_info->rgltr_min_volt[j],
+					// 	soc_info->rgltr_max_volt[j],
+					// 	power_setting[i].config_val)) {
+					// 	soc_info->rgltr_min_volt[j] =
+					// 	soc_info->rgltr_max_volt[j] =
+					// 	power_setting[i].config_val;
+					// }
 					break;
 				}
 			}
@@ -2158,13 +2166,37 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					goto power_up_failed;
 				}
 
-				rc =  cam_soc_util_regulator_enable(
-					soc_info->rgltr[vreg_idx],
-					soc_info->rgltr_name[vreg_idx],
+				if (VALIDATE_VOLTAGE(
 					soc_info->rgltr_min_volt[vreg_idx],
 					soc_info->rgltr_max_volt[vreg_idx],
-					soc_info->rgltr_op_mode[vreg_idx],
-					soc_info->rgltr_delay[vreg_idx]);
+					power_setting->config_val)) {
+					CAM_DBG(CAM_SENSOR, "set user volt, min_volt=%d, max_volt=%d, config_val=%d\n",
+								soc_info->rgltr_min_volt[vreg_idx],
+								soc_info->rgltr_max_volt[vreg_idx],
+								power_setting->config_val);
+
+					rc =  cam_soc_util_regulator_enable(
+						soc_info->rgltr[vreg_idx],
+						soc_info->rgltr_name[vreg_idx],
+						power_setting->config_val,
+						power_setting->config_val,
+						soc_info->rgltr_op_mode[vreg_idx],
+						soc_info->rgltr_delay[vreg_idx]);
+				} else {
+					CAM_DBG(CAM_SENSOR, "set dts volt, min_volt=%d, max_volt=%d, config_val=%d\n",
+								soc_info->rgltr_min_volt[vreg_idx],
+								soc_info->rgltr_max_volt[vreg_idx],
+								power_setting->config_val);
+
+					rc =  cam_soc_util_regulator_enable(
+						soc_info->rgltr[vreg_idx],
+						soc_info->rgltr_name[vreg_idx],
+						soc_info->rgltr_min_volt[vreg_idx],
+						soc_info->rgltr_max_volt[vreg_idx],
+						soc_info->rgltr_op_mode[vreg_idx],
+						soc_info->rgltr_delay[vreg_idx]);
+				}
+
 				if (rc) {
 					CAM_ERR(CAM_SENSOR,
 						"Reg Enable failed for %s",
