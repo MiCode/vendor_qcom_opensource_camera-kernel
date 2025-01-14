@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -24,11 +24,12 @@ static bool cam_tfe_cpas_cb(uint32_t client_handle, void *userdata,
 }
 
 int cam_tfe_init_soc_resources(struct cam_hw_soc_info *soc_info,
-	irq_handler_t tfe_irq_handler, void *irq_data)
+	irq_handler_t tfe_irq_handler, void *data)
 {
 	struct cam_tfe_soc_private       *soc_private;
 	struct cam_cpas_register_params   cpas_register_param;
 	int    rc = 0,  i = 0, num_pid = 0;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	soc_private = kzalloc(sizeof(struct cam_tfe_soc_private),
 		GFP_KERNEL);
@@ -70,9 +71,10 @@ clk_option:
 	if (rc)
 		CAM_WARN(CAM_ISP, "Option clk get failed with rc %d", rc);
 
-	rc = cam_soc_util_request_platform_resource(soc_info, tfe_irq_handler,
-		irq_data);
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = data;
 
+	rc = cam_soc_util_request_platform_resource(soc_info, tfe_irq_handler, &(irq_data[0]));
 	if (rc < 0) {
 		CAM_ERR(CAM_ISP,
 			"Error! Request platform resources failed rc=%d", rc);
@@ -142,12 +144,15 @@ int cam_tfe_deinit_soc_resources(struct cam_hw_soc_info *soc_info)
 	return rc;
 }
 
-int cam_tfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
+int cam_tfe_enable_soc_resources(
+	struct cam_hw_soc_info  *soc_info,
+	unsigned long           max_clk_rate)
 {
 	int                               rc = 0;
 	struct cam_tfe_soc_private       *soc_private;
 	struct cam_ahb_vote               ahb_vote;
 	struct cam_axi_vote               axi_vote = {0};
+	int32_t                           apply_level = CAM_LOWSVS_VOTE;
 
 	if (!soc_info) {
 		CAM_ERR(CAM_ISP, "Error! Invalid params");
@@ -157,7 +162,7 @@ int cam_tfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 	soc_private = soc_info->soc_private;
 
 	ahb_vote.type       = CAM_VOTE_ABSOLUTE;
-	ahb_vote.vote.level = CAM_SVS_VOTE;
+	ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	axi_vote.num_paths = 1;
 	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_IFE_VID;
 	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_WRITE;
@@ -172,8 +177,16 @@ int cam_tfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 		goto end;
 	}
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDXs, true,
-		CAM_LOWSVS_VOTE, true);
+	if (max_clk_rate) {
+		rc = cam_soc_util_get_clk_level(soc_info, max_clk_rate, soc_info->src_clk_idx,
+			&apply_level);
+		if (rc)
+			CAM_ERR(CAM_ISP, "Error! getting clk level");
+	}
+
+	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
+		apply_level, true);
+
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Error! enable platform failed rc=%d", rc);
 		goto stop_cpas;

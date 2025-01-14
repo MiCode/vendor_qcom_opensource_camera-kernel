@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_TFE_HW_MGR_H_
@@ -44,6 +45,33 @@ struct cam_tfe_hw_mgr_debug {
 };
 
 /**
+ * struct cam_tfe_hw_comp_record
+ *
+ * @brief:              Structure record the res id reserved on a comp group
+ *
+ * @num_res:            Number of valid resource IDs in this record
+ * @res_id:             Resource IDs to report buf dones
+ *
+ */
+struct cam_tfe_hw_comp_record {
+	uint32_t num_res;
+	uint32_t res_id[CAM_NUM_OUT_PER_COMP_IRQ_MAX];
+};
+
+/**
+ * struct cam_tfe_comp_record_query
+ *
+ * @brief:              Structure record the bus comp group pointer information
+ * @tfe_bus_comp_grp:   Tfe bus comp group pointer
+ * @reserved:           used to make parent compatible with struct cam_isp_comp_record_query
+ *
+ */
+struct cam_tfe_comp_record_query {
+	struct cam_tfe_hw_comp_record        *tfe_bus_comp_grp;
+	void *reserved;
+};
+
+/**
  * struct cam_tfe_hw_mgr_ctx - TFE HW manager Context object
  *
  * @list:                     used by the ctx list.
@@ -84,6 +112,7 @@ struct cam_tfe_hw_mgr_debug {
  *                              dual TFE
  * @packet                     CSL packet from user mode driver
  * @bw_config_version          BW Config version
+ * @tfe_bus_comp_grp          pointer to tfe comp group info
  */
 struct cam_tfe_hw_mgr_ctx {
 	struct list_head                list;
@@ -126,6 +155,7 @@ struct cam_tfe_hw_mgr_ctx {
 	uint32_t                        dual_tfe_irq_mismatch_cnt;
 	struct cam_packet              *packet;
 	uint32_t                        bw_config_version;
+	struct cam_tfe_hw_comp_record  *tfe_bus_comp_grp;
 };
 
 /**

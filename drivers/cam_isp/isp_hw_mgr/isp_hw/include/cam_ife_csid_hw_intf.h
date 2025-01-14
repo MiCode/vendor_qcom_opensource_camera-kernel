@@ -25,6 +25,24 @@ enum cam_ife_csid_hw_irq_regs {
 };
 
 /**
+ * enum cam_ife_csid_top_irq_regs - Specify the top irq reg
+ */
+enum cam_ife_csid_top_irq_regs {
+	CAM_IFE_CSID_TOP_IRQ_STATUS_REG0,
+	CAM_IFE_CSID_TOP2_IRQ_STATUS_REG1,
+	CAM_IFE_CSID_TOP_IRQ_STATUS_REG_MAX,
+};
+
+/**
+ * enum cam_ife_csid_rx_irq_regs - Specify the rx irq reg
+ */
+enum cam_ife_csid_rx_irq_regs {
+	CAM_IFE_CSID_RX_IRQ_STATUS_REG0,
+	CAM_IFE_CSID_RX2_IRQ_STATUS_REG1,
+	CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX,
+};
+
+/**
  * enum cam_ife_csid_input_core_type - Specify the csid input core
  */
 enum cam_ife_csid_input_core_type {
@@ -49,6 +67,8 @@ enum cam_ife_pix_path_res_id {
 	CAM_IFE_PIX_PATH_RES_UDI_0,
 	CAM_IFE_PIX_PATH_RES_UDI_1,
 	CAM_IFE_PIX_PATH_RES_UDI_2,
+	CAM_IFE_PIX_PATH_RES_IPP_1,
+	CAM_IFE_PIX_PATH_RES_IPP_2,
 	CAM_IFE_PIX_PATH_RES_MAX,
 };
 
@@ -85,7 +105,7 @@ enum cam_ife_csid_secondary_evt_type {
  * @sfe_ipp_input_rdi_res: RDI Res as an input to SFE
  * @is_lite:               is the ife_csid lite
  * @global_reset_en:       flag to indicate if global reset is enabled
- * @rup_en:                flag to indicate if rup is on csid side
+ * @aup_rup_en:            flag to indicate if AUP RUP is on csid side
  * @only_master_rup:       flag to indicate if only master RUP
  * @camif_irq_support:     flag to indicate if CSID supports CAMIF irq
  */
@@ -99,7 +119,7 @@ struct cam_ife_csid_hw_caps {
 	uint32_t      sfe_ipp_input_rdi_res;
 	bool          is_lite;
 	bool          global_reset_en;
-	bool          rup_en;
+	bool          aup_rup_en;
 	bool          only_master_rup;
 	bool          camif_irq_support;
 };
@@ -113,6 +133,8 @@ struct cam_isp_out_port_generic_info {
 	uint32_t                split_point;
 	uint32_t                secure_mode;
 	uint32_t                reserved;
+	uint32_t                wm_mode;
+	uint32_t                hw_context_id;
 };
 
 struct cam_isp_in_port_generic_info {
@@ -155,9 +177,12 @@ struct cam_isp_in_port_generic_info {
 	uint32_t                        lcr_count;
 	uint32_t                        ife_rd_count;
 	uint32_t                        lite_path_count;
+	uint32_t                        sfe_port_count;
 	uint32_t                        sfe_in_path_type;
 	uint32_t                        sfe_ife_enable;
 	uint32_t                        epoch_factor;
+	uint32_t                        path_id;
+	uint32_t                        ipp_dst_hw_ctxt_mask;
 	bool                            secure_mode;
 	bool                            dynamic_sensor_switch_en;
 	bool                            can_use_lite;
@@ -212,7 +237,10 @@ struct cam_csid_secondary_evt_config {
  * @sfe_en:              Flag to indicate if SFE is enabled
  * @use_wm_pack:         [OUT]Flag to indicate if WM packing is to be used for packing
  * @handle_camif_irq:    Flag to indicate if CSID IRQ is enabled
- *
+ * * add by xiaomi begin
+ * @crc_error_divisor:   Width/divisor pixels per line report crc errors will trigger
+ *                       internal recovery, only for CPHY
+ * add by xiaomi end
  */
 struct cam_csid_hw_reserve_resource_args {
 	enum cam_isp_resource_type                res_type;
@@ -238,6 +266,9 @@ struct cam_csid_hw_reserve_resource_args {
 	bool                                      sfe_en;
 	bool                                      use_wm_pack;
 	bool                                      handle_camif_irq;
+	/*add by xiaomi begin*/
+	uint32_t                                  crc_error_divisor;
+	/*add by xiaomi end*/
 };
 
 /**
@@ -331,11 +362,13 @@ enum cam_ife_csid_reset_type {
  * struct cam_ife_csid_reset_cfg-  csid reset configuration
  * @ reset_type : Global reset or path reset
  * @res_node :   resource need to be reset
+ * @power_on_reset : Set if the reset is issued prior to streaming
  *
  */
 struct cam_csid_reset_cfg_args {
 	enum cam_ife_csid_reset_type   reset_type;
 	struct cam_isp_resource_node  *node_res;
+	bool power_on_reset;
 };
 
 /**
@@ -350,17 +383,21 @@ struct cam_csid_reset_out_of_sync_count_args {
 /**
  * struct cam_csid_get_time_stamp_args-  time stamp capture arguments
  * @node_res            : resource to get the time stamp
+ * @raw_boot_time       : Pointer to raw boot ts captured from top-half, if available
  * @time_stamp_val      : captured time stamp
  * @boot_timestamp      : boot time stamp
- * @get_prev_timestamp  : flag to fetch previous captured time stamp from hardware
  * @prev_time_stamp_val : previous captured time stamp
+ * @get_prev_timestamp  : flag to fetch previous captured time stamp from hardware
+ * @get_curr_timestamp  : flag to skip CSID timestamp reg read if already read from top-half
  */
 struct cam_csid_get_time_stamp_args {
 	struct cam_isp_resource_node      *node_res;
+	struct timespec64                 *raw_boot_time;
 	uint64_t                           time_stamp_val;
 	uint64_t                           boot_timestamp;
-	bool                               get_prev_timestamp;
 	uint64_t                           prev_time_stamp_val;
+	bool                               get_prev_timestamp;
+	bool                               get_curr_timestamp;
 };
 
 /**
@@ -439,6 +476,8 @@ struct cam_ife_csid_dual_sync_args {
  * @num_res:          Num of resources
  * @last_applied_mup: last applied MUP
  * @reg_write:        if set use AHB to config rup/aup
+ * @mup_val:          MUP value if configured
+ * @mup_en:           Flag if dynamic sensor switch is enabled
  */
 struct cam_isp_csid_reg_update_args {
 	struct cam_isp_hw_cmd_buf_update  cmd;
@@ -446,6 +485,8 @@ struct cam_isp_csid_reg_update_args {
 	uint32_t                          num_res;
 	uint32_t                          last_applied_mup;
 	bool                              reg_write;
+	uint32_t                          mup_val;
+	uint32_t                          mup_en;
 };
 
 /*
@@ -460,15 +501,6 @@ struct cam_ife_csid_offline_cmd_update_args {
 };
 
 /*
- * struct cam_ife_csid_mup_update_args:
- *
- * @mup:                MUP for incoming VC of next frame
- */
-struct cam_ife_csid_mup_update_args {
-	uint32_t mup;
-};
-
-/*
  * struct cam_ife_csid_discard_frame_cfg_update:
  *
  * @reset_discard_cfg:  Set if discard config needs to be reset
@@ -479,6 +511,22 @@ struct cam_ife_csid_discard_frame_cfg_update {
 	bool     reset_discard_cfg;
 };
 
+/*
+ * struct cam_ife_csid_ts_reg_addr:
+ *
+ * @curr0_ts_addr:      Reg addr of curr0_sof, input if set,
+ *                      output otherwise
+ * @curr1_ts_addr:      Reg addr of curr1_sof, input if set,
+ *                      output otherwise
+ * @res_id (input):     CSID path id, for get op
+ * @get:                If call is to get addr
+ */
+struct cam_ife_csid_ts_reg_addr {
+	void __iomem                     *curr0_ts_addr;
+	void __iomem                     *curr1_ts_addr;
+	uint32_t                          res_id;
+	bool                              get_addr;
+};
 
 /*
  * struct cam_ife_csid_mode_switch_update_args:
@@ -487,7 +535,6 @@ struct cam_ife_csid_discard_frame_cfg_update {
  * @exp_update_args:  Exposure update arguments
  */
 struct cam_ife_csid_mode_switch_update_args {
-	struct cam_ife_csid_mup_update_args          mup_args;
 	struct cam_ife_csid_discard_frame_cfg_update exp_update_args;
 };
 

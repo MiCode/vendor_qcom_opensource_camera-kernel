@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -69,7 +69,7 @@ int cam_jpeg_enc_init_hw(void *device_priv,
 	}
 
 	ahb_vote.type = CAM_VOTE_ABSOLUTE;
-	ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+	ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	axi_vote.num_paths = 2;
 	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_ALL;
 	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_READ;
@@ -333,15 +333,12 @@ int cam_jpeg_enc_reset_hw(void *data,
 int cam_jpeg_enc_test_irq_line(void *data)
 {
 	struct cam_hw_info *jpeg_enc_dev = data;
-	struct cam_jpeg_enc_device_core_info *core_info = NULL;
 	int rc;
 
 	if (!data) {
 		CAM_ERR(CAM_JPEG, "invalid args");
 		return -EINVAL;
 	}
-
-	core_info = jpeg_enc_dev->core_info;
 
 	rc = cam_jpeg_enc_init_hw(data, NULL, 0);
 	if (rc) {
@@ -615,7 +612,6 @@ int cam_jpeg_enc_dump_camnoc_misr_val(struct cam_jpeg_enc_device_hw_info *hw_inf
 		pmisr_args->req_id,
 		camnoc_misr_val[index][3], camnoc_misr_val[index][2],
 		camnoc_misr_val[index][1], camnoc_misr_val[index][0]);
-	mismatch = false;
 	for (i = 0; i < hw_info->camnoc_misr_sigdata; i++)
 		hw_info->prev_camnoc_misr_val[index][i] = camnoc_misr_val[index][i];
 	/* stop misr : cam_noc_cam_noc_0_req_link_misrprb_MiscCtl_Low */
@@ -746,6 +742,38 @@ int cam_jpeg_enc_config_cmanoc_hw_misr(struct cam_jpeg_enc_device_hw_info *hw_in
 	return 0;
 }
 
+int cam_jpeg_enc_dump_debug_regs(struct cam_hw_info *jpeg_enc_dev)
+{
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct cam_jpeg_enc_device_core_info *core_info = NULL;
+
+	soc_info = &jpeg_enc_dev->soc_info;
+	core_info = (struct cam_jpeg_enc_device_core_info *)jpeg_enc_dev->core_info;
+
+	CAM_INFO(CAM_JPEG, "******** JPEG ENCODER REGISTER DUMP *********");
+
+	/* JPEG DMA TOP, Interrupt, core config, command registers & Fetch Engine Registers*/
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_enc_hw_info->debug_reg_offset.top_offset,
+		core_info->jpeg_enc_hw_info->debug_reg_offset.top_range);
+
+	/* Write Engine & Encoder debug registers*/
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_enc_hw_info->debug_reg_offset.we_offset,
+		core_info->jpeg_enc_hw_info->debug_reg_offset.we_range);
+
+	/* WE qos cfg, test bus, DMI, spare regs, bus misr, scale reg & MMU prefetch regs */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_enc_hw_info->debug_reg_offset.scale_offset,
+		core_info->jpeg_enc_hw_info->debug_reg_offset.scale_range);
+
+	/* Perf Registers */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_enc_hw_info->debug_reg_offset.perf_offset,
+		core_info->jpeg_enc_hw_info->debug_reg_offset.perf_range);
+	return 0;
+}
+
 int cam_jpeg_enc_process_cmd(void *device_priv, uint32_t cmd_type,
 	void *cmd_args, uint32_t arg_size)
 {
@@ -872,6 +900,9 @@ int cam_jpeg_enc_process_cmd(void *device_priv, uint32_t cmd_type,
 		}
 		break;
 	}
+	case CAM_JPEG_CMD_DUMP_DEBUG_REGS:
+		rc = cam_jpeg_enc_dump_debug_regs(jpeg_enc_dev);
+		break;
 	default:
 		rc = -EINVAL;
 		break;

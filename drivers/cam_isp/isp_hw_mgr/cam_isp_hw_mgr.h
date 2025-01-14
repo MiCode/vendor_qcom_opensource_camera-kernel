@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_MGR_H_
@@ -73,6 +74,7 @@ struct cam_isp_hw_mgr {
  * @is_secure            informs whether the resource is in secure mode or not
  * @num_children:        number of the child resource node.
  * @use_wm_pack:         Flag to indicate if WM is to be used for packing
+ * @hw_ctxt_id:          HW context ID mask corresponding to this resource
  *
  */
 struct cam_isp_hw_mgr_res {
@@ -84,6 +86,7 @@ struct cam_isp_hw_mgr_res {
 	uint32_t                         is_secure;
 	uint32_t                         num_children;
 	bool                             use_wm_pack;
+	uint32_t                         hw_ctxt_id_mask;
 };
 
 

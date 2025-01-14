@@ -16,19 +16,21 @@
 #include "cam_cpas_api.h"
 
 /* MAX IFE instance */
-#define CAM_IFE_HW_NUM_MAX       8
-#define CAM_SFE_HW_NUM_MAX       3
-#define CAM_IFE_RDI_NUM_MAX      4
-#define CAM_SFE_RDI_NUM_MAX      5
-#define CAM_SFE_FE_RDI_NUM_MAX   3
-#define CAM_ISP_BW_CONFIG_V1     1
-#define CAM_ISP_BW_CONFIG_V2     2
-#define CAM_ISP_BW_CONFIG_V3     2
-#define CAM_TFE_HW_NUM_MAX       3
-#define CAM_TFE_RDI_NUM_MAX      3
-#define CAM_IFE_SCRATCH_NUM_MAX  2
-#define CAM_IFE_BUS_COMP_NUM_MAX 18
-#define CAM_SFE_BUS_COMP_NUM_MAX 12
+#define CAM_IFE_HW_NUM_MAX               8
+#define CAM_SFE_HW_NUM_MAX               3
+#define CAM_IFE_RDI_NUM_MAX              4
+#define CAM_SFE_RDI_NUM_MAX              5
+#define CAM_SFE_FE_RDI_NUM_MAX           3
+#define CAM_ISP_BW_CONFIG_V1             1
+#define CAM_ISP_BW_CONFIG_V2             2
+#define CAM_ISP_BW_CONFIG_V3             3
+#define CAM_TFE_HW_NUM_MAX               3
+#define CAM_TFE_RDI_NUM_MAX              3
+#define CAM_IFE_SCRATCH_NUM_MAX          2
+#define CAM_IFE_BUS_COMP_NUM_MAX         18
+#define CAM_SFE_BUS_COMP_NUM_MAX         12
+#define CAM_TFE_BW_LIMITER_CONFIG_V1     1
+#define CAM_TFE_BUS_COMP_NUM_MAX         18
 
 /* maximum context numbers for TFE */
 #define CAM_TFE_CTX_MAX      4
@@ -131,6 +133,8 @@ enum cam_isp_hw_err_type {
 	CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP       = 0x00004000,
 	CAM_ISP_HW_ERROR_CSID_MISSING_EOT             = 0x00008000,
 	CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED   = 0x00010000,
+	CAM_ISP_HW_ERROR_CSID_CAMIF_FRAME_DROP        = 0x00020000,
+	CAM_ISP_HW_ERROR_HWPD_VIOLATION               = 0x00040000,
 };
 
 /**
@@ -244,6 +248,8 @@ struct cam_isp_bw_clk_config_info {
  * @bw_clk_config:          BW and clock config info
  * @isp_drv_config:         DRV config info
  * @bw_config_valid:        Flag indicating if DRV config is valid for current request
+ * @isp_irq_comp_cfg:       IRQ comp configuration for MC-based TFEs
+ * @irq_comp_cfg_valid:     Flag indicating if IRQ comp cfg is valid for current request
  * @reg_dump_buf_desc:     cmd buffer descriptors for reg dump
  * @num_reg_dump_buf:      Count of descriptors in reg_dump_buf_desc
  * @packet:                CSL packet from user mode driver
@@ -261,6 +267,8 @@ struct cam_isp_prepare_hw_update_data {
 	struct cam_isp_bw_clk_config_info     bw_clk_config;
 	struct cam_isp_drv_config             isp_drv_config;
 	bool                                  drv_config_valid;
+	struct cam_isp_irq_comp_cfg           isp_irq_comp_cfg;
+	bool                                  irq_comp_cfg_valid;
 	struct cam_cmd_buf_desc               reg_dump_buf_desc[
 						CAM_REG_DUMP_MAX_BUF_ENTRIES];
 	uint32_t                              num_reg_dump_buf;
@@ -275,8 +283,8 @@ struct cam_isp_prepare_hw_update_data {
 /**
  * struct cam_isp_hw_sof_event_data - Event payload for CAM_HW_EVENT_SOF
  *
- * @timestamp         : Time stamp for the sof event
- * @boot_time         : Boot time stamp for the sof event
+ * @timestamp           : Time stamp for the sof event
+ * @boot_time           : Boot time stamp for the sof event
  *
  */
 struct cam_isp_hw_sof_event_data {
@@ -375,6 +383,7 @@ enum cam_isp_hw_mgr_command {
 	CAM_ISP_HW_MGR_GET_SOF_TS,
 	CAM_ISP_HW_MGR_DUMP_STREAM_INFO,
 	CAM_ISP_HW_MGR_GET_BUS_COMP_GROUP,
+	CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR,
 	CAM_ISP_HW_MGR_CMD_MAX,
 };
 
@@ -391,25 +400,30 @@ enum cam_isp_ctx_type {
  * @cmd_type:              HW command type
  * @cmd_data:              Command data
  * @sof_irq_enable:        To debug if SOF irq is enabled
- * @ctx_type:              RDI_ONLY, PIX and RDI, or FS2
  * @packet_op_code:        Packet opcode
  * @last_cdm_done:         Last cdm done request
+ * @ctx_info:              Gives info about context(RDI, PIX, bubble recovery)
  * @sof_ts:                SOF timestamps (current, boot and previous)
+ * @cdm_done_ts:           CDM callback done timestamp
  */
 struct cam_isp_hw_cmd_args {
 	uint32_t                          cmd_type;
 	void                             *cmd_data;
 	union {
-		uint32_t                      sof_irq_enable;
-		uint32_t                      ctx_type;
-		uint32_t                      packet_op_code;
-		uint64_t                      last_cdm_done;
+		uint32_t                         sof_irq_enable;
+		uint32_t                         packet_op_code;
+		uint64_t                         last_cdm_done;
 		struct {
-			uint64_t                      curr;
-			uint64_t                      prev;
-			uint64_t                      boot;
+			uint64_t                 type;
+			bool                     bubble_recover_dis;
+		} ctx_info;
+		struct {
+			uint64_t                 curr;
+			uint64_t                 prev;
+			uint64_t                 boot;
 		} sof_ts;
 	} u;
+	struct timespec64 cdm_done_ts;
 };
 
 /**
@@ -450,9 +464,10 @@ struct cam_isp_lcr_rdi_cfg_args {
  * @hw_mgr:             Input/output structure for the ISP hardware manager
  *                          initialization
  * @iommu_hdl:          Iommu handle to be returned
+ * @isp_device_type:    ISP device type
  */
 int cam_isp_hw_mgr_init(const char    *device_name_str,
-	struct cam_hw_mgr_intf *hw_mgr, int *iommu_hdl);
+	struct cam_hw_mgr_intf *hw_mgr, int *iommu_hdl, uint32_t isp_device_type);
 
 void cam_isp_hw_mgr_deinit(const char *device_name_str);
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -496,7 +496,6 @@ int cam_vfe_top_ver3_reserve(void *device_priv,
 int cam_vfe_top_ver3_release(void *device_priv,
 	void *release_args, uint32_t arg_size)
 {
-	struct cam_vfe_top_ver3_priv            *top_priv;
 	struct cam_isp_resource_node            *mux_res;
 
 	if (!device_priv || !release_args) {
@@ -504,7 +503,6 @@ int cam_vfe_top_ver3_release(void *device_priv,
 		return -EINVAL;
 	}
 
-	top_priv = (struct cam_vfe_top_ver3_priv   *)device_priv;
 	mux_res = (struct cam_isp_resource_node *)release_args;
 
 	CAM_DBG(CAM_ISP, "%s Resource in state %d", mux_res->res_name,
@@ -582,7 +580,6 @@ int cam_vfe_top_ver3_stop(void *device_priv,
 {
 	struct cam_vfe_top_ver3_priv            *top_priv;
 	struct cam_isp_resource_node            *mux_res;
-	struct cam_hw_info                      *hw_info = NULL;
 	struct cam_hw_soc_info                  *soc_info = NULL;
 	struct cam_vfe_soc_private              *soc_private = NULL;
 	int i, rc = 0;
@@ -594,10 +591,6 @@ int cam_vfe_top_ver3_stop(void *device_priv,
 
 	top_priv = (struct cam_vfe_top_ver3_priv   *)device_priv;
 	mux_res = (struct cam_isp_resource_node *)stop_args;
-	hw_info = (struct cam_hw_info  *)mux_res->hw_intf->hw_priv;
-	soc_info = top_priv->top_common.soc_info;
-	soc_private = soc_info->soc_private;
-
 	soc_info = top_priv->top_common.soc_info;
 	soc_private = soc_info->soc_private;
 

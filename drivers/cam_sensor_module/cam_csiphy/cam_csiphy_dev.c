@@ -154,6 +154,7 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 	switch (message_type) {
 	case CAM_SUBDEV_MESSAGE_REG_DUMP: {
 		cam_csiphy_trigger_reg_dump(csiphy_dev);
+		cam_soc_util_print_clk_freq(&csiphy_dev->soc_info);
 
 		break;
 	}
@@ -184,7 +185,6 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 		if (idx >= CSIPHY_MAX_INSTANCES_PER_PHY) {
 			CAM_ERR(CAM_CSIPHY, "Phy session not found %d %d",
 				csiphy_dev->soc_info.index, conn_csid_info->lane_cfg);
-			rc = -EBADR;
 			break;
 		}
 
@@ -205,7 +205,6 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 		if (idx >= CSIPHY_MAX_INSTANCES_PER_PHY) {
 			CAM_ERR(CAM_CSIPHY, "Phy session not found %d %d",
 				csiphy_dev->soc_info.index, drv_info->lane_cfg);
-			rc = -EBADR;
 			break;
 		}
 
@@ -232,7 +231,6 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 		if (idx >= CSIPHY_MAX_INSTANCES_PER_PHY) {
 			CAM_ERR(CAM_CSIPHY, "Phy session not found %d %d",
 				csiphy_dev->soc_info.index, halt_resume_info->lane_cfg);
-			rc = -EBADR;
 			break;
 		}
 
@@ -262,8 +260,9 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 					phy_idx, clk_rate, rc);
 		} else if (halt_resume_info->csid_state == CAM_SUBDEV_PHY_CSID_RESUME) {
 			int32_t src_idx = csiphy_dev->soc_info.src_clk_idx;
+			uint32_t lowest_clk_level = csiphy_dev->soc_info.lowest_clk_level;
 
-			clk_rate = csiphy_dev->soc_info.clk_rate[CAM_LOWSVS_VOTE][src_idx];
+			clk_rate = csiphy_dev->soc_info.clk_rate[lowest_clk_level][src_idx];
 
 			rc = cam_soc_util_set_src_clk_rate(&csiphy_dev->soc_info,
 				CAM_CLK_SW_CLIENT_IDX, clk_rate, 0);

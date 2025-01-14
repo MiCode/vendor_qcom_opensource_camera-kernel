@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -49,12 +49,15 @@ end:
 
 static int cam_sfe_request_platform_resource(
 	struct cam_hw_soc_info *soc_info,
-	irq_handler_t irq_handler_func, void *irq_data)
+	irq_handler_t irq_handler_func, void *data)
 {
-	int rc = 0;
+	int rc = 0, i;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
-	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler_func,
-		irq_data);
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = data;
+
+	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler_func, &(irq_data[0]));
 	if (rc)
 		CAM_ERR(CAM_SFE,
 			"Error Request platform resource failed rc=%d", rc);
@@ -97,6 +100,12 @@ int cam_sfe_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	rc = cam_sfe_get_dt_properties(soc_info);
 	if (rc < 0) {
 		CAM_ERR(CAM_SFE, "Error Get DT properties failed rc=%d", rc);
+		goto free_soc_private;
+	}
+
+	rc = cam_cpas_query_drv_enable(NULL, &soc_info->is_clk_drv_en);
+	if (rc) {
+		CAM_ERR(CAM_SFE, "Failed to query DRV enable rc:%d", rc);
 		goto free_soc_private;
 	}
 
@@ -175,7 +184,7 @@ int cam_sfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 	soc_private = soc_info->soc_private;
 
 	ahb_vote.type       = CAM_VOTE_ABSOLUTE;
-	ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+	ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	axi_vote.num_paths = 1;
 	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_SFE_NRDI;
 	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_WRITE;
@@ -203,7 +212,7 @@ int cam_sfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 	 */
 	rc = cam_soc_util_enable_platform_resource(soc_info,
 		(soc_info->is_clk_drv_en ? soc_info->index : CAM_CLK_SW_CLIENT_IDX), true,
-		CAM_LOWSVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc) {
 		CAM_ERR(CAM_SFE, "Enable platform failed rc=%d", rc);
 		goto stop_cpas;

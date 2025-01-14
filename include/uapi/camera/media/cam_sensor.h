@@ -13,7 +13,7 @@
 
 #define CAM_SENSOR_PROBE_CMD      (CAM_COMMON_OPCODE_MAX + 1)
 #define CAM_FLASH_MAX_LED_TRIGGERS 2
-#define MAX_OIS_NAME_SIZE 32
+#define MAX_OIS_NAME_SIZE 64
 #define MAX_OIS_FW_COUNT  2
 #define CAM_CSIPHY_SECURE_MODE_ENABLED 1
 #define CAM_SENSOR_NAME_MAX_SIZE 32
@@ -24,6 +24,7 @@
 /* CSIPHY driver cmd buffer meta types */
 #define CAM_CSIPHY_PACKET_META_LANE_INFO           0
 #define CAM_CSIPHY_PACKET_META_GENERIC_BLOB        1
+#define CAM_CSIPHY_PACKET_META_LANE_INFO_V2        2
 
 /* CSIPHY blob types */
 #define CAM_CSIPHY_GENERIC_BLOB_TYPE_CDR_CONFIG    0
@@ -66,7 +67,9 @@ enum cam_actuator_packet_opcodes {
 	CAM_ACTUATOR_PACKET_OPCODE_INIT,
 	CAM_ACTUATOR_PACKET_AUTO_MOVE_LENS,
 	CAM_ACTUATOR_PACKET_MANUAL_MOVE_LENS,
-	CAM_ACTUATOR_PACKET_OPCODE_READ
+	CAM_ACTUATOR_PACKET_OPCODE_READ,
+	CAM_ACTUATOR_PACKET_NOP_OPCODE = 127,
+	CAM_ACTUATOR_PACKET_OPCODE_PARKLENS // xiaomi add
 };
 
 enum cam_eeprom_packet_opcodes {
@@ -78,7 +81,15 @@ enum cam_ois_packet_opcodes {
 	CAM_OIS_PACKET_OPCODE_INIT,
 	CAM_OIS_PACKET_OPCODE_OIS_CONTROL,
 	CAM_OIS_PACKET_OPCODE_READ,
-	CAM_OIS_PACKET_OPCODE_WRITE_TIME
+	CAM_OIS_PACKET_OPCODE_WRITE_TIME,
+	CAM_OIS_PACKET_OPCODE_OIS_PARKLENS,
+	CAM_OIS_PACKET_OPCODE_OIS_CHANGE_PWM // xiaomi add
+};
+
+enum cam_aperture_packet_opcodes {
+	CAM_APERTURE_PACKET_OPCODE_INIT,
+	CAM_APERTURE_PACKET_SWITCH,
+	CAM_APERTURE_PACKET_OPCODE_READ,
 };
 
 enum camera_sensor_i2c_op_code {
@@ -106,6 +117,7 @@ enum cam_tpg_packet_opcodes {
 	CAM_TPG_PACKET_OPCODE_INVALID = 0,
 	CAM_TPG_PACKET_OPCODE_INITIAL_CONFIG,
 	CAM_TPG_PACKET_OPCODE_NOP,
+	CAM_TPG_PACKET_OPCODE_UPDATE,
 	CAM_TPG_PACKET_OPCODE_MAX,
 };
 
@@ -122,6 +134,11 @@ enum cam_sensor_packet_opcodes {
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_UNLOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_LOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_BUBBLE_UPDATE,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_WRITE,  //xiaomi add
+	CAM_SENSOR_PACKET_OPCODE_PIPELINE_DELAY,//xiaomi add
+	/*Sensor OEM Begin*/
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_ISPV4_POWERUP = 0x101,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_ISPV4_POWERDOWN,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_NOP = 127,
 };
 
@@ -256,6 +273,10 @@ struct  cam_sensor_query_cap {
 	__u32        ois_slot_id;
 	__u32        flash_slot_id;
 	__u32        csiphy_slot_id;
+	__u32        aperture_slot_id;
+	// xiaomi add
+	__u32        oem_capabilities[0x0F];
+	// xiaomi add
 } __attribute__((packed));
 
 /**
@@ -281,6 +302,11 @@ struct cam_csiphy_query_cap {
  * @reserved
  */
 struct cam_actuator_query_cap {
+	__u32            slot_info;
+	__u32            reserved;
+} __attribute__((packed));
+
+struct cam_aperture_query_cap {
 	__u32            slot_info;
 	__u32            reserved;
 } __attribute__((packed));
@@ -391,12 +417,23 @@ struct cam_sensor_res_info {
  * @coeff           :    OIS FW coeff register address
  * @pheripheral     :    OIS pheripheral
  * @memory          :    OIS memory
+ * @fw_version            :   OIS firmware version
+ * @fw_addr_type          :   OIS fw Addr Type
+ * @is_addr_increase      :   OIS addr Increase
+ * @customized_ois_flag   :   customized ois flag
  */
 struct cam_ois_opcode {
 	__u32 prog;
 	__u32 coeff;
 	__u32 pheripheral;
 	__u32 memory;
+	__u32 fw_version;
+	__u8  fw_addr_type;
+	__u8  is_addr_increase;
+	__u8  customized_ois_flag;
+	__u8  is_littleendian_op;
+	__u32 fw_addr;
+	bool  fw_mem_store;
 } __attribute__((packed));
 
 /**
@@ -746,7 +783,6 @@ struct cam_csiphy_aux_settings_params {
  * @secure_mode          : Secure mode flag to enable / disable
  * @settle_time          : Settling time in ms
  * @data_rate            : Data rate
- *
  */
 struct cam_csiphy_info {
 	__u16    reserved;
@@ -756,6 +792,34 @@ struct cam_csiphy_info {
 	__u8     secure_mode;
 	__u64    settle_time;
 	__u64    data_rate;
+} __attribute__((packed));
+
+/**
+ * cam_csiphy_info_v2    : Provides cmdbuffer structre
+ * @version              : Version number
+ * @lane_assign          : Lane sensor will be using
+ * @mipi_flags           : Phy flags for different calibration operations
+ * @lane_cnt             : Total number of lanes
+ * @secure_mode          : Secure mode flag to enable / disable
+ * @settle_time          : Settling time in ms
+ * @data_rate            : Data rate
+ * @channel_type         : Channel type indicates apply which channel settings
+ * @num_valid_params     : Number of valid params
+ * @param_mask           : Mask to indicate what the parameters are
+ * @params               : Additional params
+ */
+struct cam_csiphy_info_v2 {
+	__u16    version;
+	__u16    lane_assign;
+	__u16    mipi_flags;
+	__u8     lane_cnt;
+	__u8     secure_mode;
+	__u64    settle_time;
+	__u64    data_rate;
+	__u32    channel_type;
+	__u32    num_vaild_params;
+	__u32    param_mask;
+	__u32    params[5];
 } __attribute__((packed));
 
 /**

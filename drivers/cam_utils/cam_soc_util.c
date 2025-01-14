@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -98,9 +98,232 @@ static LIST_HEAD(wrapper_clk_list);
 const struct device *cam_cesta_crm_dev;
 
 #if IS_ENABLED(CONFIG_QCOM_CRM)
+static inline const struct device *cam_wrapper_crm_get_device(
+	const char *name)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CESTA) {
+		CAM_WARN(CAM_UTIL, "Bypass crm get device");
+		return (const struct device *)BYPASS_VALUE;
+	}
+
+	return crm_get_device(name);
+}
+
+static inline int cam_wrapper_crm_write_pwr_states(const struct device *dev,
+	u32 drv_id)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CESTA) {
+		CAM_WARN(CAM_UTIL, "Bypass crm write pwr states");
+		return 0;
+	}
+
+	return crm_write_pwr_states(cam_cesta_crm_dev, drv_id);
+}
+
+#endif
+
+#if IS_ENABLED(CONFIG_QCOM_CRM) && IS_ENABLED(CONFIG_SPECTRA_USE_CLK_CRM_API)
+static inline int cam_wrapper_qcom_clk_crm_set_rate(struct clk *clk,
+	enum crm_drv_type client_type, u32 client_idx,
+	u32 pwr_st, unsigned long rate)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CESTA) {
+		CAM_WARN(CAM_UTIL, "Bypass qcom clk crm set rate");
+		return 0;
+	}
+
+	return qcom_clk_crm_set_rate(clk, client_type, client_idx, pwr_st, rate);
+}
+#endif
+
+static inline int cam_wrapper_clk_set_rate(struct clk *clk, unsigned long rate)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass clk set rate");
+		return 0;
+	}
+
+	return clk_set_rate(clk, rate);
+}
+
+static inline long cam_wrapper_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass clk round rate");
+		return rate;
+	}
+
+	return clk_round_rate(clk, rate);
+}
+
+inline unsigned long cam_wrapper_clk_get_rate(struct clk *clk)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass clk get rate");
+		return DEFAULT_CLK_VALUE;
+	}
+
+	return clk_get_rate(clk);
+}
+
+static inline struct clk *cam_wrapper_clk_get(struct device *dev, const char *id)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass clk get");
+		return (struct clk *)BYPASS_VALUE;
+	}
+
+	return clk_get(dev, id);
+}
+
+static inline void cam_wrapper_clk_put(struct clk *clk)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass clk put");
+		return;
+	}
+
+	clk_put(clk);
+}
+
+static inline struct clk *cam_wrapper_of_clk_get_from_provider(
+	struct of_phandle_args *clkspec)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass of clk get from provider");
+		return (struct clk *)BYPASS_VALUE;
+	}
+
+	return of_clk_get_from_provider(clkspec);
+}
+
+static inline int cam_wrapper_clk_prepare_enable(struct clk *clk)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass clk prepare enable");
+		return 0;
+	}
+
+	return clk_prepare_enable(clk);
+}
+
+static inline void cam_wrapper_clk_disable_unprepare(struct clk *clk)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass clk disable unprepare");
+		return;
+	}
+
+	clk_disable_unprepare(clk);
+}
+
+static inline struct regulator *cam_wrapper_regulator_get(struct device *dev,
+	const char *id)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+		CAM_WARN(CAM_UTIL, "Bypass regulator get");
+		return (struct regulator *)BYPASS_VALUE;
+	}
+
+	return regulator_get(dev, id);
+}
+
+static inline void cam_wrapper_regulator_put(struct regulator *regulator)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+		CAM_WARN(CAM_UTIL, "Bypass regulator put");
+		return;
+	}
+
+	regulator_put(regulator);
+}
+
+static inline int cam_wrapper_regulator_disable(struct regulator *regulator)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+		CAM_WARN(CAM_UTIL, "Bypass regulator disable");
+		return 0;
+	}
+
+	return regulator_disable(regulator);
+}
+
+static inline int cam_wrapper_regulator_enable(struct regulator *regulator)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+		CAM_WARN(CAM_UTIL, "Bypass regulator enable");
+		return 0;
+	}
+
+	return regulator_enable(regulator);
+}
+
+static inline int cam_wrapper_regulator_set_voltage(
+	struct regulator *regulator, int min_uV, int max_uV)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+		CAM_WARN(CAM_UTIL, "Bypass regulator set voltage");
+		return 0;
+	}
+
+	return regulator_set_voltage(regulator, min_uV, max_uV);
+}
+
+static inline int cam_wrapper_regulator_count_voltages(
+	struct regulator *regulator)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+		CAM_WARN(CAM_UTIL, "Bypass regulator count voltages");
+		return 0;
+	}
+
+	return regulator_count_voltages(regulator);
+}
+
+inline int cam_wrapper_regulator_set_load(
+	struct regulator *regulator, int uA_load)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+		CAM_WARN(CAM_UTIL, "Bypass regulator set load");
+		return 0;
+	}
+
+	return regulator_set_load(regulator, uA_load);
+}
+
+inline int cam_wrapper_regulator_set_mode(
+	struct regulator *regulator, unsigned int mode)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_RGLTR_MODE) {
+		CAM_WARN(CAM_UTIL, "Bypass regulator set mode");
+		return 0;
+}
+
+	return regulator_set_mode(regulator, mode);
+}
+
+static inline int cam_wrapper_regulator_is_enabled(
+	struct regulator *regulator)
+{
+	if (debug_bypass_drivers & CAM_BYPASS_RGLTR) {
+		CAM_WARN(CAM_UTIL, "Bypass regulator is enabled");
+		return 0;
+	}
+
+	return regulator_is_enabled(regulator);
+}
+
+inline void cam_soc_util_set_bypass_drivers(
+	uint32_t bypass_drivers)
+{
+	debug_bypass_drivers = bypass_drivers;
+	CAM_INFO(CAM_UTIL, "bypass drivers %d", debug_bypass_drivers);
+}
+
+#if IS_ENABLED(CONFIG_QCOM_CRM)
 inline int cam_soc_util_cesta_populate_crm_device(void)
 {
-	cam_cesta_crm_dev =  crm_get_device(CAM_CRM_DEV_IDENTIFIER);
+	cam_cesta_crm_dev =  cam_wrapper_crm_get_device(CAM_CRM_DEV_IDENTIFIER);
 	if (!cam_cesta_crm_dev) {
 		CAM_ERR(CAM_UTIL, "Failed to get cesta crm dev for %s", CAM_CRM_DEV_IDENTIFIER);
 		return -ENODEV;
@@ -127,7 +350,7 @@ int cam_soc_util_cesta_channel_switch(uint32_t cesta_client_idx, const char *ide
 	CAM_DBG(CAM_PERF, "CESTA Channel switch : hw client idx %d identifier=%s",
 		cesta_client_idx, identifier);
 
-	rc = crm_write_pwr_states(cam_cesta_crm_dev, cesta_client_idx);
+	rc = cam_wrapper_crm_write_pwr_states(cam_cesta_crm_dev, cesta_client_idx);
 	if (rc) {
 		CAM_ERR(CAM_UTIL,
 			"Failed to trigger cesta channel switch cesta_client_idx: %u rc: %d",
@@ -183,7 +406,8 @@ static int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
 	CAM_DBG(CAM_UTIL, "%s Requested clk rate [high low]: [%llu %llu] cesta_client_idx: %d",
 		soc_info->clk_name[src_clk_idx], high_val, low_val, cesta_client_idx);
 
-	rc = qcom_clk_crm_set_rate(clk, CRM_HW_DRV, cesta_client_idx, CRM_PWR_STATE1, high_val);
+	rc = cam_wrapper_qcom_clk_crm_set_rate(
+		clk, CRM_HW_DRV, cesta_client_idx, CRM_PWR_STATE1, high_val);
 	if (rc) {
 		CAM_ERR(CAM_UTIL,
 			"Failed in setting cesta high clk rate, client idx: %u pwr state: %u clk_val: %llu rc: %d",
@@ -191,7 +415,8 @@ static int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
 		return rc;
 	}
 
-	rc = qcom_clk_crm_set_rate(clk, CRM_HW_DRV, cesta_client_idx, CRM_PWR_STATE0, low_val);
+	rc = cam_wrapper_qcom_clk_crm_set_rate(
+		clk, CRM_HW_DRV, cesta_client_idx, CRM_PWR_STATE0, low_val);
 	if (rc) {
 		CAM_ERR(CAM_UTIL,
 			"Failed in setting cesta low clk rate, client idx: %u pwr state: %u clk_val: %llu rc: %d",
@@ -269,6 +494,11 @@ int cam_soc_util_register_mmrm_client(
 	}
 
 	*mmrm_handle = (void *)NULL;
+
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass register mmrm client");
+		return 0;
+	}
 
 	if (!cam_is_mmrm_supported_on_current_chip())
 		return 0;
@@ -638,7 +868,7 @@ static int cam_soc_util_clk_wrapper_set_clk_rate(
 
 		if (!set_rate_finish && final_clk_rate &&
 			(final_clk_rate != wrapper_clk->curr_clk_rate)) {
-			rc = clk_set_rate(clk, final_clk_rate);
+			rc = cam_wrapper_clk_set_rate(clk, final_clk_rate);
 			if (rc) {
 				CAM_ERR(CAM_UTIL, "set_rate failed on clk %d",
 					wrapper_clk->clk_id);
@@ -667,12 +897,19 @@ int cam_soc_util_get_clk_level(struct cam_hw_soc_info *soc_info,
 		return -EINVAL;
 	}
 
-	clk_rate_round = clk_round_rate(soc_info->clk[clk_idx], clk_rate);
+	clk_rate_round = cam_wrapper_clk_round_rate(
+		soc_info->clk[clk_idx], clk_rate);
 	if (clk_rate_round < 0) {
 		CAM_ERR(CAM_UTIL, "round failed rc = %ld",
 			clk_rate_round);
 		*clk_lvl = -1;
 		return -EINVAL;
+	}
+
+	if (debug_bypass_drivers & CAM_BYPASS_CLKS) {
+		CAM_WARN(CAM_UTIL, "Bypass get clk level");
+		*clk_lvl = CAM_NOMINAL_VOTE;
+		return 0;
 	}
 
 	for (i = 0; i < CAM_MAX_VOTE; i++) {
@@ -700,18 +937,20 @@ const char *cam_soc_util_get_string_from_level(enum cam_vote_level level)
 		return "";
 	case CAM_MINSVS_VOTE:
 		return "MINSVS[1]";
+	case CAM_LOWSVS_D1_VOTE:
+		return "LOWSVSD1[2]";
 	case CAM_LOWSVS_VOTE:
-		return "LOWSVS[2]";
+		return "LOWSVS[3]";
 	case CAM_SVS_VOTE:
-		return "SVS[3]";
+		return "SVS[4]";
 	case CAM_SVSL1_VOTE:
-		return "SVSL1[4]";
+		return "SVSL1[5]";
 	case CAM_NOMINAL_VOTE:
-		return "NOM[5]";
+		return "NOM[6]";
 	case CAM_NOMINALL1_VOTE:
-		return "NOML1[6]";
+		return "NOML1[7]";
 	case CAM_TURBO_VOTE:
-		return "TURBO[7]";
+		return "TURBO[8]";
 	default:
 		return "";
 	}
@@ -843,7 +1082,7 @@ DEFINE_SIMPLE_ATTRIBUTE(cam_soc_util_clk_lvl_control_low,
 static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
-	struct dentry *dbgfileptr = NULL, *clkdirptr = NULL;
+	struct dentry *clkdirptr = NULL;
 
 	if (!cam_debugfs_available())
 		return 0;
@@ -864,23 +1103,20 @@ static int cam_soc_util_create_clk_lvl_debugfs(struct cam_hw_soc_info *soc_info)
 		}
 	}
 
-	dbgfileptr = debugfs_create_dir(soc_info->dev_name, clkdirptr);
-	if (IS_ERR_OR_NULL(dbgfileptr)) {
+	soc_info->dentry = debugfs_create_dir(soc_info->dev_name, clkdirptr);
+	if (IS_ERR_OR_NULL(soc_info->dentry)) {
 		CAM_ERR(CAM_UTIL, "DebugFS could not create directory for dev:%s!",
 			soc_info->dev_name);
 		rc = -ENOENT;
 		goto end;
 	}
 	/* Store parent inode for cleanup in caller */
-	soc_info->dentry = dbgfileptr;
-
-	dbgfileptr = debugfs_create_file("clk_lvl_options", 0444,
+	debugfs_create_file("clk_lvl_options", 0444,
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_options);
-	dbgfileptr = debugfs_create_file("clk_lvl_control", 0644,
+	debugfs_create_file("clk_lvl_control", 0644,
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_control);
-	dbgfileptr = debugfs_create_file("clk_lvl_control_low", 0644,
+	debugfs_create_file("clk_lvl_control_low", 0644,
 		soc_info->dentry, soc_info, &cam_soc_util_clk_lvl_control_low);
-	rc = PTR_ERR_OR_ZERO(dbgfileptr);
 end:
 	return rc;
 }
@@ -895,6 +1131,8 @@ int cam_soc_util_get_level_from_string(const char *string,
 		*level = CAM_SUSPEND_VOTE;
 	} else if (!strcmp(string, "minsvs")) {
 		*level = CAM_MINSVS_VOTE;
+	} else if (!strcmp(string, "lowsvsd1")) {
+		*level = CAM_LOWSVS_D1_VOTE;
 	} else if (!strcmp(string, "lowsvs")) {
 		*level = CAM_LOWSVS_VOTE;
 	} else if (!strcmp(string, "svs")) {
@@ -966,36 +1204,54 @@ static int cam_soc_util_get_clk_level_to_apply(
 
 int cam_soc_util_irq_enable(struct cam_hw_soc_info *soc_info)
 {
+	int i, rc = 0;
+
 	if (!soc_info) {
 		CAM_ERR(CAM_UTIL, "Invalid arguments");
 		return -EINVAL;
 	}
 
-	if (soc_info->irq_num < 0) {
-		CAM_ERR(CAM_UTIL, "No IRQ line available");
-		return -ENODEV;
+	for (i = 0; i < soc_info->irq_count; i++) {
+		if (soc_info->irq_num[i] < 0) {
+			CAM_ERR(CAM_UTIL, "No IRQ line available for irq: %s dev: %s",
+				soc_info->irq_name[i], soc_info->dev_name);
+			rc = -ENODEV;
+			goto disable_irq;
+		}
+
+		enable_irq(soc_info->irq_num[i]);
 	}
 
-	enable_irq(soc_info->irq_num);
+	return rc;
 
-	return 0;
+disable_irq:
+	for (i = i - 1; i >= 0; i--)
+		disable_irq(soc_info->irq_num[i]);
+
+	return rc;
 }
 
 int cam_soc_util_irq_disable(struct cam_hw_soc_info *soc_info)
 {
+	int i, rc = 0;
+
 	if (!soc_info) {
 		CAM_ERR(CAM_UTIL, "Invalid arguments");
 		return -EINVAL;
 	}
 
-	if (soc_info->irq_num < 0) {
-		CAM_ERR(CAM_UTIL, "No IRQ line available");
-		return -ENODEV;
+	for (i = 0; i < soc_info->irq_count; i++) {
+		if (soc_info->irq_num[i] < 0) {
+			CAM_ERR(CAM_UTIL, "No IRQ line available irq: %s dev:",
+				soc_info->irq_name[i], soc_info->dev_name);
+			rc = -ENODEV;
+			continue;
+		}
+
+		disable_irq(soc_info->irq_num[i]);
 	}
 
-	disable_irq(soc_info->irq_num);
-
-	return 0;
+	return rc;
 }
 
 long cam_soc_util_get_clk_round_rate(struct cam_hw_soc_info *soc_info,
@@ -1007,7 +1263,7 @@ long cam_soc_util_get_clk_round_rate(struct cam_hw_soc_info *soc_info,
 		return clk_rate;
 	}
 
-	return clk_round_rate(soc_info->clk[clk_index], clk_rate);
+	return cam_wrapper_clk_round_rate(soc_info->clk[clk_index], clk_rate);
 }
 
 /**
@@ -1044,7 +1300,7 @@ static int cam_soc_util_set_clk_rate(struct cam_hw_soc_info *soc_info,
 	if (!clk)
 		return 0;
 	if (clk_rate > 0) {
-		clk_rate_round = clk_round_rate(clk, clk_rate);
+		clk_rate_round = cam_wrapper_clk_round_rate(clk, clk_rate);
 		CAM_DBG(CAM_UTIL, "new_rate %ld", clk_rate_round);
 		if (clk_rate_round < 0) {
 			CAM_ERR(CAM_UTIL, "round failed for clock %s rc = %ld",
@@ -1053,10 +1309,10 @@ static int cam_soc_util_set_clk_rate(struct cam_hw_soc_info *soc_info,
 		}
 		set_rate = true;
 	} else if (clk_rate == INIT_RATE) {
-		clk_rate_round = clk_get_rate(clk);
+		clk_rate_round = cam_wrapper_clk_get_rate(clk);
 		CAM_DBG(CAM_UTIL, "init new_rate %ld", clk_rate_round);
 		if (clk_rate_round == 0) {
-			clk_rate_round = clk_round_rate(clk, 0);
+			clk_rate_round = cam_wrapper_clk_round_rate(clk, 0);
 			if (clk_rate_round <= 0) {
 				CAM_ERR(CAM_UTIL, "round rate failed on %s",
 					clk_name);
@@ -1094,18 +1350,18 @@ static int cam_soc_util_set_clk_rate(struct cam_hw_soc_info *soc_info,
 					soc_info->is_nrt_dev,
 					soc_info->clk_rate[min_level][idx],
 					clk_rate_round, 1);
+
 				if (rc) {
 					CAM_ERR(CAM_UTIL,
 						"set_rate through mmrm failed on %s clk_id %d, rate=%ld",
-						clk_name, clk_id,
-						clk_rate_round);
+						clk_name, clk_id, clk_rate_round);
 					return rc;
 				}
 				set_rate_finish = true;
 			}
 
 			if (!set_rate_finish) {
-				rc = clk_set_rate(clk, clk_rate_round);
+				rc = cam_wrapper_clk_set_rate(clk, clk_rate_round);
 				if (rc) {
 					CAM_ERR(CAM_UTIL, "set_rate failed on %s", clk_name);
 					return rc;
@@ -1236,7 +1492,7 @@ int cam_soc_util_put_optional_clk(struct cam_hw_soc_info *soc_info,
 		cam_soc_util_clk_wrapper_unregister_entry(
 			soc_info->optional_clk_id[clk_indx], soc_info);
 
-	clk_put(soc_info->optional_clk[clk_indx]);
+	cam_wrapper_clk_put(soc_info->optional_clk[clk_indx]);
 	soc_info->optional_clk[clk_indx] = NULL;
 
 	return 0;
@@ -1257,7 +1513,7 @@ static struct clk *cam_soc_util_option_clk_get(struct device_node *np,
 	if (rc)
 		return ERR_PTR(rc);
 
-	clk = of_clk_get_from_provider(&clkspec);
+	clk = cam_wrapper_of_clk_get_from_provider(&clkspec);
 
 	*clk_id = clkspec.args[0];
 	of_node_put(clkspec.np);
@@ -1370,7 +1626,7 @@ int cam_soc_util_get_option_clk_by_name(struct cam_hw_soc_info *soc_info,
 
 	return 0;
 error:
-	clk_put(soc_info->optional_clk[index]);
+	cam_wrapper_clk_put(soc_info->optional_clk[index]);
 	soc_info->optional_clk_rate[index] = 0;
 	soc_info->optional_clk[index] = NULL;
 	*clk_index = -1;
@@ -1444,7 +1700,7 @@ int cam_soc_util_clk_enable(struct cam_hw_soc_info *soc_info, int cesta_client_i
 	}
 
 	CAM_DBG(CAM_UTIL, "[%s] : clk enable %s", soc_info->dev_name, clk_name);
-	rc = clk_prepare_enable(clk);
+	rc = cam_wrapper_clk_prepare_enable(clk);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "enable failed for %s: rc(%d)", clk_name, rc);
 		return rc;
@@ -1483,7 +1739,7 @@ int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info, int cesta_client_
 	if (!clk)
 		return 0;
 
-	clk_disable_unprepare(clk);
+	cam_wrapper_clk_disable_unprepare(clk);
 
 	if ((clk_idx == soc_info->src_clk_idx) && soc_info->is_clk_drv_en &&
 		CAM_IS_VALID_CESTA_IDX(cesta_client_idx)) {
@@ -1888,7 +2144,7 @@ int cam_soc_util_set_clk_rate_level(struct cam_hw_soc_info *soc_info,
 {
 	int i, rc = 0;
 	enum cam_vote_level apply_level_high;
-	enum cam_vote_level apply_level_low = CAM_LOWSVS_VOTE;
+	enum cam_vote_level apply_level_low = soc_info->lowest_clk_level;
 	unsigned long applied_clk_rate;
 
 	if ((soc_info->num_clk == 0) ||
@@ -2084,8 +2340,10 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 	CAM_DBG(CAM_UTIL, "gpio count %d", gpio_array_size);
 
 	gpio_array = kcalloc(gpio_array_size, sizeof(uint16_t), GFP_KERNEL);
-	if (!gpio_array)
-		goto free_gpio_conf;
+	if (!gpio_array) {
+		rc = -ENOMEM;
+		goto err;
+	}
 
 	for (i = 0; i < gpio_array_size; i++) {
 		gpio_array[i] = of_get_gpio(of_node, i);
@@ -2093,21 +2351,23 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 	}
 
 	gconf = kzalloc(sizeof(*gconf), GFP_KERNEL);
-	if (!gconf)
-		return -ENOMEM;
+	if (!gconf) {
+		rc = -ENOMEM;
+		goto free_gpio_array;
+	}
 
 	rc = cam_soc_util_get_dt_gpio_req_tbl(of_node, gconf, gpio_array,
 		gpio_array_size);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "failed in msm_camera_get_dt_gpio_req_tbl");
-		goto free_gpio_array;
+		goto free_gpio_conf;
 	}
 
 	gconf->cam_gpio_common_tbl = kcalloc(gpio_array_size,
 				sizeof(struct gpio), GFP_KERNEL);
 	if (!gconf->cam_gpio_common_tbl) {
 		rc = -ENOMEM;
-		goto free_gpio_array;
+		goto free_gpio_conf;
 	}
 
 	for (i = 0; i < gpio_array_size; i++)
@@ -2119,10 +2379,11 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 
 	return rc;
 
-free_gpio_array:
-	kfree(gpio_array);
 free_gpio_conf:
 	kfree(gconf);
+free_gpio_array:
+	kfree(gpio_array);
+err:
 	soc_info->gpio_data = NULL;
 
 	return rc;
@@ -2197,7 +2458,6 @@ static int cam_soc_util_get_dt_regulator_info
 	if (count != -EINVAL) {
 		if (count <= 0) {
 			CAM_ERR(CAM_UTIL, "no regulators found");
-			count = 0;
 			return -EINVAL;
 		}
 
@@ -2319,37 +2579,53 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 		}
 	}
 
-	rc = of_property_read_string_index(of_node, "interrupt-names", 0,
-		&soc_info->irq_name);
-	if (rc) {
-		CAM_DBG(CAM_UTIL, "No interrupt line preset for: %s",
-			soc_info->dev_name);
-		rc = 0;
+	count = of_property_count_strings(of_node, "interrupt-names");
+	if (count <= 0) {
+		CAM_DBG(CAM_UTIL, "No interrupt line present for: %s", soc_info->dev_name);
+		soc_info->irq_count = 0;
 	} else {
+		if (count > CAM_SOC_MAX_IRQ_LINES_PER_DEV) {
+			CAM_ERR(CAM_UTIL,
+				"Number of interrupt: %d exceeds maximum allowable interrupts: %d",
+				count, CAM_SOC_MAX_IRQ_LINES_PER_DEV);
+			return -EINVAL;
+		}
+
+		soc_info->irq_count = count;
+		for (i = 0; i < soc_info->irq_count; i++) {
+			rc = of_property_read_string_index(of_node, "interrupt-names",
+				i, &soc_info->irq_name[i]);
+			if (rc) {
+				CAM_ERR(CAM_UTIL, "failed to read interrupt name at %d", i);
+				return rc;
+			}
+		}
+
 		rc = cam_compat_util_get_irq(soc_info);
 		if (rc < 0) {
-			CAM_ERR(CAM_UTIL, "get irq resource failed: %d", rc);
+			CAM_ERR(CAM_UTIL, "get irq resource failed: %d for: %s",
+				rc, soc_info->dev_name);
 #ifndef CONFIG_CAM_PRESIL
 			return rc;
 #else
 			/* Pre-sil for new devices not present on old */
-			soc_info->irq_line =
-				&dummy_irq_line[next_dummy_irq_line_num++];
-			CAM_DBG(CAM_PRESIL, "interrupt line for dev %s irq name %s number %d",
-				soc_info->dev_name, soc_info->irq_name,
-				soc_info->irq_line->start);
+			for (i = 0; i < soc_info->irq_count; i++) {
+				soc_info->irq_line[i] =
+					&dummy_irq_line[next_dummy_irq_line_num++];
+				CAM_DBG(CAM_PRESIL,
+					"interrupt line for dev %s irq name %s number %d",
+					soc_info->dev_name, soc_info->irq_name[i],
+					soc_info->irq_line[i]->start);
+			}
 #endif
 		}
 	}
 
-
 	rc = of_property_read_string_index(of_node, "compatible", 0,
 		(const char **)&soc_info->compatible);
-	if (rc) {
+	if (rc)
 		CAM_DBG(CAM_UTIL, "No compatible string present for: %s",
 			soc_info->dev_name);
-		rc = 0;
-	}
 
 	soc_info->is_nrt_dev = false;
 	if (of_property_read_bool(of_node, "nrt-device"))
@@ -2390,7 +2666,7 @@ static int cam_soc_util_get_regulator(struct device *dev,
 	struct regulator **reg, const char *rgltr_name)
 {
 	int rc = 0;
-	*reg = regulator_get(dev, rgltr_name);
+	*reg = cam_wrapper_regulator_get(dev, rgltr_name);
 	if (IS_ERR_OR_NULL(*reg)) {
 		rc = PTR_ERR(*reg);
 		rc = rc ? rc : -EINVAL;
@@ -2412,7 +2688,7 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 		return -EINVAL;
 	}
 
-	rc = regulator_disable(rgltr);
+	rc = cam_wrapper_regulator_disable(rgltr);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "%s regulator disable failed", rgltr_name);
 		return rc;
@@ -2424,9 +2700,9 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 		usleep_range(rgltr_delay_ms * 1000,
 			(rgltr_delay_ms * 1000) + 1000);
 
-	if (regulator_count_voltages(rgltr) > 0) {
-		regulator_set_load(rgltr, 0);
-		regulator_set_voltage(rgltr, 0, rgltr_max_volt);
+	if (cam_wrapper_regulator_count_voltages(rgltr) > 0) {
+		cam_wrapper_regulator_set_load(rgltr, 0);
+		cam_wrapper_regulator_set_voltage(rgltr, 0, rgltr_max_volt);
 	}
 
 	return rc;
@@ -2445,18 +2721,18 @@ int cam_soc_util_regulator_enable(struct regulator *rgltr,
 		return -EINVAL;
 	}
 
-	if (regulator_count_voltages(rgltr) > 0) {
+	if (cam_wrapper_regulator_count_voltages(rgltr) > 0) {
 		CAM_DBG(CAM_UTIL, "[%s] voltage min=%d, max=%d",
 			rgltr_name, rgltr_min_volt, rgltr_max_volt);
 
-		rc = regulator_set_voltage(
+		rc = cam_wrapper_regulator_set_voltage(
 			rgltr, rgltr_min_volt, rgltr_max_volt);
 		if (rc) {
 			CAM_ERR(CAM_UTIL, "%s set voltage failed", rgltr_name);
 			return rc;
 		}
 
-		rc = regulator_set_load(rgltr, rgltr_op_mode);
+		rc = cam_wrapper_regulator_set_load(rgltr, rgltr_op_mode);
 		if (rc) {
 			CAM_ERR(CAM_UTIL, "%s set optimum mode failed",
 				rgltr_name);
@@ -2464,7 +2740,7 @@ int cam_soc_util_regulator_enable(struct regulator *rgltr,
 		}
 	}
 
-	rc = regulator_enable(rgltr);
+	rc = cam_wrapper_regulator_enable(rgltr);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "%s regulator_enable failed", rgltr_name);
 		return rc;
@@ -2655,7 +2931,7 @@ static void cam_soc_util_regulator_disable_default(
 				soc_info->rgltr_delay[j]);
 		} else {
 			if (soc_info->rgltr[j])
-				regulator_disable(soc_info->rgltr[j]);
+				cam_wrapper_regulator_disable(soc_info->rgltr[j]);
 		}
 	}
 }
@@ -2685,7 +2961,7 @@ static int cam_soc_util_regulator_enable_default(
 				soc_info->rgltr_delay[j]);
 		} else {
 			if (soc_info->rgltr[j])
-				rc = regulator_enable(soc_info->rgltr[j]);
+				rc = cam_wrapper_regulator_enable(soc_info->rgltr[j]);
 		}
 
 		if (rc) {
@@ -2708,7 +2984,7 @@ disable_rgltr:
 				soc_info->rgltr_delay[j]);
 		} else {
 			if (soc_info->rgltr[j])
-				regulator_disable(soc_info->rgltr[j]);
+				cam_wrapper_regulator_disable(soc_info->rgltr[j]);
 		}
 	}
 
@@ -2867,12 +3143,18 @@ int cam_soc_util_request_irq(struct device *dev,
 
 int cam_soc_util_request_platform_resource(
 	struct cam_hw_soc_info *soc_info,
-	irq_handler_t handler, void *irq_data)
+	irq_handler_t handler, void **irq_data)
 {
 	int i = 0, rc = 0;
 
 	if (!soc_info || !soc_info->dev) {
 		CAM_ERR(CAM_UTIL, "Invalid parameters");
+		return -EINVAL;
+	}
+
+	if (unlikely(soc_info->irq_count > CAM_SOC_MAX_IRQ_LINES_PER_DEV)) {
+		CAM_ERR(CAM_UTIL, "Invalid irq count: %u Max IRQ per device: %d",
+			soc_info->irq_count, CAM_SOC_MAX_IRQ_LINES_PER_DEV);
 		return -EINVAL;
 	}
 
@@ -2911,25 +3193,23 @@ int cam_soc_util_request_platform_resource(
 			goto put_regulator;
 	}
 
-	if (soc_info->irq_num > 0) {
-
-		rc = cam_soc_util_request_irq(soc_info->dev,
-			soc_info->irq_num,
-			handler, IRQF_TRIGGER_RISING,
-			soc_info->irq_name, irq_data,
-			soc_info->mem_block[0]->start);
+	for (i = 0; i < soc_info->irq_count; i++) {
+		rc = cam_soc_util_request_irq(soc_info->dev, soc_info->irq_num[i],
+			handler, IRQF_TRIGGER_RISING, soc_info->irq_name[i],
+				irq_data[i], soc_info->mem_block[0]->start);
 		if (rc) {
-			CAM_ERR(CAM_UTIL, "irq request fail");
+			CAM_ERR(CAM_UTIL, "irq request fail for irq name: %s dev: %s",
+				soc_info->irq_name[i], soc_info->dev_name);
 			rc = -EBUSY;
-			goto put_regulator;
+			goto put_irq;
 		}
 
-		soc_info->irq_data = irq_data;
+		soc_info->irq_data[i] = irq_data[i];
 	}
 
 	/* Get Clock */
 	for (i = 0; i < soc_info->num_clk; i++) {
-		soc_info->clk[i] = clk_get(soc_info->dev,
+		soc_info->clk[i] = cam_wrapper_clk_get(soc_info->dev,
 			soc_info->clk_name[i]);
 		if (IS_ERR(soc_info->clk[i])) {
 			CAM_ERR(CAM_UTIL, "get failed for %s",
@@ -2961,7 +3241,7 @@ int cam_soc_util_request_platform_resource(
 					"Failed in registering shared clk Dev %s id %d",
 					soc_info->dev_name,
 					soc_info->clk_id[i]);
-				clk_put(soc_info->clk[i]);
+				cam_wrapper_clk_put(soc_info->clk[i]);
 				soc_info->clk[i] = NULL;
 				goto put_clk;
 			}
@@ -2976,7 +3256,7 @@ int cam_soc_util_request_platform_resource(
 					"Failed in register mmrm client Dev %s clk id %d",
 					soc_info->dev_name,
 					soc_info->clk_id[i]);
-				clk_put(soc_info->clk[i]);
+				cam_wrapper_clk_put(soc_info->clk[i]);
 				soc_info->clk[i] = NULL;
 				goto put_clk;
 			}
@@ -3013,15 +3293,17 @@ put_clk:
 				cam_soc_util_clk_wrapper_unregister_entry(
 					soc_info->clk_id[i], soc_info);
 
-			clk_put(soc_info->clk[i]);
+			cam_wrapper_clk_put(soc_info->clk[i]);
 			soc_info->clk[i] = NULL;
 		}
 	}
 
-	if (soc_info->irq_num > 0) {
-		disable_irq(soc_info->irq_num);
-		devm_free_irq(soc_info->dev,
-			soc_info->irq_num, irq_data);
+put_irq:
+	if (i == -1)
+		i = soc_info->irq_count;
+	for (i = i - 1; i >= 0; i--) {
+		if (soc_info->irq_num[i] > 0)
+			disable_irq(soc_info->irq_num[i]);
 	}
 
 put_regulator:
@@ -3029,8 +3311,8 @@ put_regulator:
 		i = soc_info->num_rgltr;
 	for (i = i - 1; i >= 0; i--) {
 		if (soc_info->rgltr[i]) {
-			regulator_disable(soc_info->rgltr[i]);
-			regulator_put(soc_info->rgltr[i]);
+			cam_wrapper_regulator_disable(soc_info->rgltr[i]);
+			cam_wrapper_regulator_put(soc_info->rgltr[i]);
 			soc_info->rgltr[i] = NULL;
 		}
 	}
@@ -3074,13 +3356,13 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 				soc_info->clk_name[i]);
 			continue;
 		}
-		clk_put(soc_info->clk[i]);
+		cam_wrapper_clk_put(soc_info->clk[i]);
 		soc_info->clk[i] = NULL;
 	}
 
 	for (i = soc_info->num_rgltr - 1; i >= 0; i--) {
 		if (soc_info->rgltr[i]) {
-			regulator_put(soc_info->rgltr[i]);
+			cam_wrapper_regulator_put(soc_info->rgltr[i]);
 			soc_info->rgltr[i] = NULL;
 		}
 	}
@@ -3091,19 +3373,22 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 		soc_info->reg_map[i].size = 0;
 	}
 
-	if (soc_info->irq_num > 0) {
-		if (cam_presil_mode_enabled()) {
-			if (cam_soc_util_is_presil_address_space(soc_info->mem_block[0]->start)) {
-				b_ret = cam_presil_unsubscribe_device_irq(
-					soc_info->irq_line->start);
-				CAM_DBG(CAM_PRESIL, "UnSubscribe IRQ: Ret=%d NUM=%d Name=%s",
-					b_ret, soc_info->irq_line->start, soc_info->irq_name);
+	for (i = soc_info->irq_count; i >= 0; i--) {
+		if (soc_info->irq_num[i] > 0) {
+			if (cam_presil_mode_enabled()) {
+				if (cam_soc_util_is_presil_address_space(
+					soc_info->mem_block[0]->start)) {
+					b_ret = cam_presil_unsubscribe_device_irq(
+						soc_info->irq_line[i]->start);
+					CAM_DBG(CAM_PRESIL,
+						"UnSubscribe IRQ: Ret=%d NUM=%d Name=%s",
+						b_ret, soc_info->irq_line[i]->start,
+						soc_info->irq_name[i]);
+				}
 			}
-		}
 
-		disable_irq(soc_info->irq_num);
-		devm_free_irq(soc_info->dev,
-			soc_info->irq_num, soc_info->irq_data);
+			disable_irq(soc_info->irq_num[i]);
+		}
 	}
 
 	cam_soc_util_release_pinctrl(soc_info);
@@ -3118,9 +3403,9 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 
 int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 	int cesta_client_idx, bool enable_clocks, enum cam_vote_level clk_level,
-	bool enable_irq)
+	bool irq_enable)
 {
-	int rc = 0;
+	int rc = 0, i;
 
 	if (!soc_info)
 		return -EINVAL;
@@ -3137,15 +3422,27 @@ int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 			goto disable_regulator;
 	}
 
-	if (enable_irq) {
-		rc  = cam_soc_util_irq_enable(soc_info);
-		if (rc)
-			goto disable_clk;
+	if (irq_enable) {
+		for (i = 0; i < soc_info->irq_count; i++) {
+			if (soc_info->irq_num[i] < 0) {
+				CAM_ERR(CAM_UTIL, "No IRQ line available for irq: %s dev: %s",
+					soc_info->irq_name[i], soc_info->dev_name);
+				rc = -ENODEV;
+				goto disable_irq;
+			}
+
+			enable_irq(soc_info->irq_num[i]);
+		}
 	}
 
 	return rc;
 
-disable_clk:
+disable_irq:
+	if (irq_enable) {
+		for (i = i - 1; i >= 0; i--)
+			disable_irq(soc_info->irq_num[i]);
+	}
+
 	if (enable_clocks)
 		cam_soc_util_clk_disable_default(soc_info, cesta_client_idx);
 
@@ -3202,7 +3499,7 @@ static int cam_soc_util_dump_cont_reg_range(
 	struct cam_reg_range_read_desc *reg_read, uint32_t base_idx,
 	struct cam_reg_dump_out_buffer *dump_out_buf, uintptr_t cmd_buf_end)
 {
-	int         i = 0, rc = 0;
+	int         i = 0, rc = 0, val = 0;
 	uint32_t    write_idx = 0;
 
 	if (!soc_info || !dump_out_buf || !reg_read || !cmd_buf_end) {
@@ -3239,21 +3536,15 @@ static int cam_soc_util_dump_cont_reg_range(
 
 	write_idx = dump_out_buf->bytes_written / sizeof(uint32_t);
 	for (i = 0; i < reg_read->num_values; i++) {
-		if ((reg_read->offset + (i * sizeof(uint32_t))) >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				(reg_read->offset + (i * sizeof(uint32_t))),
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
-			goto end;
-		}
+		val = cam_soc_util_r(soc_info, base_idx,
+			(reg_read->offset + (i * sizeof(uint32_t))));
+		if (!val)
+			CAM_WARN_RATE_LIMIT(CAM_UTIL,
+				"Possibly fails to read");
 
 		dump_out_buf->dump_data[write_idx++] = reg_read->offset +
 			(i * sizeof(uint32_t));
-		dump_out_buf->dump_data[write_idx++] =
-			cam_soc_util_r(soc_info, base_idx,
-			(reg_read->offset + (i * sizeof(uint32_t))));
+		dump_out_buf->dump_data[write_idx++] = val;
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
 
@@ -3266,7 +3557,7 @@ static int cam_soc_util_dump_dmi_reg_range(
 	struct cam_dmi_read_desc *dmi_read, uint32_t base_idx,
 	struct cam_reg_dump_out_buffer *dump_out_buf, uintptr_t cmd_buf_end)
 {
-	int        i = 0, rc = 0;
+	int        i = 0, rc = 0, val = 0;
 	uint32_t   write_idx = 0;
 
 	if (!soc_info || !dump_out_buf || !dmi_read || !cmd_buf_end) {
@@ -3321,19 +3612,14 @@ static int cam_soc_util_dump_dmi_reg_range(
 
 	write_idx = dump_out_buf->bytes_written / sizeof(uint32_t);
 	for (i = 0; i < dmi_read->num_pre_writes; i++) {
-		if (dmi_read->pre_read_config[i].offset >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				dmi_read->pre_read_config[i].offset,
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
+		rc = cam_soc_util_w_mb(soc_info, base_idx,
+			dmi_read->pre_read_config[i].offset,
+			dmi_read->pre_read_config[i].value);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Fails to write for pre_read_config");
 			goto end;
 		}
 
-		cam_soc_util_w_mb(soc_info, base_idx,
-			dmi_read->pre_read_config[i].offset,
-			dmi_read->pre_read_config[i].value);
 		dump_out_buf->dump_data[write_idx++] =
 			dmi_read->pre_read_config[i].offset;
 		dump_out_buf->dump_data[write_idx++] =
@@ -3341,39 +3627,27 @@ static int cam_soc_util_dump_dmi_reg_range(
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
 
-	if (dmi_read->dmi_data_read.offset >
-		(uint32_t)soc_info->reg_map[base_idx].size) {
-		CAM_ERR(CAM_UTIL,
-			"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-			dmi_read->dmi_data_read.offset,
-			(uint32_t)soc_info->reg_map[base_idx].size);
-		rc = -EINVAL;
-		goto end;
-	}
-
 	for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
+		val = cam_soc_util_r_mb(soc_info, base_idx,
+			dmi_read->dmi_data_read.offset);
+		if (!val)
+			CAM_WARN_RATE_LIMIT(CAM_UTIL,
+				"Possibly fails to read for dmi_data_read");
+
 		dump_out_buf->dump_data[write_idx++] =
 			dmi_read->dmi_data_read.offset;
-		dump_out_buf->dump_data[write_idx++] =
-			cam_soc_util_r_mb(soc_info, base_idx,
-			dmi_read->dmi_data_read.offset);
+		dump_out_buf->dump_data[write_idx++] = val;
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
 
 	for (i = 0; i < dmi_read->num_post_writes; i++) {
-		if (dmi_read->post_read_config[i].offset >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				dmi_read->post_read_config[i].offset,
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
-			goto end;
-		}
-
-		cam_soc_util_w_mb(soc_info, base_idx,
+		rc = cam_soc_util_w_mb(soc_info, base_idx,
 			dmi_read->post_read_config[i].offset,
 			dmi_read->post_read_config[i].value);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Fails to write for post_read_config");
+			goto end;
+		}
 	}
 
 end:
@@ -3387,6 +3661,7 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 {
 	int                            i;
 	int                            rc;
+	int                            val = 0;
 	size_t                         buf_len = 0;
 	uint8_t                       *dst;
 	size_t                         remain_len;
@@ -3399,8 +3674,7 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 		CAM_ERR(CAM_UTIL,
 			"Invalid input args soc_info: %pK, dump_args: %pK",
 			soc_info, dump_args);
-		rc = -EINVAL;
-		goto end;
+		return -EINVAL;
 	}
 
 	if (dmi_read->num_pre_writes > CAM_REG_DUMP_DMI_CONFIG_MAX ||
@@ -3408,15 +3682,14 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 		CAM_ERR(CAM_UTIL,
 			"Invalid number of requested writes, pre: %d post: %d",
 			dmi_read->num_pre_writes, dmi_read->num_post_writes);
-		rc = -EINVAL;
-		goto end;
+		return -EINVAL;
 	}
 
 	rc = cam_mem_get_cpu_buf(dump_args->buf_handle, &cpu_addr, &buf_len);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "Invalid handle %u rc %d",
 			dump_args->buf_handle, rc);
-		goto end;
+		return rc;
 	}
 
 	if (buf_len <= dump_args->offset) {
@@ -3450,58 +3723,44 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 	*waddr = soc_info->index;
 	waddr++;
 	for (i = 0; i < dmi_read->num_pre_writes; i++) {
-		if (dmi_read->pre_read_config[i].offset >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				dmi_read->pre_read_config[i].offset,
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
+		rc = cam_soc_util_w_mb(soc_info, base_idx,
+			dmi_read->pre_read_config[i].offset,
+			dmi_read->pre_read_config[i].value);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Fails to write for pre_read_config");
 			goto end;
 		}
 
-		cam_soc_util_w_mb(soc_info, base_idx,
-			dmi_read->pre_read_config[i].offset,
-			dmi_read->pre_read_config[i].value);
 		*waddr++ = dmi_read->pre_read_config[i].offset;
 		*waddr++ = dmi_read->pre_read_config[i].value;
 	}
 
-	if (dmi_read->dmi_data_read.offset >
-		(uint32_t)soc_info->reg_map[base_idx].size) {
-		CAM_ERR(CAM_UTIL,
-			"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-			dmi_read->dmi_data_read.offset,
-			(uint32_t)soc_info->reg_map[base_idx].size);
-		rc = -EINVAL;
-		goto end;
-	}
-
 	for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
-		*waddr++ = dmi_read->dmi_data_read.offset;
-		*waddr++ = cam_soc_util_r_mb(soc_info, base_idx,
+		val = cam_soc_util_r_mb(soc_info, base_idx,
 			dmi_read->dmi_data_read.offset);
+		if (!val)
+			CAM_WARN_RATE_LIMIT(CAM_UTIL,
+				"Possibly fails to read for dmi_data_read");
+
+		*waddr++ = dmi_read->dmi_data_read.offset;
+		*waddr++ = val;
 	}
 
 	for (i = 0; i < dmi_read->num_post_writes; i++) {
-		if (dmi_read->post_read_config[i].offset >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				dmi_read->post_read_config[i].offset,
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
-			goto end;
-		}
-		cam_soc_util_w_mb(soc_info, base_idx,
+		rc = cam_soc_util_w_mb(soc_info, base_idx,
 			dmi_read->post_read_config[i].offset,
 			dmi_read->post_read_config[i].value);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Fails to write for post_read_config");
+			goto end;
+		}
 	}
 	hdr->size = (waddr - start) * hdr->word_size;
 	dump_args->offset +=  hdr->size +
 		sizeof(struct cam_hw_soc_dump_header);
 
 end:
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }
 
@@ -3512,7 +3771,7 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 	struct cam_hw_soc_dump_args *dump_args)
 {
 	int                            i;
-	int                            rc = 0;
+	int                            rc = 0, val = 0;
 	size_t                         buf_len;
 	uint8_t                       *dst;
 	size_t                         remain_len;
@@ -3525,14 +3784,14 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 		CAM_ERR(CAM_UTIL,
 			"Invalid input args soc_info: %pK, dump_out_buffer: %pK reg_read: %pK",
 			soc_info, dump_args, reg_read);
-		rc = -EINVAL;
-		goto end;
+		return -EINVAL;
 	}
+
 	rc = cam_mem_get_cpu_buf(dump_args->buf_handle, &cpu_addr, &buf_len);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "Invalid handle %u rc %d",
 			dump_args->buf_handle, rc);
-		goto end;
+		return rc;
 	}
 	if (buf_len <= dump_args->offset) {
 		CAM_WARN(CAM_UTIL, "Dump offset overshoot %zu %zu",
@@ -3563,25 +3822,21 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 	*waddr = soc_info->index;
 	waddr++;
 	for (i = 0; i < reg_read->num_values; i++) {
-		if ((reg_read->offset + (i * sizeof(uint32_t))) >
-			(uint32_t)soc_info->reg_map[base_idx].size) {
-			CAM_ERR(CAM_UTIL,
-				"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
-				(reg_read->offset + (i * sizeof(uint32_t))),
-				(uint32_t)soc_info->reg_map[base_idx].size);
-			rc = -EINVAL;
-			goto end;
-		}
+		val = cam_soc_util_r(soc_info, base_idx,
+			(reg_read->offset + (i * sizeof(uint32_t))));
+		if (!val)
+			CAM_WARN_RATE_LIMIT(CAM_UTIL,
+				"Possibly fails to read");
 
 		waddr[0] = reg_read->offset + (i * sizeof(uint32_t));
-		waddr[1] = cam_soc_util_r(soc_info, base_idx,
-			(reg_read->offset + (i * sizeof(uint32_t))));
+		waddr[1] = val;
 		waddr += 2;
 	}
 	hdr->size = (waddr - start) * hdr->word_size;
 	dump_args->offset +=  hdr->size +
 		sizeof(struct cam_hw_soc_dump_header);
 end:
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }
 
@@ -3673,6 +3928,8 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 	if (rc || !cpu_addr || (buf_size == 0)) {
 		CAM_ERR(CAM_UTIL, "Failed in Get cpu addr, rc=%d, cpu_addr=%pK",
 			rc, (void *)cpu_addr);
+		if (rc)
+			return rc;
 		goto end;
 	}
 
@@ -3874,6 +4131,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 	}
 
 end:
+	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
 	return rc;
 }
 
@@ -3905,7 +4163,7 @@ int cam_soc_util_print_clk_freq(struct cam_hw_soc_info *soc_info)
 	}
 
 	for (i = 0; i < soc_info->num_clk; i++) {
-		clk_rate = clk_get_rate(soc_info->clk[i]);
+		clk_rate = cam_wrapper_clk_get_rate(soc_info->clk[i]);
 
 		CAM_INFO(CAM_UTIL,
 			"[%s] idx = %d clk name = %s clk_rate=%lld",
@@ -3950,7 +4208,7 @@ int cam_soc_util_regulators_enabled(struct cam_hw_soc_info *soc_info)
 
 	for (j = 0; j < soc_info->num_rgltr; j++) {
 		if (soc_info->rgltr[j]) {
-			rc = regulator_is_enabled(soc_info->rgltr[j]);
+			rc = cam_wrapper_regulator_is_enabled(soc_info->rgltr[j]);
 			if (rc < 0) {
 				CAM_ERR(CAM_UTIL, "%s regulator_is_enabled failed",
 					soc_info->rgltr_name[j]);

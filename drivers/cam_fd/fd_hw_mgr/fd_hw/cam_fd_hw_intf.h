@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_FD_HW_INTF_H_
@@ -24,7 +25,7 @@
 
 #define CAM_FD_MAX_IO_BUFFERS        5
 #define CAM_FD_MAX_HW_ENTRIES        5
-#define CAM_FD_HW_DUMP_TAG_MAX_LEN   32
+#define CAM_FD_HW_DUMP_TAG_MAX_LEN   128
 #define CAM_FD_HW_DUMP_NUM_WORDS     5
 
 /**

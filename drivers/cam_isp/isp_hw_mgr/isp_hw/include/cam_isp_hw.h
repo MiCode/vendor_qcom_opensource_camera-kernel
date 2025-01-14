@@ -17,7 +17,7 @@
 #include "cam_hw_mgr_intf.h"
 
 /* Maximum length of tag while dumping */
-#define CAM_ISP_HW_DUMP_TAG_MAX_LEN 64
+#define CAM_ISP_HW_DUMP_TAG_MAX_LEN 128
 /* Max isp hw pid values number */
 #define CAM_ISP_HW_MAX_PID_VAL      4
 /* Maximum number of output ports that map to an architecture specific input path */
@@ -27,6 +27,11 @@
  * MAX len of ISP Resource Name
  */
 #define CAM_ISP_RES_NAME_LEN      16
+
+/*
+ * MAX len of line_buffer
+ */
+#define LINE_BUFFER_LEN      1500
 
 /* Access core_info of isp resource node */
 #define cam_isp_res_core_info(res) (((struct cam_hw_info *)res->hw_intf->hw_priv)->core_info)
@@ -79,16 +84,29 @@ struct cam_isp_apply_clk_bw_args {
 };
 
 /*
+ * struct cam_isp_sof_ts_data
+ *
+ * @boot_time           Raw monotonic boot time
+ * @sof_ts:             SOF reigster timestamp
+ */
+struct cam_isp_sof_ts_data {
+	struct timespec64     boot_time;
+	uint64_t              sof_ts;
+};
+
+/*
  * struct cam_isp_timestamp:
  *
  * @mono_time:          Monotonic boot time
  * @vt_time:            AV Timer time
  * @ticks:              Qtimer ticks
+ * @sof_ts:             SOF reigster timestamp
  */
 struct cam_isp_timestamp {
-	struct timespec64       mono_time;
-	struct timespec64       vt_time;
-	uint64_t                ticks;
+	struct timespec64                mono_time;
+	struct timespec64                vt_time;
+	uint64_t                         ticks;
+	uint64_t                         sof_ts;
 };
 
 /*
@@ -230,6 +248,13 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_USER_DUMP,
 	CAM_ISP_HW_CMD_RDI_LCR_CFG,
 	CAM_ISP_HW_CMD_DRV_CONFIG,
+	CAM_ISP_HW_CMD_CSID_DUMP_CROP_REG,
+	CAM_ISP_HW_CMD_MC_CTXT_SEL,
+	CAM_ISP_HW_CMD_IRQ_COMP_CFG,
+	CAM_ISP_HW_CMD_IRQ_INJECTION,
+	CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION,
+	CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR,
+	CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR,
 	CAM_ISP_HW_CMD_MAX,
 };
 
@@ -307,10 +332,12 @@ struct cam_isp_blanking_config {
  * @brief:              Structure to pass error event details to hw mgr
  *
  * @err_type:           Type of error being reported
+ * @err_mask:           Exact error of the err_type
  *
  */
 struct cam_isp_hw_error_event_info {
 	uint32_t    err_type;
+	uint32_t    err_mask;
 };
 
 /**
@@ -571,6 +598,61 @@ struct cam_isp_hw_init_config_update {
 struct cam_isp_hw_overflow_info {
 	int                     res_id;
 	bool                    is_bus_overflow;
+};
+
+enum cam_isp_irq_inject_reg_unit_type {
+	CAM_ISP_CSID_TOP_REG,
+	CAM_ISP_CSID_RX_REG,
+	CAM_ISP_CSID_PATH_IPP_REG,
+	CAM_ISP_CSID_PATH_PPP_REG,
+	CAM_ISP_CSID_PATH_RDI0_REG,
+	CAM_ISP_CSID_PATH_RDI1_REG,
+	CAM_ISP_CSID_PATH_RDI2_REG,
+	CAM_ISP_CSID_PATH_RDI3_REG,
+	CAM_ISP_CSID_PATH_RDI4_REG,
+	CAM_ISP_IFE_0_BUS_WR_INPUT_IF_IRQ_SET_0_REG,
+	CAM_ISP_IFE_0_BUS_WR_INPUT_IF_IRQ_SET_1_REG,
+	CAM_ISP_SFE_0_BUS_RD_INPUT_IF_IRQ_SET_REG,
+	CAM_ISP_SFE_0_BUS_WR_INPUT_IF_IRQ_SET_0_REG,
+	CAM_ISP_REG_UNIT_MAX
+};
+
+/*
+ * struct cam_isp_irq_inject_param:
+ *
+ * @Brief: Params for isp irq injection
+ *
+ * @hw_type  :  Hw to inject IRQ
+ * @hw_idx   :  Index of the selected hw
+ * @reg_unit :  Register to set irq
+ * @irq_mask :  IRQ to be triggered
+ * @req_id   :  Req to trigger the IRQ
+ * @is_valid :  Flag to indicate current set of params is valid or not
+ * @line_buf :  Buffer to temporarily keep log
+ */
+struct cam_isp_irq_inject_param {
+	int32_t  hw_type;
+	int32_t  hw_idx;
+	int32_t  reg_unit;
+	int32_t  irq_mask;
+	uint64_t req_id;
+	bool     is_valid;
+	char     line_buf[LINE_BUFFER_LEN];
+};
+
+/*
+ * struct cam_isp_params_injection:
+ *
+ * @Brief: args for irq injection or irq desc dump
+ *
+ * @param        :  Params for isp irq injection
+ * @vfe_hw_info  :  Vfe hw info
+ * @sfe_hw_info  :  Sfe hw info
+ */
+struct cam_isp_params_injection {
+	struct cam_isp_irq_inject_param *param;
+	void                            *vfe_hw_info;
+	void                            *sfe_hw_info;
 };
 
 #endif /* _CAM_ISP_HW_H_ */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -220,7 +220,7 @@ int cam_icp_v1_init_hw(void *device_priv, void *args,
 	icp_v1_soc_info = soc_info->soc_private;
 
 	cpas_vote.ahb_vote.type = CAM_VOTE_ABSOLUTE;
-	cpas_vote.ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+	cpas_vote.ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	cpas_vote.axi_vote.num_paths = 1;
 	cpas_vote.axi_vote.axi_path[0].path_data_type =
 		CAM_ICP_DEFAULT_AXI_PATH;
@@ -257,7 +257,7 @@ int cam_icp_v1_init_hw(void *device_priv, void *args,
 		if (send_freq_info) {
 			int32_t clk_rate = 0;
 
-			clk_rate = clk_get_rate(soc_info->clk[soc_info->src_clk_idx]);
+			clk_rate = cam_wrapper_clk_get_rate(soc_info->clk[soc_info->src_clk_idx]);
 			hfi_send_freq_info(core_info->hfi_handle, clk_rate);
 		}
 	}

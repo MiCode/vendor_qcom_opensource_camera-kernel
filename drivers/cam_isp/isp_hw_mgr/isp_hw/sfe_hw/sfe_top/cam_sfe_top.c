@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -178,10 +178,12 @@ static int cam_sfe_top_set_hw_clk_rate(struct cam_sfe_top_priv *top_priv,
 	int rc = 0, clk_lvl = -1;
 	unsigned long cesta_clk_rate_high, cesta_clk_rate_low;
 	int cesta_client_idx = -1;
+	uint32_t lowest_clk_lvl;
 
 	soc_info = top_priv->common_data.soc_info;
 	soc_private = (struct cam_sfe_soc_private *)soc_info->soc_private;
 
+	lowest_clk_lvl = soc_info->lowest_clk_level;
 	cesta_clk_rate_high = final_clk_rate;
 	cesta_clk_rate_low = final_clk_rate;
 
@@ -189,7 +191,7 @@ static int cam_sfe_top_set_hw_clk_rate(struct cam_sfe_top_priv *top_priv,
 		cesta_client_idx = top_priv->common_data.hw_intf->hw_idx;
 		if (is_drv_config_en)
 			cesta_clk_rate_low =
-				soc_info->clk_rate[CAM_LOWSVS_VOTE][soc_info->src_clk_idx];
+				soc_info->clk_rate[lowest_clk_lvl][soc_info->src_clk_idx];
 		else
 			cesta_clk_rate_low = final_clk_rate;
 	}
@@ -395,14 +397,11 @@ static struct cam_axi_vote *cam_sfe_top_delay_bw_reduction(
 	uint64_t max_bw = 0;
 
 	for (i = 0; i < CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ; i++) {
-		if (top_priv->last_total_bw_vote[i] > max_bw) {
+		if (top_priv->last_total_bw_vote[i] >= max_bw) {
 			vote_idx = i;
 			max_bw = top_priv->last_total_bw_vote[i];
 		}
 	}
-
-	if (vote_idx < 0)
-		return NULL;
 
 	*to_be_applied_bw = max_bw;
 
@@ -507,16 +506,12 @@ int cam_sfe_top_calc_axi_bw_vote(struct cam_sfe_top_priv *top_priv,
 			CAM_DELAY_CLK_BW_REDUCTION_NUM_REQ;
 	} else {
 		/*
-		 * Find max bw request in last few frames. This will the bw
+		 * Find max bw request in last few frames. This will be the bw
 		 * that we want to vote to CPAS now.
 		 */
 		final_bw_vote = cam_sfe_top_delay_bw_reduction(top_priv, total_bw_new_vote);
-		if (!final_bw_vote) {
-			CAM_ERR(CAM_PERF, "to_be_applied_axi_vote is NULL, req_id:%llu",
-				request_id);
-			top_priv->bw_state = CAM_CLK_BW_STATE_UNCHANGED;
-			return 0;
-		}
+		if (*total_bw_new_vote == 0)
+			CAM_DBG(CAM_PERF, "to_be_applied_axi_vote is 0, req_id:%llu", request_id);
 	}
 
 	for (i = 0; i < final_bw_vote->num_paths; i++) {
@@ -546,11 +541,10 @@ int cam_sfe_top_calc_axi_bw_vote(struct cam_sfe_top_priv *top_priv,
 		top_priv->bw_state = CAM_CLK_BW_STATE_DECREASE;
 	}
 
-
 	CAM_DBG(CAM_PERF,
 		"sfe[%d] : Delayed update: applied_total=%lld new_total=%lld, start_stop=%d bw_state=%s req_id=%ld",
 		top_priv->common_data.hw_intf->hw_idx, top_priv->total_bw_applied,
-		total_bw_new_vote, start_stop,
+		*total_bw_new_vote, start_stop,
 		cam_sfe_top_clk_bw_state_to_string(top_priv->bw_state),
 		(start_stop ? -1 : request_id));
 
@@ -566,7 +560,6 @@ int cam_sfe_top_bw_update(struct cam_sfe_soc_private *soc_private,
 {
 	struct cam_sfe_bw_update_args        *bw_update = NULL;
 	struct cam_isp_resource_node         *res = NULL;
-	struct cam_hw_info                   *hw_info = NULL;
 	int                                   rc = 0;
 	int                                   i;
 
@@ -576,7 +569,6 @@ int cam_sfe_top_bw_update(struct cam_sfe_soc_private *soc_private,
 	if (!res || !res->hw_intf || !res->hw_intf->hw_priv)
 		return -EINVAL;
 
-	hw_info = res->hw_intf->hw_priv;
 
 	if (res->res_type != CAM_ISP_RESOURCE_SFE_IN ||
 		res->res_id >= CAM_ISP_HW_SFE_IN_MAX) {
@@ -813,7 +805,6 @@ static int cam_sfe_top_clock_update(
 {
 	struct cam_sfe_clock_update_args     *clk_update = NULL;
 	struct cam_isp_resource_node         *res = NULL;
-	struct cam_hw_info                   *hw_info = NULL;
 	int i;
 
 	if (arg_size != sizeof(struct cam_sfe_clock_update_args)) {
@@ -836,7 +827,6 @@ static int cam_sfe_top_clock_update(
 		return -EINVAL;
 	}
 
-	hw_info = res->hw_intf->hw_priv;
 
 	if (res->res_type != CAM_ISP_RESOURCE_SFE_IN ||
 		res->res_id >= CAM_ISP_HW_SFE_IN_MAX) {
@@ -1228,7 +1218,6 @@ int cam_sfe_top_reserve(void *device_priv,
 	struct cam_sfe_top_priv                 *top_priv;
 	struct cam_sfe_acquire_args             *args;
 	struct cam_sfe_hw_sfe_in_acquire_args   *acquire_args;
-	struct cam_sfe_path_data                *path_data;
 	int rc = -EINVAL, i;
 
 	if (!device_priv || !reserve_args) {
@@ -1258,8 +1247,6 @@ int cam_sfe_top_reserve(void *device_priv,
 		if ((top_priv->in_rsrc[i].res_id == acquire_args->res_id) &&
 			(top_priv->in_rsrc[i].res_state ==
 			CAM_ISP_RESOURCE_STATE_AVAILABLE)) {
-			path_data = (struct cam_sfe_path_data *)
-				top_priv->in_rsrc[i].res_priv;
 			CAM_DBG(CAM_SFE,
 				"SFE [%u] for rsrc: %u acquired",
 				top_priv->in_rsrc[i].hw_intf->hw_idx,
@@ -1594,6 +1581,7 @@ static int cam_sfe_top_handle_irq_bottom_half(
 	struct cam_sfe_path_data           *path_data = res->res_priv;
 	struct cam_sfe_top_priv            *top_priv = path_data->top_priv;
 	struct cam_sfe_top_irq_evt_payload *payload = evt_payload_priv;
+	struct cam_isp_hw_event_info        evt_info;
 
 	for (i = 0; i < CAM_SFE_IRQ_REGISTERS_MAX; i++)
 		irq_status[i] = payload->irq_reg_val[i];
@@ -1626,6 +1614,16 @@ static int cam_sfe_top_handle_irq_bottom_half(
 					true, path_data);
 
 			cam_sfe_top_dump_perf_counters("SOF", res->res_name, top_priv);
+
+			if (top_priv->event_cb) {
+				evt_info.hw_type = CAM_ISP_HW_TYPE_SFE;
+				evt_info.hw_idx   = res->hw_intf->hw_idx;
+				evt_info.res_id   = res->res_id;
+				evt_info.res_type = res->res_type;
+
+				top_priv->event_cb(top_priv->priv_per_stream,
+					CAM_ISP_HW_EVENT_SOF, (void *)&evt_info);
+			}
 		}
 
 		if (irq_status[0] &
@@ -1654,8 +1652,6 @@ int cam_sfe_top_start(
 	struct cam_isp_resource_node         *sfe_res;
 	struct cam_hw_info                   *hw_info = NULL;
 	struct cam_sfe_path_data             *path_data;
-	struct cam_hw_soc_info               *soc_info = NULL;
-	struct cam_sfe_soc_private           *soc_private = NULL;
 	uint32_t   error_mask[CAM_SFE_IRQ_REGISTERS_MAX];
 	uint32_t   sof_eof_mask[CAM_SFE_IRQ_REGISTERS_MAX];
 	uint32_t core_cfg = 0, i = 0;
@@ -1667,8 +1663,6 @@ int cam_sfe_top_start(
 
 	top_priv = (struct cam_sfe_top_priv *)priv;
 	sfe_res = (struct cam_isp_resource_node *) start_args;
-	soc_info = top_priv->common_data.soc_info;
-	soc_private = soc_info->soc_private;
 
 	hw_info = (struct cam_hw_info  *)sfe_res->hw_intf->hw_priv;
 	if (!hw_info) {

@@ -542,6 +542,33 @@ static int cam_fd_mgr_util_get_buf_map_requirement(uint32_t direction,
 	return 0;
 }
 
+static int cam_fd_mgr_put_cpu_buf(struct cam_hw_prepare_update_args *prepare)
+{
+	int i, rc;
+	uint32_t plane;
+	bool need_io_map, need_cpu_map;
+	struct cam_buf_io_cfg *io_cfg;
+
+	io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
+		&prepare->packet->payload + prepare->packet->io_configs_offset);
+
+	if (!io_cfg)
+		return -EINVAL;
+
+	for (i = 0; i < prepare->packet->num_io_configs; i++) {
+		rc = cam_fd_mgr_util_get_buf_map_requirement(
+			io_cfg[i].direction, io_cfg[i].resource_type,
+			&need_io_map, &need_cpu_map);
+
+		if (rc || !need_cpu_map)
+			continue;
+
+		for (plane = 0; plane < CAM_PACKET_MAX_PLANES; plane++)
+			cam_mem_put_cpu_buf(io_cfg[i].mem_handle[plane]);
+	}
+	return 0;
+}
+
 static int cam_fd_mgr_util_prepare_io_buf_info(int32_t iommu_hdl,
 	struct cam_hw_prepare_update_args *prepare,
 	struct cam_fd_hw_io_buffer *input_buf,
@@ -597,7 +624,8 @@ static int cam_fd_mgr_util_prepare_io_buf_info(int32_t iommu_hdl,
 			if (need_io_map) {
 				rc = cam_mem_get_io_buf(
 					io_cfg[i].mem_handle[plane],
-					iommu_hdl, &io_addr[plane], &size, NULL);
+					iommu_hdl, &io_addr[plane], &size, NULL,
+					prepare->buf_tracker);
 				if (rc) {
 					CAM_ERR(CAM_FD,
 						"Failed to get io buf %u %u %u %d",
@@ -626,6 +654,7 @@ static int cam_fd_mgr_util_prepare_io_buf_info(int32_t iommu_hdl,
 					&cpu_addr[plane], &size);
 				if (rc || ((io_addr[plane] & 0xFFFFFFFF)
 					!= io_addr[plane])) {
+					rc = -ENOSPC;
 					CAM_ERR(CAM_FD,
 						"Invalid cpu buf %d %d %d %d",
 						io_cfg[i].direction,
@@ -638,6 +667,7 @@ static int cam_fd_mgr_util_prepare_io_buf_info(int32_t iommu_hdl,
 						"Invalid cpu buf %d %d %d",
 						io_cfg[i].direction,
 						io_cfg[i].resource_type, plane);
+					cam_mem_put_cpu_buf(io_cfg[i].mem_handle[plane]);
 					rc = -EINVAL;
 					return rc;
 				}
@@ -1627,6 +1657,7 @@ hw_dump:
 	if (fd_dump_args.buf_len <= dump_args->offset) {
 		CAM_WARN(CAM_FD, "dump offset overshoot len %zu offset %zu",
 			fd_dump_args.buf_len, dump_args->offset);
+		cam_mem_put_cpu_buf(dump_args->buf_handle);
 		return -ENOSPC;
 	}
 	remain_len = fd_dump_args.buf_len - dump_args->offset;
@@ -1636,6 +1667,7 @@ hw_dump:
 	if (remain_len < min_len) {
 		CAM_WARN(CAM_FD, "dump buffer exhaust remain %zu min %u",
 			remain_len, min_len);
+		cam_mem_put_cpu_buf(dump_args->buf_handle);
 		return -ENOSPC;
 	}
 
@@ -1667,12 +1699,14 @@ hw_dump:
 		if (rc) {
 			CAM_ERR(CAM_FD, "Hw Dump cmd fails req %lld rc %d",
 				frame_req->request_id, rc);
+			cam_mem_put_cpu_buf(dump_args->buf_handle);
 			return rc;
 		}
 	}
 	CAM_DBG(CAM_FD, "Offset before %zu after %zu",
 		dump_args->offset, fd_dump_args.offset);
 	dump_args->offset = fd_dump_args.offset;
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }
 
@@ -1774,7 +1808,7 @@ static int cam_fd_mgr_hw_prepare_update(void *hw_mgr_priv,
 		kmd_buf.size, kmd_buf.used_bytes);
 
 	/* We do not expect any patching, but just do it anyway */
-	rc = cam_packet_util_process_patches(prepare->packet,
+	rc = cam_packet_util_process_patches(prepare->packet, prepare->buf_tracker,
 		hw_mgr->device_iommu.non_secure, -1, false);
 	if (rc) {
 		CAM_ERR(CAM_FD, "Patch FD packet failed, rc=%d", rc);
@@ -1797,16 +1831,20 @@ static int cam_fd_mgr_hw_prepare_update(void *hw_mgr_priv,
 		hw_mgr->device_iommu.non_secure, prepare,
 		prestart_args.input_buf, prestart_args.output_buf,
 		CAM_FD_MAX_IO_BUFFERS);
+
 	if (rc) {
 		CAM_ERR(CAM_FD, "Error in prepare IO Buf %d", rc);
-		goto error;
+
+		if (rc == -ENOSPC)
+			goto error;
+		goto put_cpu_buf;
 	}
 
 	rc = cam_fd_mgr_util_prepare_hw_update_entries(hw_mgr, prepare,
 		&prestart_args, &kmd_buf);
 	if (rc) {
 		CAM_ERR(CAM_FD, "Error in hw update entries %d", rc);
-		goto error;
+		goto put_cpu_buf;
 	}
 
 	/* get a free frame req from free list */
@@ -1815,7 +1853,8 @@ static int cam_fd_mgr_hw_prepare_update(void *hw_mgr_priv,
 	if (rc || !frame_req) {
 		CAM_ERR(CAM_FD, "Get frame_req failed, rc=%d, hw_ctx=%pK",
 			rc, hw_ctx);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto put_cpu_buf;
 	}
 
 	/* Setup frame request info and queue to pending list */
@@ -1830,9 +1869,13 @@ static int cam_fd_mgr_hw_prepare_update(void *hw_mgr_priv,
 	 */
 	prepare->priv = frame_req;
 
+	cam_fd_mgr_put_cpu_buf(prepare);
 	CAM_DBG(CAM_FD, "FramePrepare : Frame[%lld]", frame_req->request_id);
 
 	return 0;
+
+put_cpu_buf:
+	cam_fd_mgr_put_cpu_buf(prepare);
 error:
 	return rc;
 }

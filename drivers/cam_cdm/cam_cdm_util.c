@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/types.h>
@@ -607,10 +607,8 @@ int cam_cdm_util_cmd_buf_write(void __iomem **current_device_base,
 	uint32_t base_array_size, uint8_t bl_tag)
 {
 	int ret = 0;
-	uint32_t cdm_cmd_type = 0, total_cmd_buf_size = 0;
+	uint32_t cdm_cmd_type = 0;
 	uint32_t used_bytes = 0;
-
-	total_cmd_buf_size = cmd_buf_size;
 
 	while (cmd_buf_size > 0) {
 		CAM_DBG(CAM_CDM, "cmd data=%x", *cmd_buf);
@@ -847,8 +845,8 @@ static long cam_cdm_util_dump_change_base_cmd(uint32_t *cmd_buf_addr,
 	temp_ptr += CDMCmdHeaderSizes[CAM_CDM_CMD_CHANGE_BASE];
 	ret += CDMCmdHeaderSizes[CAM_CDM_CMD_CHANGE_BASE];
 
-	CAM_INFO(CAM_CDM, "CHANGE_BASE: 0x%X",
-		p_cbase_cmd->base);
+	CAM_INFO(CAM_CDM, "CHANGE_BASE: 0x%X, curr cmd addr: %pK",
+		p_cbase_cmd->base, temp_ptr);
 
 	return ret;
 }

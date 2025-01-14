@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -66,7 +66,7 @@ int cam_jpeg_dma_init_hw(void *device_priv,
 	}
 
 	ahb_vote.type = CAM_VOTE_ABSOLUTE;
-	ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+	ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	axi_vote.num_paths = 2;
 	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_ALL;
 	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_READ;
@@ -295,15 +295,12 @@ int cam_jpeg_dma_reset_hw(void *data,
 int cam_jpeg_dma_test_irq_line(void *data)
 {
 	struct cam_hw_info *jpeg_dma_dev = data;
-	struct cam_jpeg_dma_device_core_info *core_info = NULL;
 	int rc;
 
 	if (!data) {
 		CAM_ERR(CAM_JPEG, "invalid args");
 		return -EINVAL;
 	}
-
-	core_info = jpeg_dma_dev->core_info;
 
 	rc = cam_jpeg_dma_init_hw(data, NULL, 0);
 	if (rc) {
@@ -485,7 +482,6 @@ int cam_jpeg_dma_dump_camnoc_misr_val(struct cam_jpeg_dma_device_hw_info *hw_inf
 		pmisr_args->req_id,
 		camnoc_misr_val[index][3], camnoc_misr_val[index][2],
 		camnoc_misr_val[index][1], camnoc_misr_val[index][0]);
-	mismatch = false;
 	for (i = 0; i < hw_info->camnoc_misr_sigdata; i++)
 		hw_info->prev_camnoc_misr_val[index][i] =
 			camnoc_misr_val[index][i];
@@ -500,7 +496,6 @@ int cam_jpeg_dma_dump_hw_misr_val(struct cam_jpeg_dma_device_hw_info *hw_info,
 	struct cam_hw_soc_info *soc_info, void *cmd_args)
 {
 	void __iomem                         *dma_mem_base = NULL;
-	void __iomem                         *camnoc_mem_base = NULL;
 	struct cam_jpeg_misr_dump_args       *pmisr_args;
 	int32_t dma_wr_misr_val[CAM_JPEG_CAMNOC_MISR_VAL_ROW][
 		CAM_JPEG_CAMNOC_MISR_VAL_COL] = {{0}};
@@ -512,7 +507,6 @@ int cam_jpeg_dma_dump_hw_misr_val(struct cam_jpeg_dma_device_hw_info *hw_info,
 	bool mismatch = false;
 
 	dma_mem_base = soc_info->reg_map[0].mem_base;
-	camnoc_mem_base = soc_info->reg_map[1].mem_base;
 	pmisr_args = (struct cam_jpeg_misr_dump_args *)cmd_args;
 	if (!pmisr_args) {
 		CAM_ERR(CAM_JPEG, "Invalid command argument");
@@ -592,7 +586,6 @@ int cam_jpeg_dma_dump_hw_misr_val(struct cam_jpeg_dma_device_hw_info *hw_info,
 		dma_wr_misr_val[index][3], dma_wr_misr_val[index][2],
 		dma_wr_misr_val[index][1], dma_wr_misr_val[index][0]);
 
-	mismatch = false;
 	for (i = 0; i < hw_info->max_misr_wr; i++) {
 		hw_info->prev_dma_wr_misr_val[index][i] =
 			dma_wr_misr_val[index][i];
@@ -650,6 +643,42 @@ int cam_jpeg_dma_config_cmanoc_hw_misr(struct cam_jpeg_dma_device_hw_info *hw_in
 	cam_io_w_mb(hw_info->camnoc_misr_reg_val.misc_ctl_start,
 		camnoc_mem_base + hw_info->camnoc_misr_reg_offset.misc_ctl);
 	CAM_DBG(CAM_JPEG, "DMA CAMNOC and HW MISR configured");
+
+	return 0;
+}
+
+int cam_jpeg_dma_dump_debug_regs(struct cam_hw_info *jpeg_dma_dev)
+{
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct cam_jpeg_dma_device_core_info *core_info = NULL;
+
+	soc_info = &jpeg_dma_dev->soc_info;
+	core_info = (struct cam_jpeg_dma_device_core_info *)jpeg_dma_dev->core_info;
+
+	CAM_INFO(CAM_JPEG, "************ JPEG DMA REGISTER DUMP ************");
+
+	/* JPEG DMA TOP, Interrupt, core config, command registers & Fetch Engine Registers */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.top_offset,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.top_range);
+
+	/* Write Engine */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.we_offset,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.we_range);
+
+	/*
+	 * WE qos cfg, test bus and debug regs, spare regs, bus misr, scale reg, core status regs
+	 *	 & MMU prefetch regs
+	 */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.we_qos_offset,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.we_qos_range);
+
+	/* Perf Registers */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.perf_offset,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.perf_range);
 
 	return 0;
 }
@@ -773,6 +802,9 @@ int cam_jpeg_dma_process_cmd(void *device_priv, uint32_t cmd_type,
 		}
 		break;
 	}
+	case CAM_JPEG_CMD_DUMP_DEBUG_REGS:
+		rc = cam_jpeg_dma_dump_debug_regs(jpeg_dma_dev);
+		break;
 	default:
 		rc = -EINVAL;
 		break;

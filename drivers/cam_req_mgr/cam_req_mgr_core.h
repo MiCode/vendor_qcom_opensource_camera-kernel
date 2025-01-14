@@ -14,8 +14,10 @@
 
 #define CAM_REQ_MGR_MAX_LINKED_DEV     16
 #define MAX_REQ_SLOTS                  48
+#define MAX_REQ_STATE_MONITOR_NUM      108
+#define MAX_DEV_FOR_SPECIAL_OPS        4
 
-#define CAM_REQ_MGR_WATCHDOG_TIMEOUT          1000
+#define CAM_REQ_MGR_WATCHDOG_TIMEOUT          2000
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT_DEFAULT  5000
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT_MAX      50000
 #define CAM_REQ_MGR_SCHED_REQ_TIMEOUT         1000
@@ -26,9 +28,10 @@
 #define FORCE_ENABLE_RECOVERY   1
 #define AUTO_RECOVERY           0
 
-#define CRM_WORKQ_NUM_TASKS 60
+#define CRM_WORKQ_NUM_TASKS 120
 
 #define MAX_SYNC_COUNT 65535
+
 
 /* Default frame rate is 30 */
 #define DEFAULT_FRAME_DURATION 33333333
@@ -39,7 +42,7 @@
 
 #define MAXIMUM_LINKS_PER_SESSION  4
 
-#define MAXIMUM_RETRY_ATTEMPTS 3
+#define MAXIMUM_RETRY_ATTEMPTS 6
 
 #define VERSION_1  1
 #define VERSION_2  2
@@ -49,15 +52,15 @@
 
 #define CAM_REQ_MGR_HALF_FRAME_DURATION(frame_duration) (frame_duration / 2)
 
-/**
- * enum crm_req_eof_trigger_type
- * @codes: to identify which type of eof trigger for next slot
- */
-enum crm_req_eof_trigger_type {
-	CAM_REQ_EOF_TRIGGER_NONE,
-	CAM_REQ_EOF_TRIGGER_NOT_APPLY,
-	CAM_REQ_EOF_TRIGGER_APPLIED,
-};
+/* Number of words for dumping req state info*/
+#define CAM_CRM_DUMP_EVENT_NUM_WORDS  6
+
+/* Maximum length of tag while dumping */
+#define CAM_CRM_DUMP_TAG_MAX_LEN 128
+
+/* Number of headers in dumping req state info function*/
+#define CAM_CRM_DUMP_EVENT_NUM_HEADERS  2
+
 
 /**
  * enum crm_workq_task_type
@@ -166,6 +169,27 @@ enum cam_req_mgr_sync_type {
 };
 
 /**
+ * enum cam_req_mgr_req_state
+ * Request operation type for request state recording
+ * REQ_READY        : all packets for this request is added
+ * NOTIFY_TRIGGER   : request is triggered
+ * PROCESS_TRIGGER  : request is in trigger processing
+ * SEND_REQ         : CRM is sending request to each device
+ * NOTIFY_ERR       : request is notified an error
+ * PROCESS_ERR      : request is in error processing
+ * INVALID          : invalid state
+ */
+enum cam_req_mgr_req_state {
+	CAM_CRM_REQ_READY,
+	CAM_CRM_NOTIFY_TRIGGER,
+	CAM_CRM_PROCESS_TRIGGER,
+	CAM_CRM_SEND_REQ,
+	CAM_CRM_NOTIFY_ERR,
+	CAM_CRM_PROCESS_ERR,
+	CAM_CRM_STATE_INVALID,
+};
+
+/**
  * struct cam_req_mgr_traverse_result
  * @req_id        : Req id that is not ready
  * @pd            : pipeline delay
@@ -216,21 +240,21 @@ struct cam_req_mgr_apply {
 
 /**
  * struct crm_tbl_slot_special_ops
+ * @num_dev         : Number of devices need to be applied at this trigger point
  * @dev_hdl         : Device handle who requested for special ops
  * @apply_at_eof    : Boolean Identifier for request to be applied at EOF
- * @is_applied      : Flag to identify if request is already applied to device
- *                    in previous frame
  */
 struct crm_tbl_slot_special_ops {
-	int32_t dev_hdl;
+	uint32_t num_dev;
+	int32_t dev_hdl[MAX_DEV_FOR_SPECIAL_OPS];
 	bool apply_at_eof;
-	bool is_applied;
 };
 
 /**
  * struct cam_req_mgr_tbl_slot
  * @idx                 : slot index
  * @req_ready_map       : mask tracking which all devices have request ready
+ * @req_apply_map       : mask tracking which all devices have request applied
  * @state               : state machine for life cycle of a slot
  * @inject_delay_at_sof : insert extra bubbling for flash type of use cases
  * @inject_delay_at_eof : insert extra bubbling for flash type of use cases
@@ -243,6 +267,7 @@ struct crm_tbl_slot_special_ops {
 struct cam_req_mgr_tbl_slot {
 	int32_t                                idx;
 	uint32_t                               req_ready_map;
+	uint32_t                               req_apply_map;
 	enum crm_req_state                     state;
 	uint32_t                               inject_delay_at_sof;
 	uint32_t                               inject_delay_at_eof;
@@ -325,14 +350,36 @@ struct cam_req_mgr_req_queue {
 };
 
 /**
+ * struct cam_req_mgr_req_state_monitor
+ * @req_state    : operation type
+ * @req_id       : request id
+ * @dev_hdl      : to track which device is sending request
+ * @frame_id     : frame id
+ * @time_stamp   : the time stamp of the state
+ * @name         : device_name
+ */
+struct cam_req_mgr_state_monitor {
+	enum cam_req_mgr_req_state  req_state;
+	int64_t                     req_id;
+	int32_t                     dev_hdl;
+	int64_t                     frame_id;
+	struct timespec64           time_stamp;
+	char                        name[256];
+};
+
+/**
  * struct cam_req_mgr_req_data
- * @in_q             : Poiner to Input request queue
- * @l_tbl            : unique pd request tables.
- * @num_tbl          : how many unique pd value devices are present
- * @apply_data       : Holds information about request id for a request
- * @prev_apply_data  : Holds information about request id for a previous
- *                     applied request
- * @lock             : mutex lock protecting request data ops.
+ * @in_q                  : Poiner to Input request queue
+ * @l_tbl                 : unique pd request tables.
+ * @num_tbl               : how many unique pd value devices are present
+ * @apply_data            : Holds information about request id for a request
+ * @prev_apply_data       : Holds information about request id for a previous
+ *                          applied request
+ * @state_monitor         : used to track the request state in CRM
+ * @next_state_idx        : indicates index to hold new request state
+ * @lock                  : mutex lock protecting request data ops.
+ * @monitor_slock         : spin lock protecting state mointor variables
+ * @reset_link_spin_lock  : spin lock protecting link data ops when reset link
  */
 struct cam_req_mgr_req_data {
 	struct cam_req_mgr_req_queue *in_q;
@@ -340,7 +387,12 @@ struct cam_req_mgr_req_data {
 	int32_t                       num_tbl;
 	struct cam_req_mgr_apply      apply_data[CAM_PIPELINE_DELAY_MAX];
 	struct cam_req_mgr_apply      prev_apply_data[CAM_PIPELINE_DELAY_MAX];
+	struct cam_req_mgr_state_monitor state_monitor[
+		MAX_REQ_STATE_MONITOR_NUM];
+	int32_t                       next_state_idx;
 	struct mutex                  lock;
+	spinlock_t                    monitor_slock;
+	spinlock_t                    reset_link_spin_lock;
 };
 
 /**

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CAM_SYNC_API_H__
@@ -15,16 +16,22 @@
 #define SYNC_DEBUG_NAME_LEN 63
 typedef void (*sync_callback)(int32_t sync_obj, int status, void *data);
 
+enum cam_sync_synx_supported_cores {
+	CAM_ICP_0_SYNX_CORE = 1,
+	CAM_ICP_1_SYNX_CORE,
+	CAM_INVALID_SYNX_CORE,
+};
+
 /* Kernel APIs */
 
 /**
  * @brief: Creates a sync object
  *
- *  The newly created sync obj is assigned to sync_obj.
- *  sync object.
+ * The newly created sync obj is assigned to sync_obj.
+ * sync object.
  *
- * @param sync_obj   : Pointer to int referencing the sync object.
- * @param name : Optional parameter associating a name with the sync object for
+ * @param sync_obj : Pointer to int referencing the sync object.
+ * @param name     : Optional parameter associating a name with the sync object for
  * debug purposes. Only first SYNC_DEBUG_NAME_LEN bytes are accepted,
  * rest will be ignored.
  *
@@ -38,14 +45,13 @@ int cam_sync_create(int32_t *sync_obj, const char *name);
 /**
  * @brief: Registers a callback with a sync object
  *
- * @param cb_func:  Pointer to callback to be registered
- * @param userdata: Opaque pointer which will be passed back with callback.
- * @param sync_obj: int referencing the sync object.
+ * @param cb_func  :  Pointer to callback to be registered
+ * @param userdata : Opaque pointer which will be passed back with callback.
+ * @param sync_obj : int referencing the sync object.
  *
  * @return Status of operation. Zero in case of success.
  * -EINVAL will be returned if userdata is invalid.
  * -ENOMEM will be returned if cb_func is invalid.
- *
  */
 int cam_sync_register_callback(sync_callback cb_func,
 	void *userdata, int32_t sync_obj);
@@ -53,13 +59,14 @@ int cam_sync_register_callback(sync_callback cb_func,
 /**
  * @brief: De-registers a callback with a sync object
  *
- * @param cb_func:  Pointer to callback to be de-registered
- * @param userdata: Opaque pointer which will be passed back with callback.
- * @param sync_obj: int referencing the sync object.
+ * @param cb_func  :  Pointer to callback to be de-registered
+ * @param userdata : Opaque pointer which will be passed back with callback.
+ * @param sync_obj : int referencing the sync object.
  *
  * @return Status of operation. Zero in case of success.
  * -EINVAL will be returned if userdata is invalid.
  * -ENOMEM will be returned if cb_func is invalid.
+ * -ENOENT will be returned if call back not found
  */
 int cam_sync_deregister_callback(sync_callback cb_func,
 	void *userdata, int32_t sync_obj);
@@ -73,10 +80,10 @@ int cam_sync_deregister_callback(sync_callback cb_func,
  * is not guaranteed. The status parameter will indicate whether the entity
  * performing the signaling wants to convey an error case or a success case.
  *
- * @param sync_obj: int referencing the sync object.
- * @param status: Status of the signaling. Can be either SYNC_SIGNAL_ERROR or
+ * @param sync_obj  : int referencing the sync object.
+ * @param status    : Status of the signaling. Can be either SYNC_SIGNAL_ERROR or
  * SYNC_SIGNAL_SUCCESS.
- * @param evt_param: Event parameter
+ * @param evt_param : Event parameter
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
@@ -87,8 +94,8 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t evt_param);
  *
  * This function will merge multiple sync objects into a sync group.
  *
- * @param sync_obj: pointer to a block of ints to be merged
- * @param num_objs: Number of ints in the block
+ * @param sync_obj : pointer to a block of ints to be merged
+ * @param num_objs : Number of ints in the block
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
@@ -133,11 +140,12 @@ int cam_sync_destroy(int32_t sync_obj);
  * of timeout_ms milliseconds. Must not be called from interrupt context as
  * this API can sleep. Should be called from process context only.
  *
- * @param sync_obj: int referencing the sync object to be waited upon
- * @timeout_ms sync_obj: Timeout in ms.
+ * @param sync_obj   : int referencing the sync object to be waited upon
+ * @param timeout_ms : Timeout in ms.
  *
- * @return 0 upon success, -EINVAL if sync object is in bad state or arguments
- * are invalid, -ETIMEDOUT if wait times out.
+ * @return Status of operation. Zero in case of success
+ * -EINVAL if sync object is in bad state or arguments are invalid
+ * -ETIMEDOUT if wait times out
  */
 int cam_sync_wait(int32_t sync_obj, uint64_t timeout_ms);
 
@@ -146,13 +154,25 @@ int cam_sync_wait(int32_t sync_obj, uint64_t timeout_ms);
  *
  * @param sync_obj: int referencing the sync object to be checked
  *
- * @return 0 upon success, -EINVAL if sync object is in bad state or arguments
- * are invalid
+ * @return Status of operation. Zero in case of success
+ * -EINVAL if sync object is in bad state or arguments are invalid
  */
 int cam_sync_check_valid(int32_t sync_obj);
 
 /**
+ * @brief: Synx recovery for a given core
+ *
+ * @param core_id: Core ID we want to recover for
+ *
+ * @return Status of operation. Zero in case of success
+ * -EINVAL if core_id is invalid
+ */
+int cam_sync_synx_core_recovery(
+	enum cam_sync_synx_supported_cores core_id);
+
+/**
  * @brief : API to register SYNC to platform framework.
+ *
  * @return struct platform_device pointer on on success, or ERR_PTR() on error.
  */
 int cam_sync_init(void);

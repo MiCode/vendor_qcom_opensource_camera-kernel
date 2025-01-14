@@ -28,7 +28,7 @@ static int cam_icp_get_device_num(enum cam_icp_hw_type dev_type, uint32_t *num_d
 }
 
 int cam_icp_alloc_processor_devs(struct device_node *np, enum cam_icp_hw_type *icp_hw_type,
-	struct cam_hw_intf ***devices, uint32_t *hw_dev_cnt, uint32_t *dev_cap_cnt)
+	struct cam_hw_intf ***devices, uint32_t *hw_dev_cnt)
 {
 	uint32_t num_icp_found = 0, num_icp_listed;
 	int rc, i;
@@ -64,13 +64,6 @@ int cam_icp_alloc_processor_devs(struct device_node *np, enum cam_icp_hw_type *i
 	if (i == CAM_ICP_MAX_ICP_HW_TYPE) {
 		CAM_ERR(CAM_ICP, "No ICP device probed");
 		return -ENODEV;
-	}
-
-	if (num_icp_found != dev_cap_cnt[i]) {
-		CAM_ERR(CAM_ICP,
-			"Number of ICP core probed: %u is not equal to CPAS supported devices: %u",
-			num_icp_found, dev_cap_cnt[i]);
-		return -EINVAL;
 	}
 
 	icp_request_cnt[i] += num_icp_listed;

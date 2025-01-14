@@ -37,7 +37,7 @@
 #define CAM_SYNC_OBJ_NAME_LEN           64
 #define CAM_SYNC_MAX_OBJS               2048
 #define CAM_GENERIC_FENCE_BATCH_MAX     10
-#define CAM_SYNC_MAX_V4L2_EVENTS        250
+#define CAM_SYNC_MAX_V4L2_EVENTS        300
 #define CAM_SYNC_DEBUG_FILENAME         "cam_debug"
 #define CAM_SYNC_DEBUG_BASEDIR          "cam"
 #define CAM_SYNC_DEBUG_BUF_SIZE         32
@@ -69,13 +69,13 @@
  * dumps on any error, to explicitly trigger a dump on every fence release
  * below BIT(fence_type_dump) needs to be used at the same time
  */
-#define CAM_GENERIC_FENCE_DUMP         0x10
+#define CAM_GENERIC_FENCE_DUMP_ALWAYS   0x10
 #define CAM_GENERIC_FENCE_TYPE_SYNC_OBJ_DUMP \
-	(CAM_GENERIC_FENCE_TYPE_SYNC_OBJ + (CAM_GENERIC_FENCE_DUMP))
+	(CAM_GENERIC_FENCE_TYPE_SYNC_OBJ + (CAM_GENERIC_FENCE_DUMP_ALWAYS))
 #define CAM_GENERIC_FENCE_TYPE_DMA_FENCE_DUMP \
-	(CAM_GENERIC_FENCE_TYPE_DMA_FENCE + (CAM_GENERIC_FENCE_DUMP))
+	(CAM_GENERIC_FENCE_TYPE_DMA_FENCE + (CAM_GENERIC_FENCE_DUMP_ALWAYS))
 #define CAM_GENERIC_FENCE_TYPE_SYNX_OBJ_DUMP \
-	(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ + (CAM_GENERIC_FENCE_DUMP))
+	(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ + (CAM_GENERIC_FENCE_DUMP_ALWAYS))
 
 /**
  * enum sync_type - Enum to indicate the type of sync object,
@@ -345,7 +345,7 @@ struct cam_signalable_info {
  *
  * @vdev            : Video device
  * @v4l2_dev        : V4L2 device
- * @sync_table      : Table of all sync objects
+ * @sync_table      : Table of all sync objects allocated when driver initializes
  * @row_spinlocks   : Spinlock array, one for each row in the table
  * @table_lock      : Mutex used to lock the table
  * @open_cnt        : Count of file open calls made on the sync driver
@@ -360,7 +360,7 @@ struct cam_signalable_info {
 struct sync_device {
 	struct video_device *vdev;
 	struct v4l2_device v4l2_dev;
-	struct sync_table_row sync_table[CAM_SYNC_MAX_OBJS];
+	struct sync_table_row *sync_table;
 	spinlock_t row_spinlocks[CAM_SYNC_MAX_OBJS];
 	struct mutex table_lock;
 	int open_cnt;

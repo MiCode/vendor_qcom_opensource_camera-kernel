@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SFE780_H_
@@ -687,6 +687,19 @@ static struct cam_irq_register_set sfe780_bus_rd_irq_reg[1] = {
 		.mask_reg_offset   = 0x00000404,
 		.clear_reg_offset  = 0x00000408,
 		.status_reg_offset = 0x00000410,
+		.set_reg_offset    = 0x00000418,
+	},
+};
+
+static struct cam_sfe_bus_rd_err_irq_desc sfe780_bus_rd_irq_err_desc[] = {
+	{
+		.bitmask = BIT(0),
+		.err_name = "INFO_CONS_VIOLATION",
+		.desc = "Clients have illegal programming, check CONS_VIOLATION_STATUS",
+	},
+	{
+		.bitmask = BIT(31),
+		.err_name = "INFO_CCIF_VIOLATION",
 	},
 };
 
@@ -819,12 +832,42 @@ static struct cam_sfe_bus_rd_hw_info sfe780_bus_rd_hw_info = {
 			.max_height    = -1,
 		},
 	},
+	.num_bus_rd_errors     = ARRAY_SIZE(sfe780_bus_rd_irq_err_desc),
+	.bus_rd_err_desc       = sfe780_bus_rd_irq_err_desc,
 	.top_irq_shift          = 0x1,
 	.latency_buf_allocation = 2048,
 	.sys_cache_default_val  = 0x20,
 	.irq_err_mask           = 0x1,
 	.fs_sync_shift          = 0x5,
 	.constraint_error_info  = &sfe780_bus_rd_constraint_error_info,
+};
+
+static struct cam_sfe_bus_wr_err_irq_desc sfe780_bus_wr_irq_err_desc[] = {
+	{
+		.bitmask = BIT(26),
+		.err_name = "IPCC_FENCE_DATA_ERR",
+		.desc = "IPCC or FENCE Data was not available in the Input Fifo",
+	},
+	{
+		.bitmask = BIT(27),
+		.err_name = "IPCC_FENCE_ADDR_ERR",
+		.desc = "IPCC or FENCE address fifo was empty and read was attempted",
+	},
+	{
+		.bitmask = BIT(28),
+		.err_name = "CONS_VIOLATION",
+		.desc = "Programming of software registers violated the constraints",
+	},
+	{
+		.bitmask = BIT(30),
+		.err_name = "VIOLATION",
+		.desc = "Client has a violation in ccif protocol at input",
+	},
+	{
+		.bitmask = BIT(31),
+		.err_name = "IMAGE_SIZE_VIOLATION",
+		.desc = "Programmed image size is not same as image size from the CCIF",
+	},
 };
 
 static struct cam_sfe_bus_wr_constraint_error_desc
@@ -959,6 +1002,7 @@ static struct cam_irq_register_set sfe780_bus_wr_irq_reg[1] = {
 		.mask_reg_offset   = 0x00000818,
 		.clear_reg_offset  = 0x00000820,
 		.status_reg_offset = 0x00000828,
+		.set_reg_offset    = 0x00000850,
 	},
 };
 
@@ -1672,6 +1716,8 @@ static struct cam_sfe_bus_wr_hw_info sfe780_bus_wr_hw_info = {
 		},
 	},
 	.constraint_error_info = &sfe780_bus_wr_constraint_error_info,
+	.num_bus_wr_errors     = ARRAY_SIZE(sfe780_bus_wr_irq_err_desc),
+	.bus_wr_err_desc       = sfe780_bus_wr_irq_err_desc,
 	.comp_done_mask = {
 		BIT(17), BIT(18), BIT(19), BIT(20), BIT(21), BIT(22), BIT(23),
 		BIT(24), BIT(25), BIT(26),

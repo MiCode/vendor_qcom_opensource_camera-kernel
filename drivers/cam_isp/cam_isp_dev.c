@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -151,7 +151,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 
 	int iommu_hdl = -1;
 
-	rc = of_property_read_string_index(pdev->dev.of_node, "arch-compat", 0,
+	of_property_read_string_index(pdev->dev.of_node, "arch-compat", 0,
 		(const char **)&compat_str);
 
 	g_isp_dev.sd.internal_ops = &cam_isp_subdev_internal_ops;
@@ -161,6 +161,11 @@ static int cam_isp_dev_component_bind(struct device *dev,
 		rc = cam_subdev_probe(&g_isp_dev.sd, pdev, CAM_ISP_DEV_NAME,
 		CAM_IFE_DEVICE_TYPE);
 		g_isp_dev.isp_device_type = CAM_IFE_DEVICE_TYPE;
+		g_isp_dev.max_context = CAM_IFE_CTX_MAX;
+	} else if (strnstr(compat_str, "mc_tfe", strlen(compat_str))) {
+		rc  = cam_subdev_probe(&g_isp_dev.sd, pdev, CAM_ISP_DEV_NAME,
+		CAM_TFE_MC_DEVICE_TYPE);
+		g_isp_dev.isp_device_type = CAM_TFE_MC_DEVICE_TYPE;
 		g_isp_dev.max_context = CAM_IFE_CTX_MAX;
 	} else if (strnstr(compat_str, "tfe", strlen(compat_str))) {
 		rc = cam_subdev_probe(&g_isp_dev.sd, pdev, CAM_ISP_DEV_NAME,
@@ -200,7 +205,8 @@ static int cam_isp_dev_component_bind(struct device *dev,
 		goto unregister;
 	}
 
-	rc = cam_isp_hw_mgr_init(compat_str, &hw_mgr_intf, &iommu_hdl);
+	rc = cam_isp_hw_mgr_init(compat_str, &hw_mgr_intf, &iommu_hdl,
+		g_isp_dev.isp_device_type);
 	if (rc != 0) {
 		CAM_ERR(CAM_ISP, "Can not initialized ISP HW manager!");
 		goto kfree;
@@ -260,7 +266,7 @@ static void cam_isp_dev_component_unbind(struct device *dev,
 	const char *compat_str = NULL;
 	struct platform_device *pdev = to_platform_device(dev);
 
-	rc = of_property_read_string_index(pdev->dev.of_node, "arch-compat", 0,
+	of_property_read_string_index(pdev->dev.of_node, "arch-compat", 0,
 		(const char **)&compat_str);
 
 	cam_isp_hw_mgr_deinit(compat_str);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -203,7 +203,7 @@ int cam_ope_init_hw(void *device_priv,
 	}
 
 	cpas_vote->ahb_vote.type = CAM_VOTE_ABSOLUTE;
-	cpas_vote->ahb_vote.vote.level = CAM_SVS_VOTE;
+	cpas_vote->ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	cpas_vote->axi_vote.num_paths = 1;
 	cpas_vote->axi_vote.axi_path[0].path_data_type =
 		CAM_AXI_PATH_DATA_ALL;
@@ -547,7 +547,7 @@ static uint32_t *ope_create_frame_cmd_batch(struct cam_ope_hw_mgr *hw_mgr,
 
 		rc = cam_mem_get_io_buf(
 			frm_proc->cmd_buf[i][j].mem_handle,
-			hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL);
+			hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL, NULL);
 		if (rc) {
 			CAM_ERR(CAM_OPE, "get cmd buf failed %x",
 				hw_mgr->iommu_hdl);
@@ -585,6 +585,7 @@ static uint32_t *ope_create_frame_cmd_batch(struct cam_ope_hw_mgr *hw_mgr,
 				dmi_cmd = (struct cdm_dmi_cmd *)temp;
 				if (!dmi_cmd->addr) {
 					CAM_ERR(CAM_OPE, "Null dmi cmd addr");
+					cam_mem_put_cpu_buf(frm_proc->cmd_buf[i][j].mem_handle);
 					return NULL;
 				}
 
@@ -605,6 +606,8 @@ static uint32_t *ope_create_frame_cmd_batch(struct cam_ope_hw_mgr *hw_mgr,
 		if (hw_mgr->frame_dump_enable)
 			dump_frame_cmd(frm_proc, i, j,
 				iova_addr, kmd_buf, buf_len);
+
+		cam_mem_put_cpu_buf(frm_proc->cmd_buf[i][j].mem_handle);
 	}
 	return kmd_buf;
 
@@ -704,7 +707,7 @@ static uint32_t *ope_create_frame_cmd(struct cam_ope_hw_mgr *hw_mgr,
 
 			rc = cam_mem_get_io_buf(
 				frm_proc->cmd_buf[i][j].mem_handle,
-				hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL);
+				hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL, NULL);
 			if (rc) {
 				CAM_ERR(CAM_OPE, "get cmd buf failed %x",
 					hw_mgr->iommu_hdl);
@@ -744,6 +747,8 @@ static uint32_t *ope_create_frame_cmd(struct cam_ope_hw_mgr *hw_mgr,
 					if (!dmi_cmd->addr) {
 						CAM_ERR(CAM_OPE,
 							"Null dmi cmd addr");
+						cam_mem_put_cpu_buf(
+							frm_proc->cmd_buf[i][j].mem_handle);
 						return NULL;
 					}
 
@@ -765,6 +770,8 @@ static uint32_t *ope_create_frame_cmd(struct cam_ope_hw_mgr *hw_mgr,
 			if (hw_mgr->frame_dump_enable)
 				dump_frame_cmd(frm_proc, i, j,
 					iova_addr, kmd_buf, buf_len);
+
+			cam_mem_put_cpu_buf(frm_proc->cmd_buf[i][j].mem_handle);
 		}
 	}
 	return kmd_buf;
@@ -819,7 +826,7 @@ static uint32_t *ope_create_stripe_cmd(struct cam_ope_hw_mgr *hw_mgr,
 
 		CAM_DBG(CAM_OPE, "process stripe %d", stripe_idx);
 		rc = cam_mem_get_io_buf(frm_proc->cmd_buf[i][k].mem_handle,
-			hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL);
+			hw_mgr->iommu_cdm_hdl, &iova_addr, &buf_len, NULL, NULL);
 		if (rc) {
 			CAM_DBG(CAM_OPE, "get cmd buf fail %x",
 				hw_mgr->iommu_hdl);
@@ -859,6 +866,7 @@ static uint32_t *ope_create_stripe_cmd(struct cam_ope_hw_mgr *hw_mgr,
 				dmi_cmd = (struct cdm_dmi_cmd *)temp;
 				if (!dmi_cmd->addr) {
 					CAM_ERR(CAM_OPE, "Null dmi cmd addr");
+					cam_mem_put_cpu_buf(frm_proc->cmd_buf[i][k].mem_handle);
 					return NULL;
 				}
 
@@ -877,6 +885,8 @@ static uint32_t *ope_create_stripe_cmd(struct cam_ope_hw_mgr *hw_mgr,
 		if (hw_mgr->frame_dump_enable)
 			dump_stripe_cmd(frm_proc, stripe_idx, i, k,
 				iova_addr, kmd_buf, buf_len);
+
+		cam_mem_put_cpu_buf(frm_proc->cmd_buf[i][k].mem_handle);
 	}
 
 	ope_dev = hw_mgr->ope_dev_intf[0]->hw_priv;

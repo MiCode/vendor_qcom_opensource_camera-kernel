@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_MEM_MGR_API_H_
@@ -71,11 +72,13 @@ int cam_mem_mgr_release_mem(struct cam_mem_mgr_memory_desc *inp);
  * @iova_ptr  : Pointer to mmu's iova
  * @len_ptr   : Length of the buffer
  * @flags     : Flags the buffer was allocated with
+ * @buf_tracker: List of buffers we want to keep ref counts on
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_mem_get_io_buf(int32_t buf_handle, int32_t mmu_handle,
-	dma_addr_t *iova_ptr, size_t *len_ptr, uint32_t *flags);
+	dma_addr_t *iova_ptr, size_t *len_ptr, uint32_t *flags,
+	struct list_head *buf_tracker);
 
 /**
  * @brief: This indicates begin of CPU access.
@@ -89,6 +92,14 @@ int cam_mem_get_io_buf(int32_t buf_handle, int32_t mmu_handle,
  */
 int cam_mem_get_cpu_buf(int32_t buf_handle, uintptr_t *vaddr_ptr,
 	size_t *len);
+
+/**
+ * @brief: This indicates end of CPU access
+ *
+ * @buf_handle: Handle for the buffer
+ *
+ */
+void cam_mem_put_cpu_buf(int32_t buf_handle);
 
 static inline bool cam_mem_is_secure_buf(int32_t buf_handle)
 {

@@ -44,7 +44,7 @@ struct hfi_mem {
  * @io_mem2: 2nd io memory info
  * @fw_uncached: FW uncached region info
  * @global_sync: Global sync mem for IPC
- * @hwmutex: HWMutex memory
+ * @device_mem: device memory
  */
 struct hfi_mem_info {
 	struct hfi_mem qtbl;
@@ -58,8 +58,7 @@ struct hfi_mem_info {
 	struct hfi_mem io_mem;
 	struct hfi_mem io_mem2;
 	struct hfi_mem fw_uncached;
-	struct hfi_mem global_sync;
-	struct hfi_mem hwmutex;
+	struct hfi_mem device_mem;
 };
 
 /**
@@ -80,12 +79,14 @@ struct hfi_ops {
  * @msg_q: msg queue
  * @msg_q_state: msg queue state
  * @cmd_q_state: cmd queue state
+ * @dbg_q_state: dbg queue state
  */
 struct hfi_mini_dump_info {
 	uint32_t       cmd_q[HFI_CMD_Q_MINI_DUMP_SIZE_IN_BYTES];
 	uint32_t       msg_q[HFI_MSG_Q_MINI_DUMP_SIZE_IN_BYTES];
 	bool           msg_q_state;
 	bool           cmd_q_state;
+	bool           dbg_q_state;
 };
 /**
  * hfi_write_cmd() - function for hfi write
@@ -100,13 +101,15 @@ int hfi_write_cmd(int client_handle, void *cmd_ptr);
  * hfi_read_message() - function for hfi read
  * @client_handle: client handle
  * @pmsg: buffer to place read message for hfi queue
- * @q_id: queue id
+ * @q_id: Queue to read from
+ * @buf_words_size: size in words of the input buffer
  * @words_read: total number of words read from the queue
  *              returned as output to the caller
  *
  * Returns success(zero)/failure(non zero)
  */
-int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id, uint32_t *words_read);
+int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
+	size_t buf_words_size, uint32_t *words_read);
 
 /**
  * hfi_init() - function initialize hfi after firmware download
@@ -244,5 +247,4 @@ void cam_hfi_queue_dump(int client_handle, bool dump_queue_data);
  * @dst: memory destination
  */
 void cam_hfi_mini_dump(int client_handle, struct hfi_mini_dump_info *dst);
-
 #endif /* _HFI_INTF_H_ */

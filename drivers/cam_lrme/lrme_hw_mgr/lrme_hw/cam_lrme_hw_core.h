@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_LRME_HW_CORE_H_
@@ -36,7 +37,7 @@
 #define CAM_LRME_MAX_REG_PAIR_NUM 60
 
 #define CAM_LRME_RESPONSE_TIME_THRESHOLD 100000
-#define CAM_LRME_HW_DUMP_TAG_MAX_LEN     32
+#define CAM_LRME_HW_DUMP_TAG_MAX_LEN     128
 #define CAM_LRME_HW_DUMP_NUM_WORDS       5
 
 /**

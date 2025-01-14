@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_COMMON_H_
@@ -11,9 +11,20 @@
 #include "cam_ife_csid_hw_intf.h"
 #include "cam_ife_csid_soc.h"
 
-#define CAM_IFE_CSID_VER_1_0  0x100
-#define CAM_IFE_CSID_VER_2_0  0x200
-#define CAM_IFE_CSID_MAX_ERR_COUNT  100
+#define CAM_IFE_CSID_VER_1_0                              0x100
+#define CAM_IFE_CSID_VER_2_0                              0x200
+#define CAM_IFE_CSID_MAX_ERR_COUNT                        100
+
+/*
+ * CRC error threshold is set to be 1% of frame width and
+ * this macro is used as divisor in calculation
+ */
+#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR                  100
+/*add by xiaomi start*/
+#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR_XIAOMI           65536
+#define CAM_IFE_CSID_MIN_CRC_ERR_DIVISOR_XIAOMI           0
+#define CAM_IFE_CSID_MAX_TOTAL_CRC_ERR_COUNT              100
+/*add by xiaomi end*/
 
 #define CAM_IFE_CSID_HW_CAP_IPP                           0x1
 #define CAM_IFE_CSID_HW_CAP_RDI                           0x2
@@ -34,10 +45,14 @@
 
 #define CAM_IFE_CSID_LOG_BUF_LEN                          512
 
-#define CAM_IFE_CSID_CAP_INPUT_LCR                        0x1
-#define CAM_IFE_CSID_CAP_RDI_UNPACK_MSB                   0x2
-#define CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI            0x80
-#define CAM_IFE_CSID_CAP_SOF_RETIME_DIS                   0x100
+#define CAM_IFE_CSID_CAP_INPUT_LCR                        BIT(0)
+#define CAM_IFE_CSID_CAP_RDI_UNPACK_MSB                   BIT(1)
+#define CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI            BIT(2)
+#define CAM_IFE_CSID_CAP_SOF_RETIME_DIS                   BIT(3)
+#define CAM_IFE_CSID_CAP_SPLIT_RUP_AUP                    BIT(4)
+#define CAM_IFE_CSID_CAP_SKIP_PATH_CFG1                   BIT(5)
+#define CAM_IFE_CSID_CAP_SKIP_EPOCH_CFG                   BIT(6)
+#define CAM_IFE_CSID_CAP_MULTI_CTXT                       BIT(7)
 
 /*
  * CSID RX debug vc-dt capture
@@ -76,6 +91,8 @@
 
 #define CAM_IFE_CSID_WIDTH_FUSE_VAL_MAX			  4
 
+#define CAM_IFE_CSID_RUP_AUP_SET_VAL                      BIT(0)
+
 /* factor to conver qtime to boottime */
 extern int64_t qtime_to_boottime;
 
@@ -108,6 +125,10 @@ enum cam_ife_csid_irq_reg {
 	CAM_IFE_CSID_IRQ_REG_UDI_0,
 	CAM_IFE_CSID_IRQ_REG_UDI_1,
 	CAM_IFE_CSID_IRQ_REG_UDI_2,
+	CAM_IFE_CSID_IRQ_REG_TOP_2,
+	CAM_IFE_CSID_IRQ_REG_RX_2,
+	CAM_IFE_CSID_IRQ_REG_IPP_1,
+	CAM_IFE_CSID_IRQ_REG_IPP_2,
 	CAM_IFE_CSID_IRQ_REG_MAX,
 };
 
@@ -289,11 +310,13 @@ struct cam_ife_csid_core_info {
  * @csi2_reserve_cnt:       Reserve count for csi2
  * @irq_debug_cnt:          irq debug counter
  * @error_irq_count:        error irq counter
+ * @crc_error_irq_count:    crc error irq counter
  */
 struct cam_ife_csid_hw_counters {
 	uint32_t                          csi2_reserve_cnt;
 	uint32_t                          irq_debug_cnt;
 	uint32_t                          error_irq_count;
+	uint32_t                          crc_error_irq_count;
 };
 
 /*
@@ -446,4 +469,9 @@ int cam_ife_csid_get_base(struct cam_hw_soc_info *soc_info,
 const char *cam_ife_csid_reset_type_to_string(enum cam_ife_csid_reset_type reset_type);
 
 const uint8_t **cam_ife_csid_get_irq_reg_tag_ptr(void);
+
+/* xiaomi add mipi_error_flag begin */
+void count_mipi_error(uint32_t res_type);
+/* xiaomi add mipi_error_flag end */
+
 #endif /*_CAM_IFE_CSID_COMMON_H_ */

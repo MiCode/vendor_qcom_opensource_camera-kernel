@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -390,13 +391,7 @@ static int cam_vfe_fe_reg_dump(
 		CAM_INFO(CAM_ISP, "offset 0x%x val 0x%x", i, val);
 	}
 
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x420, true, &val);
-	CAM_INFO(CAM_ISP, "IFE02_MAXWR_LOW offset 0x420 val 0x%x", val);
-
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x820, true, &val);
-	CAM_INFO(CAM_ISP, "IFE13_MAXWR_LOW offset 0x820 val 0x%x", val);
+	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
 
 	return rc;
 }
@@ -405,7 +400,6 @@ static int cam_vfe_fe_resource_stop(
 	struct cam_isp_resource_node        *fe_res)
 {
 	struct cam_vfe_mux_fe_data       *fe_priv;
-	struct cam_vfe_fe_ver1_reg       *fe_reg;
 	int rc = 0;
 	uint32_t val = 0;
 
@@ -419,7 +413,6 @@ static int cam_vfe_fe_resource_stop(
 		return 0;
 
 	fe_priv = (struct cam_vfe_mux_fe_data *)fe_res->res_priv;
-	fe_reg = fe_priv->fe_reg;
 
 	if ((fe_priv->dsp_mode >= CAM_ISP_DSP_MODE_ONE_WAY) &&
 		(fe_priv->dsp_mode <= CAM_ISP_DSP_MODE_ROUND)) {
@@ -512,7 +505,7 @@ static int cam_vfe_fe_handle_irq_top_half(uint32_t evt_id,
 static int cam_vfe_fe_handle_irq_bottom_half(void *handler_priv,
 	void *evt_payload_priv)
 {
-	int                                   ret = CAM_VFE_IRQ_STATUS_ERR;
+	int                                   ret = CAM_VFE_IRQ_STATUS_SUCCESS;
 	struct cam_isp_resource_node         *fe_node;
 	struct cam_vfe_mux_fe_data           *fe_priv;
 	struct cam_vfe_top_irq_evt_payload   *payload;
@@ -521,6 +514,7 @@ static int cam_vfe_fe_handle_irq_bottom_half(void *handler_priv,
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params");
+		ret = CAM_VFE_IRQ_STATUS_ERR;
 		return ret;
 	}
 
@@ -548,31 +542,22 @@ static int cam_vfe_fe_handle_irq_bottom_half(void *handler_priv,
 		} else {
 			CAM_DBG(CAM_ISP, "Received SOF");
 		}
-		ret = CAM_VFE_IRQ_STATUS_SUCCESS;
 	}
 
-	if (irq_status0 & fe_priv->reg_data->epoch0_irq_mask) {
+	if (irq_status0 & fe_priv->reg_data->epoch0_irq_mask)
 		CAM_DBG(CAM_ISP, "Received EPOCH");
-		ret = CAM_VFE_IRQ_STATUS_SUCCESS;
-	}
 
-	if (irq_status0 & fe_priv->reg_data->reg_update_irq_mask) {
+	if (irq_status0 & fe_priv->reg_data->reg_update_irq_mask)
 		CAM_DBG(CAM_ISP, "Received REG_UPDATE_ACK");
-		ret = CAM_VFE_IRQ_STATUS_SUCCESS;
-	}
 
-	if (irq_status0 & fe_priv->reg_data->eof_irq_mask) {
+	if (irq_status0 & fe_priv->reg_data->eof_irq_mask)
 		CAM_DBG(CAM_ISP, "Received EOF");
-		ret = CAM_VFE_IRQ_STATUS_SUCCESS;
-	}
 
 	if (irq_status1 & fe_priv->reg_data->error_irq_mask1) {
 		CAM_DBG(CAM_ISP, "Received ERROR");
-		ret = CAM_ISP_HW_ERROR_OVERFLOW;
+		ret = CAM_VFE_IRQ_STATUS_ERR;
 		cam_vfe_fe_reg_dump(fe_node);
 		/* No HW mgr notification on error */
-	} else {
-		ret = CAM_ISP_HW_ERROR_NONE;
 	}
 
 	CAM_DBG(CAM_ISP, "returing status = %d", ret);

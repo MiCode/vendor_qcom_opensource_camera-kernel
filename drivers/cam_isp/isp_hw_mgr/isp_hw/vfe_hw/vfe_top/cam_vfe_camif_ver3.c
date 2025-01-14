@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -372,7 +372,6 @@ static int cam_vfe_camif_ver3_resource_start(
 	uint32_t                             epoch0_line_cfg;
 	uint32_t                             epoch1_line_cfg;
 	uint32_t                             computed_epoch_line_cfg;
-	int                                  rc = 0;
 	uint32_t                        err_irq_mask[CAM_IFE_IRQ_REGISTERS_MAX];
 	uint32_t                        irq_mask[CAM_IFE_IRQ_REGISTERS_MAX];
 	struct cam_vfe_soc_private          *soc_private;
@@ -561,7 +560,6 @@ static int cam_vfe_camif_ver3_resource_start(
 
 		if (rsrc_data->irq_handle < 1) {
 			CAM_ERR(CAM_ISP, "IRQ handle subscribe failure");
-			rc = -ENOMEM;
 			rsrc_data->irq_handle = 0;
 		}
 	}
@@ -586,7 +584,6 @@ static int cam_vfe_camif_ver3_resource_start(
 
 		if (rsrc_data->sof_irq_handle < 1) {
 			CAM_ERR(CAM_ISP, "SOF IRQ handle subscribe failure");
-			rc = -ENOMEM;
 			rsrc_data->sof_irq_handle = 0;
 		}
 	}
@@ -606,7 +603,6 @@ subscribe_err:
 
 		if (rsrc_data->irq_err_handle < 1) {
 			CAM_ERR(CAM_ISP, "Error IRQ handle subscribe failure");
-			rc = -ENOMEM;
 			rsrc_data->irq_err_handle = 0;
 		}
 	}
@@ -704,7 +700,6 @@ static int cam_vfe_camif_ver3_resource_stop(
 	struct cam_isp_resource_node *camif_res)
 {
 	struct cam_vfe_mux_camif_ver3_data        *camif_priv;
-	struct cam_vfe_camif_ver3_pp_clc_reg      *camif_reg;
 	int                                        rc = 0;
 	uint32_t                                   val = 0;
 
@@ -718,7 +713,6 @@ static int cam_vfe_camif_ver3_resource_stop(
 		return 0;
 
 	camif_priv = (struct cam_vfe_mux_camif_ver3_data *)camif_res->res_priv;
-	camif_reg = camif_priv->camif_reg;
 
 	if ((camif_priv->dsp_mode >= CAM_ISP_DSP_MODE_ONE_WAY) &&
 		(camif_priv->dsp_mode <= CAM_ISP_DSP_MODE_ROUND)) {
@@ -1420,8 +1414,6 @@ static int cam_vfe_camif_ver3_handle_irq_bottom_half(void *handler_priv,
 				payload->ts.mono_time.tv_nsec;
 		}
 
-		cam_cpas_notify_event("IFE SOF", evt_info.hw_idx);
-
 		if (camif_priv->event_cb)
 			camif_priv->event_cb(camif_priv->priv,
 				CAM_ISP_HW_EVENT_SOF, (void *)&evt_info);
@@ -1438,8 +1430,6 @@ static int cam_vfe_camif_ver3_handle_irq_bottom_half(void *handler_priv,
 		camif_priv->epoch_ts.tv_nsec =
 			payload->ts.mono_time.tv_nsec;
 
-		cam_cpas_notify_event("IFE EPOCH", evt_info.hw_idx);
-
 		if (camif_priv->event_cb)
 			camif_priv->event_cb(camif_priv->priv,
 				CAM_ISP_HW_EVENT_EPOCH, (void *)&evt_info);
@@ -1454,8 +1444,6 @@ static int cam_vfe_camif_ver3_handle_irq_bottom_half(void *handler_priv,
 			payload->ts.mono_time.tv_sec;
 		camif_priv->eof_ts.tv_nsec =
 			payload->ts.mono_time.tv_nsec;
-
-		cam_cpas_notify_event("IFE EOF", evt_info.hw_idx);
 
 		if (camif_priv->event_cb)
 			camif_priv->event_cb(camif_priv->priv,

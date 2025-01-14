@@ -10,6 +10,7 @@
 #include <linux/slab.h>
 
 #include <soc/qcom/rpmh.h>
+#include <soc/qcom/socinfo.h>
 
 #include "cam_compat.h"
 #include "cam_debug_util.h"
@@ -18,7 +19,7 @@
 #include "cam_eeprom_dev.h"
 #include "cam_eeprom_core.h"
 
-#if IS_ENABLED(CONFIG_USE_RPMH_DRV_API)
+#if IS_ENABLED(CONFIG_SPECTRA_USE_RPMH_DRV_API)
 #define CAM_RSC_DRV_IDENTIFIER "cam_rsc"
 
 const struct device *cam_cpas_get_rsc_dev_for_drv(uint32_t index)
@@ -111,6 +112,47 @@ int cam_cpas_drv_channel_switch_for_dev(const struct device *dev)
 }
 #endif
 
+int cam_smmu_fetch_csf_version(struct cam_csf_version *csf_version)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	struct csf_version csf_ver;
+	int rc;
+
+	/* Fetch CSF version from SMMU proxy driver */
+	rc = smmu_proxy_get_csf_version(&csf_ver);
+	if (rc) {
+		CAM_ERR(CAM_SMMU,
+			"Failed to get CSF version from SMMU proxy: %d", rc);
+		return rc;
+	}
+
+	csf_version->arch_ver = csf_ver.arch_ver;
+	csf_version->max_ver = csf_ver.max_ver;
+	csf_version->min_ver = csf_ver.min_ver;
+#else
+	/* This defaults to the legacy version */
+	csf_version->arch_ver = 2;
+	csf_version->max_ver = 0;
+	csf_version->min_ver = 0;
+#endif
+	return 0;
+}
+
+unsigned long cam_update_dma_map_attributes(unsigned long attrs)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	attrs |= DMA_ATTR_QTI_SMMU_PROXY_MAP;
+#endif
+	return attrs;
+}
+
+size_t cam_align_dma_buf_size(size_t len)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	len = ALIGN(len, SMMU_PROXY_MEM_ALIGNMENT);
+#endif
+	return len;
+}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
 int cam_reserve_icp_fw(struct cam_fw_alloc_info *icp_fw, size_t fw_length)
@@ -157,13 +199,15 @@ int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 	uint32_t camera_hw_version, rc = 0;
 
 	rc = cam_cpas_get_cpas_hw_version(&camera_hw_version);
-	if (!rc && qcom_scm_smmu_notify_secure_lut(smmu_se_ife, safe_trigger)) {
+	if (!rc) {
 		switch (camera_hw_version) {
 		case CAM_CPAS_TITAN_170_V100:
 		case CAM_CPAS_TITAN_170_V110:
 		case CAM_CPAS_TITAN_175_V100:
-			CAM_ERR(CAM_ISP, "scm call to enable safe failed");
-			rc = -EINVAL;
+			if (qcom_scm_smmu_notify_secure_lut(smmu_se_ife, safe_trigger)) {
+				CAM_ERR(CAM_ISP, "scm call to enable safe failed");
+				rc = -EINVAL;
+			}
 			break;
 		default:
 			break;
@@ -224,13 +268,15 @@ int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 	};
 
 	rc = cam_cpas_get_cpas_hw_version(&camera_hw_version);
-	if (!rc && scm_call2(SCM_SIP_FNID(0x15, 0x3), &description)) {
+	if (!rc) {
 		switch (camera_hw_version) {
 		case CAM_CPAS_TITAN_170_V100:
 		case CAM_CPAS_TITAN_170_V110:
 		case CAM_CPAS_TITAN_175_V100:
-			CAM_ERR(CAM_ISP, "scm call to enable safe failed");
-			rc = -EINVAL;
+			if (scm_call2(SCM_SIP_FNID(0x15, 0x3), &description)) {
+				CAM_ERR(CAM_ISP, "scm call to enable safe failed");
+				rc = -EINVAL;
+			}
 			break;
 		default:
 			break;
@@ -272,17 +318,9 @@ void cam_free_clear(const void * ptr)
 }
 #endif
 
-bool cam_is_mink_api_available(void)
-{
-#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
-	return true;
-#else
-	return false;
-#endif
-}
-#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
-	bool protect, int32_t offset)
+	bool protect, int32_t offset, bool is_shutdown)
 {
 	int rc = 0;
 	struct Object client_env, sc_object;
@@ -294,48 +332,61 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 		return -EINVAL;
 	}
 
-	rc = get_client_env_object(&client_env);
-	if (rc) {
-		CAM_ERR(CAM_CSIPHY, "Failed getting mink env object, rc: %d", rc);
-		return rc;
-	}
+	if (!is_shutdown) {
+		rc = get_client_env_object(&client_env);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "Failed getting mink env object, rc: %d", rc);
+			return rc;
+		}
 
-	rc = IClientEnv_open(client_env, CTrustedCameraDriver_UID, &sc_object);
-	if (rc) {
-		CAM_ERR(CAM_CSIPHY, "Failed getting mink sc_object, rc: %d", rc);
-		return rc;
-	}
+		rc = IClientEnv_open(client_env, CTrustedCameraDriver_UID, &sc_object);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "Failed getting mink sc_object, rc: %d", rc);
+			return rc;
+		}
 
-	secure_info = &csiphy_dev->csiphy_info[offset].secure_info;
-	params.csid_hw_idx_mask = secure_info->csid_hw_idx_mask;
-	params.cdm_hw_idx_mask = secure_info->cdm_hw_idx_mask;
-	params.vc_mask = secure_info->vc_mask;
-	params.phy_lane_sel_mask =
-		csiphy_dev->csiphy_info[offset].csiphy_phy_lane_sel_mask;
-	params.protect = protect ? 1 : 0;
+		secure_info = &csiphy_dev->csiphy_info[offset].secure_info;
+		params.csid_hw_idx_mask = secure_info->csid_hw_idx_mask;
+		params.cdm_hw_idx_mask = secure_info->cdm_hw_idx_mask;
+		params.vc_mask = secure_info->vc_mask;
+		params.phy_lane_sel_mask =
+			csiphy_dev->csiphy_info[offset].csiphy_phy_lane_sel_mask;
+		params.protect = protect ? 1 : 0;
 
-	rc = ITrustedCameraDriver_dynamicProtectSensor(sc_object, &params);
-	if (rc) {
-		CAM_ERR(CAM_CSIPHY, "Mink secure call failed, rc: %d", rc);
-		return rc;
-	}
+		rc = ITrustedCameraDriver_dynamicProtectSensor(sc_object, &params);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "Mink secure call failed, rc: %d", rc);
+			return rc;
+		}
 
-	rc = Object_release(sc_object);
-	if (rc) {
-		CAM_ERR(CAM_CSIPHY, "Failed releasing secure camera object, rc: %d", rc);
-		return rc;
-	}
-	rc = Object_release(client_env);
-	if (rc) {
-		CAM_ERR(CAM_CSIPHY, "Failed releasing mink env object, rc: %d", rc);
-		return rc;
+		rc = Object_release(sc_object);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "Failed releasing secure camera object, rc: %d", rc);
+			return rc;
+		}
+
+		rc = Object_release(client_env);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "Failed releasing mink env object, rc: %d", rc);
+			return rc;
+		}
+	} else {
+		/* This is a temporary work around until the SMC Invoke driver is
+		 * refactored to avoid the dependency on FDs, which was causing issues
+		 * during process shutdown.
+		 */
+		rc = qcom_scm_camera_protect_phy_lanes(protect, 0);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "SCM call to hypervisor failed");
+			return rc;
+		}
 	}
 
 	return 0;
 }
 #elif KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
-	bool protect, int32_t offset)
+	bool protect, int32_t offset, bool __always_unused is_shutdown)
 {
 	int rc = 0;
 
@@ -368,7 +419,7 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 }
 #else
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
-	bool protect, int32_t offset)
+	bool protect, int32_t offset, bool __always_unused is_shutdown)
 {
 	int rc = 0;
 	struct scm_desc description = {
@@ -396,6 +447,13 @@ static inline int camera_component_compare_dev(struct device *dev, void *data)
 	return dev == data;
 }
 
+#if IS_ENABLED(CONFIG_MIISP)
+static inline int camera_component_compare_ispv4_dev(struct device *dev, void *data)
+{
+        return !strcmp(dev_name(dev), "ispv4-cam");
+}
+#endif
+
 /* Add component matches to list for master of aggregate driver */
 int camera_component_match_add_drivers(struct device *master_dev,
 	struct component_match **match_list)
@@ -410,6 +468,11 @@ int camera_component_match_add_drivers(struct device *master_dev,
 		rc = -EINVAL;
 		goto end;
 	}
+
+#if IS_ENABLED(CONFIG_MIISP)
+        component_match_add(master_dev, match_list,
+                            camera_component_compare_ispv4_dev, NULL);
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(cam_component_platform_drivers); i++) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
@@ -648,7 +711,6 @@ void cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 	struct v4l2_subdev             *sd = spi_get_drvdata(sdev);
 	struct cam_eeprom_ctrl_t       *e_ctrl;
 	struct cam_eeprom_soc_private  *soc_private;
-	struct cam_hw_soc_info         *soc_info;
 
 	if (!sd) {
 		CAM_ERR(CAM_EEPROM, "Subdevice is NULL");
@@ -661,7 +723,6 @@ void cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 		return;
 	}
 
-	soc_info = &e_ctrl->soc_info;
 	mutex_lock(&(e_ctrl->eeprom_mutex));
 	cam_eeprom_shutdown(e_ctrl);
 	mutex_unlock(&(e_ctrl->eeprom_mutex));
@@ -685,9 +746,9 @@ int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
 
-	soc_info->irq_num = platform_get_irq(soc_info->pdev, 0);
-	if (soc_info->irq_num < 0) {
-		rc = soc_info->irq_num;
+	soc_info->irq_num[0] = platform_get_irq(soc_info->pdev, 0);
+	if (soc_info->irq_num[0] < 0) {
+		rc = soc_info->irq_num[0];
 		return rc;
 	}
 
@@ -736,17 +797,59 @@ int cam_eeprom_spi_driver_remove(struct spi_device *sdev)
 
 int cam_compat_util_get_irq(struct cam_hw_soc_info *soc_info)
 {
-	int rc = 0;
+	int rc = 0, i;
 
-	soc_info->irq_line =
-		platform_get_resource_byname(soc_info->pdev,
-		IORESOURCE_IRQ, soc_info->irq_name);
-	if (!soc_info->irq_line) {
-		rc = -ENODEV;
-		return rc;
+	for (i = 0; i < soc_info->irq_count; i++) {
+		soc_info->irq_line[i] = platform_get_resource_byname(soc_info->pdev,
+			IORESOURCE_IRQ, soc_info->irq_name[i]);
+		if (!soc_info->irq_line[i]) {
+			CAM_ERR(CAM_UTIL, "Failed to get IRQ line for irq: %s of %s",
+				soc_info->irq_name[i], soc_info->dev_name);
+			rc = -ENODEV;
+			return rc;
+		}
+		soc_info->irq_num[i] = soc_info->irq_line[i]->start;
 	}
-	soc_info->irq_num = soc_info->irq_line->start;
 
 	return rc;
+}
+#endif
+
+bool cam_secure_get_vfe_fd_port_config(void)
+{
+#if KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE
+	return false;
+#else
+	return true;
+#endif
+}
+#if KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE
+int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam)
+{
+	int rc = 0;
+	int num_cam;
+
+	num_cam = socinfo_get_part_count(PART_CAMERA);
+	if (num_cam != max_num_cam) {
+		CAM_ERR(CAM_CPAS, "Unsupported number of parts: %d", num_cam);
+		return -EINVAL;
+	}
+
+	/*
+	 * If bit value in part_info is "0" then HW is available.
+	 * If bit value in part_info is "1" then HW is unavailable.
+	 */
+	rc = socinfo_get_subpart_info(PART_CAMERA, part_info, num_cam);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed while getting subpart_info, rc = %d.", rc);
+		return rc;
+	}
+
+	return 0;
+}
+#else
+int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam)
+{
+	return 0;
 }
 #endif

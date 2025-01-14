@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -120,6 +121,8 @@ int cam_custom_hw_sub_mod_deinit_hw(void *hw_priv,
 	}
 
 	rc = cam_custom_hw_sub_mod_reset(hw_priv, NULL, 0);
+	if (rc)
+		CAM_WARN(CAM_CUSTOM, "Reset of HW failed, rc: %d", rc);
 
 	/* Turn OFF Regulators, Clocks and other SOC resources */
 	CAM_DBG(CAM_CUSTOM, "Disable SOC resource");
@@ -135,8 +138,6 @@ int cam_custom_hw_sub_mod_deinit_hw(void *hw_priv,
 int cam_custom_hw_sub_mod_reset(void *hw_priv,
 	void *reserve_args, uint32_t arg_size)
 {
-	struct cam_hw_info                *custom_hw  = hw_priv;
-	struct cam_hw_soc_info            *soc_info = NULL;
 	int rc = 0;
 
 	if (!hw_priv) {
@@ -144,7 +145,6 @@ int cam_custom_hw_sub_mod_reset(void *hw_priv,
 		return -EINVAL;
 	}
 
-	soc_info = &custom_hw->soc_info;
 	/* Do Reset of HW */
 	return rc;
 }
@@ -296,7 +296,6 @@ int cam_custom_hw_sub_mod_process_cmd(void *hw_priv, uint32_t cmd_type,
 	void *cmd_args, uint32_t arg_size)
 {
 	struct cam_hw_info                  *hw = hw_priv;
-	struct cam_hw_soc_info              *soc_info = NULL;
 	struct cam_custom_sub_mod_core_info *core_info = NULL;
 	unsigned long flag = 0;
 	int rc = 0;
@@ -306,7 +305,6 @@ int cam_custom_hw_sub_mod_process_cmd(void *hw_priv, uint32_t cmd_type,
 		return -EINVAL;
 	}
 
-	soc_info = &hw->soc_info;
 	core_info = hw->core_info;
 	/* Handle any custom process cmds */
 

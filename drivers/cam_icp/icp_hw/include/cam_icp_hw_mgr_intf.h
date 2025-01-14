@@ -21,7 +21,7 @@
 
 #define CAM_ICP_BW_BYTES_VOTE    40000000
 
-#define CAM_ICP_CTX_MAX          54
+#define CAM_ICP_CTX_MAX          120
 
 #define CPAS_IPE1_BIT            0x2000
 
@@ -34,7 +34,7 @@
 #define CAM_ICP_DEFAULT_AXI_PATH    CAM_AXI_PATH_DATA_ALL
 #define CAM_ICP_DEFAULT_AXI_TRANSAC CAM_AXI_TRANSACTION_READ
 
-#define CAM_ICP_DUMP_TAG_MAX_LEN 64
+#define CAM_ICP_DUMP_TAG_MAX_LEN 128
 #define CAM_ICP_DUMP_NUM_WORDS   5
 
 enum cam_icp_subdev_id {

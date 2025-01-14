@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -10,8 +10,6 @@
 #include <linux/highmem.h>
 #include <linux/types.h>
 #include <linux/rwsem.h>
-
-#include <mm/slab.h>
 
 #include <media/v4l2-fh.h>
 #include <media/v4l2-device.h>
@@ -32,7 +30,9 @@
 #include "cam_compat.h"
 #include "camera_main.h"
 
-#define CAM_REQ_MGR_EVENT_MAX 30
+/* Xiaomi: enlarge from 30 to 250 */
+#define CAM_REQ_MGR_EVENT_MAX 250
+/* Xiaomi: enlarge from 30 to 250 */
 #define CAM_I3C_MASTER_COMPAT "qcom,geni-i3c"
 
 static struct cam_req_mgr_device g_dev;
@@ -49,6 +49,7 @@ static const struct of_device_id cam_sensor_module_dt_match[] = {
 	{ .compatible = "qcom,eeprom" },
 	{.compatible = "qcom,actuator"},
 	{ .compatible = "qcom,ois" },
+	{.compatible = "qcom,aperture"},
 	{.compatible = "qcom,camera-flash", .data = NULL},
 	{}
 };
@@ -753,8 +754,11 @@ static long cam_private_ioctl(struct file *file, void *fh,
 
 		cmd.feature_mask = 0;
 
-		if (cam_mem_mgr_ubwc_p_heap_supported())
-			cmd.feature_mask |= CAM_REQ_MGR_MEM_UBWC_P_HEAP_SUPPORTED;
+		rc = cam_mem_mgr_check_for_supported_heaps(&cmd.feature_mask);
+		if (rc) {
+			CAM_ERR(CAM_CRM, "Failed to retrieve heap capability rc: %d", rc);
+			break;
+		}
 
 		if (copy_to_user(
 			u64_to_user_ptr(k_ioctl->handle),
@@ -1004,14 +1008,12 @@ static int cam_req_mgr_component_master_bind(struct device *dev)
 	INIT_LIST_HEAD(&cam_req_mgr_ordered_sd_list);
 
 	if (g_cam_req_mgr_timer_cachep == NULL) {
-		g_cam_req_mgr_timer_cachep = kmem_cache_create("crm_timer",
-			sizeof(struct cam_req_mgr_timer), 64, 0x0, NULL);
+		g_cam_req_mgr_timer_cachep = KMEM_CACHE(cam_req_mgr_timer, 0x0);
 		if (!g_cam_req_mgr_timer_cachep)
 			CAM_ERR(CAM_CRM,
 				"Failed to create kmem_cache for crm_timer");
 		else
-			CAM_DBG(CAM_CRM, "Name : %s",
-				g_cam_req_mgr_timer_cachep->name);
+			CAM_DBG(CAM_CRM, "Name : cam_req_mgr_timer");
 	}
 
 	CAM_DBG(CAM_CRM, "All probes done, binding slave components");
@@ -1088,6 +1090,8 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 	struct component_match *match_list = NULL;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = NULL;
+	uint32_t cam_bypass_driver = 0;
+	struct device_node *of_node = NULL;
 
 	for (i = 0; i < ARRAY_SIZE(cam_component_i2c_drivers); i++) {
 		while ((np = of_find_compatible_node(np, NULL,
@@ -1129,6 +1133,16 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 			"Unable to add master, probe failed rc: %d",
 			rc);
 		goto end;
+	}
+
+	of_node = dev->of_node;
+	rc = of_property_read_u32(of_node, "cam-bypass-driver",
+		&cam_bypass_driver);
+	if (!rc) {
+		cam_soc_util_set_bypass_drivers(cam_bypass_driver);
+	} else {
+		CAM_INFO(CAM_CRM, "bypass driver parameter not found");
+		rc = 0;
 	}
 
 end:

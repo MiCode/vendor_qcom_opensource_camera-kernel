@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interrupt.h>
@@ -160,6 +160,16 @@ static int cam_icp_soc_get_hw_version(struct device_node *np,
 	return rc;
 }
 
+static void cam_icp_soc_get_fw_pas_id(struct device_node *np,
+	struct cam_icp_soc_info *icp_soc_info)
+{
+	if (of_property_read_u32(np, "fw-pas-id", &icp_soc_info->fw_pas_id)) {
+		CAM_WARN(CAM_ICP, "PAS_ID is not passed from DTSI and use default value: %d",
+			CAM_FW_PAS_ID_DEFAULT);
+		icp_soc_info->fw_pas_id = CAM_FW_PAS_ID_DEFAULT;
+	}
+}
+
 static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
 {
 	struct cam_icp_soc_info *icp_soc_info;
@@ -188,6 +198,8 @@ static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
 
 	cam_icp_soc_qos_get(np, icp_soc_info);
 
+	cam_icp_soc_get_fw_pas_id(np, icp_soc_info);
+
 	rc = cam_icp_soc_get_hw_version(np, icp_soc_info);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "Get ICP HW version failed");
@@ -200,13 +212,17 @@ static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
 int cam_icp_soc_resources_init(struct cam_hw_soc_info *soc_info,
 	irq_handler_t handler, void *data)
 {
-	int rc;
+	int rc, i;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	rc = cam_icp_soc_dt_properties_get(soc_info);
 	if (rc)
 		return rc;
 
-	rc = cam_soc_util_request_platform_resource(soc_info, handler, data);
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = data;
+
+	rc = cam_soc_util_request_platform_resource(soc_info, handler, &(irq_data[0]));
 	if (rc) {
 		CAM_ERR(CAM_ICP,
 			"request for soc platform resource failed rc=%d", rc);
@@ -233,7 +249,7 @@ int cam_icp_soc_resources_enable(struct cam_hw_soc_info *soc_info)
 	int rc = 0;
 
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		CAM_SVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to enable soc resources rc=%d", rc);
 

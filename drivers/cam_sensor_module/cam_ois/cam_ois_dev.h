@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _CAM_OIS_DEV_H_
 #define _CAM_OIS_DEV_H_
@@ -22,12 +22,14 @@
 #include <cam_subdev.h>
 #include "cam_soc_util.h"
 #include "cam_context.h"
+#include "cam_parklens_thread.h" //xiaomi add
 
 #define DEFINE_MSM_MUTEX(mutexname) \
 	static struct mutex mutexname = __MUTEX_INITIALIZER(mutexname)
 
 #define OIS_DRIVER_I2C "cam-i2c-ois"
 #define OIS_DRIVER_I3C "i3c_camera_ois"
+#define MAX_FW_COUNT   4
 
 enum cam_ois_state {
 	CAM_OIS_INIT,
@@ -59,6 +61,15 @@ struct cam_ois_soc_private {
 	struct cam_ois_i2c_info_t i2c_info;
 	struct cam_sensor_power_ctrl_t power_info;
 };
+
+/* xiaomi add for fw store start */
+struct fw_store_info
+{
+	int  fw_count;
+	char *fw_name[MAX_FW_COUNT];
+	struct firmware *fw[MAX_FW_COUNT];
+};
+/* xiaomi add for fw store end */
 
 /**
  * struct cam_ois_intf_params - bridge interface params
@@ -97,6 +108,8 @@ struct cam_ois_intf_params {
  * @is_ois_calib    :   flag for Calibration data
  * @opcode          :   ois opcode
  * @device_name     :   Device name
+ * @cci_debug       :   OIS debugfs info and entry
+ * @cci_err_info    :   device error info
  *
  */
 struct cam_ois_ctrl_t {
@@ -113,17 +126,28 @@ struct cam_ois_ctrl_t {
 	struct i2c_settings_array i2c_fwinit_data;
 	struct i2c_settings_array i2c_init_data;
 	struct i2c_settings_array i2c_calib_data;
+	struct i2c_settings_array i2c_postinit_data; // xiaomi add
 	struct i2c_settings_array i2c_mode_data;
 	struct i2c_settings_array i2c_time_data;
 	enum msm_camera_device_type_t ois_device_type;
 	enum cam_ois_state cam_ois_state;
-	char ois_name[32];
+	char ois_name[64];
 	uint8_t ois_fw_flag;
 	uint8_t is_ois_calib;
 	struct cam_ois_opcode opcode;
 	struct cam_cmd_ois_fw_info fw_info;
 	struct i2c_settings_array i2c_fw_init_data[MAX_OIS_FW_COUNT];
 	struct i2c_settings_array i2c_fw_finalize_data[MAX_OIS_FW_COUNT];
+	struct i2c_settings_array i2c_fw_version_data;
+	/* xiaomi add for cci debug start */
+	void *cci_debug;
+	/* xiaomi add for cci debug end */
+	struct cam_ois_parklens_ctrl_t parklens_ctrl; //xiaomi add
+	struct i2c_settings_array i2c_parklens_data;  // xiaomi add
+	struct i2c_data_settings i2c_data;  // xiaomi add
+	uint64_t last_flush_req;  // xiaomi add
+	struct fw_store_info fw_store; // xiaomi add
+	struct cci_error_info cci_err_info; // xiaomi add
 };
 
 /**

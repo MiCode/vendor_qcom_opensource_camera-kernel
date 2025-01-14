@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SENSOR_CMN_HEADER_
@@ -35,8 +35,14 @@
 #define CAM_EEPROM_NAME    "cam-eeprom"
 #define CAM_OIS_NAME       "cam-ois"
 #define CAM_TPG_NAME       "cam-tpg"
+#define CAM_APERTURE_NAME  "cam-aperture"  //xiaomi add
+#if IS_ENABLED(CONFIG_MIISP)
+#define CAM_ISPV4_NAME     "cam-ispv4"
+#endif
 
 #define MAX_SYSTEM_PIPELINE_DELAY 2
+
+#define CAM_FRAME_SKIP_OPCODE 126
 
 #define CAM_PKT_NOP_OPCODE 127
 
@@ -93,6 +99,7 @@ enum sensor_sub_module {
 	SUB_MODULE_CSID,
 	SUB_MODULE_CSIPHY,
 	SUB_MODULE_OIS,
+	SUB_MODULE_APERTURE,
 	SUB_MODULE_EXT,
 	SUB_MODULE_MAX,
 };
@@ -111,6 +118,11 @@ enum msm_camera_power_seq_type {
 	SENSOR_CUSTOM_GPIO1,
 	SENSOR_CUSTOM_GPIO2,
 	SENSOR_VANA1,
+/* xiaomi add begin*/
+	SENSOR_BOB,
+	SENSOR_BOB2,
+	SENSOR_CUSTOM_REG3,
+/* xiaomi add end*/
 	SENSOR_SEQ_TYPE_MAX,
 };
 
@@ -208,6 +220,15 @@ struct cam_sensor_i2c_reg_array {
 	uint32_t data_mask;
 };
 
+enum cam_sensor_module_debugfs_device_type {
+	CAM_SENSOR_ACTUATOR,
+	CAM_SENSOR_EEPROM,
+	CAM_SENSOR_FLASH,
+	CAM_SENSOR_OIS,
+	CAM_SENSOR_DEVICE,
+	CAM_SENSOR_MAX,
+};
+
 struct cam_sensor_i2c_reg_setting {
 	struct cam_sensor_i2c_reg_array *reg_setting;
 	uint32_t size;
@@ -249,6 +270,8 @@ struct i2c_data_settings {
 	struct i2c_settings_array *bubble_update;
 	struct i2c_settings_array reg_bank_unlock_settings;
 	struct i2c_settings_array reg_bank_lock_settings;
+	struct i2c_settings_array write_settings;  //xiaomi add
+	struct i2c_settings_array parklens_settings; //xiaomi add
 };
 
 struct cam_sensor_power_ctrl_t {
@@ -260,6 +283,9 @@ struct cam_sensor_power_ctrl_t {
 	struct msm_camera_gpio_num_info *gpio_num_info;
 	struct msm_pinctrl_info pinctrl_info;
 	uint8_t cam_pinctrl_status;
+//add by xiaomi
+	enum msm_camera_power_seq_type fail_type;
+//end
 };
 
 struct cam_camera_slave_info {
@@ -333,6 +359,11 @@ enum msm_camera_vreg_name_t {
 	CAM_VDIG,
 	CAM_VIO,
 	CAM_VANA,
+/* xiaomi add begin*/
+	CAM_VANA1,
+	CAM_BOB,
+	CAM_BOB2,
+/* xiaomi add end*/
 	CAM_VAF,
 	CAM_V_CUSTOM1,
 	CAM_V_CUSTOM2,
@@ -353,5 +384,36 @@ struct msm_camera_gpio_conf {
 	uint8_t camera_on_table_size;
 	struct msm_camera_gpio_num_info *gpio_num_info;
 };
+
+#if IS_ENABLED(CONFIG_MIISP)
+struct sensor_reg_info {
+       uint32_t reg_addr;
+       uint32_t reg_data;
+       enum camera_sensor_i2c_type addr_type;
+       enum camera_sensor_i2c_type data_type;
+};
+#endif
+
+/**
+ * cam_sensor_module_add_i2c_device()
+ * @brief: Each sensor device passes its ctrl struct to a global
+ *         structure of i2c devices in cam_sensor_module_debug.c
+ * @ctrl_struct: Passed as void pointer, and recast to actual struct
+ *               based on device_type
+ * @device_type: Device type based on cam_sensor_module_debugfs_device_type
+ */
+void cam_sensor_module_add_i2c_device(void *ctrl_struct, int device_type);
+
+/**
+ * cam_sensor_module_debug_register()
+ * @brief Creates debugfs entry
+ */
+int cam_sensor_module_debug_register(void);
+
+/**
+ * cam_sensor_module_debug_deregister(void)
+ * @brief Take down debugfs entry
+ */
+void cam_sensor_module_debug_deregister(void);
 
 #endif /* _CAM_SENSOR_CMN_HEADER_ */

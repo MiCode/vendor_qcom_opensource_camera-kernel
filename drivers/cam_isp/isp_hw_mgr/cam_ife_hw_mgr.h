@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_HW_MGR_H_
@@ -38,6 +38,9 @@ enum cam_ife_ctx_master_type {
 #define CAM_IFE_CTX_CFG_SW_SYNC_ON        BIT(1)
 #define CAM_IFE_CTX_CFG_DYNAMIC_SWITCH_ON BIT(2)
 
+/* Maximum set for irq injection*/
+#define MAX_INJECT_SET 10
+
 /**
  * struct cam_ife_hw_mgr_debug - contain the debug information
  *
@@ -57,6 +60,7 @@ enum cam_ife_ctx_master_type {
  * @per_req_reg_dump:          Enable per request reg dump
  * @disable_ubwc_comp:         Disable UBWC compression
  * @disable_ife_mmu_prefetch:  Disable MMU prefetch for IFE bus WR
+ * @enable_ife_frame_irqs:     Enable Frame timing IRQs for IFE/MCTFE
  * @rx_capture_debug_set:      If rx capture debug is set by user
  * @disable_isp_drv:           Disable ISP DRV config
  * @enable_presil_reg_dump:    Enable per req regdump in presil
@@ -79,6 +83,7 @@ struct cam_ife_hw_mgr_debug {
 	bool           per_req_reg_dump;
 	bool           disable_ubwc_comp;
 	bool           disable_ife_mmu_prefetch;
+	bool           enable_ife_frame_irqs;
 	bool           rx_capture_debug_set;
 	bool           disable_isp_drv;
 	bool           enable_presil_reg_dump;
@@ -277,6 +282,8 @@ struct cam_isp_comp_record_query {
  * @res_list_ife_in_rd      IFE/SFE input resource list for read path
  * @res_list_ife_out:       IFE output resoruces array
  * @res_list_sfe_out:       SFE output resources array
+ * @vfe_out_map:            Map for VFE out ports
+ * @sfe_out_map:            Map for SFE out ports
  * @num_acq_vfe_out:        Number of acquired VFE out resources
  * @num_acq_sfe_out:        Number of acquired SFE out resources
  * @free_res_list:          Free resources list for the branch node
@@ -319,6 +326,16 @@ struct cam_isp_comp_record_query {
  * @try_recovery_cnt:       Retry count for overflow recovery
  * @recovery_req_id:        The request id on which overflow recovery happens
  * @drv_path_idle_en:       Path idle enable value for DRV
+ * @major_version:          Major version for acquire
+ * @vfe_bus_comp_grp:       VFE composite group placeholder
+ * @sfe_bus_comp_grp:       SFE composite group placeholder
+ * @cdm_done_ts:            CDM callback done timestamp
+ * @is_hw_ctx_acq:          If acquire for ife ctx is having hw ctx acquired
+ * @acq_hw_ctxt_src_dst_map: Src to dst hw ctxt map for acquired pixel paths
+ * add by xiaomi begin
+ * @crc_error_divisor:      Width/divisor pixels per line report crc errors will trigger
+ *                          internal recovery, only for CPHY
+ * add by xiaomi end
  *
  */
 struct cam_ife_hw_mgr_ctx {
@@ -339,6 +356,8 @@ struct cam_ife_hw_mgr_ctx {
 	struct cam_isp_hw_mgr_res                 *res_list_sfe_out;
 	struct list_head                           free_res_list;
 	struct cam_isp_hw_mgr_res                  res_pool[CAM_IFE_HW_RES_POOL_MAX];
+	uint8_t                                   *vfe_out_map;
+	uint8_t                                   *sfe_out_map;
 	uint32_t                                   num_acq_vfe_out;
 	uint32_t                                   num_acq_sfe_out;
 
@@ -378,9 +397,26 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                   curr_num_exp;
 	uint32_t                                   try_recovery_cnt;
 	uint64_t                                   recovery_req_id;
+	uint64_t                                   sof_timestamp;;
+	uint64_t                                   epoch_timestamp;
+	uint64_t                                   rdi1_sof_timestamp;
+	uint64_t                                   rdi2_sof_timestamp;
+	uint64_t                                   rdi1_sof_timestamp_shdr;
+	uint64_t                                   rdi2_sof_timestamp_shdr;
+	uint64_t                                   rdi4_sof_timestamp_shdr;
+	uint64_t                                   exposure_time;
 	uint32_t                                   drv_path_idle_en;
+	uint32_t                                   major_version;
 	struct cam_isp_context_comp_record        *vfe_bus_comp_grp;
 	struct cam_isp_context_comp_record        *sfe_bus_comp_grp;
+	struct timespec64                          cdm_done_ts;
+	bool                                       is_hw_ctx_acq;
+	uint32_t                                   last_mup;
+	uint64_t                                   mup_req_id;
+	uint32_t                                   acq_hw_ctxt_src_dst_map[CAM_ISP_MULTI_CTXT_MAX];
+	/*add by xiaomi begin*/
+	uint32_t                                   crc_error_divisor;
+	/*add by xiaomi end*/
 };
 
 /**
@@ -408,10 +444,12 @@ struct cam_isp_ife_sfe_hw_caps {
  *
  * @type:                    Cache type
  * @scid:                    Cache slice ID
+ * @llcc_staling_support     to check llcc sys cache stalling mode supported or not
  */
 struct cam_isp_sys_cache_info {
 	enum cam_sys_cache_config_types type;
 	int32_t                         scid;
+	bool            llcc_staling_support;
 };
 
 /*
@@ -437,6 +475,36 @@ struct cam_isp_sfe_cache_info {
 	bool     activated[CAM_ISP_EXPOSURE_MAX];
 };
 
+/*
+ * struct cam_isp_irq_inject_irq_desc: Structure to hold IRQ description
+ *
+ * @bitmask : Bitmask of the IRQ
+ * @desc    : String to describe the IRQ bit
+ */
+struct cam_isp_irq_inject_irq_desc {
+	uint32_t    bitmask;
+	char       *desc;
+};
+
+/*
+ * enum cam_isp_irq_inject_common_param_pos - Irq injection param
+ *
+ * HW_TYPE         : hw to inject IRQ
+ * HW_IDX          : index of the selected hw
+ * RES_ID          : register to set irq
+ * IRQ_MASK        : IRQ to be triggered
+ * INJECT_REQ      : req to trigger the IRQ
+ * INJECT_PARAM_MAX: max allowed num of injected param
+ */
+enum cam_isp_irq_inject_common_param_pos {
+	HW_TYPE,
+	HW_IDX,
+	REG_UNIT,
+	IRQ_MASK,
+	INJECT_REQ,
+	INJECT_PARAM_MAX
+};
+
 /**
  * struct cam_ife_hw_mgr - IFE HW Manager
  *
@@ -456,7 +524,7 @@ struct cam_isp_sfe_cache_info {
  * @debug_cfg              debug configuration
  * @ctx_lock               context lock
  * @hw_pid_support         hw pid support for this target
- * @csid_rup_en            Reg update at CSID side
+ * @csid_aup_rup_en        Reg update at CSID side
  * @csid_global_reset_en   CSID global reset enable
  * @csid_camif_irq_support CSID camif IRQ support
  * @cam_ddr_drv_support    DDR DRV support
@@ -466,6 +534,9 @@ struct cam_isp_sfe_cache_info {
  * @num_caches_found       Number of caches supported
  * @sys_cache_info         Sys cache info
  * @sfe_cache_info         SFE Cache Info
+ * @isp_device_type:       If device supports single-context(ife) or multi-
+ *                         context(mc_tfe)
+ * @irq_inject_param       Param for isp irq injection
  */
 struct cam_ife_hw_mgr {
 	struct cam_isp_hw_mgr          mgr_common;
@@ -486,18 +557,21 @@ struct cam_ife_hw_mgr {
 	struct cam_req_mgr_core_workq   *workq;
 	struct cam_ife_hw_mgr_debug      debug_cfg;
 	spinlock_t                       ctx_lock;
-	bool                             hw_pid_support;
-	bool                             csid_rup_en;
-	bool                             csid_global_reset_en;
-	bool                             csid_camif_irq_support;
-	bool                             cam_ddr_drv_support;
-	bool                             cam_clk_drv_support;
 	struct cam_isp_ife_sfe_hw_caps   isp_caps;
 	struct cam_isp_hw_path_port_map  path_port_map;
 
 	uint32_t                         num_caches_found;
 	struct cam_isp_sys_cache_info    sys_cache_info[CAM_LLCC_MAX];
 	struct cam_isp_sfe_cache_info    sfe_cache_info[CAM_SFE_HW_NUM_MAX];
+	uint32_t                         isp_device_type;
+
+	struct cam_isp_irq_inject_param  irq_inject_param[MAX_INJECT_SET];
+	bool                             hw_pid_support;
+	bool                             csid_aup_rup_en;
+	bool                             csid_global_reset_en;
+	bool                             csid_camif_irq_support;
+	bool                             cam_ddr_drv_support;
+	bool                             cam_clk_drv_support;
 };
 
 /**
@@ -583,9 +657,12 @@ struct cam_ife_hw_mini_dump_data {
  *
  * @hw_mgr_intf:        IFE hardware manager object returned
  * @iommu_hdl:          Iommu handle to be returned
+ * @isp_device_type:    If device supports single-context(ife) or multi-
+ *                      context(mc_tfe)
  *
  */
-int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl);
+int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
+	uint32_t isp_device_type);
 void cam_ife_hw_mgr_deinit(void);
 
 #endif /* _CAM_IFE_HW_MGR_H_ */

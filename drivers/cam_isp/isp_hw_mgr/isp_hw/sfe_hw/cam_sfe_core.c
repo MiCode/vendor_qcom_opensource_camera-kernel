@@ -290,7 +290,6 @@ int cam_sfe_start(void *hw_priv, void *start_args, uint32_t arg_size)
 	struct cam_sfe_hw_core_info       *core_info = NULL;
 	struct cam_hw_info                *sfe_hw  = hw_priv;
 	struct cam_isp_resource_node      *sfe_res;
-	struct cam_hw_soc_info            *soc_info = NULL;
 	int                                rc;
 
 	if (!hw_priv || !start_args ||
@@ -299,7 +298,6 @@ int cam_sfe_start(void *hw_priv, void *start_args, uint32_t arg_size)
 		return -EINVAL;
 	}
 
-	soc_info = &sfe_hw->soc_info;
 	core_info = (struct cam_sfe_hw_core_info *)sfe_hw->core_info;
 	sfe_res = (struct cam_isp_resource_node  *)start_args;
 	core_info->tasklet_info = sfe_res->tasklet_info;
@@ -379,7 +377,6 @@ int cam_sfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	struct cam_hw_info                *sfe_hw = hw_priv;
 	struct cam_hw_soc_info            *soc_info = NULL;
 	struct cam_sfe_hw_core_info       *core_info = NULL;
-	struct cam_sfe_hw_info            *hw_info = NULL;
 	int rc = 0;
 
 	if (!hw_priv) {
@@ -389,7 +386,6 @@ int cam_sfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 
 	soc_info = &sfe_hw->soc_info;
 	core_info = (struct cam_sfe_hw_core_info *)sfe_hw->core_info;
-	hw_info = core_info->sfe_hw_info;
 
 	switch (cmd_type) {
 	case CAM_ISP_HW_CMD_GET_CHANGE_BASE:
@@ -413,6 +409,7 @@ int cam_sfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG:
 	case CAM_ISP_HW_SFE_BUS_MINI_DUMP:
 	case CAM_ISP_HW_USER_DUMP:
+	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
 		rc = core_info->sfe_bus_wr->hw_ops.process_cmd(
 			core_info->sfe_bus_wr->bus_priv, cmd_type,
 			cmd_args, arg_size);
@@ -439,6 +436,8 @@ int cam_sfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		fallthrough;
 	case CAM_ISP_HW_CMD_GET_RES_FOR_MID:
 	case CAM_ISP_HW_CMD_DUMP_BUS_INFO:
+	case CAM_ISP_HW_CMD_IRQ_INJECTION:
+	case CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION:
 		/* propagate to SFE bus wr */
 		core_info->sfe_bus_wr->hw_ops.process_cmd(
 			core_info->sfe_bus_wr->bus_priv, cmd_type,

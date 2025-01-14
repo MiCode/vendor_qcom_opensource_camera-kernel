@@ -9,7 +9,6 @@
 
 #include "cam_isp_hw.h"
 #include "cam_ife_csid_hw_intf.h"
-#include "cam_ife_csid_hw_intf.h"
 #include "cam_cpas_api.h"
 
 #define CAM_VFE_HW_NUM_MAX            8
@@ -23,9 +22,9 @@
 #define VFE_VBIF_BASE_IDX             1
 #define VFE_BUS_BASE_IDX              1
 
-#define CAM_VFE_MAX_UBWC_PORTS        4
+#define CAM_VFE_MAX_UBWC_PORTS        12
 
-#define CAM_VFE_PERF_CNT_MAX          2
+#define CAM_VFE_PERF_CNT_MAX          8
 
 enum cam_isp_hw_vfe_in_mux {
 	CAM_ISP_HW_VFE_IN_CAMIF       = 0,
@@ -57,6 +56,10 @@ enum cam_vfe_hw_irq_status {
 	CAM_VFE_IRQ_STATUS_P2I_ERROR            = 2,
 	CAM_VFE_IRQ_STATUS_VIOLATION            = 3,
 	CAM_VFE_IRQ_STATUS_MAX,
+};
+
+enum cam_vfe_irq_err_mask {
+	CAM_VFE_IRQ_ERR_MASK_HWPD_VIOLATION     = 0x00000001,
 };
 
 enum cam_vfe_hw_irq_regs {
@@ -147,6 +150,8 @@ struct cam_vfe_hw_vfe_bus_rd_acquire_args {
  * @disable_ubwc_comp:       Disable UBWC compression
  * @use_wm_pack:             Use WM Packing
  * @comp_grp_id:             VFE bus comp group id
+ * @use_hw_ctxt:             Use HW context id info
+ *
  */
 struct cam_vfe_hw_vfe_out_acquire_args {
 	struct cam_isp_resource_node         *rsrc_node;
@@ -160,6 +165,7 @@ struct cam_vfe_hw_vfe_out_acquire_args {
 	bool                                  disable_ubwc_comp;
 	bool                                  use_wm_pack;
 	uint32_t                              comp_grp_id;
+	bool                                  use_hw_ctxt;
 };
 
 /*
@@ -171,6 +177,8 @@ struct cam_vfe_hw_vfe_out_acquire_args {
  *                           else CAM_ISP_HW_VFE_IN_MAX
  * @dual_hw_idx:             Slave core for this master core if dual vfe case
  * @is_dual:                 flag to indicate if dual vfe case
+ * @hw_ctxt_mask:            Mask to indicate destination hw contexts acquired corresponding to
+ *                           a particular CSID IPP path
  * @cdm_ops:                 CDM operations
  * @sync_mode:               In case of Dual VFE, this is Master or Slave.
  *                           (Default is Master in case of Single VFE)
@@ -184,6 +192,7 @@ struct cam_vfe_hw_vfe_in_acquire_args {
 	uint32_t                              res_id;
 	uint32_t                              dual_hw_idx;
 	uint32_t                              is_dual;
+	uint32_t                              hw_ctxt_mask;
 	void                                 *cdm_ops;
 	enum cam_isp_hw_sync_mode             sync_mode;
 	struct cam_isp_in_port_generic_info  *in_port;
@@ -389,12 +398,32 @@ struct cam_vfe_generic_ubwc_config {
  * @num_counters            : Number of perf counters configured
  * @vfe_perf_counter_val    : VFE perf counter values
  * @disable_ife_mmu_prefetch: Disable IFE mmu prefetch
+ * @enable_ife_frame_irqs:    Enable IFE frame timing IRQs
  */
 struct cam_vfe_generic_debug_config {
 	uint32_t  num_counters;
 	uint32_t  vfe_perf_counter_val[CAM_VFE_PERF_CNT_MAX];
 	bool      disable_ife_mmu_prefetch;
+	bool      enable_ife_frame_irqs;
 };
+
+/*
+ * cam_vfe_get_num_ifes()
+ *
+ * @brief:         Gets number of IFEs
+ *
+ * @num_ifes:      Fills number of IFES in the address passed
+ */
+void cam_vfe_get_num_ifes(uint32_t *num_ifes);
+
+/*
+ * cam_vfe_get_num_ife_lites()
+ *
+ * @brief:         Gets number of IFE-LITEs
+ *
+ * @num_ifes:      Fills number of IFE-LITES in the address passed
+ */
+void cam_vfe_get_num_ife_lites(uint32_t *num_ife_lites);
 
 /*
  * cam_vfe_hw_init()

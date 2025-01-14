@@ -19,9 +19,10 @@
 #include <media/cam_sensor.h>
 #include <media/cam_req_mgr.h>
 
-#if IS_REACHABLE(CONFIG_LEDS_QPNP_FLASH_V2)
+#if IS_REACHABLE(CONFIG_LEDS_QPNP_FLASH_V2) || IS_REACHABLE(CONFIG_BACKLIGHT_QCOM_SPMI_WLED)
 #include <linux/leds-qpnp-flash.h>
-#elif IS_REACHABLE(CONFIG_LEDS_QTI_FLASH)
+#endif
+#if IS_REACHABLE(CONFIG_LEDS_QTI_FLASH)
 #include <linux/leds-qti-flash.h>
 #endif
 

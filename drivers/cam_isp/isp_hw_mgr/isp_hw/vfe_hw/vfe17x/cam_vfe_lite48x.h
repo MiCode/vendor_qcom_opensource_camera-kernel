@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE_LITE48x_H_
@@ -223,6 +223,13 @@ static struct cam_irq_register_set vfe48x_bus_irq_reg[2] = {
 	},
 };
 
+static uint32_t vfe48x_out_port_mid[][4] = {
+	{16, 0, 0, 0},
+	{17, 0, 0, 0},
+	{18, 0, 0, 0},
+	{19, 0, 0, 0},
+};
+
 static struct cam_vfe_bus_ver3_hw_info vfe48x_bus_hw_info = {
 	.common_reg = {
 		.hw_version                       = 0x00001A00,
@@ -375,7 +382,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe48x_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_0,
-			.mid[0]        = 16,
+			.mid           = vfe48x_out_port_mid[0],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				0,
@@ -389,7 +397,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe48x_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_1,
-			.mid[0]        = 17,
+			.mid           = vfe48x_out_port_mid[1],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				1,
@@ -403,7 +412,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe48x_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_2,
-			.mid[0]        = 18,
+			.mid           = vfe48x_out_port_mid[2],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				2,
@@ -417,7 +427,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe48x_bus_hw_info = {
 			.max_width     = -1,
 			.max_height    = -1,
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_3,
-			.mid[0]        = 19,
+			.mid           = vfe48x_out_port_mid[3],
+			.num_mid       = 1,
 			.num_wm        = 1,
 			.wm_idx        = {
 				3,

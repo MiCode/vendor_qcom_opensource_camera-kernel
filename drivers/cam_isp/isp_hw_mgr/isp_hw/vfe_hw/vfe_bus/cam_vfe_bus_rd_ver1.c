@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/ratelimit.h>
@@ -859,7 +859,6 @@ static int cam_vfe_bus_rd_ver1_handle_irq(uint32_t    evt_id,
 static int cam_vfe_bus_rd_update_rm(void *priv, void *cmd_args,
 	uint32_t arg_size)
 {
-	struct cam_vfe_bus_rd_ver1_priv          *bus_priv;
 	struct cam_isp_hw_get_cmd_update         *update_buf;
 	struct cam_buf_io_cfg                    *io_cfg;
 	struct cam_vfe_bus_rd_ver1_vfe_bus_rd_data  *vfe_bus_rd_data = NULL;
@@ -870,7 +869,6 @@ static int cam_vfe_bus_rd_update_rm(void *priv, void *cmd_args,
 	uint32_t  i, j, size = 0;
 	uint32_t buf_size = 0;
 
-	bus_priv = (struct cam_vfe_bus_rd_ver1_priv  *) priv;
 	update_buf =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
 
 	vfe_bus_rd_data = (struct cam_vfe_bus_rd_ver1_vfe_bus_rd_data *)
@@ -981,7 +979,6 @@ static int cam_vfe_bus_rd_update_fs_cfg(void *priv, void *cmd_args,
 	struct cam_vfe_bus_rd_ver1_rm_resource_data  *rm_data = NULL;
 	struct cam_vfe_fe_update_args                *fe_upd_args;
 	struct cam_fe_config                         *fe_cfg;
-	struct cam_vfe_bus_rd_ver1_common_data        *common_data;
 	int i = 0;
 
 	bus_priv = (struct cam_vfe_bus_rd_ver1_priv  *) priv;
@@ -1000,7 +997,6 @@ static int cam_vfe_bus_rd_update_fs_cfg(void *priv, void *cmd_args,
 	for (i = 0; i < vfe_bus_rd_data->num_rm; i++) {
 
 		rm_data = vfe_bus_rd_data->rm_res[i]->res_priv;
-		common_data = rm_data->common_data;
 
 		rm_data->format = fe_cfg->format;
 		rm_data->unpacker_cfg = fe_cfg->unpacker_cfg;

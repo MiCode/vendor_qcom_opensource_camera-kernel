@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -335,7 +335,7 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 	struct cam_cpas_private_soc *soc_private, struct cam_cpas_tree_node *curr_node_ptr,
 	struct device_node *mnoc_node, int *mnoc_idx)
 {
-	int rc = 0, count = 0, i;
+	int rc = 0, count, i;
 	bool ib_voting_needed = false, is_rt_port = false;
 	struct of_phandle_args src_args = {0}, dst_args = {0};
 
@@ -347,12 +347,10 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 		count = of_property_count_strings(mnoc_node, "interconnect-names");
 		if (count <= 0) {
 			CAM_ERR(CAM_CPAS, "no interconnect-names found");
-			count = 0;
 			return -EINVAL;
 		} else if (count > CAM_CPAS_MAX_DRV_PORTS) {
 			CAM_ERR(CAM_CPAS, "Number of interconnects %d greater than max ports %d",
 				count, CAM_CPAS_MAX_DRV_PORTS);
-			count = 0;
 			return -EINVAL;
 		}
 
@@ -628,6 +626,8 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 
 			rc = of_property_read_u32(curr_node, "traffic-merge-type",
 				&curr_node_ptr->merge_type);
+			if (rc)
+				curr_node_ptr->merge_type = CAM_CPAS_TRAFFIC_MERGE_SUM;
 
 			for (j = 0; j < num_drv_ports; j++)
 				curr_node_ptr->axi_port_idx_arr[j] = -1;
@@ -718,6 +718,9 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 				if (soc_private->enable_cam_ddr_drv) {
 					rc = of_property_read_u32(curr_node, "drv-voting-index",
 						&curr_node_ptr->drv_voting_idx);
+					if (rc)
+						curr_node_ptr->merge_type = CAM_CPAS_PORT_HLOS_DRV;
+
 					if (curr_node_ptr->drv_voting_idx == CAM_CPAS_PORT_DRV_DYN)
 						curr_client->is_drv_dyn = true;
 
@@ -758,8 +761,6 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 	return 0;
 }
 
-
-
 int cam_cpas_get_hw_features(struct platform_device *pdev,
 	struct cam_cpas_private_soc *soc_private)
 {
@@ -777,8 +778,6 @@ int cam_cpas_get_hw_features(struct platform_device *pdev,
 	CAM_DBG(CAM_CPAS, "fuse info elements count %d", count);
 
 	if (count <= 0) {
-		CAM_INFO(CAM_CPAS, "No or invalid fuse entries count: %d",
-			count);
 		goto end;
 	} else if (count%5 != 0) {
 		CAM_INFO(CAM_CPAS, "fuse entries should be multiple of 5 %d",
@@ -1000,6 +999,9 @@ static int cam_cpas_parse_sys_cache_uids(
 		soc_private->llcc_info[i].scid = scid;
 		soc_private->llcc_info[i].size =
 			llcc_get_slice_size(soc_private->llcc_info[i].slic_desc);
+		soc_private->llcc_info[i].staling_distance = 0;
+		soc_private->llcc_info[i].mode = CAM_LLCC_STALING_MODE_CAPACITY;
+		soc_private->llcc_info[i].op_type = CAM_LLCC_NOTIFY_STALING_EVICT;
 		soc_private->num_caches++;
 
 		CAM_DBG(CAM_CPAS,
@@ -1017,6 +1019,7 @@ end:
 	return rc;
 }
 
+#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
 static int cam_cpas_parse_domain_id_mapping(struct device_node *of_node,
 	struct cam_cpas_private_soc *soc_private)
 {
@@ -1101,6 +1104,7 @@ err:
 	soc_private->domain_id_info.domain_id_entries = NULL;
 	return rc;
 }
+#endif
 
 static int cam_cpas_get_domain_id_support_clks(struct device_node *of_node,
 	struct cam_hw_soc_info *soc_info, struct cam_cpas_private_soc *soc_private)
@@ -1193,10 +1197,17 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 
 	cam_cpas_get_hw_features(pdev, soc_private);
 
+#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
 	/* get domain id mapping info */
 	rc = cam_cpas_parse_domain_id_mapping(of_node, soc_private);
 	if (rc)
 		return rc;
+	/* check if the domain ID configuration is available in the DTSI */
+	if (soc_private->domain_id_info.domain_id_supported == false) {
+		CAM_ERR(CAM_CPAS, "Domain ID configuration is expected for this target");
+		return -EINVAL;
+	}
+#endif
 
 	soc_private->camnoc_axi_min_ib_bw = 0;
 	rc = of_property_read_u64(of_node,
@@ -1342,12 +1353,10 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	count = of_property_count_strings(of_node, "client-names");
 	if (count <= 0) {
 		CAM_ERR(CAM_CPAS, "no client-names found");
-		count = 0;
 		return -EINVAL;
 	} else if (count > CAM_CPAS_MAX_CLIENTS) {
 		CAM_ERR(CAM_CPAS, "Number of clients %d greater than max %d",
 			count, CAM_CPAS_MAX_CLIENTS);
-		count = 0;
 		return -EINVAL;
 	}
 
@@ -1388,13 +1397,11 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 			goto cleanup_clients;
 		}
 
-		rc = of_property_read_u32(of_node,
+		if (of_property_read_u32(of_node,
 			"camnoc-axi-clk-bw-margin-perc",
-			&soc_private->camnoc_axi_clk_bw_margin);
+			&soc_private->camnoc_axi_clk_bw_margin)) {
 
-		if (rc) {
-			/* this is not fatal, overwrite rc */
-			rc = 0;
+			/* this is not fatal, overwrite to 0 */
 			soc_private->camnoc_axi_clk_bw_margin = 0;
 		}
 	}
@@ -1581,21 +1588,25 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	}
 
 	rc = of_property_read_u32(of_node, "enable-cam-drv", &cam_drv_en_mask_val);
-	if (cam_drv_en_mask_val & CAM_DDR_DRV)
-		soc_private->enable_cam_ddr_drv = true;
 
-	if (cam_drv_en_mask_val & CAM_CLK_DRV) {
-		if (!soc_private->enable_cam_ddr_drv) {
-			CAM_ERR(CAM_CPAS, "DDR DRV needs to be enabled for Clock DRV");
-			rc = -EPERM;
-			goto cleanup_clients;
-		}
+	if (!rc) {
+		if (cam_drv_en_mask_val & CAM_DDR_DRV)
+			soc_private->enable_cam_ddr_drv = true;
 
-		soc_private->enable_cam_clk_drv = true;
-		rc = cam_soc_util_cesta_populate_crm_device();
-		if (rc) {
-			CAM_ERR(CAM_CPAS, "Failed to populate camera cesta crm device rc: %d", rc);
-			goto cleanup_clients;
+		if (cam_drv_en_mask_val & CAM_CLK_DRV) {
+			if (!soc_private->enable_cam_ddr_drv) {
+				CAM_ERR(CAM_CPAS, "DDR DRV needs to be enabled for Clock DRV");
+				rc = -EPERM;
+				goto cleanup_clients;
+			}
+
+			soc_private->enable_cam_clk_drv = true;
+			rc = cam_soc_util_cesta_populate_crm_device();
+			if (rc) {
+				CAM_ERR(CAM_CPAS, "Failed to populate cam cesta crm device rc %d",
+					rc);
+				goto cleanup_clients;
+			}
 		}
 	}
 
@@ -1693,11 +1704,39 @@ cleanup_clients:
 	return rc;
 }
 
+static int cam_cpas_soc_fill_irq_data(struct cam_hw_info *cpas_hw,
+	struct cam_hw_soc_info *soc_info, void **irq_data)
+{
+	struct cam_cpas_private_soc *soc_private = soc_info->soc_private;
+	int i;
+
+	for (i = 0; i < soc_info->irq_count; i++) {
+		soc_private->irq_data[i].cpas_hw = cpas_hw;
+
+		if (!strcmp(soc_info->irq_name[i], "cpas_camnoc"))
+			soc_private->irq_data[i].camnoc_type = CAM_CAMNOC_HW_COMBINED;
+		else if (!strcmp(soc_info->irq_name[i], "cpas_camnoc_rt"))
+			soc_private->irq_data[i].camnoc_type = CAM_CAMNOC_HW_RT;
+		else if (!strcmp(soc_info->irq_name[i], "cpas_camnoc_nrt"))
+			soc_private->irq_data[i].camnoc_type = CAM_CAMNOC_HW_NRT;
+		else {
+			CAM_ERR(CAM_CPAS, "Unable to identify interrupt name: %s",
+				soc_info->irq_name[i]);
+			return -EINVAL;
+		}
+
+		irq_data[i] = &soc_private->irq_data[i];
+	}
+
+	return 0;
+}
+
 int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 	irq_handler_t irq_handler, struct cam_hw_info *cpas_hw)
 {
 	int rc = 0;
 	struct cam_cpas_private_soc *soc_private;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc) {
@@ -1705,36 +1744,46 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		return rc;
 	}
 
-	if ((soc_info->irq_num > 0) && !irq_handler) {
+	if (soc_info->irq_count > 0 && !irq_handler) {
 		CAM_ERR(CAM_CPAS, "Invalid IRQ handler");
 		return -EINVAL;
-	}
-
-	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler,
-		cpas_hw);
-	if (rc) {
-		CAM_ERR(CAM_CPAS, "failed in request_platform_resource, rc=%d",
-			rc);
-		return rc;
 	}
 
 	soc_info->soc_private = kzalloc(sizeof(struct cam_cpas_private_soc),
 		GFP_KERNEL);
 	if (!soc_info->soc_private) {
-		rc = -ENOMEM;
-		goto release_res;
+		CAM_ERR(CAM_CPAS, "Failed to allocate soc private");
+		return -ENOMEM;
 	}
+	soc_private = (struct cam_cpas_private_soc *)soc_info->soc_private;
 
-	rc = cam_cpas_get_custom_dt_info(cpas_hw, soc_info->pdev,
-		soc_info->soc_private);
+	rc = cam_cpas_get_custom_dt_info(cpas_hw, soc_info->pdev, soc_private);
 	if (rc) {
 		CAM_ERR(CAM_CPAS, "failed in get_custom_info, rc=%d", rc);
 		goto free_soc_private;
 	}
 
-	soc_private = (struct cam_cpas_private_soc *)soc_info->soc_private;
+	soc_private->irq_data = kcalloc(soc_info->irq_count, sizeof(struct cam_cpas_soc_irq_data),
+		GFP_KERNEL);
+	if (!soc_private->irq_data) {
+		CAM_ERR(CAM_CPAS, "Failed to allocate irq data");
+		rc = -ENOMEM;
+		goto free_soc_private;
+	}
+
+	rc = cam_cpas_soc_fill_irq_data(cpas_hw, soc_info, &(irq_data[0]));
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed to fill irq data rc=%d", rc);
+		goto free_irq_data;
+	}
 
 	soc_info->is_clk_drv_en = soc_private->enable_cam_clk_drv;
+
+	rc = cam_soc_util_request_platform_resource(soc_info, irq_handler, &(irq_data[0]));
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "failed in request_platform_resource, rc=%d", rc);
+		goto free_irq_data;
+	}
 
 	rc = cam_soc_util_get_option_clk_by_name(soc_info, CAM_ICP_CLK_NAME,
 		&soc_private->icp_clk_index);
@@ -1751,15 +1800,20 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		rc = cam_cpas_get_domain_id_support_clks(soc_info->pdev->dev.of_node,
 			soc_info, soc_private);
 		if (rc)
-			goto free_soc_private;
+			goto release_res;
 	}
 
 	return rc;
 
-free_soc_private:
-	kfree(soc_info->soc_private);
 release_res:
 	cam_soc_util_release_platform_resource(soc_info);
+free_irq_data:
+	kfree(soc_private->irq_data);
+free_soc_private:
+	kfree(soc_private->llcc_info);
+	kfree(soc_private->smart_qos_info);
+	kfree(soc_info->soc_private);
+	soc_info->soc_private = NULL;
 	return rc;
 }
 
@@ -1785,6 +1839,7 @@ int cam_cpas_soc_deinit_resources(struct cam_hw_soc_info *soc_info)
 	if (rc)
 		CAM_ERR(CAM_CPAS, "release platform failed, rc=%d", rc);
 
+	kfree(soc_private->irq_data);
 	kfree(soc_private->llcc_info);
 	kfree(soc_private->smart_qos_info);
 	kfree(soc_info->soc_private);

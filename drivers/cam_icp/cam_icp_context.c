@@ -150,8 +150,12 @@ static int __cam_icp_flush_dev_in_ready(struct cam_context *ctx,
 	struct cam_flush_dev_cmd *cmd)
 {
 	int rc;
+	struct cam_context_utils_flush_args flush_args;
 
-	rc = cam_context_flush_dev_to_hw(ctx, cmd);
+	flush_args.cmd = cmd;
+	flush_args.flush_active_req = false;
+
+	rc = cam_context_flush_dev_to_hw(ctx, &flush_args);
 	if (rc)
 		CAM_ERR(CAM_ICP, "[%s] ctx[%u]: Failed to flush device",
 			ctx->dev_name, ctx->ctx_id);
@@ -184,7 +188,7 @@ static int __cam_icp_config_dev_in_ready(struct cam_context *ctx,
 			"[%s] ctx[%u]: Invalid offset, len: %zu cmd offset: %llu sizeof packet: %zu",
 			ctx->dev_name, ctx->ctx_id,
 			len, cmd->offset, sizeof(struct cam_packet));
-		return -EINVAL;
+		goto put_cpu_buf;
 	}
 
 	remain_len -= (size_t)cmd->offset;
@@ -196,7 +200,7 @@ static int __cam_icp_config_dev_in_ready(struct cam_context *ctx,
 		CAM_ERR(CAM_CTXT, "[%s] ctx[%u]: Invalid packet params, remain length: %zu",
 			ctx->dev_name, ctx->ctx_id,
 			remain_len);
-		return rc;
+		goto put_cpu_buf;
 	}
 
 	if (((packet->header.op_code & 0xff) ==
@@ -213,6 +217,8 @@ static int __cam_icp_config_dev_in_ready(struct cam_context *ctx,
 		CAM_ERR(CAM_ICP, "[%s] ctx[%u]:Failed to prepare device",
 			ctx->dev_name, ctx->ctx_id);
 
+put_cpu_buf:
+	cam_mem_put_cpu_buf((int32_t) cmd->packet_handle);
 	return rc;
 }
 

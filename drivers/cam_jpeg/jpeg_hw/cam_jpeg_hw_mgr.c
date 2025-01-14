@@ -201,6 +201,7 @@ static int cam_jpeg_add_command_buffers(struct cam_packet *packet,
 			if ((cmd_desc[i].offset / sizeof(uint32_t)) >= len) {
 				CAM_ERR(CAM_JPEG, "Invalid offset: %u cmd buf len: %zu",
 					cmd_desc[i].offset, len);
+				cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 				return -EINVAL;
 			}
 
@@ -210,6 +211,7 @@ static int cam_jpeg_add_command_buffers(struct cam_packet *packet,
 			jpeg_request_data->encode_size_buffer_ptr = &inout_params->output_size;
 			CAM_DBG(CAM_JPEG, "encode_size_buf_ptr: 0x%p",
 				jpeg_request_data->encode_size_buffer_ptr);
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 			break;
 		case CAM_JPEG_PACKET_GENERIC_BLOB:
 			rc = cam_packet_util_process_generic_cmd_buffer(&cmd_desc[i],
@@ -678,6 +680,8 @@ static int cam_jpeg_insert_cdm_change_base(
 		CAM_ERR(CAM_JPEG, "Not enough buf offset %d len %d",
 			config_args->hw_update_entries[CAM_JPEG_CHBASE_CMD_BUFF_IDX].offset,
 			ch_base_len);
+		cam_mem_put_cpu_buf(
+			config_args->hw_update_entries[CAM_JPEG_CHBASE_CMD_BUFF_IDX].handle);
 		return -EINVAL;
 	}
 
@@ -712,6 +716,9 @@ static int cam_jpeg_insert_cdm_change_base(
 	*ch_base_iova_addr = 0;
 	ch_base_iova_addr += size;
 	*ch_base_iova_addr = 0;
+
+	cam_mem_put_cpu_buf(
+		config_args->hw_update_entries[CAM_JPEG_CHBASE_CMD_BUFF_IDX].handle);
 
 	return rc;
 }
@@ -887,7 +894,6 @@ static int cam_jpeg_mgr_config_hw(void *hw_mgr_priv, void *config_hw_args)
 	struct cam_hw_config_args                          *config_args = config_hw_args;
 	struct cam_jpeg_hw_ctx_data                        *ctx_data = NULL;
 	struct cam_jpeg_request_data                       *jpeg_req;
-	struct cam_hw_update_entry                         *hw_update_entries;
 	struct crm_workq_task                              *task;
 	struct cam_jpeg_process_frame_work_data_t          *task_data;
 	struct cam_jpeg_hw_cfg_req                         *p_cfg_req = NULL;
@@ -930,7 +936,6 @@ static int cam_jpeg_mgr_config_hw(void *hw_mgr_priv, void *config_hw_args)
 	jpeg_req = (struct cam_jpeg_request_data *)config_args->priv;
 	p_cfg_req->req_id = (uintptr_t)jpeg_req->request_id;
 	p_cfg_req->num_hw_entry_processed = 0;
-	hw_update_entries = config_args->hw_update_entries;
 	CAM_DBG(CAM_JPEG, "req_id: %u, dev_type: %d",
 		p_cfg_req->req_id, ctx_data->jpeg_dev_acquire_info.dev_type);
 	task = cam_req_mgr_workq_get_task(g_jpeg_hw_mgr.work_process_frame);
@@ -1035,7 +1040,8 @@ static int cam_jpeg_mgr_prepare_hw_update(void *hw_mgr_priv,
 		return -EINVAL;
 	}
 
-	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_hdl, -1, false);
+	rc = cam_packet_util_process_patches(packet, prepare_args->buf_tracker,
+		hw_mgr->iommu_hdl, -1, false);
 	if (rc) {
 		CAM_ERR(CAM_JPEG, "Patch processing failed %d", rc);
 		return rc;
@@ -1410,7 +1416,6 @@ static int cam_jpeg_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	struct cam_jpeg_acquire_dev_info jpeg_dev_acquire_info;
 	struct cam_cdm_acquire_data cdm_acquire;
 	uint32_t dev_type;
-	uint32_t size = 0;
 
 	if ((!hw_mgr_priv) || (!acquire_hw_args)) {
 		CAM_ERR(CAM_JPEG, "Invalid params: %pK %pK", hw_mgr_priv,
@@ -1497,9 +1502,6 @@ static int cam_jpeg_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	} else {
 		hw_mgr->cdm_info[dev_type][0].ref_cnt++;
 	}
-
-	size =
-	hw_mgr->cdm_info[dev_type][0].cdm_ops->cdm_required_size_changebase();
 
 	if (hw_mgr->cdm_info[dev_type][0].ref_cnt == 1)
 		if (cam_cdm_stream_on(
@@ -1785,7 +1787,7 @@ static int cam_jpeg_init_devices(struct device_node *of_node,
 	g_jpeg_hw_mgr.cdm_reg_map[CAM_JPEG_DEV_DMA][0] =
 		&dma_soc_info->reg_map[0];
 
-	rc = g_jpeg_hw_mgr.devices[CAM_JPEG_DEV_ENC][0]->hw_ops.process_cmd(
+	(void) g_jpeg_hw_mgr.devices[CAM_JPEG_DEV_ENC][0]->hw_ops.process_cmd(
 		g_jpeg_hw_mgr.devices[CAM_JPEG_DEV_ENC][0]->hw_priv,
 		CAM_JPEG_CMD_GET_NUM_PID,
 		&g_jpeg_hw_mgr.num_pid[CAM_JPEG_DEV_ENC],
@@ -1904,6 +1906,7 @@ hw_dump:
 		CAM_WARN(CAM_JPEG, "dump offset overshoot len %zu offset %zu",
 			jpeg_dump_args.buf_len, dump_args->offset);
 		mutex_unlock(&hw_mgr->hw_mgr_mutex);
+		cam_mem_put_cpu_buf(dump_args->buf_handle);
 		return -ENOSPC;
 	}
 
@@ -1914,6 +1917,7 @@ hw_dump:
 		CAM_WARN(CAM_JPEG, "dump buffer exhaust remain %zu min %u",
 			remain_len, min_len);
 		mutex_unlock(&hw_mgr->hw_mgr_mutex);
+		cam_mem_put_cpu_buf(dump_args->buf_handle);
 		return -ENOSPC;
 	}
 
@@ -1946,6 +1950,7 @@ hw_dump:
 	CAM_DBG(CAM_JPEG, "Offset before %u after %u",
 		dump_args->offset, jpeg_dump_args.offset);
 	dump_args->offset = jpeg_dump_args.offset;
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }
 
@@ -1985,11 +1990,13 @@ static void cam_jpeg_mgr_dump_pf_data(
 		&jpeg_pid_mid_args, sizeof(jpeg_pid_mid_args));
 	if (rc) {
 		CAM_ERR(CAM_JPEG, "CAM_JPEG_CMD_MATCH_PID_MID failed %d", rc);
+		cam_packet_util_put_packet_addr(pf_req_info->packet_handle);
 		return;
 	}
 
 	if (!jpeg_pid_mid_args.pid_match_found) {
 		CAM_INFO(CAM_JPEG, "This context data is not matched with pf pid and mid");
+		cam_packet_util_put_packet_addr(pf_req_info->packet_handle);
 		return;
 	}
 	pf_args->pf_context_info.resource_type = jpeg_pid_mid_args.match_res;
@@ -1997,6 +2004,22 @@ static void cam_jpeg_mgr_dump_pf_data(
 iodump:
 	cam_packet_util_dump_io_bufs(packet, hw_mgr->iommu_hdl, hw_mgr->iommu_sec_hdl,
 		pf_args, hw_pid_support);
+	cam_packet_util_put_packet_addr(pf_req_info->packet_handle);
+  
+	/* Dump JPEG registers for debug purpose */
+	if (dev_type == CAM_JPEG_RES_TYPE_DMA ||
+		dev_type == CAM_JPEG_RES_TYPE_ENC) {
+		rc = hw_mgr->devices[dev_type][CAM_JPEG_MEM_BASE_INDEX]->hw_ops.process_cmd(
+			hw_mgr->devices[dev_type][CAM_JPEG_MEM_BASE_INDEX]->hw_priv,
+			CAM_JPEG_CMD_DUMP_DEBUG_REGS,
+			NULL, 0);
+		if (rc)
+			CAM_ERR(CAM_JPEG, "Invalid process_cmd ops");
+
+	} else {
+		CAM_ERR(CAM_JPEG, "Invalid dev_type %d", dev_type);
+	}
+	cam_packet_util_put_packet_addr(pf_req_info->packet_handle);
 }
 
 static int cam_jpeg_mgr_cmd(void *hw_mgr_priv, void *cmd_args)

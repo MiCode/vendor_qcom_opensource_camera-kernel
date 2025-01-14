@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw_v_1_3.h"
@@ -865,11 +865,6 @@ int tpg_1_3_layer_init(struct tpg_hw *hw)
 {
 	int rc = 0;
 	struct dentry *dbgfileptr_parent = NULL;
-	struct dentry *dbgfileptr = NULL;
-	struct dentry *dbgfileptr_shdr = NULL;
-	struct dentry *dfp_shdr_batch = NULL;
-	struct dentry *dfp_shdr_off0 = NULL;
-	struct dentry *dfp_shdr_off1 = NULL;
 	char dir_name[160];
 
 	snprintf(dir_name, sizeof(dir_name), "tpg%d",
@@ -880,17 +875,16 @@ int tpg_1_3_layer_init(struct tpg_hw *hw)
 		CAM_ERR(CAM_TPG, "Debug fs could not create directory");
 		rc = -ENOENT;
 	}
-
-	dbgfileptr      = debugfs_create_file("tpg_xcfa_test", 0644,
-			dbgfileptr_parent, hw, &tpg_1_3_xcfa_test);
-	dbgfileptr_shdr = debugfs_create_file("tpg_shdr_overlap_test", 0644,
-			dbgfileptr_parent, hw, &tpg_1_3_shdr_overlap_test);
-	dfp_shdr_batch  = debugfs_create_file("tpg_shdr_offset_num_batch", 0644,
-			dbgfileptr_parent, hw, &tpg_1_3_shdr_offset_num_batch);
-	dfp_shdr_off0   = debugfs_create_file("tpg_shdr_line_offset0", 0644,
-			dbgfileptr_parent, hw, &tpg_1_3_shdr_line_offset0);
-	dfp_shdr_off1   = debugfs_create_file("tpg_shdr_line_offset1", 0644,
-			dbgfileptr_parent, hw, &tpg_1_3_shdr_line_offset1);
+	debugfs_create_file("tpg_xcfa_test", 0644,
+		dbgfileptr_parent, hw, &tpg_1_3_xcfa_test);
+	debugfs_create_file("tpg_shdr_overlap_test", 0644,
+		dbgfileptr_parent, hw, &tpg_1_3_shdr_overlap_test);
+	debugfs_create_file("tpg_shdr_offset_num_batch", 0644,
+		dbgfileptr_parent, hw, &tpg_1_3_shdr_offset_num_batch);
+	debugfs_create_file("tpg_shdr_line_offset0", 0644,
+		dbgfileptr_parent, hw, &tpg_1_3_shdr_line_offset0);
+	debugfs_create_file("tpg_shdr_line_offset1", 0644,
+		dbgfileptr_parent, hw, &tpg_1_3_shdr_line_offset1);
 	CAM_INFO(CAM_TPG, "Layer init called");
 	return rc;
 }

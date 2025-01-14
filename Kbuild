@@ -226,6 +226,7 @@ camera-$(CONFIG_SPECTRA_SENSOR) += \
 	drivers/cam_sensor_module/cam_actuator/cam_actuator_dev.o \
 	drivers/cam_sensor_module/cam_actuator/cam_actuator_core.o \
 	drivers/cam_sensor_module/cam_actuator/cam_actuator_soc.o \
+	drivers/cam_sensor_module/cam_cci/cam_cci_debug_util.o \
 	drivers/cam_sensor_module/cam_cci/cam_cci_dev.o \
 	drivers/cam_sensor_module/cam_cci/cam_cci_core.o \
 	drivers/cam_sensor_module/cam_cci/cam_cci_soc.o \
@@ -258,7 +259,14 @@ camera-$(CONFIG_SPECTRA_SENSOR) += \
 	drivers/cam_sensor_module/cam_res_mgr/cam_res_mgr.o \
 	drivers/cam_sensor_module/cam_flash/cam_flash_dev.o \
 	drivers/cam_sensor_module/cam_flash/cam_flash_core.o \
-	drivers/cam_sensor_module/cam_flash/cam_flash_soc.o
+	drivers/cam_sensor_module/cam_flash/cam_flash_soc.o \
+	drivers/cam_sensor_module/cam_sensor_module_debug.o
+
+ifneq (,$(filter $(CONFIG_MIISP),y m))
+camera-$(CONFIG_SPECTRA_SENSOR) += \
+	drivers/cam_sensor_module/cam_ispv4/cam_ispv4_dev.o \
+	drivers/cam_sensor_module/cam_ispv4/cam_ispv4_core.o
+endif
 
 camera-$(CONFIG_SPECTRA_CUSTOM) += \
 	drivers/cam_cust/cam_custom_hw_mgr/cam_custom_hw1/cam_custom_sub_mod_soc.o \
@@ -306,7 +314,38 @@ camera-$(CONFIG_SPECTRA_TFE) += \
 	drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid.o \
 	drivers/cam_isp/isp_hw_mgr/cam_tfe_hw_mgr.o
 
+# Xiaomi add
+camera-$(CONFIG_SPECTRA_SENSOR) += \
+	drivers/cam_sensor_module/cam_aperture/cam_aperture_dev.o \
+	drivers/cam_sensor_module/cam_aperture/cam_aperture_core.o \
+	drivers/cam_sensor_module/cam_aperture/cam_aperture_soc.o \
+	drivers/cam_sensor_module/cam_sensor_utils/cam_parklens_thread.o
+
 camera-y += drivers/camera_main.o
 
 obj-m += camera.o
 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/camera.ko
+
+# MIUI ADD: Camera_CameraSkyNet
+cameralog-y := drivers/cam_log/cam_log.o
+obj-m+= cameralog.o
+BOARD_VENDOR_KERNEL_MODULES +=  $(KERNEL_MODULES_OUT)/cameralog.ko
+# END Camera_CameraSkyNet
+
+# MIUI ADD: Camera_CameraOpt
+cameramsger-y := \
+        drivers/cam_msger/cam_msger.o \
+        drivers/cam_msger/cam_sched.o \
+        drivers/cam_msger/cam_pid.o   \
+        drivers/cam_msger/cam_binder.o \
+        drivers/cam_msger/cam_msger_common.o
+        
+obj-m+= cameramsger.o
+BOARD_VENDOR_KERNEL_MODULES +=  $(KERNEL_MODULES_OUT)/cameramsger.ko
+# END Camera_CameraOpt
+
+# MIUI ADD: Camera_CamSched
+mi_cam-y := drivers/mi_cam/mi_cam.o
+obj-m+= mi_cam.o
+BOARD_VENDOR_KERNEL_MODULES +=  $(KERNEL_MODULES_OUT)/mi_cam.ko
+# END Camera_CamSched

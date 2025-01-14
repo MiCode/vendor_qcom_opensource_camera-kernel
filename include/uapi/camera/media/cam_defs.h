@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_DEFS_H__
@@ -30,6 +30,7 @@
 #define CAM_RELEASE_HW                      (CAM_COMMON_OPCODE_BASE_v2 + 0x2)
 #define CAM_DUMP_REQ                        (CAM_COMMON_OPCODE_BASE_v2 + 0x3)
 #define CAM_QUERY_CAP_V3                    (CAM_COMMON_OPCODE_BASE_v2 + 0x4)
+#define CAM_SYNX_TEST_TRIGGER               (CAM_COMMON_OPCODE_BASE_v2 + 0x5)
 
 #define CAM_EXT_OPCODE_BASE                     0x200
 #define CAM_CONFIG_DEV_EXTERNAL                 (CAM_EXT_OPCODE_BASE + 0x1)
@@ -86,6 +87,8 @@ enum flush_type_t {
  * @handle_type:        User pointer or shared memory handle
  * @reserved:           Reserved field for 64 bit alignment
  * @handle:             Control command payload
+ * @crc_error_divisor:  Width/divisor pixels per line report crc errors will trigger
+ *                      internal recovery, only for CPHY
  */
 struct cam_control {
 	__u32        op_code;
@@ -93,6 +96,9 @@ struct cam_control {
 	__u32        handle_type;
 	__u32        reserved;
 	__u64        handle;
+	/*add by xiaomi begin*/
+	__u32        crc_error_divisor;
+	/*add by xiaomi end*/
 };
 
 /* camera IOCTL */
@@ -182,6 +188,12 @@ struct cam_iommu_handle {
 #define CAM_FORMAT_ARGB_16                      48
 #define CAM_FORMAT_PLAIN16_10_LSB               49
 #define CAM_FORMAT_YUV422_10                    50
+#define CAM_FORMAT_GBR_UBWC_TP10                51
+#define CAM_FORMAT_GBR_TP10                     52
+#define CAM_FORMAT_UBWC_P016                    53
+#define CAM_FORMAT_BAYER_UBWC_TP10              54
+
+/* This macro is deprecated and no longer needed */
 #define CAM_FORMAT_MAX                          51
 
 /* Pixel Patterns */
@@ -235,7 +247,8 @@ struct cam_iommu_handle {
 #define CAM_PACKET_DEV_LRME                     17
 #define CAM_PACKET_DEV_TFE                      18
 #define CAM_PACKET_DEV_OPE                      19
-#define CAM_PACKET_DEV_MAX                      20
+#define CAM_PACKET_DEV_APERTURE                 20
+#define CAM_PACKET_DEV_MAX                      21
 
 /* Register base type */
 #define CAM_REG_DUMP_BASE_TYPE_ISP_LEFT         1
@@ -257,6 +270,10 @@ struct cam_iommu_handle {
 
 /* constants */
 #define CAM_PACKET_MAX_PLANES                   3
+
+/* synx test cmd types */
+#define CAM_SYNX_TEST_CMD_TYPE_CORE_CTRL       1
+#define CAM_SYNX_TEST_CMD_TYPE_SYNX_CMD        2
 
 /**
  * struct cam_plane_cfg - Plane configuration info
@@ -567,6 +584,8 @@ struct cam_query_cap_cmd {
  * @handle_type:        Resource handle type:
  *                      1 = user pointer, 2 = mem handle
  * @num_resources:      Number of the resources to be acquired
+ * @crc_error_divisor:  Width/divisor pixels per line report crc errors will trigger
+ *                      internal recovery, only for CPHY
  * @resources_hdl:      Resource handle that refers to the actual
  *                      resource array. Each item in this
  *                      array is device specific resource structure
@@ -577,6 +596,9 @@ struct cam_acquire_dev_cmd {
 	__s32        dev_handle;
 	__u32        handle_type;
 	__u32        num_resources;
+	/*add by xiaomi begin*/
+	__u32        crc_error_divisor;
+	/*add by xiaomi end*/
 	__u64        resource_hdl;
 };
 
@@ -613,6 +635,8 @@ struct cam_acquire_dev_cmd {
  *                      1 = user pointer, 2 = mem handle
  * @data_size:          Total size of data contained in memory pointed
  *                      to by resource_hdl
+ * @crc_error_divisor:  Width/divisor pixels per line report crc errors will trigger
+ *                      internal recovery, only for CPHY
  * @resource_hdl:       Resource handle that refers to the actual
  *                      resource data.
  */
@@ -623,6 +647,9 @@ struct cam_acquire_hw_cmd_v1 {
 	__s32        dev_handle;
 	__u32        handle_type;
 	__u32        data_size;
+	/*add by xiaomi begin*/
+	__u32        crc_error_divisor;
+	/*add by xiaomi end*/
 	__u64        resource_hdl;
 };
 
@@ -657,6 +684,8 @@ struct cam_acquired_hw_info {
  *                      1 = user pointer, 2 = mem handle
  * @data_size:          Total size of data contained in memory pointed
  *                      to by resource_hdl
+ * @crc_error_divisor:  Width/divisor pixels per line report crc errors will trigger
+ *                      internal recovery, only for CPHY
  * @resource_hdl:       Resource handle that refers to the actual
  *                      resource data.
  */
@@ -667,6 +696,9 @@ struct cam_acquire_hw_cmd_v2 {
 	__s32                    dev_handle;
 	__u32                    handle_type;
 	__u32                    data_size;
+	/*add by xiaomi begin*/
+	__u32                    crc_error_divisor;
+	/*add by xiaomi end*/
 	__u64                    resource_hdl;
 	struct cam_acquired_hw_info hw_info;
 };
@@ -906,5 +938,74 @@ struct cam_dump_req_cmd {
 	__s32           link_hdl;
 	__s32           dev_handle;
 };
+
+/**
+ * struct cam_synx_test_cmd - Synx test cmds
+ *
+ * @version: Struct version
+ * @ip_mem_hdl: Input buf mem handle
+ *              corresponds to synx test inputs to the
+ *              fencing core
+ * @op_mem_hdl: Output buf mem handle
+ *              corresponds to synx output generated by
+ *              the fencing core
+ * @num_valid_params: Num valid params
+ * @valid_param_mask: Valid param mask
+ * @params: additional params
+ */
+struct cam_synx_test_cmd {
+	__u32 version;
+	__s32 ip_mem_hdl;
+	__s32 op_mem_hdl;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[5];
+};
+
+/**
+ * struct cam_synx_core_control - Synx core ctrl
+ *
+ * @version: Struct version
+ * @core_control: Set for resume, unset for collapse
+ * @num_valid_params: Num valid params
+ * @valid_param_mask: Valid param mask
+ * @params: additional params
+ */
+struct cam_synx_core_control {
+	__u32 version;
+	__u32 core_control;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[4];
+};
+
+
+/**
+ * struct cam_synx_test_params - Synx test params
+ *
+ * A test sequence could include creating and signaling
+ * synx handle between ICP <-> APPs. These test params
+ * would be cmds such as session initialize, synx create,
+ * synx async wait, synx signal and so on
+ *
+ * @version: Struct version
+ * @cmd_type: Type of test cmd - core control/synx cmd/...
+ * @num_valid_params: Num valid params
+ * @valid_param_mask: Valid param mask
+ * @params: additional params
+ * @test_cmd: Synx test cmd forwarded to the core
+ * @core_ctrl: Synx test cmd to control fencing core
+ */
+struct cam_synx_test_params {
+	__u32 version;
+	__u32 cmd_type;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[4];
+	union {
+		struct cam_synx_test_cmd test_cmd;
+		struct cam_synx_core_control core_ctrl;
+	} u;
+} __attribute__((__packed__));
 
 #endif /* __UAPI_CAM_DEFS_H__ */

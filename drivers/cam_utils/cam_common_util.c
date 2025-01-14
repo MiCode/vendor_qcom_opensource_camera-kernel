@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/string.h>
@@ -38,7 +38,7 @@ int cam_common_util_get_string_index(const char **strings,
 
 	for (i = 0; i < num_strings; i++) {
 		if (strnstr(strings[i], matching_string, strlen(strings[i]))) {
-			CAM_DBG(CAM_UTIL, "matched %s : %d\n",
+			CAM_DBG(CAM_OIS, "matched %s : %d\n",
 				matching_string, i);
 			*index = i;
 			return 0;
@@ -142,8 +142,8 @@ int cam_common_modify_timer(struct timer_list *timer, int32_t timeout_val)
 	return 0;
 }
 
-void cam_common_util_thread_switch_delay_detect(
-	const char *token, ktime_t scheduled_time, uint32_t threshold)
+void cam_common_util_thread_switch_delay_detect(char *wq_name, const char *state,
+	void *cb, ktime_t scheduled_time, uint32_t threshold)
 {
 	uint64_t                         diff;
 	ktime_t                          cur_time;
@@ -157,8 +157,9 @@ void cam_common_util_thread_switch_delay_detect(
 		scheduled_ts  = ktime_to_timespec64(scheduled_time);
 		cur_ts = ktime_to_timespec64(cur_time);
 		CAM_WARN_RATE_LIMIT_CUSTOM(CAM_UTIL, 1, 1,
-			"%s delay detected sched timestamp:[%lld.%06lld] cur timestamp:[%lld.%06lld] diff %ld: threshold %d",
-			token, scheduled_ts.tv_sec,
+			"%s cb: %ps delay in %s detected %ld:%06ld cur %ld:%06ld\n"
+			"diff %ld: threshold %d",
+			wq_name, cb, state, scheduled_ts.tv_sec,
 			scheduled_ts.tv_nsec/NSEC_PER_USEC,
 			cur_ts.tv_sec, cur_ts.tv_nsec/NSEC_PER_USEC,
 			diff, threshold);
@@ -819,6 +820,30 @@ undefined_param:
 	}
 
 	return ret;
+}
+
+// xiaomi add cam_retry_kcalloc
+void *cam_retry_kcalloc(
+	const char *func,
+	int line,
+	size_t n,
+	size_t s,
+	gfp_t gfp)
+{
+	void *p = NULL;
+	int   i;
+
+	for (i = 0; i < 3; ++i) {
+		p = kcalloc(n, s, gfp);
+		if (NULL != p) {
+			break;
+		} else {
+			CAM_ERR(CAM_UTIL, "Failed to kcalloc size:%lu count:%lu function:%s line:%d at times %d",
+				n, s, func, line, i);
+		}
+		msleep(10);
+	}
+	return p;
 }
 
 static const struct kernel_param_ops cam_common_evt_inject = {

@@ -16,6 +16,30 @@
 #define SPI_MASTER           3
 #define I3C_MASTER           4
 
+#define MAX_IO_FAIL_COUNT    3
+#define MAX_DAMAGE_COUNT     6
+
+#define IS_DEV_IO_ERROR(damege_count, io_fail_count) \
+	(((damege_count) >= MAX_DAMAGE_COUNT || (io_fail_count) >= MAX_IO_FAIL_COUNT) ?  true : false)
+
+/// @brief I2C device type
+enum I2CDeviceType
+{
+	Default = 0,
+	SensorI2C = 1,
+	ActuatorI2C = 2,
+	OISI2C = 3,
+	ApertureI2C = 4,
+};
+
+struct cci_error_info
+{
+	atomic_t io_fail_count;
+	atomic_t damage_count;
+	atomic_t init_fail_flag;
+	struct timespec64  last_damage_timestamp;
+};
+
 /**
  * @master_type: CCI master type
  * @i2c_client: I2C client information structure
@@ -116,6 +140,22 @@ int32_t camera_io_dev_poll(struct camera_io_master *io_master_info,
 	enum camera_sensor_i2c_type addr_type,
 	enum camera_sensor_i2c_type data_type,
 	uint32_t delay_ms);
+
+void cam_cci_add_io_fail_count(struct cci_error_info *error_info);
+
+void cam_cci_reset_io_fail_count(struct cci_error_info *error_info);
+
+int cam_cci_read_io_fail_count(struct cci_error_info *error_info);
+
+bool cam_check_cci_is_error(struct cci_error_info *error_info);
+
+void cam_cci_set_init_fail(struct cci_error_info *error_info);
+
+void cam_cci_clear_init_fail(struct cci_error_info *error_info);
+
+bool cam_check_cci_is_damage(struct cci_error_info *error_info, enum I2CDeviceType deviceType);
+
+int cam_cci_read_damage_count(struct cci_error_info *error_info);
 
 #include "cam_sensor_i2c.h"
 #include "cam_sensor_spi.h"

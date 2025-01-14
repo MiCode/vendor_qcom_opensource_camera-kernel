@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -417,73 +417,6 @@ static int cam_vfe_camif_lite_handle_irq_top_half(uint32_t evt_id,
 	return rc;
 }
 
-static int cam_vfe_camif_lite_cpas_fifo_levels_reg_dump(
-	struct cam_vfe_mux_camif_lite_data *camif_lite_priv)
-{
-	int rc = 0;
-	struct cam_vfe_soc_private *soc_private =
-		camif_lite_priv->soc_info->soc_private;
-	uint32_t  val;
-
-	if (soc_private->cpas_version == CAM_CPAS_TITAN_175_V120 ||
-		soc_private->cpas_version == CAM_CPAS_TITAN_175_V130 ||
-		soc_private->cpas_version == CAM_CPAS_TITAN_165_V100) {
-		rc = cam_cpas_reg_read(soc_private->cpas_handle,
-				CAM_CPAS_REG_CAMNOC, 0x3A20, true, &val);
-		if (rc) {
-			CAM_ERR(CAM_ISP,
-				"IFE0_nRDI_MAXWR_LOW read failed rc=%d",
-				rc);
-			return rc;
-		}
-		CAM_INFO(CAM_ISP, "IFE0_nRDI_MAXWR_LOW offset 0x3A20 val 0x%x",
-			val);
-
-		rc = cam_cpas_reg_read(soc_private->cpas_handle,
-				CAM_CPAS_REG_CAMNOC, 0x5420, true, &val);
-		if (rc) {
-			CAM_ERR(CAM_ISP,
-				"IFE1_nRDI_MAXWR_LOW read failed rc=%d",
-				rc);
-			return rc;
-		}
-		CAM_INFO(CAM_ISP, "IFE1_nRDI_MAXWR_LOW offset 0x5420 val 0x%x",
-			val);
-
-		rc = cam_cpas_reg_read(soc_private->cpas_handle,
-				CAM_CPAS_REG_CAMNOC, 0x3620, true, &val);
-		if (rc) {
-			CAM_ERR(CAM_ISP,
-				"IFE0123_RDI_WR_MAXWR_LOW read failed rc=%d",
-				rc);
-			return rc;
-		}
-		CAM_INFO(CAM_ISP,
-			"IFE0123_RDI_WR_MAXWR_LOW offset 0x3620 val 0x%x", val);
-
-	} else if (soc_private->cpas_version < CAM_CPAS_TITAN_175_V120) {
-		rc = cam_cpas_reg_read(soc_private->cpas_handle,
-				CAM_CPAS_REG_CAMNOC, 0x420, true, &val);
-		if (rc) {
-			CAM_ERR(CAM_ISP, "IFE02_MAXWR_LOW read failed rc=%d",
-				rc);
-			return rc;
-		}
-		CAM_INFO(CAM_ISP, "IFE02_MAXWR_LOW offset 0x420 val 0x%x", val);
-
-		rc = cam_cpas_reg_read(soc_private->cpas_handle,
-				CAM_CPAS_REG_CAMNOC, 0x820, true, &val);
-		if (rc) {
-			CAM_ERR(CAM_ISP, "IFE13_MAXWR_LOW read failed rc=%d",
-				rc);
-			return rc;
-		}
-		CAM_INFO(CAM_ISP, "IFE13_MAXWR_LOW offset 0x820 val 0x%x", val);
-	}
-
-	return 0;
-}
-
 static int cam_vfe_camif_lite_handle_irq_bottom_half(
 	void                                 *handler_priv,
 	void                                 *evt_payload_priv)
@@ -553,7 +486,8 @@ static int cam_vfe_camif_lite_handle_irq_bottom_half(
 
 		err_evt_info.err_type = CAM_VFE_IRQ_STATUS_OVERFLOW;
 		evt_info.event_data = (void *)&err_evt_info;
-		cam_vfe_camif_lite_cpas_fifo_levels_reg_dump(camif_lite_priv);
+
+		cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
 
 		ktime_get_boottime_ts64(&ts);
 		CAM_INFO(CAM_ISP,

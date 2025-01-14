@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_spi.h"
@@ -421,11 +421,19 @@ static int32_t cam_spi_page_program(struct camera_io_master *client,
 	memcpy(tx + header_len, data, len);
 	CAM_DBG(CAM_SENSOR, "tx(%u): %02x %02x %02x %02x",
 		len, tx[0], tx[1], tx[2], tx[3]);
-	while ((rc = spi_write(spi, tx, len + header_len)) && retries) {
-		rc = cam_spi_wait(client, pg, addr_type);
-		msleep(client->spi_client->retry_delay);
-		retries--;
-	}
+	do {
+		rc = spi_write(spi, tx, len + header_len);
+		if (rc) {
+			if (retries == 0) {
+				break;
+			} else {
+				retries--;
+				cam_spi_wait(client, pg, addr_type);
+				msleep(client->spi_client->retry_delay);
+			}
+		}
+	} while (rc);
+
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "failed %d", rc);
 		return rc;
@@ -554,8 +562,6 @@ int cam_spi_write_table(struct camera_io_master *client,
 	int i;
 	int rc = -EFAULT;
 	struct cam_sensor_i2c_reg_array *reg_setting;
-	uint16_t client_addr_type;
-	enum camera_sensor_i2c_type addr_type;
 
 	if (!client || !write_setting)
 		return rc;
@@ -567,8 +573,6 @@ int cam_spi_write_table(struct camera_io_master *client,
 		return rc;
 
 	reg_setting = write_setting->reg_setting;
-	client_addr_type = write_setting->addr_type;
-	addr_type = write_setting->addr_type;
 	for (i = 0; i < write_setting->size; i++) {
 		CAM_DBG(CAM_SENSOR, "addr %x data %x",
 			reg_setting->reg_addr, reg_setting->reg_data);
@@ -585,7 +589,6 @@ int cam_spi_write_table(struct camera_io_master *client,
 			usleep_range(write_setting->delay * 1000,
 			(write_setting->delay
 			* 1000) + 1000);
-	addr_type = client_addr_type;
 	return rc;
 }
 

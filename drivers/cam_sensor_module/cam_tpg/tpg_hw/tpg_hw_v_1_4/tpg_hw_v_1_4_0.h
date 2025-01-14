@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_V_1_4_0_H__
@@ -253,9 +253,13 @@ struct cam_tpg_ver_1_4_reg_offset cam_tpg104_reg = {
 	.shdr_offset_num_batch_shift = 0x10,
 	.shdr_line_offset1_shift = 0x10,
 	.shdr_line_offset0_shift = 0x0,
+	.tpg_done_status_shift = 0x0,
+	.rup_done_status_shift = 0x1,
 	.status_vec_shift = 0x0,
-	.mask_vec_shift = 0x0,
-	.clear_vec_shift = 0x0,
+	.rup_done_mask_vec_shift = 0x1,
+	.tpg_done_mask_vec_shift = 0x0,
+	.rup_done_clear_vec_shift = 0x1,
+	.tpg_done_clear_vec_shift = 0x0,
 	.set_vec_shift = 0x0,
 	.set_shift = 0x4,
 	.clear_shift = 0x0,

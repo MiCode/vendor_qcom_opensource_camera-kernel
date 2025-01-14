@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SOC_UTIL_H_
@@ -21,6 +21,7 @@
 #include <linux/of_fdt.h>
 
 #include "cam_io_util.h"
+#include "cam_debug_util.h"
 #include <media/cam_defs.h>
 
 #if IS_REACHABLE(CONFIG_MSM_MMRM)
@@ -48,6 +49,9 @@
 /* maximum number of pinctrl mapping */
 #define CAM_SOC_MAX_PINCTRL_MAP     2
 
+/* maximum number of irq per device */
+#define CAM_SOC_MAX_IRQ_LINES_PER_DEV 2
+
 /* DDR device types */
 #define DDR_TYPE_LPDDR4        6
 #define DDR_TYPE_LPDDR4X       7
@@ -55,7 +59,7 @@
 #define DDR_TYPE_LPDDR5X       9
 
 /* Maximum length of tag while dumping */
-#define CAM_SOC_HW_DUMP_TAG_MAX_LEN 32
+#define CAM_SOC_HW_DUMP_TAG_MAX_LEN 128
 
 /* Client index to be used to vote clk frequency through sw client */
 #define CAM_CLK_SW_CLIENT_IDX -1
@@ -63,19 +67,21 @@
 /**
  * enum cam_vote_level - Enum for voting level
  *
- * @CAM_SUSPEND_VOTE  : Suspend vote
- * @CAM_MINSVS_VOTE   : Min SVS vote
- * @CAM_LOWSVS_VOTE   : Low SVS vote
- * @CAM_SVS_VOTE      : SVS vote
- * @CAM_SVSL1_VOTE    : SVS Plus vote
- * @CAM_NOMINAL_VOTE  : Nominal vote
- * @CAM_NOMINALL1_VOTE: Nominal plus vote
- * @CAM_TURBO_VOTE    : Turbo vote
- * @CAM_MAX_VOTE      : Max voting level, This is invalid level.
+ * @CAM_SUSPEND_VOTE   : Suspend vote
+ * @CAM_MINSVS_VOTE    : Min SVS vote
+ * @CAM_LOWSVS_D1_VOTE : Low SVS D1 vote
+ * @CAM_LOWSVS_VOTE    : Low SVS vote
+ * @CAM_SVS_VOTE       : SVS vote
+ * @CAM_SVSL1_VOTE     : SVS Plus vote
+ * @CAM_NOMINAL_VOTE   : Nominal vote
+ * @CAM_NOMINALL1_VOTE : Nominal plus vote
+ * @CAM_TURBO_VOTE     : Turbo vote
+ * @CAM_MAX_VOTE       : Max voting level, This is invalid level.
  */
 enum cam_vote_level {
 	CAM_SUSPEND_VOTE,
 	CAM_MINSVS_VOTE,
+	CAM_LOWSVS_D1_VOTE,
 	CAM_LOWSVS_VOTE,
 	CAM_SVS_VOTE,
 	CAM_SVSL1_VOTE,
@@ -90,6 +96,7 @@ enum cam_vote_level {
 #define CAM_SOC_PINCTRL_STATE_DEFAULT "cam_default"
 
 #define CAM_CESTA_MAX_CLIENTS       3
+#define CAM_NUM_PWR_STATES          2
 
 /**
  * struct cam_soc_util_hw_client_clk_rates:   Information about HW client clock vote
@@ -178,11 +185,12 @@ struct cam_soc_gpio_data {
  * @index:                  Instance id for the camera device
  * @dev_name:               Device Name
  * @is_nrt_dev:             Whether this is a non-real time device
- * @irq_name:               Name of the irq associated with the device
+ * @irq_name:               Array of irq name associated with the device
  * @label_name:             label name
- * @irq_line:               Irq resource
- * @irq_num:                Irq number
- * @irq_data:               Private data that is passed when IRQ is requested
+ * @irq_line:               Array of Irq resources
+ * @irq_num:                Array of Irq numbers
+ * @irq_data:               Array of Irq Private data that are passed when IRQs are requested
+ * @irq_count:              The number of IRQ lines associated with the device
  * @compatible:             Compatible string associated with the device
  * @num_mem_block:          Number of entry in the "reg-names"
  * @mem_block_name:         Array of the reg block name
@@ -247,11 +255,12 @@ struct cam_hw_soc_info {
 	uint32_t                        index;
 	const char                     *dev_name;
 	bool                            is_nrt_dev;
-	const char                     *irq_name;
+	const char                     *irq_name[CAM_SOC_MAX_IRQ_LINES_PER_DEV];
 	const char                     *label_name;
-	struct resource                *irq_line;
-	int                             irq_num;
-	void                           *irq_data;
+	struct resource                *irq_line[CAM_SOC_MAX_IRQ_LINES_PER_DEV];
+	int                             irq_num[CAM_SOC_MAX_IRQ_LINES_PER_DEV];
+	void                           *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV];
+	uint32_t                        irq_count;
 	const char                     *compatible;
 
 	uint32_t                        num_mem_block;
@@ -425,7 +434,7 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info);
  * @return:             Success or failure
  */
 int cam_soc_util_request_platform_resource(struct cam_hw_soc_info *soc_info,
-	irq_handler_t handler, void *irq_data);
+	irq_handler_t handler, void **irq_data);
 
 /**
  * cam_soc_util_release_platform_resource()
@@ -452,7 +461,7 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info);
  * @clk_level:          Clock level to be applied.
  *                      Applicable only if enable_clocks is true
  *                          Valid range : 0 to (CAM_MAX_VOTE - 1)
- * @enable_irq:         Boolean flag:
+ * @irq_enable:         Boolean flag:
  *                          TRUE: Enable IRQ in soc_info Now.
  *                          False: Don't enable IRQ Now. Driver will
  *                                 enable independently.
@@ -461,7 +470,7 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info);
  */
 int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 	int cesta_client_idx, bool enable_clocks, enum cam_vote_level clk_level,
-	bool enable_irq);
+	bool irq_enable);
 
 /**
  * cam_soc_util_disable_platform_resource()
@@ -658,6 +667,37 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 	uint32_t rgltr_min_volt, uint32_t rgltr_max_volt,
 	uint32_t rgltr_op_mode, uint32_t rgltr_delay);
 
+/**
+ * cam_soc_util_reg_addr_validation()
+ *
+ * @brief:              Camera SOC util for validating address to be accessed
+ *
+ * @soc_info:           Device soc information
+ * @base_index:         Index of register space in the HW block
+ * @offset:             Register offset
+ *
+ * @return:             0 or specific error code
+ */
+static inline int cam_soc_util_reg_addr_validation(
+	struct cam_hw_soc_info *soc_info,
+	uint32_t base_idx, uint32_t offset)
+{
+	if (offset > (uint32_t)soc_info->reg_map[base_idx].size) {
+		CAM_ERR(CAM_UTIL,
+			"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
+			offset,
+			(uint32_t)soc_info->reg_map[base_idx].size);
+		return -EINVAL;
+	}
+
+	if (offset % 4) {
+		CAM_ERR(CAM_UTIL, "Offset: 0x%X is not memory aligned",
+			offset);
+		return -EINVAL;
+	}
+
+	return 0;
+}
 
 /**
  * cam_soc_util_w()
@@ -666,7 +706,7 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
  *
  * @soc_info:           Device soc information
  * @base_index:         Index of register space in the HW block
- * @offset:             Offset of register to be read
+ * @offset:             Offset of register to be writen
  * @data:               Value to be written
  *
  * @return:             Success or Failure
@@ -674,8 +714,14 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 static inline int cam_soc_util_w(struct cam_hw_soc_info *soc_info,
 	uint32_t base_index, uint32_t offset, uint32_t data)
 {
-	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index))
+	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index)) {
+		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return -EINVAL;
+	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return -EINVAL;
+
 	return cam_io_w(data,
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -690,7 +736,7 @@ static inline int cam_soc_util_w(struct cam_hw_soc_info *soc_info,
  *
  * @soc_info:           Device soc information
  * @base_index:         Index of register space in the HW block
- * @offset:             Offset of register to be read
+ * @offset:             Offset of register to be writen
  * @data:               Value to be written
  *
  * @return:             Success or Failure
@@ -698,8 +744,14 @@ static inline int cam_soc_util_w(struct cam_hw_soc_info *soc_info,
 static inline int cam_soc_util_w_mb(struct cam_hw_soc_info *soc_info,
 	uint32_t base_index, uint32_t offset, uint32_t data)
 {
-	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index))
+	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index)) {
+		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return -EINVAL;
+	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return -EINVAL;
+
 	return cam_io_w_mb(data,
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -718,8 +770,14 @@ static inline int cam_soc_util_w_mb(struct cam_hw_soc_info *soc_info,
 static inline uint32_t cam_soc_util_r(struct cam_hw_soc_info *soc_info,
 	uint32_t base_index, uint32_t offset)
 {
-	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index))
+	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index)) {
+		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return 0;
+	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return 0;
+
 	return cam_io_r(
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -741,8 +799,14 @@ static inline uint32_t cam_soc_util_r(struct cam_hw_soc_info *soc_info,
 static inline uint32_t cam_soc_util_r_mb(struct cam_hw_soc_info *soc_info,
 	uint32_t base_index, uint32_t offset)
 {
-	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index))
+	if (!CAM_SOC_GET_REG_MAP_START(soc_info, base_index)) {
+		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return 0;
+	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return 0;
+
 	return cam_io_r_mb(
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -880,5 +944,56 @@ inline unsigned long cam_soc_util_get_applied_src_clk(
  * @return:    String corresponding to the clk level
  */
 const char *cam_soc_util_get_string_from_level(enum cam_vote_level level);
+
+/**
+ * cam_wrapper_clk_get_rate()
+ *
+ * @brief:     Wrapper for clk get rate
+ *
+ * @clk:       Clock
+ *
+ * @return:    Clock rate
+ */
+inline unsigned long cam_wrapper_clk_get_rate(struct clk *clk);
+
+/**
+ * cam_wrapper_regulator_set_load()
+ *
+ * @brief:     Wrapper for regulator set load
+ *
+ * @regulator: Regulator
+ *
+ * @uA_load:   Load current
+ *
+ * @return:    Success or failure
+ */
+inline int cam_wrapper_regulator_set_load(
+	struct regulator *regulator, int uA_load);
+
+/**
+ * cam_wrapper_regulator_set_mode()
+ *
+ * @brief:     Wrapper for regulator set mode
+ *
+ * @regulator: Regulator
+ *
+ * @mode:      Mode
+ *
+ * @return:    Success or failure
+ */
+inline int cam_wrapper_regulator_set_mode(
+	struct regulator *regulator, unsigned int mode);
+
+/**
+ * cam_soc_util_set_bypass_drivers()
+ *
+ * @brief:          Set bypass drivers
+ *
+ * @bypass_drivers: Bypass drivers
+ *
+ * @return:         Void
+ */
+inline void cam_soc_util_set_bypass_drivers(
+	uint32_t bypass_drivers);
 
 #endif /* _CAM_SOC_UTIL_H_ */

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CAM_TPG_DEV_H__
@@ -111,19 +112,25 @@ struct tpg_crm_intf_params {
  * @state   : state machine states
  * @slot_id : slot index of this tpg
  * @phy_id  : phy index mapped to this tpg
+ * @waiting_request_q : waiting request queue
+ * @active_request_q : active request queue
+ * @tpg_irq_state : tpg irq state
  */
 struct cam_tpg_device {
-	char device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
-	struct mutex mutex;
-	struct cam_subdev tpg_subdev;
-	struct cam_hw_soc_info soc_info;
-	uint32_t cpas_handle;
-	struct tpg_device_ops state_machine[CAM_TPG_STATE_STATE_MAX];
+	char                       device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
+	struct mutex               mutex;
+	struct cam_subdev          tpg_subdev;
+	struct cam_hw_soc_info     soc_info;
+	uint32_t                   cpas_handle;
+	struct tpg_device_ops      state_machine[CAM_TPG_STATE_STATE_MAX];
 	struct tpg_crm_intf_params crm_intf;
-	struct tpg_hw tpg_hw;
-	int state;
-	int slot_id;
-	int phy_id;
+	struct tpg_hw              tpg_hw;
+	int                        state;
+	int                        slot_id;
+	int                        phy_id;
+	atomic_t                   tpg_irq_state;
+	struct list_head           waiting_request_q;
+	struct list_head           active_request_q;
 };
 
 

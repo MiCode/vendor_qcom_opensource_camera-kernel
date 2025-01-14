@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_cci_dev.h"
@@ -158,7 +158,7 @@ int cam_cci_init(struct v4l2_subdev *sd,
 	}
 
 	ahb_vote.type = CAM_VOTE_ABSOLUTE;
-	ahb_vote.vote.level = CAM_LOWSVS_VOTE;
+	ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	axi_vote.num_paths = 1;
 	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_ALL;
 	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_WRITE;
@@ -177,7 +177,7 @@ int cam_cci_init(struct v4l2_subdev *sd,
 
 	/* Enable Regulators and IRQ*/
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		CAM_LOWSVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc < 0) {
 		CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d request platform resources failed, rc: %d",
 			cci_dev->soc_info.index, master, rc);
@@ -247,6 +247,7 @@ static void cam_cci_init_cci_params(struct cci_device *new_cci_dev)
 		mutex_init(&new_cci_dev->cci_master_info[i].mutex);
 		sema_init(&new_cci_dev->cci_master_info[i].master_sem, 1);
 		mutex_init(&new_cci_dev->cci_master_info[i].freq_cnt_lock);
+		mutex_init(&new_cci_dev->cci_master_info[i].master_mutex);
 		init_completion(
 			&new_cci_dev->cci_master_info[i].reset_complete);
 		init_completion(
@@ -389,6 +390,7 @@ int cam_cci_parse_dt_info(struct platform_device *pdev,
 	int rc = 0, i = 0;
 	struct cam_hw_soc_info *soc_info =
 		&new_cci_dev->soc_info;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc < 0) {
@@ -398,8 +400,11 @@ int cam_cci_parse_dt_info(struct platform_device *pdev,
 
 	new_cci_dev->ref_count = 0;
 
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = new_cci_dev;
+
 	rc = cam_soc_util_request_platform_resource(soc_info,
-		cam_cci_irq, new_cci_dev);
+		cam_cci_irq, &(irq_data[0]));
 	if (rc < 0) {
 		CAM_ERR(CAM_CCI, "requesting platform resources failed:%d", rc);
 		return -EINVAL;

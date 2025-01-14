@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_API_H_
@@ -12,6 +12,7 @@
 
 #include <media/cam_cpas.h>
 #include "cam_soc_util.h"
+#include "cam_req_mgr_interface.h"
 
 #define CAM_HW_IDENTIFIER_LENGTH 128
 
@@ -32,26 +33,21 @@
 #define CAM_CPAS_QOS_CUSTOM_SETTINGS_MASK  0x2
 
 /**
+ * enum cam_cpas_regbase_types - Enum for cpas regbase available for clients
+ *                             to read/write
+ */
+enum cam_cpas_regbase_types {
+	CAM_CPAS_REGBASE_CPASTOP,
+	CAM_CPAS_REGBASE_MAX
+};
+
+/**
  * enum cam_cpas_vote_type - Enum for cpas vote type
  */
 enum cam_cpas_vote_type {
 	CAM_CPAS_VOTE_TYPE_HLOS,
 	CAM_CPAS_VOTE_TYPE_DRV,
 	CAM_CPAS_VOTE_TYPE_MAX,
-};
-
-/**
- * enum cam_cpas_reg_base - Enum for register base identifier. These
- *                          are the identifiers used in generic register
- *                          write/read APIs provided by cpas driver.
- */
-enum cam_cpas_reg_base {
-	CAM_CPAS_REG_CPASTOP,
-	CAM_CPAS_REG_CAMNOC,
-	CAM_CPAS_REG_CAMSS,
-	CAM_CPAS_REG_RPMH,
-	CAM_CPAS_REG_CESTA,
-	CAM_CPAS_REG_MAX
 };
 
 /**
@@ -88,7 +84,8 @@ enum cam_cpas_camera_version {
 	CAM_CPAS_CAMERA_VERSION_165  = 0x00010605,
 	CAM_CPAS_CAMERA_VERSION_780  = 0x00070800,
 	CAM_CPAS_CAMERA_VERSION_640  = 0x00060400,
-	CAM_CPAS_CAMERA_VERSION_880 =  0x00080800,
+	CAM_CPAS_CAMERA_VERSION_880  = 0x00080800,
+	CAM_CPAS_CAMERA_VERSION_980  = 0x00090800,
 	CAM_CPAS_CAMERA_VERSION_MAX
 };
 
@@ -124,7 +121,8 @@ enum cam_cpas_camera_version_map_id {
 	CAM_CPAS_CAMERA_VERSION_ID_165  = 0xA,
 	CAM_CPAS_CAMERA_VERSION_ID_780  = 0xB,
 	CAM_CPAS_CAMERA_VERSION_ID_640  = 0xC,
-	CAM_CPAS_CAMERA_VERSION_ID_880 =  0xD,
+	CAM_CPAS_CAMERA_VERSION_ID_880  = 0xD,
+	CAM_CPAS_CAMERA_VERSION_ID_980  = 0xE,
 	CAM_CPAS_CAMERA_VERSION_ID_MAX
 };
 
@@ -169,6 +167,7 @@ enum cam_cpas_hw_version {
 	CAM_CPAS_TITAN_780_V100 = 0x780100,
 	CAM_CPAS_TITAN_640_V200 = 0x640200,
 	CAM_CPAS_TITAN_880_V100 = 0x880100,
+	CAM_CPAS_TITAN_980_V100 = 0x980100,
 	CAM_CPAS_TITAN_MAX
 };
 
@@ -231,11 +230,14 @@ enum cam_camnoc_slave_error_codes {
  * @CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR: Triggered if any error detected
  *                                            in the IPE/BPS UBWC encoder
  *                                            instance
- * @CAM_CAMNOC_IRQ_OFE_WR_UBWC_DECODE_ERROR : Triggered if any error detected
+ * @CAM_CAMNOC_IRQ_OFE_WR_UBWC_ENCODE_ERROR : Triggered if any error detected
  *                                            in the OFE write UBWC decoder
  *                                            instance
  * @CAM_CAMNOC_IRQ_OFE_RD_UBWC_DECODE_ERROR : Triggered if any error detected
  *                                            in the OFE read UBWC decoder
+ *                                            instance
+ * @CAM_CAMNOC_IRQ_TFE_UBWC_ENCODE_ERROR    : Triggered if any error detected
+ *                                            in the TFE UBWC encoder
  *                                            instance
  * @CAM_CAMNOC_IRQ_AHB_TIMEOUT              : Triggered when the QHS_ICP slave
  *                                            times out after 4000 AHB cycles
@@ -256,8 +258,9 @@ enum cam_camnoc_irq_type {
 	CAM_CAMNOC_IRQ_IPE1_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_IRQ_IPE_BPS_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR,
-	CAM_CAMNOC_IRQ_OFE_WR_UBWC_DECODE_ERROR,
+	CAM_CAMNOC_IRQ_OFE_WR_UBWC_ENCODE_ERROR,
 	CAM_CAMNOC_IRQ_OFE_RD_UBWC_DECODE_ERROR,
+	CAM_CAMNOC_IRQ_TFE_UBWC_ENCODE_ERROR,
 	CAM_CAMNOC_IRQ_AHB_TIMEOUT,
 };
 
@@ -273,6 +276,34 @@ enum cam_sys_cache_config_types {
 	CAM_LLCC_LARGE_3 = 4,
 	CAM_LLCC_LARGE_4 = 5,
 	CAM_LLCC_MAX     = 6,
+};
+
+/**
+ * enum cam_sys_cache_llcc_staling_mode - Enum for camera llc's stalling mode
+ */
+enum cam_sys_cache_llcc_staling_mode {
+	CAM_LLCC_STALING_MODE_CAPACITY,
+	CAM_LLCC_STALING_MODE_NOTIFY,
+	CAM_LLCC_STALING_MODE_MAX,
+};
+
+/**
+ * enum cam_sys_cache_llcc_staling_mode - Enum for camera llc's stalling mode
+ */
+enum cam_sys_cache_llcc_staling_op_type {
+	CAM_LLCC_NOTIFY_STALING_EVICT,
+	CAM_LLCC_NOTIFY_STALING_FORGET,
+	CAM_LLCC_NOTIFY_STALING_OPS_MAX
+};
+
+/**
+ * enum cam_subparts_index - Enum for camera subparts indices
+ */
+enum cam_subparts_index {
+	CAM_IFE_HW_IDX,
+	CAM_IFE_LITE_HW_IDX,
+	CAM_SFE_HW_IDX,
+	CAM_CUSTOM_HW_IDX
 };
 
 /**
@@ -553,6 +584,23 @@ struct cam_axi_vote {
 };
 
 /**
+ * cam_cpas_prepare_subpart_info()
+ *
+ * @brief: API to update the number of ifes, ife_lites, sfes and custom
+ *         in the struct cam_cpas_private_soc.
+ *
+ * @idx                   : Camera subpart index
+ * @num_subpart_available : Number of available subparts
+ * @num_subpart_functional: Number of functional subparts
+ *
+ * @returns 0 on success & -EINVAL when @subpart_type is invalid.
+ *
+ */
+int cam_cpas_prepare_subpart_info(
+	enum cam_subparts_index idx, uint32_t num_subpart_available,
+	uint32_t num_subpart_functional);
+
+/**
  * cam_cpas_register_client()
  *
  * @brief: API to register cpas client
@@ -666,7 +714,7 @@ int cam_cpas_update_axi_vote(
  */
 int cam_cpas_reg_write(
 	uint32_t                  client_handle,
-	enum cam_cpas_reg_base    reg_base,
+	enum cam_cpas_regbase_types reg_base,
 	uint32_t                  offset,
 	bool                      mb,
 	uint32_t                  value);
@@ -687,7 +735,7 @@ int cam_cpas_reg_write(
  */
 int cam_cpas_reg_read(
 	uint32_t                  client_handle,
-	enum cam_cpas_reg_base    reg_base,
+	enum cam_cpas_regbase_types reg_base,
 	uint32_t                  offset,
 	bool                      mb,
 	uint32_t                 *value);
@@ -702,7 +750,8 @@ int cam_cpas_reg_read(
  *                   CAM_FAMILY_CPAS_SS
  * @camera_version : Camera platform version
  * @cpas_version   : Camera cpas version
- * @cam_caps       : Camera capability
+ * @cam_caps       : Camera capability array
+ * @num_cap_mask   : number of capability masks
  * @cam_fuse_info  : Camera fuse info
  * @domain_id_info : Domain id info
  *
@@ -713,7 +762,8 @@ int cam_cpas_get_hw_info(
 	uint32_t                       *camera_family,
 	struct cam_hw_version          *camera_version,
 	struct cam_hw_version          *cpas_version,
-	uint32_t                       *cam_caps,
+	uint32_t                      **cam_caps,
+	uint32_t                       *num_cap_mask,
 	struct cam_cpas_fuse_info      *cam_fuse_info,
 	struct cam_cpas_domain_id_caps *domain_id_info);
 
@@ -727,8 +777,7 @@ int cam_cpas_get_hw_info(
  * @return 0 on success.
  *
  */
-int cam_cpas_get_cpas_hw_version(
-	uint32_t				 *hw_version);
+int cam_cpas_get_cpas_hw_version(uint32_t *hw_version);
 
 /**
  * cam_cpas_is_feature_supported()
@@ -877,6 +926,41 @@ int cam_cpas_activate_llcc(enum cam_sys_cache_config_types type);
 int cam_cpas_deactivate_llcc(enum cam_sys_cache_config_types type);
 
 /**
+ * cam_cpas_configure_staling_llcc()
+ *
+ * @brief:  Configure cache staling mode by setting the
+ *          staling_mode and corresponding params
+ *
+ * @type: Cache type
+ * @mode_param: llcc stalling mode params
+ * @operation_type: cache operation type
+ * @stalling_distance: llcc sys cache stalling distance
+ *
+ * @return 0 for success.
+ *
+ */
+int cam_cpas_configure_staling_llcc(
+	enum cam_sys_cache_config_types type,
+	enum cam_sys_cache_llcc_staling_mode mode_param,
+	enum cam_sys_cache_llcc_staling_op_type operation_type,
+	uint32_t staling_distance);
+
+/**
+ * cam_cpas_notif_increment_staling_counter()
+ *
+ * @brief: This will increment the stalling counter
+ *         depends on what operation it does.
+ *         The operation mode what we have setup in other function.
+ *
+ * @type: Cache type
+ *
+ * @return 0 for success.
+ *
+ */
+int cam_cpas_notif_increment_staling_counter(
+	enum cam_sys_cache_config_types type);
+
+/**
  * cam_cpas_dump_camnoc_buff_fill_info()
  *
  * @brief: API to dump camnoc buffer fill level info
@@ -944,5 +1028,23 @@ bool cam_cpas_query_domain_id_security_support(void);
  * @return 0 on success
  */
 int cam_cpas_enable_clks_for_domain_id(bool enable);
+
+/**
+ * cam_cpas_is_notif_staling_supported()
+ *
+ * @brief: API to check stalling feature is supported or not
+ *
+ * @return rue if supported
+ */
+bool cam_cpas_is_notif_staling_supported(void);
+
+/**
+ * cam_cpas_dump_state_monitor_info()
+ *
+ * @brief: API to dump the state monitor info of cpas.
+ * @info:  Dump information.
+ * @return 0 on success
+ */
+int cam_cpas_dump_state_monitor_info(struct cam_req_mgr_dump_info *info);
 
 #endif /* _CAM_CPAS_API_H_ */

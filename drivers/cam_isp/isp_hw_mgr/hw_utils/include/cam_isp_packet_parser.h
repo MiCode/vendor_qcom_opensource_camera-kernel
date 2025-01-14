@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_PARSER_H_
@@ -30,11 +30,14 @@ enum cam_isp_cdm_bl_type {
  * @prepare:            Payload for prepare command
  * @base_info:          Base hardware information for the context
  * @kmd_buf_info:       Kmd buffer to store the custom cmd data
+ * @entry_added:        Indicate whether the entry is previously
+ *                      added when handling the blob before
  */
 struct cam_isp_generic_blob_info {
 	struct cam_hw_prepare_update_args     *prepare;
 	struct cam_isp_ctx_base_info          *base_info;
 	struct cam_kmd_buf_info               *kmd_buf_info;
+	bool                                   entry_added;
 };
 
 /*
@@ -125,11 +128,14 @@ struct cam_isp_cmd_buf_count {
  * @res_list_isp_out:      IFE/SFE out resource list
  * @res_list_ife_in_rd:    IFE/SFE in rd resource list
  * @base:                  Base info for IFE/SFE
+ * @out_map:               Outport map
+ * @hw_intf:               HW intf
  * @iommu_hdl:             Iommu handle to get the IO buf from memory manager
  * @sec_iommu_hdl:         Secure iommu handle to get the IO buf from
  *                         memory manager
  * @out_base:              Base value of ISP resource (IFE/SFE)
  * @out_max:               Max of supported ISP resources(IFE/SFE)
+ * @major_version:         Major version
  * @fill_fence:            If true, Fence map table will be filled
  * @return:                0 for success
  *                         -EINVAL for Fail
@@ -143,10 +149,13 @@ struct cam_isp_io_buf_info {
 	struct cam_isp_hw_mgr_res               *res_list_isp_out;
 	struct list_head                        *res_list_in_rd;
 	struct cam_isp_ctx_base_info            *base;
+	uint8_t                                 *out_map;
+	struct cam_hw_intf                      *hw_intf;
 	int                                      iommu_hdl;
 	int                                      sec_iommu_hdl;
 	uint32_t                                 out_base;
 	uint32_t                                 out_max;
+	uint32_t                                 major_version;
 	bool                                     fill_fence;
 };
 
@@ -211,6 +220,7 @@ int cam_isp_add_cmd_buf_update(
  * @base_info:             base hardware information
  * @blob_handler_cb:       Call_back_function for Meta handling
  * @res_list_isp_out:      SFE out resource list
+ * @out_map:               SFE /VFE out port map
  * @out_base:              Base value of ISP resource (SFE)
  * @out_max:               Max of supported ISP resources(SFE)
  *
@@ -223,6 +233,7 @@ int cam_sfe_add_command_buffers(
 	struct cam_isp_ctx_base_info       *base_info,
 	cam_packet_generic_blob_handler     blob_handler_cb,
 	struct cam_isp_hw_mgr_res          *res_list_sfe_out,
+	uint8_t                            *out_map,
 	uint32_t                            out_base,
 	uint32_t                            out_max);
 
@@ -237,6 +248,7 @@ int cam_sfe_add_command_buffers(
  * @base_info:             base hardware information
  * @blob_handler_cb:       Call_back_function for Meta handling
  * @res_list_isp_out:      IFE /VFE out resource list
+ * @out_map:               SFE /VFE out port map
  * @out_base:              Base value of ISP resource (IFE)
  * @out_max:               Max of supported ISP resources(IFE)
  *
@@ -249,6 +261,7 @@ int cam_isp_add_command_buffers(
 	struct cam_isp_ctx_base_info       *base_info,
 	cam_packet_generic_blob_handler     blob_handler_cb,
 	struct cam_isp_hw_mgr_res          *res_list_isp_out,
+	uint8_t                            *out_map,
 	uint32_t                            out_base,
 	uint32_t                            out_max);
 
@@ -272,10 +285,11 @@ int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info);
  *                         processe the isp source list get the reg update from
  *                         ISP HW instance
  *
- * @prepare:               Contain the  packet and HW update variables
+ * @prepare:               Contain the packet and HW update variables
  * @res_list_isp_src:      Resource list for IFE/VFE source
  * @base_idx:              Base or dev index of the IFE/VFE HW instance
  * @kmd_buf_info:          Kmd buffer to store the change base command
+ * @combine:               Indicate whether combine with prev update entry
  * @return:                0 for success
  *                         -EINVAL for Fail
  */
@@ -283,7 +297,8 @@ int cam_isp_add_reg_update(
 	struct cam_hw_prepare_update_args    *prepare,
 	struct list_head                     *res_list_isp_src,
 	uint32_t                              base_idx,
-	struct cam_kmd_buf_info              *kmd_buf_info);
+	struct cam_kmd_buf_info              *kmd_buf_info,
+	bool                                  combine);
 
 /*
  * cam_isp_add_comp_wait()
@@ -292,7 +307,7 @@ int cam_isp_add_reg_update(
  *                         processe the isp source list get the reg update from
  *                         ISP HW instance
  *
- * @prepare:               Contain the  packet and HW update variables
+ * @prepare:               Contain the packet and HW update variables
  * @res_list_isp_src:      Resource list for IFE/VFE source
  * @base_idx:              Base or dev index of the IFE/VFE HW instance
  * @kmd_buf_info:          Kmd buffer to store the change base command
@@ -313,7 +328,7 @@ int cam_isp_add_comp_wait(
  *                         processe the isp source list get the reg update from
  *                         ISP HW instance
  *
- * @prepare:               Contain the  packet and HW update variables
+ * @prepare:               Contain the packet and HW update variables
  * @res_list_isp_src:      Resource list for IFE/VFE source
  * @base_idx:              Base or dev index of the IFE/VFE HW instance
  * @kmd_buf_info:          Kmd buffer to store the change base command
@@ -335,16 +350,18 @@ int cam_isp_add_wait_trigger(
  *
  * @brief                  Add go_cmd in the hw entries list for each rd source
  *
- * @prepare:               Contain the  packet and HW update variables
+ * @prepare:               Contain the packet and HW update variables
  * @res:                   go_cmd added for this resource
  * @kmd_buf_info:          Kmd buffer to store the change base command
+ * @combine:               Indicate whether combine with prev update entry
  * @return:                0 for success
  *                         -EINVAL for Fail
  */
 int cam_isp_add_go_cmd(
 	struct cam_hw_prepare_update_args    *prepare,
 	struct cam_isp_resource_node         *res,
-	struct cam_kmd_buf_info              *kmd_buf_info);
+	struct cam_kmd_buf_info              *kmd_buf_info,
+	bool                                  combine);
 
 /* cam_isp_csid_add_reg_update()
  *
@@ -352,32 +369,36 @@ int cam_isp_add_go_cmd(
  *                         processe the isp source list get the reg update from
  *                         ISP HW instance
  *
- * @prepare:               Contain the  packet and HW update variables
+ * @prepare:               Contain the packet and HW update variables
  * @kmd_buf_info:          Kmd buffer to store the change base command
  * @rup_args:              Reg Update args
+ * @combine:               Indicate whether combine with prev update entry
  * @return:                0 for success
  *                         -EINVAL for Fail
  */
 int cam_isp_add_csid_reg_update(
 	struct cam_hw_prepare_update_args    *prepare,
 	struct cam_kmd_buf_info              *kmd_buf_info,
-	void                                 *args);
+	void                                 *args,
+	bool                                  combine);
 
 
 /* cam_isp_add_csid_offline_cmd()
  *
  * @brief                  Add csid go cmd for offline mode
  *
- * @prepare:               Contain the  packet and HW update variables
+ * @prepare:               Contain the packet and HW update variables
  * @res:                   go_cmd added for this resource
  * @kmd_buf_info:          Kmd buffer to store the change base command
+ * @combine:               Indicate whether combine with prev update entry
  * @return:                0 for success
  *                         -EINVAL for Fail
  */
 int cam_isp_add_csid_offline_cmd(
 	struct cam_hw_prepare_update_args    *prepare,
 	struct cam_isp_resource_node         *res,
-	struct cam_kmd_buf_info              *kmd_buf_info);
+	struct cam_kmd_buf_info              *kmd_buf_info,
+	bool                                  combine);
 
 /*
  * cam_isp_add_csid_command_buffers()
@@ -387,6 +408,7 @@ int cam_isp_add_csid_offline_cmd(
  *
  * @prepare:               Contain the packet and HW update variables
  * @kmd_buf_info:          KMD buffer to store the custom cmd data
+ * @blob_handler_cb:       Blob handler callback
  * @base_info:             base hardware information
  *
  * @return:                0 for success
@@ -395,6 +417,7 @@ int cam_isp_add_csid_offline_cmd(
 int cam_isp_add_csid_command_buffers(
 	struct cam_hw_prepare_update_args   *prepare,
 	struct cam_kmd_buf_info             *kmd_buf_info,
+	cam_packet_generic_blob_handler      blob_handler_cb,
 	struct cam_isp_ctx_base_info        *base_info);
 
 /*
@@ -411,4 +434,23 @@ int cam_isp_add_csid_command_buffers(
 int cam_isp_get_cmd_buf_count(
 	struct cam_hw_prepare_update_args    *prepare,
 	struct cam_isp_cmd_buf_count         *cmd_buf_count);
+
+/*
+ * cam_isp_update_hw_entry()
+ *
+ * @brief                  Add a new update hw entry or combine with
+ *                         prev update hw entry
+ *
+ * @cdm_bl_type:           CDM BL type for the current updated entry
+ * @prepare:               Contain the packet and HW update variables
+ * @kmd_buf_info:          Kmd buffer to store register value pair changes
+ * @update_size:           Update size for cmd data in kmd buffer
+ * @combine:               Indicate whether combine with prev update entry
+ */
+void cam_isp_update_hw_entry(
+	enum cam_isp_cdm_bl_type            cdm_bl_type,
+	struct cam_hw_prepare_update_args  *prepare,
+	struct cam_kmd_buf_info            *kmd_buf_info,
+	uint32_t                            update_size,
+	bool                                combine);
 #endif /*_CAM_ISP_HW_PARSER_H */

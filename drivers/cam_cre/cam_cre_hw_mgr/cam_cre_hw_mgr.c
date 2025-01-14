@@ -121,7 +121,7 @@ static void cam_cre_free_io_config(struct cam_cre_request *req)
 
 static int cam_cre_mgr_process_cmd_io_buf_req(struct cam_cre_hw_mgr *hw_mgr,
 	struct cam_packet *packet, struct cam_cre_ctx *ctx_data,
-	uint32_t req_idx)
+	uint32_t req_idx, struct list_head *buf_tracker)
 {
 	int rc = 0;
 	int i, j, k;
@@ -179,16 +179,17 @@ static int cam_cre_mgr_process_cmd_io_buf_req(struct cam_cre_hw_mgr *hw_mgr,
 			for (k = 0; k < io_buf->num_planes; k++) {
 				is_secure = cam_mem_is_secure_buf(
 					io_cfg_ptr[j].mem_handle[k]);
+
 				if (is_secure)
 					rc = cam_mem_get_io_buf(
 						io_cfg_ptr[j].mem_handle[k],
 						hw_mgr->iommu_sec_hdl,
-						&iova_addr, &len, NULL);
+						&iova_addr, &len, NULL, buf_tracker);
 				else
 					rc = cam_mem_get_io_buf(
 						io_cfg_ptr[j].mem_handle[k],
 						hw_mgr->iommu_hdl,
-						&iova_addr, &len, NULL);
+						&iova_addr, &len, NULL, buf_tracker);
 
 				if (rc) {
 					CAM_ERR(CAM_CRE, "get buf failed: %d",
@@ -1337,7 +1338,7 @@ static int cam_cre_mgr_process_io_cfg(struct cam_cre_hw_mgr *hw_mgr,
 	struct cam_cre_request *cre_request;
 
 	rc = cam_cre_mgr_process_cmd_io_buf_req(hw_mgr, packet, ctx_data,
-		req_idx);
+		req_idx, prep_arg->buf_tracker);
 	if (rc) {
 		CAM_ERR(CAM_CRE, "Process CRE cmd io request is failed: %d",
 			rc);
@@ -2223,8 +2224,8 @@ static int cam_cre_mgr_prepare_hw_update(void *hw_priv,
 		return -EINVAL;
 	}
 
-	rc = cam_packet_util_process_patches(packet, hw_mgr->iommu_hdl,
-			hw_mgr->iommu_sec_hdl, true);
+	rc = cam_packet_util_process_patches(packet, prepare_args->buf_tracker,
+			hw_mgr->iommu_hdl, hw_mgr->iommu_sec_hdl, true);
 	if (rc) {
 		mutex_unlock(&ctx_data->ctx_mutex);
 		CAM_ERR(CAM_CRE, "Patch processing failed %d", rc);
@@ -2433,6 +2434,8 @@ static void cam_cre_mgr_dump_pf_data(struct cam_cre_hw_mgr  *hw_mgr,
 
 	cam_packet_util_dump_patch_info(packet, hw_mgr->iommu_hdl,
 		hw_mgr->iommu_sec_hdl, pf_args);
+
+	cam_mem_put_cpu_buf(pf_cmd_args->pf_req_info->packet_handle);
 }
 
 static int cam_cre_mgr_cmd(void *hw_mgr_priv, void *cmd_args)

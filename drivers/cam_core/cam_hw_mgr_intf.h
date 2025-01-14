@@ -104,12 +104,18 @@ struct cam_hw_update_entry {
  * @resrouce_handle:       Resource port id for the buffer
  * @sync_id:               Sync id
  * @image_buf_addr:        Image buffer address array
+ * @buffer_tracker:        Some buffers with fences have buf dones come
+ *                         separately from each out port, and signalled
+ *                         independently. Ref counting needs to be handled
+ *                         independently as well corresponding to individual
+ *                         buf dones.
  *
  */
 struct cam_hw_fence_map_entry {
-	uint32_t           resource_handle;
-	int32_t            sync_id;
-	dma_addr_t         image_buf_addr[CAM_PACKET_MAX_PLANES];
+	uint32_t                        resource_handle;
+	int32_t                         sync_id;
+	dma_addr_t                      image_buf_addr[CAM_PACKET_MAX_PLANES];
+	struct cam_smmu_buffer_tracker *buffer_tracker;
 };
 
 /**
@@ -166,6 +172,10 @@ struct cam_hw_acquire_stream_caps {
  * @valid_acquired_hw:     Valid num of acquired hardware
  * @op_params:             OP Params from hw_mgr to ctx
  * @mini_dump_cb:          Mini dump callback function
+ * add by xiaomi begin
+ * @crc_error_divisor:     Width/divisor pixels per line report crc errors will trigger
+ *                         internal recovery, only for CPHY
+ * add by xiaomi end
  *
  */
 struct cam_hw_acquire_args {
@@ -179,6 +189,9 @@ struct cam_hw_acquire_args {
 	void                        *ctxt_to_hw_map;
 	uint32_t                     hw_mgr_ctx_id;
 	uint32_t                     op_flags;
+	/*add by xiaomi begin*/
+	uint32_t                     crc_error_divisor;
+	/*add by xiaomi end*/
 
 	uint32_t    acquired_hw_id[CAM_MAX_ACQ_RES];
 	uint32_t    acquired_hw_path[CAM_MAX_ACQ_RES][CAM_MAX_HW_SPLIT];
@@ -257,27 +270,29 @@ struct cam_hw_mgr_pf_request_info {
  * @reg_dump_buf_desc:     cmd buffer descriptors for reg dump
  * @num_reg_dump_buf:      Count of descriptors in reg_dump_buf_desc
  * @priv:                  Private pointer of hw update
+ * @buf_tracker:           Ptr to list of buffers we want to keep ref counts on
  * @pf_data:               Debug data for page fault
  *
  */
 struct cam_hw_prepare_update_args {
-	struct cam_packet                      *packet;
-	size_t                                  remain_len;
-	void                                   *ctxt_to_hw_map;
-	uint32_t                                max_hw_update_entries;
-	struct cam_hw_update_entry             *hw_update_entries;
-	uint32_t                                num_hw_update_entries;
-	uint32_t                                max_out_map_entries;
-	struct cam_hw_fence_map_entry          *out_map_entries;
-	uint32_t                                num_out_map_entries;
-	uint32_t                                max_in_map_entries;
-	struct cam_hw_fence_map_entry          *in_map_entries;
-	uint32_t                                num_in_map_entries;
-	struct cam_cmd_buf_desc                 reg_dump_buf_desc[
-						CAM_REG_DUMP_MAX_BUF_ENTRIES];
-	uint32_t                                num_reg_dump_buf;
-	void                                   *priv;
-	struct cam_hw_mgr_pf_request_info      *pf_data;
+	struct cam_packet              *packet;
+	size_t                          remain_len;
+	void                           *ctxt_to_hw_map;
+	uint32_t                        max_hw_update_entries;
+	struct cam_hw_update_entry     *hw_update_entries;
+	uint32_t                        num_hw_update_entries;
+	uint32_t                        max_out_map_entries;
+	struct cam_hw_fence_map_entry  *out_map_entries;
+	uint32_t                        num_out_map_entries;
+	uint32_t                        max_in_map_entries;
+	struct cam_hw_fence_map_entry  *in_map_entries;
+	uint32_t                        num_in_map_entries;
+	struct cam_cmd_buf_desc         reg_dump_buf_desc[
+					CAM_REG_DUMP_MAX_BUF_ENTRIES];
+	uint32_t                        num_reg_dump_buf;
+	void                           *priv;
+	struct list_head                   *buf_tracker;
+	struct cam_hw_mgr_pf_request_info  *pf_data;
 };
 
 /**
@@ -651,6 +666,7 @@ struct cam_hw_inject_evt_param {
  * @hw_dump:                   Function pointer for HW dump
  * @hw_recovery:               Function pointer for HW recovery callback
  * @hw_inject_evt:             Function pointer for HW event injection callback
+ * @synx_trigger:              Function pointer for synx test trigger
  *
  */
 struct cam_hw_mgr_intf {
@@ -676,6 +692,7 @@ struct cam_hw_mgr_intf {
 	int (*hw_dump)(void *hw_priv, void *hw_dump_args);
 	int (*hw_recovery)(void *hw_priv, void *hw_recovery_args);
 	void (*hw_inject_evt)(void *hw_priv, void *evt_args);
+	int (*synx_trigger)(void *hw_priv, void *synx_params);
 };
 
 #endif /* _CAM_HW_MGR_INTF_H_ */

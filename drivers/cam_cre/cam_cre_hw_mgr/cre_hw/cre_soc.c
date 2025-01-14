@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -15,17 +15,20 @@
 #include "cam_debug_util.h"
 
 int cam_cre_init_soc_resources(struct cam_hw_soc_info *soc_info,
-	irq_handler_t cre_irq_handler, void *irq_data)
+	irq_handler_t cre_irq_handler, void *data)
 {
-	int rc;
+	int rc, i;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc)
 		return rc;
 
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = data;
+
 	rc = cam_soc_util_request_platform_resource(soc_info,
-		cre_irq_handler,
-		irq_data);
+		cre_irq_handler, &(irq_data[0]));
 	if (rc)
 		CAM_ERR(CAM_CRE, "init soc failed %d", rc);
 
@@ -37,7 +40,7 @@ int cam_cre_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 	int rc;
 
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		CAM_SVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc)
 		CAM_ERR(CAM_CRE, "enable platform failed %d", rc);
 

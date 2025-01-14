@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -352,10 +352,8 @@ static void cam_tfe_log_error_irq_status(
 		CAM_INFO(CAM_ISP, "Top debug [i]:0x%x", i, val_0);
 	}
 
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x20, true, &val_0);
-	CAM_INFO(CAM_ISP, "tfe_niu_MaxWr_Low offset 0x20 val 0x%x",
-		val_0);
+	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
+
 	for (i = 0; i < top_priv->common_data.common_reg->num_perf_cfg; i++) {
 		val_0 = cam_io_r(mem_base  +
 			top_priv->common_data.common_reg->perf_cfg[i].perf_pixel_count);
@@ -1519,10 +1517,7 @@ static int cam_tfe_top_get_reg_dump(
 		wm_offset += reg_dump_data->bus_client_offset;
 	}
 
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x20, true, &val_0);
-	CAM_INFO(CAM_ISP, "tfe_niu_MaxWr_Low offset 0x20 val 0x%x",
-		val_0);
+	cam_cpas_dump_camnoc_buff_fill_info(soc_private->cpas_handle);
 
 	/* dump the clock votings */
 	CAM_INFO(CAM_ISP, "TFE:%d clk=%ld",
@@ -1546,7 +1541,6 @@ static int cam_tfe_hw_dump(
 	uint32_t                           num_reg;
 	uint32_t                           lut_word_size, lut_size;
 	uint32_t                           lut_bank_sel, lut_dmi_reg;
-	uint32_t                           val;
 	void __iomem                      *reg_base;
 	void __iomem                      *mem_base;
 	uint32_t                          *addr, *start;
@@ -1748,9 +1742,7 @@ dump_bw:
 		sizeof(struct cam_isp_hw_dump_header));
 	start = addr;
 	hdr->word_size = sizeof(uint32_t);
-	cam_cpas_reg_read(soc_private->cpas_handle,
-		CAM_CPAS_REG_CAMNOC, 0x20, true, &val);
-	*addr++ = val;
+
 	hdr->size = hdr->word_size * (addr - start);
 	dump_args->offset +=  hdr->size +
 		sizeof(struct cam_isp_hw_dump_header);
@@ -2580,7 +2572,8 @@ int cam_tfe_init_hw(void *hw_priv, void *init_hw_args, uint32_t arg_size)
 	struct cam_tfe_hw_core_info       *core_info = NULL;
 	struct cam_tfe_top_priv           *top_priv;
 	void __iomem                      *mem_base;
-	int rc = 0;
+	int i, rc = 0;
+	unsigned long                      max_clk_rate = 0;
 	uint32_t                           reset_core_args =
 					CAM_TFE_HW_RESET_HW_AND_REG;
 
@@ -2603,9 +2596,14 @@ int cam_tfe_init_hw(void *hw_priv, void *init_hw_args, uint32_t arg_size)
 		return 0;
 	}
 	mutex_unlock(&tfe_hw->hw_mutex);
+	/* read clock value based on clock blob received */
+	for (i = 0; i < CAM_TFE_TOP_IN_PORT_MAX; i++) {
+		if (top_priv->req_clk_rate[i] > max_clk_rate)
+			max_clk_rate = top_priv->req_clk_rate[i];
+	}
 
 	/* Turn ON Regulators, Clocks and other SOC resources */
-	rc = cam_tfe_enable_soc_resources(soc_info);
+	rc = cam_tfe_enable_soc_resources(soc_info, max_clk_rate);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Enable SOC failed");
 		rc = -EFAULT;
@@ -2624,7 +2622,7 @@ int cam_tfe_init_hw(void *hw_priv, void *init_hw_args, uint32_t arg_size)
 		goto disable_soc;
 	}
 
-	top_priv->hw_clk_rate = 0;
+	top_priv->hw_clk_rate = max_clk_rate;
 	core_info->irq_err_config_cnt = 0;
 	core_info->irq_err_config = false;
 	rc = core_info->tfe_bus->hw_ops.init(core_info->tfe_bus->bus_priv,
@@ -2926,6 +2924,8 @@ int cam_tfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_GET_RES_FOR_MID:
 	case CAM_ISP_HW_CMD_DUMP_BUS_INFO:
 	case CAM_ISP_HW_CMD_IS_PDAF_RDI2_MUX_EN:
+	case CAM_ISP_HW_CMD_WM_BW_LIMIT_CONFIG:
+	case CAM_ISP_HW_CMD_GET_LAST_CONSUMED_ADDR:
 		rc = core_info->tfe_bus->hw_ops.process_cmd(
 			core_info->tfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);

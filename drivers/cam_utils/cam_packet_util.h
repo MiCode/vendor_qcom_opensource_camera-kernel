@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_PACKET_UTIL_H_
@@ -43,6 +43,14 @@ typedef int (*cam_packet_generic_blob_handler)(void *user_data,
  */
 int cam_packet_util_get_packet_addr(struct cam_packet **packet,
 	uint64_t packet_handle, uint32_t offset);
+
+
+/**
+ * @brief                  Put packet buffer address
+ *
+ * @packet_handle:         Buffer handle of the packet
+ */
+void cam_packet_util_put_packet_addr(uint64_t packet_handle);
 
 /**
  * cam_packet_util_get_cmd_mem_addr()
@@ -122,6 +130,7 @@ void cam_packet_util_dump_patch_info(struct cam_packet *packet,
  *                      information from patches.
  *
  * @packet:             Input packet containing Command Buffers and Patches
+ * @mapped_io_list:     List in to add patches/buffers to for reference counting
  * @iommu_hdl:          IOMMU handle of the HW Device that received the packet
  * @sec_iommu_hdl:      Secure IOMMU handle of the HW Device that
  *                      received the packet
@@ -132,7 +141,8 @@ void cam_packet_util_dump_patch_info(struct cam_packet *packet,
  *                      Negative: Failure
  */
 int cam_packet_util_process_patches(struct cam_packet *packet,
-	int32_t iommu_hdl, int32_t sec_mmu_hdl, bool exp_mem);
+	struct list_head *mapped_io_list,  int32_t iommu_hdl, int32_t sec_mmu_hdl,
+	bool exp_mem);
 
 /**
  * cam_packet_util_dump_io_bufs()

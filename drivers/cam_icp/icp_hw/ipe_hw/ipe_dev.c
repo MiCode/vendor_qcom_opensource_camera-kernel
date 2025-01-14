@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -79,7 +79,7 @@ static int cam_ipe_component_bind(struct device *dev,
 	struct cam_ipe_device_hw_info     *hw_info = NULL;
 	int                                rc = 0;
 	struct cam_cpas_query_cap query;
-	uint32_t cam_caps;
+	uint32_t *cam_caps, num_cap_mask;
 	uint32_t hw_idx;
 	struct platform_device *pdev = to_platform_device(dev);
 
@@ -88,13 +88,13 @@ static int cam_ipe_component_bind(struct device *dev,
 
 	rc = cam_cpas_get_hw_info(&query.camera_family,
 			&query.camera_version, &query.cpas_version,
-			&cam_caps, NULL, NULL);
+			&cam_caps, &num_cap_mask, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "failed to get hw info rc=%d", rc);
 		return rc;
 	}
 
-	if ((!(cam_caps & CPAS_IPE1_BIT)) && (hw_idx)) {
+	if ((!(cam_caps[IPE_CAPS_MASK_IDX] & CPAS_IPE1_BIT)) && (hw_idx)) {
 		CAM_ERR(CAM_ICP, "IPE1 hw idx = %d\n", hw_idx);
 		return -EINVAL;
 	}

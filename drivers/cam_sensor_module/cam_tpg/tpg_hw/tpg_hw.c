@@ -9,6 +9,11 @@
 #define BYTES_PER_REGISTER           4
 #define NUM_REGISTER_PER_LINE        4
 #define REG_OFFSET(__start, __i)    ((__start) + ((__i) * BYTES_PER_REGISTER))
+#define CAM_TPG_HW_WAIT_TIMEOUT     msecs_to_jiffies(100)
+#define MAX_ACTIVE_QUEUE_DEPTH      2
+#define MAX_WAITING_QUEUE_DEPTH     32
+#define TIMEOUT_MULTIPLIER_PRESIL   5
+#define TIMEOUT_MULTIPLIER          1
 
 static int cam_io_tpg_dump(void __iomem *base_addr,
 	uint32_t start_offset, int size)
@@ -296,11 +301,99 @@ int dump_stream_configs_v3(int hw_idx,
 #endif
 	return 0;
 }
+static int tpg_hw_release_vc_slots_locked(struct tpg_hw *hw,
+		struct tpg_hw_request *req)
+{
+	struct list_head *pos = NULL, *pos_next = NULL;
+	struct tpg_hw_stream *entry;
+	struct tpg_hw_stream_v3 *entry_v3;
+	int i = 0;
 
+	if (!hw || !hw->hw_info || !req) {
+		CAM_ERR(CAM_TPG, "Invalid Params");
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_TPG, "TPG[%d]  req[%lld] Freeing all the streams",
+			hw->hw_idx, req->request_id);
+
+	for (i = 0; i < hw->hw_info->max_vc_channels; i++) {
+		req->vc_slots[i].slot_id      =  i;
+		req->vc_slots[i].vc           = -1;
+		req->vc_slots[i].stream_count =  0;
+		if (hw->stream_version == 1) {
+			list_for_each_safe(pos, pos_next, &req->vc_slots[i].head) {
+				entry = list_entry(pos, struct tpg_hw_stream, list);
+				list_del(pos);
+				kfree(entry);
+			}
+		} else if (hw->stream_version == 3) {
+			list_for_each_safe(pos, pos_next, &req->vc_slots[i].head) {
+				entry_v3 = list_entry(pos, struct tpg_hw_stream_v3, list);
+				list_del(pos);
+				kfree(entry_v3);
+			}
+		}
+		INIT_LIST_HEAD(&(req->vc_slots[i].head));
+	}
+
+	hw->vc_count = 0;
+	kfree(req->vc_slots);
+	kfree(req);
+
+	return 0;
+}
+
+static int tpg_hw_free_waiting_requests_locked(struct tpg_hw *hw)
+{
+	struct list_head *pos = NULL, *pos_next = NULL;
+	struct tpg_hw_request *req = NULL;
+
+	if (!hw) {
+		CAM_ERR(CAM_TPG, "Invalid Params");
+		return -EINVAL;
+	}
+
+	/* free up the pending requests*/
+	CAM_DBG(CAM_TPG, "TPG[%d]  freeing all waiting requests",
+			hw->hw_idx);
+	list_for_each_safe(pos, pos_next, &hw->waiting_request_q) {
+		req = list_entry(pos, struct tpg_hw_request, list);
+		CAM_DBG(CAM_TPG, "TPG[%d] freeing request[%lld] ",
+				hw->hw_idx, req->request_id);
+		list_del(pos);
+		tpg_hw_release_vc_slots_locked(hw, req);
+	}
+	return 0;
+}
+
+static int tpg_hw_free_active_requests_locked(struct tpg_hw *hw)
+{
+	struct list_head *pos = NULL, *pos_next = NULL;
+	struct tpg_hw_request *req = NULL;
+
+	if (!hw) {
+		CAM_ERR(CAM_TPG, "Invalid Params");
+		return -EINVAL;
+	}
+
+	/* free up the active requests*/
+	CAM_DBG(CAM_TPG, "TPG[%d]  freeing all active requests",
+			hw->hw_idx);
+	list_for_each_safe(pos, pos_next, &hw->active_request_q) {
+		req = list_entry(pos, struct tpg_hw_request, list);
+		CAM_DBG(CAM_TPG, "TPG[%d] freeing request[%lld] ",
+				hw->hw_idx, req->request_id);
+		list_del(pos);
+		tpg_hw_release_vc_slots_locked(hw, req);
+	}
+	return 0;
+}
 
 static int tpg_hw_soc_disable(struct tpg_hw *hw)
 {
 	int rc = 0;
+	unsigned long flags;
 
 	if (!hw || !hw->soc_info) {
 		CAM_ERR(CAM_TPG, "Error Invalid params");
@@ -308,7 +401,8 @@ static int tpg_hw_soc_disable(struct tpg_hw *hw)
 	}
 
 	rc = cam_soc_util_disable_platform_resource(hw->soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		false);
+		true);
+
 	if (rc) {
 		CAM_ERR(CAM_TPG, "TPG[%d] Disable platform failed %d",
 			hw->hw_idx, rc);
@@ -319,7 +413,9 @@ static int tpg_hw_soc_disable(struct tpg_hw *hw)
 			hw->hw_idx);
 		return rc;
 	} else {
+		spin_lock_irqsave(&hw->hw_state_lock, flags);
 		hw->state = TPG_HW_STATE_HW_DISABLED;
+		spin_unlock_irqrestore(&hw->hw_state_lock, flags);
 	}
 
 	return rc;
@@ -327,11 +423,13 @@ static int tpg_hw_soc_disable(struct tpg_hw *hw)
 
 static int tpg_hw_soc_enable(
 	struct tpg_hw *hw,
-	enum cam_vote_level clk_level)
+	enum cam_vote_level clk_level,
+	uint32_t enable_irq)
 {
 	int rc = 0;
 	struct cam_ahb_vote ahb_vote;
 	struct cam_axi_vote axi_vote = {0};
+	unsigned long flags;
 
 	ahb_vote.type = CAM_VOTE_ABSOLUTE;
 	ahb_vote.vote.level = CAM_SVS_VOTE;
@@ -358,13 +456,18 @@ static int tpg_hw_soc_enable(
 	}
 
 	rc = cam_soc_util_enable_platform_resource(hw->soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		clk_level, false);
+		clk_level, enable_irq);
+
 	if (rc) {
 		CAM_ERR(CAM_TPG, "TPG[%d] enable platform failed",
 			hw->hw_idx);
 		goto stop_cpas;
 	}
-	hw->state = TPG_HW_STATE_HW_ENABLED;
+
+	spin_lock_irqsave(&hw->hw_state_lock, flags);
+	/* might need to wait if in busy state */
+	hw->state = TPG_HW_STATE_READY;
+	spin_unlock_irqrestore(&hw->hw_state_lock, flags);
 
 	return rc;
 stop_cpas:
@@ -373,7 +476,8 @@ end:
 	return rc;
 }
 
-static int tpg_hw_start_default_new(struct tpg_hw *hw)
+static int tpg_hw_apply_settings_to_hw_locked(struct tpg_hw *hw,
+	struct tpg_hw_request *req)
 {
 	int i = 0;
 	uint32_t stream_idx = 0;
@@ -382,103 +486,89 @@ static int tpg_hw_start_default_new(struct tpg_hw *hw)
 	if (!hw ||
 		!hw->hw_info ||
 		!hw->hw_info->ops ||
-		!hw->hw_info->ops->process_cmd) {
+		!hw->hw_info->ops->process_cmd ||
+		!hw->soc_info ||
+		!req) {
 		CAM_ERR(CAM_TPG, "Invalid argument");
 		return -EINVAL;
 	}
+	/* If nop then skip applying and return success*/
+	if (req->request_type == TPG_HW_REQ_TYPE_NOP)
+		goto end;
 
-	dump_global_configs(hw->hw_idx, &hw->global_config);
-	for(i = 0; i < hw->hw_info->max_vc_channels; i++) {
-		int dt_slot = 0;
-		struct vc_config_args vc_config = {0};
-		struct list_head *pos = NULL, *pos_next = NULL;
-		struct tpg_hw_stream *entry = NULL, *vc_stream_entry = NULL;
+	dump_global_configs(hw->hw_idx, &req->global_config);
+	if (hw->stream_version == 1) {
+		for (i = 0; i < hw->hw_info->max_vc_channels; i++) {
+			int dt_slot = 0;
+			struct vc_config_args vc_config = {0};
+			struct list_head *pos = NULL, *pos_next = NULL;
+			struct tpg_hw_stream *entry = NULL, *vc_stream_entry = NULL;
 
-		if (hw->vc_slots[i].vc == -1)
-			break;
-		num_vcs++;
-		vc_config.vc_slot = i;
-		vc_config.num_dts = hw->vc_slots[i].stream_count;
-		vc_stream_entry = list_first_entry(&hw->vc_slots[i].head,
-			struct tpg_hw_stream, list);
-		vc_config.stream  = &vc_stream_entry->stream;
-		hw->hw_info->ops->process_cmd(hw,
-				TPG_CONFIG_VC, &vc_config);
+			if (req->vc_slots[i].vc == -1)
+				break;
+			num_vcs++;
+			vc_config.vc_slot = i;
+			vc_config.num_dts = req->vc_slots[i].stream_count;
+			vc_stream_entry = list_first_entry(&req->vc_slots[i].head,
+				struct tpg_hw_stream, list);
+			vc_config.stream  = &vc_stream_entry->stream;
+			hw->hw_info->ops->process_cmd(hw,
+					TPG_CONFIG_VC, &vc_config);
 
-		list_for_each_safe(pos, pos_next, &hw->vc_slots[i].head) {
-			struct dt_config_args dt_config = {0};
-			entry = list_entry(pos, struct tpg_hw_stream, list);
-			dump_stream_configs(hw->hw_idx,
-				stream_idx++,
-				&entry->stream);
-			dt_config.vc_slot = i;
-			dt_config.dt_slot = dt_slot++;
-			dt_config.stream  = &entry->stream;
-			hw->hw_info->ops->process_cmd(hw, TPG_CONFIG_DT, &dt_config);
+			list_for_each_safe(pos, pos_next, &req->vc_slots[i].head) {
+				struct dt_config_args dt_config = {0};
+
+				entry = list_entry(pos, struct tpg_hw_stream, list);
+				dump_stream_configs(hw->hw_idx,
+					stream_idx++,
+					&entry->stream);
+				dt_config.vc_slot = i;
+				dt_config.dt_slot = dt_slot++;
+				dt_config.stream  = &entry->stream;
+				hw->hw_info->ops->process_cmd(hw, TPG_CONFIG_DT, &dt_config);
+			}
+		}
+	} else if (hw->stream_version == 3) {
+		for (i = 0; i < hw->hw_info->max_vc_channels; i++) {
+			int dt_slot = 0;
+			struct vc_config_args_v3 vc_config = {0};
+			struct list_head *pos = NULL, *pos_next = NULL;
+			struct tpg_hw_stream_v3 *entry = NULL, *vc_stream_entry = NULL;
+
+			if (req->vc_slots[i].vc == -1)
+				break;
+			num_vcs++;
+			vc_config.vc_slot = i;
+			vc_config.num_dts = req->vc_slots[i].stream_count;
+			vc_stream_entry = list_first_entry(&req->vc_slots[i].head,
+				struct tpg_hw_stream_v3, list);
+			vc_config.stream  = &vc_stream_entry->stream;
+			hw->hw_info->ops->process_cmd(hw,
+					TPG_CONFIG_VC, &vc_config);
+
+			list_for_each_safe(pos, pos_next, &req->vc_slots[i].head) {
+				struct dt_config_args_v3 dt_config = {0};
+
+				entry = list_entry(pos, struct tpg_hw_stream_v3, list);
+				dump_stream_configs_v3(hw->hw_idx,
+					stream_idx++,
+					&entry->stream);
+				dt_config.vc_slot = i;
+				dt_config.dt_slot = dt_slot++;
+				dt_config.stream  = &entry->stream;
+				hw->hw_info->ops->process_cmd(hw, TPG_CONFIG_DT, &dt_config);
+			}
 		}
 	}
-
 	globalargs.num_vcs      = num_vcs;
-	globalargs.globalconfig = &hw->global_config;
+	globalargs.globalconfig = &req->global_config;
 	hw->hw_info->ops->process_cmd(hw,
 		TPG_CONFIG_CTRL, &globalargs);
-
+	if (!cam_presil_mode_enabled())
+		cam_tpg_mem_dmp(hw->soc_info);
+end:
 	return 0;
 }
-
-static int tpg_hw_start_default_new_v3(struct tpg_hw *hw)
-{
-	int i = 0;
-	uint32_t stream_idx = 0;
-	int num_vcs = 0;
-	struct global_config_args globalargs = {0};
-
-	if (!hw || !hw->hw_info ||
-		!hw->hw_info->ops || !hw->hw_info->ops->process_cmd) {
-		CAM_ERR(CAM_TPG, "Invalid argument");
-		return -EINVAL;
-	}
-
-	dump_global_configs(hw->hw_idx, &hw->global_config);
-	for (i = 0; i < hw->hw_info->max_vc_channels; i++) {
-		int dt_slot = 0;
-		struct vc_config_args_v3 vc_config = {0};
-		struct list_head *pos = NULL, *pos_next = NULL;
-		struct tpg_hw_stream_v3 *entry = NULL, *vc_stream_entry = NULL;
-
-		if (hw->vc_slots[i].vc == -1)
-			break;
-		num_vcs++;
-		vc_config.vc_slot = i;
-		vc_config.num_dts = hw->vc_slots[i].stream_count;
-		vc_stream_entry = list_first_entry(&hw->vc_slots[i].head,
-			struct tpg_hw_stream_v3, list);
-		vc_config.stream  = &vc_stream_entry->stream;
-		hw->hw_info->ops->process_cmd(hw,
-				TPG_CONFIG_VC, &vc_config);
-
-		list_for_each_safe(pos, pos_next, &hw->vc_slots[i].head) {
-			struct dt_config_args_v3 dt_config = {0};
-
-			entry = list_entry(pos, struct tpg_hw_stream_v3, list);
-			dump_stream_configs_v3(hw->hw_idx,
-				stream_idx++,
-				&entry->stream);
-			dt_config.vc_slot = i;
-			dt_config.dt_slot = dt_slot++;
-			dt_config.stream  = &entry->stream;
-			hw->hw_info->ops->process_cmd(hw, TPG_CONFIG_DT, &dt_config);
-		}
-	}
-
-	globalargs.num_vcs      = num_vcs;
-	globalargs.globalconfig = &hw->global_config;
-	hw->hw_info->ops->process_cmd(hw,
-		TPG_CONFIG_CTRL, &globalargs);
-
-	return 0;
-}
-
 
 int tpg_hw_dump_status(struct tpg_hw *hw)
 {
@@ -496,6 +586,182 @@ int tpg_hw_dump_status(struct tpg_hw *hw)
 		break;
 	}
 	return 0;
+}
+
+static int tpg_hw_check_hw_state_and_apply_settings_locked(
+	struct tpg_hw *hw,
+	struct tpg_hw_request *req)
+{
+	int rc = 0;
+	unsigned long wait_jiffies       = 0;
+	unsigned long rem_jiffies        = 0;
+	unsigned long flags;
+	int32_t       timeout_multiplier = 0;
+
+	if (!hw || !req) {
+		CAM_ERR(CAM_TPG, "Invalid param");
+		rc = -EINVAL;
+		goto end;
+	}
+	if (req->request_type != TPG_HW_REQ_TYPE_NOP) {
+		if (cam_presil_mode_enabled())
+			timeout_multiplier = TIMEOUT_MULTIPLIER_PRESIL;
+		else
+			timeout_multiplier = TIMEOUT_MULTIPLIER;
+
+		/* if hw state is not ready, wait for timeout.
+		 * if hw state becomes ready handle in follow up if.
+		 */
+		if (hw->state == TPG_HW_STATE_BUSY) {
+			wait_jiffies = CAM_TPG_HW_WAIT_TIMEOUT * timeout_multiplier;
+			reinit_completion(&hw->complete_rup);
+			rem_jiffies =
+				cam_common_wait_for_completion_timeout(&hw->complete_rup,
+					wait_jiffies);
+			if (!rem_jiffies) {
+				CAM_ERR(CAM_TPG, "TPG[%d] hw timeout %llu",
+					hw->hw_idx, rem_jiffies);
+				rc = -EBUSY;
+				goto end;
+			}
+		}
+		if (hw->state == TPG_HW_STATE_READY) {
+			hw->settings_update = 1;
+			spin_lock_irqsave(&hw->hw_state_lock, flags);
+			hw->state = TPG_HW_STATE_BUSY;
+			spin_unlock_irqrestore(&hw->hw_state_lock, flags);
+			CAM_DBG(CAM_TPG, "HW State ready to busy");
+		}
+	}
+	rc = tpg_hw_apply_settings_to_hw_locked(hw, req);
+end:
+	return rc;
+}
+
+static int tpg_hw_reapply_from_active_queue_locked(
+	struct tpg_hw *hw,
+	uint64_t request_id)
+{
+	int rc = 0;
+	struct tpg_hw_request *reapply_req = NULL;
+	struct tpg_hw_request *entry = NULL;
+	struct list_head *pos = NULL, *pos_next = NULL;
+
+	if (!hw) {
+		CAM_ERR(CAM_TPG, "Invalid argument");
+		return -EINVAL;
+	}
+
+	list_for_each_safe(pos, pos_next, &hw->active_request_q) {
+		entry = list_entry(pos, struct tpg_hw_request, list);
+		if (entry->request_id == request_id) {
+			reapply_req = entry;
+			break;
+		}
+	}
+
+	if (reapply_req) {
+		CAM_DBG(CAM_TPG, "TPG[%d] got reapply request %d", hw->hw_idx, request_id);
+		rc = tpg_hw_check_hw_state_and_apply_settings_locked(hw, reapply_req);
+	} else {
+		CAM_ERR(CAM_TPG, "Could not find reapply request in active queue %d", request_id);
+		return -EINVAL;
+	}
+	return rc;
+}
+
+static int tpg_hw_lookup_queues_and_apply_req_locked(
+	struct tpg_hw *hw,
+	uint64_t request_id)
+{
+	int rc = 0;
+	struct tpg_hw_request *req = NULL, *active_req = NULL;
+
+	if (!hw) {
+		CAM_ERR(CAM_TPG, "Invalid argument");
+		rc = -EINVAL;
+		goto end;
+	}
+
+	if (!list_empty(&hw->waiting_request_q)) {
+		req = list_first_entry(&hw->waiting_request_q,
+			struct tpg_hw_request, list);
+		if (req->request_id == request_id) {
+			CAM_DBG(CAM_TPG, "TPG[%d] request %d got matched", hw->hw_idx, request_id);
+			rc = tpg_hw_check_hw_state_and_apply_settings_locked(hw, req);
+
+			if (rc == 0) {
+				/* delete the request from waiting_q*/
+				list_del(&req->list);
+				hw->waiting_request_q_depth--;
+				/* delete active request from active q*/
+				if (!list_empty(&hw->active_request_q) &&
+					(hw->active_request_q_depth >= MAX_ACTIVE_QUEUE_DEPTH)) {
+					active_req = list_first_entry(&hw->active_request_q,
+						struct tpg_hw_request, list);
+					list_del(&active_req->list);
+					hw->active_request_q_depth--;
+
+					/* free the previously active request */
+					tpg_hw_release_vc_slots_locked(hw, active_req);
+				}
+
+				/* Add the currently applied request to active queue*/
+				list_add_tail(&req->list, &hw->active_request_q);
+				hw->active_request_q_depth++;
+			}
+		} else {
+			rc = tpg_hw_reapply_from_active_queue_locked(hw, request_id);
+		}
+	} else {
+		CAM_DBG(CAM_TPG, "TPG[%d] got apply for request %d when waiting queue is empty",
+			hw->hw_idx,
+			request_id);
+		rc = tpg_hw_reapply_from_active_queue_locked(hw, request_id);
+	}
+
+	if (rc == 0) {
+		CAM_DBG(CAM_TPG, "TPG[%d] Hw Apply done for req %lld", hw->hw_idx, request_id);
+	} else {
+		CAM_ERR(CAM_TPG, "TPG[%d] Hw Apply Failed for req %lld", hw->hw_idx, request_id);
+		rc = -EAGAIN;
+	}
+
+end:
+	return rc;
+}
+
+/* apply all pending requests sequencially */
+static int tpg_hw_apply_req_from_waiting_queue_locked(
+	struct tpg_hw *hw)
+{
+	int rc = 0;
+	struct list_head *pos = NULL, *pos_next = NULL;
+	struct tpg_hw_request *req = NULL;
+	struct tpg_hw_request *prev_req = NULL;
+
+	if (!hw) {
+		CAM_ERR(CAM_TPG, "Invalid Params");
+		return -EINVAL;
+	}
+
+	list_for_each_safe(pos, pos_next, &hw->waiting_request_q) {
+		req = list_entry(pos, struct tpg_hw_request, list);
+		tpg_hw_apply_settings_to_hw_locked(hw, req);
+		list_del(pos);
+		hw->waiting_request_q_depth--;
+		/* free previous req if any*/
+		if (prev_req)
+			tpg_hw_release_vc_slots_locked(hw, prev_req);
+		prev_req = req;
+	}
+
+	/* last applied request in active */
+	if (prev_req != NULL) {
+		list_add_tail(&prev_req->list, &hw->active_request_q);
+		hw->active_request_q_depth++;
+	}
+	return rc;
 }
 
 int tpg_hw_start(struct tpg_hw *hw)
@@ -523,18 +789,17 @@ int tpg_hw_start(struct tpg_hw *hw)
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
 	case TPG_HW_VERSION_1_4:
+		/* apply all initial requests */
 		if (hw->hw_info->ops->start)
 			hw->hw_info->ops->start(hw, NULL);
+
 		if (settings_count != 0) {
 			hw->hw_info->ops->write_settings(hw, config,
 						reg_settings);
 		} else {
-			if (hw->stream_version == 1)
-				tpg_hw_start_default_new(hw);
-			else if (hw->stream_version == 3)
-				tpg_hw_start_default_new_v3(hw);
+			tpg_hw_apply_req_from_waiting_queue_locked(hw);
 		}
-		cam_tpg_mem_dmp(hw->soc_info);
+
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
@@ -574,6 +839,8 @@ int tpg_hw_stop(struct tpg_hw *hw)
 				hw->hw_idx, rc);
 			return rc;
 		}
+		tpg_hw_free_waiting_requests_locked(hw);
+		tpg_hw_free_active_requests_locked(hw);
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
@@ -651,7 +918,7 @@ enum cam_vote_level get_tpg_clk_level(
 		return -EINVAL;
 
 	soc_info = hw->soc_info;
-	clk = hw->global_config.tpg_clock;
+	clk = hw->tpg_clock;
 
 	for (cam_vote_level = 0;
 			cam_vote_level < CAM_MAX_VOTE; cam_vote_level++) {
@@ -691,20 +958,24 @@ static int tpg_hw_configure_init_settings(
 	case TPG_HW_VERSION_1_3:
 	case TPG_HW_VERSION_1_3_1:
 	case TPG_HW_VERSION_1_4:
+		/* Need to handle the clock from the init config */
+		/* Need to handle this latter */
 		clk_level = get_tpg_clk_level(hw);
-		rc = tpg_hw_soc_enable(hw, clk_level);
+		rc = tpg_hw_soc_enable(hw, clk_level, true);
+
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
 				hw->hw_idx, rc);
 			return rc;
 		}
-		if (hw->hw_info->ops->init) {
+
+		if (hw->hw_info->ops->init)
 			rc = hw->hw_info->ops->init(hw, settings);
-			if (rc) {
-				CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
-					hw->hw_idx, rc);
-				return rc;
-			}
+
+		if (rc) {
+			CAM_ERR(CAM_TPG, "TPG[%d] hw init failed %d",
+				hw->hw_idx, rc);
+			return rc;
 		}
 		break;
 	default:
@@ -735,19 +1006,21 @@ static int tpg_hw_configure_init_settings_v3(
 	case TPG_HW_VERSION_1_3_1:
 	case TPG_HW_VERSION_1_4:
 		clk_level = get_tpg_clk_level(hw);
-		rc = tpg_hw_soc_enable(hw, clk_level);
+		rc = tpg_hw_soc_enable(hw, clk_level, true);
+
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
 				hw->hw_idx, rc);
 			return rc;
 		}
-		if (hw->hw_info->ops->init) {
+
+		if (hw->hw_info->ops->init)
 			rc = hw->hw_info->ops->init(hw, settings);
-			if (rc) {
-				CAM_ERR(CAM_TPG, "TPG[%d] hw soc enable failed %d",
-					hw->hw_idx, rc);
-				return rc;
-			}
+
+		if (rc) {
+			CAM_ERR(CAM_TPG, "TPG[%d] hw init failed %d",
+				hw->hw_idx, rc);
+			return rc;
 		}
 		break;
 	default:
@@ -773,12 +1046,17 @@ int tpg_hw_config(
 	switch (config_cmd) {
 	case TPG_HW_CMD_INIT_CONFIG:
 		//validate_stream_list(hw);
-		if (hw->stream_version == 1) {
-			tpg_hw_configure_init_settings(hw,
-				(struct tpg_hw_initsettings *)config_args);
-		} else if (hw->stream_version == 3) {
+		if (hw->settings_config.active_count != 0) {
 			tpg_hw_configure_init_settings_v3(hw,
-				(struct tpg_hw_initsettings_v3 *)config_args);
+					(struct tpg_hw_initsettings_v3 *)config_args);
+		} else {
+			if (hw->stream_version == 1) {
+				tpg_hw_configure_init_settings(hw,
+					(struct tpg_hw_initsettings *)config_args);
+			} else if (hw->stream_version == 3) {
+				tpg_hw_configure_init_settings_v3(hw,
+					(struct tpg_hw_initsettings_v3 *)config_args);
+			}
 		}
 		break;
 	default:
@@ -788,64 +1066,6 @@ int tpg_hw_config(
 		break;
 	}
 	return rc;
-}
-
-int tpg_hw_free_streams(struct tpg_hw *hw)
-{
-	struct list_head *pos = NULL, *pos_next = NULL;
-	struct tpg_hw_stream *entry;
-	struct tpg_hw_stream_v3 *entry_v3;
-	int i = 0;
-
-	if (!hw)
-		return -EINVAL;
-
-	mutex_lock(&hw->mutex);
-	/* free up the streams */
-	CAM_DBG(CAM_TPG, "TPG[%d] Freeing all the streams", hw->hw_idx);
-
-	/* reset the slots */
-	for(i = 0; i < hw->hw_info->max_vc_channels; i++) {
-		hw->vc_slots[i].slot_id      =  i;
-		hw->vc_slots[i].vc           = -1;
-		hw->vc_slots[i].stream_count =  0;
-
-		if (hw->stream_version == 1) {
-			list_for_each_safe(pos, pos_next, &hw->vc_slots[i].head) {
-				entry = list_entry(pos, struct tpg_hw_stream, list);
-				list_del(pos);
-				kfree(entry);
-			}
-		} else if (hw->stream_version == 3) {
-			list_for_each_safe(pos, pos_next, &hw->vc_slots[i].head) {
-				entry_v3 = list_entry(pos, struct tpg_hw_stream_v3, list);
-				list_del(pos);
-				kfree(entry_v3);
-			}
-		}
-		INIT_LIST_HEAD(&(hw->vc_slots[i].head));
-	}
-	hw->vc_count = 0;
-
-	mutex_unlock(&hw->mutex);
-	return 0;
-}
-
-int tpg_hw_copy_global_config(
-	struct tpg_hw *hw,
-	struct tpg_global_config_t *global)
-{
-	if (!hw || !global) {
-		CAM_ERR(CAM_TPG, "invalid parameter");
-		return -EINVAL;
-	}
-
-	mutex_lock(&hw->mutex);
-	memcpy(&hw->global_config,
-		global,
-		sizeof(struct tpg_global_config_t));
-	mutex_unlock(&hw->mutex);
-	return 0;
 }
 
 int tpg_hw_copy_settings_config(
@@ -886,24 +1106,25 @@ int tpg_hw_copy_settings_config(
 static int assign_vc_slot(
 	struct tpg_hw *hw,
 	int  vc,
+	struct tpg_hw_request *req,
 	struct tpg_hw_stream *stream
 	)
 {
 	int rc = -EINVAL, i = 0, slot_matched = 0;
 
-	if (!hw || !stream) {
+	if (!hw || !stream || !req) {
 		return -EINVAL;
 	}
 
-	for(i = 0; i < hw->hw_info->max_vc_channels; i++) {
+	for (i = 0; i < hw->hw_info->max_vc_channels; i++) {
 		/* Found a matching slot */
-		if(hw->vc_slots[i].vc == vc) {
+		if (req->vc_slots[i].vc == vc) {
 			slot_matched = 1;
-			if (hw->vc_slots[i].stream_count
+			if (req->vc_slots[i].stream_count
 					< hw->hw_info->max_dt_channels_per_vc) {
-				list_add_tail(&stream->list, &hw->vc_slots[i].head);
-				hw->vc_slots[i].stream_count++;
-				hw->vc_slots[i].vc = vc;
+				list_add_tail(&stream->list, &req->vc_slots[i].head);
+				req->vc_slots[i].stream_count++;
+				req->vc_slots[i].vc = vc;
 				rc = 0;
 				CAM_DBG(CAM_TPG, "vc[%d]dt[%d]=>slot[%d]", vc, stream->stream.dt, i);
 				break;
@@ -925,11 +1146,11 @@ static int assign_vc_slot(
 		 * none of the above slots matched, and now found an empty slot
 		 * so assigning stream to that slot
 		 */
-		if (hw->vc_slots[i].vc == -1) {
-			list_add_tail(&stream->list, &hw->vc_slots[i].head);
-			hw->vc_slots[i].stream_count++;
-			hw->vc_slots[i].vc = vc;
-			hw->vc_count++;
+		if (req->vc_slots[i].vc == -1) {
+			list_add_tail(&stream->list, &req->vc_slots[i].head);
+			req->vc_slots[i].stream_count++;
+			req->vc_slots[i].vc = vc;
+			req->vc_count++;
 			rc = 0;
 			CAM_DBG(CAM_TPG, "vc[%d]dt[%d]=>slot[%d]", vc, stream->stream.dt, i);
 			break;
@@ -944,23 +1165,24 @@ static int assign_vc_slot(
 static int assign_vc_slot_v3(
 	struct tpg_hw *hw,
 	int  vc,
+	struct tpg_hw_request *req,
 	struct tpg_hw_stream_v3 *stream
 	)
 {
 	int rc = -EINVAL, i = 0, slot_matched = 0;
 
-	if (!hw || !stream)
+	if (!hw || !stream || !req)
 		return -EINVAL;
 
 	for (i = 0; i < hw->hw_info->max_vc_channels; i++) {
 		/* Found a matching slot */
-		if (hw->vc_slots[i].vc == vc) {
+		if (req->vc_slots[i].vc == vc) {
 			slot_matched = 1;
-			if (hw->vc_slots[i].stream_count
+			if (req->vc_slots[i].stream_count
 					< hw->hw_info->max_dt_channels_per_vc) {
-				list_add_tail(&stream->list, &hw->vc_slots[i].head);
-				hw->vc_slots[i].stream_count++;
-				hw->vc_slots[i].vc = vc;
+				list_add_tail(&stream->list, &req->vc_slots[i].head);
+				req->vc_slots[i].stream_count++;
+				req->vc_slots[i].vc = vc;
 				rc = 0;
 				CAM_DBG(CAM_TPG, "vc[%d]dt[%d]=>slot[%d]",
 					vc,
@@ -984,11 +1206,11 @@ static int assign_vc_slot_v3(
 		 * none of the above slots matched, and now found an empty slot
 		 * so assigning stream to that slot
 		 */
-		if (hw->vc_slots[i].vc == -1) {
-			list_add_tail(&stream->list, &hw->vc_slots[i].head);
-			hw->vc_slots[i].stream_count++;
-			hw->vc_slots[i].vc = vc;
-			hw->vc_count++;
+		if (req->vc_slots[i].vc == -1) {
+			list_add_tail(&stream->list, &req->vc_slots[i].head);
+			req->vc_slots[i].stream_count++;
+			req->vc_slots[i].vc = vc;
+			req->vc_count++;
 			rc = 0;
 			CAM_DBG(CAM_TPG, "vc[%d]dt[%d]=>slot[%d]", vc, stream->stream.dt, i);
 			break;
@@ -996,36 +1218,59 @@ static int assign_vc_slot_v3(
 	}
 	if ((slot_matched == 0) && (rc != 0))
 		CAM_ERR(CAM_TPG, "No slot matched");
+	return rc;
+}
 
+int tpg_hw_free_request(
+	struct tpg_hw *hw,
+	struct tpg_hw_request *req)
+{
+	int rc = 0;
+
+	if (!hw || !req)
+		return -EINVAL;
+
+	mutex_lock(&hw->mutex);
+	rc = tpg_hw_release_vc_slots_locked(hw, req);
+	mutex_unlock(&hw->mutex);
 	return rc;
 }
 
 int tpg_hw_reset(struct tpg_hw *hw)
 {
 	int rc = 0;
+	unsigned long flags;
 	if (!hw)
 		return -EINVAL;
 
-	/* free up the streams if any*/
-	rc = tpg_hw_free_streams(hw);
-	if (rc)
-		CAM_ERR(CAM_TPG, "TPG[%d] Unable to free up the streams", hw->hw_idx);
-
+	CAM_DBG(CAM_TPG, "TPG HW reset");
 	/* disable the hw */
 	mutex_lock(&hw->mutex);
+
+	rc = tpg_hw_free_waiting_requests_locked(hw);
+	if (rc)
+		CAM_ERR(CAM_TPG, "TPG[%d] unable to free up the pending requests",
+				hw->hw_idx);
+
 	if (hw->state != TPG_HW_STATE_HW_DISABLED) {
 		rc = cam_soc_util_disable_platform_resource(hw->soc_info, CAM_CLK_SW_CLIENT_IDX,
 			true, false);
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] Disable platform failed %d", hw->hw_idx, rc);
-			return rc;
 		}
 		rc = cam_cpas_stop(hw->cpas_handle);
 		if (rc) {
 			CAM_ERR(CAM_TPG, "TPG[%d] CPAS stop failed", hw->hw_idx);
-			return rc;
 		}
-		hw->state = TPG_HW_STATE_HW_DISABLED;
+		spin_lock_irqsave(&hw->hw_state_lock, flags);
+		hw->state =  TPG_HW_STATE_HW_DISABLED;
+		spin_unlock_irqrestore(&hw->hw_state_lock, flags);
+	}
+
+	rc = tpg_hw_free_active_requests_locked(hw);
+	if (rc) {
+		CAM_ERR(CAM_TPG, "TPG[%d] unable to free up the active requests",
+				hw->hw_idx);
 	}
 	mutex_unlock(&hw->mutex);
 
@@ -1034,11 +1279,12 @@ int tpg_hw_reset(struct tpg_hw *hw)
 
 int tpg_hw_add_stream(
 	struct tpg_hw *hw,
+	struct tpg_hw_request *req,
 	struct tpg_stream_config_t *cmd)
 {
 	int rc = 0;
 	struct tpg_hw_stream *stream = NULL;
-	if (!hw || !cmd) {
+	if (!hw || !req || !cmd) {
 		CAM_ERR(CAM_TPG, "Invalid params");
 		return -EINVAL;
 	}
@@ -1056,18 +1302,134 @@ int tpg_hw_add_stream(
 		cmd,
 		sizeof(struct tpg_stream_config_t));
 
-	rc = assign_vc_slot(hw, stream->stream.vc, stream);
+	rc = assign_vc_slot(hw, stream->stream.vc, req, stream);
+	mutex_unlock(&hw->mutex);
+	return rc;
+}
+
+int tpg_hw_add_request(struct tpg_hw *hw,
+	struct tpg_hw_request *req)
+{
+	int rc = 0;
+
+	if (!hw || !req) {
+		CAM_ERR(CAM_TPG, "Invalid params");
+		return -EINVAL;
+	}
+	mutex_lock(&hw->mutex);
+	if (hw->waiting_request_q_depth <= MAX_WAITING_QUEUE_DEPTH) {
+		list_add_tail(&req->list, &hw->waiting_request_q);
+		hw->waiting_request_q_depth++;
+	} else {
+		CAM_ERR(CAM_TPG, "waiting queue size is exceed");
+	}
+	mutex_unlock(&hw->mutex);
+	return rc;
+}
+
+struct tpg_hw_request *tpg_hw_create_request(
+	struct tpg_hw *hw,
+	uint64_t request_id)
+{
+	struct tpg_hw_request *req = NULL;
+	uint32_t num_vc_channels = hw->hw_info->max_vc_channels;
+	uint32_t i = 0;
+
+	if (!hw) {
+		CAM_ERR(CAM_TPG, "Invalid params");
+		return NULL;
+	}
+
+	/* Allocate request */
+	req = kzalloc(sizeof(struct tpg_hw_request),
+			GFP_KERNEL);
+	if (!req) {
+		CAM_ERR(CAM_TPG, "TPG[%d] request allocation failed",
+				hw->hw_idx);
+		return NULL;
+	}
+	req->request_id = request_id;
+	/* Allocate Vc slots in request */
+	req->vc_slots = kcalloc(num_vc_channels, sizeof(struct tpg_vc_slot_info),
+			GFP_KERNEL);
+
+	req->vc_count = 0;
+	if (!req->vc_slots) {
+		CAM_ERR(CAM_TPG, "TPG[%d] vc slot allocation failed",
+				hw->hw_idx);
+		goto err_exit_1;
+	}
+
+	INIT_LIST_HEAD(&req->list);
+	/* Initialize the slot variables */
+	for (i = 0; i < hw->hw_info->max_vc_channels; i++) {
+		req->vc_slots[i].slot_id      =  i;
+		req->vc_slots[i].vc           = -1;
+		req->vc_slots[i].stream_count =  0;
+		INIT_LIST_HEAD(&(req->vc_slots[i].head));
+	}
+	CAM_DBG(CAM_TPG, "TPG[%d] request(%lld) allocated success",
+			hw->hw_idx, request_id);
+	return req;
+err_exit_1:
+	kfree(req);
+	return NULL;
+}
+
+int tpg_hw_request_set_opcode(
+	struct tpg_hw_request *req,
+	uint32_t opcode)
+{
+	int rc = 0;
+
+	if (!req) {
+		CAM_ERR(CAM_TPG, "Invalid params");
+		return -EINVAL;
+	}
+	switch (opcode) {
+	case CAM_TPG_PACKET_OPCODE_INITIAL_CONFIG:
+		req->request_type = TPG_HW_REQ_TYPE_INIT;
+		break;
+	case CAM_TPG_PACKET_OPCODE_NOP:
+		req->request_type = TPG_HW_REQ_TYPE_NOP;
+		break;
+	case CAM_TPG_PACKET_OPCODE_UPDATE:
+		req->request_type = TPG_HW_REQ_TYPE_UPDATE;
+		break;
+	default:
+		req->request_type = TPG_HW_REQ_TYPE_NOP;
+		break;
+	}
+	CAM_INFO(CAM_TPG, "req[%d] type = %d",
+			req->request_id,
+			req->request_type);
+	return rc;
+}
+
+int tpg_hw_apply(
+	struct tpg_hw *hw,
+	uint64_t request_id)
+{
+	int rc = 0;
+
+	if (!hw) {
+		CAM_ERR(CAM_TPG, "Invalid params");
+		return -EINVAL;
+	}
+	mutex_lock(&hw->mutex);
+	rc = tpg_hw_lookup_queues_and_apply_req_locked(hw, request_id);
 	mutex_unlock(&hw->mutex);
 	return rc;
 }
 int tpg_hw_add_stream_v3(
 	struct tpg_hw *hw,
+	struct tpg_hw_request *req,
 	struct tpg_stream_config_v3_t *cmd)
 {
 	int rc = 0;
 	struct tpg_hw_stream_v3 *stream = NULL;
 
-	if (!hw || !cmd) {
+	if (!hw || !req || !cmd) {
 		CAM_ERR(CAM_TPG, "Invalid params");
 		return -EINVAL;
 	}
@@ -1085,7 +1447,7 @@ int tpg_hw_add_stream_v3(
 		cmd,
 		sizeof(struct tpg_stream_config_v3_t));
 
-	rc = assign_vc_slot_v3(hw, stream->stream.vc, stream);
+	rc = assign_vc_slot_v3(hw, stream->stream.vc, req, stream);
 	mutex_unlock(&hw->mutex);
 	return rc;
 }

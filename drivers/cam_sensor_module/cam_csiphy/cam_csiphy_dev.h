@@ -41,18 +41,20 @@
 #define CAMX_CSIPHY_DEV_NAME "cam-csiphy-driver"
 #define CAM_CSIPHY_RX_CLK_SRC "cphy_rx_src_clk"
 
-#define CSIPHY_DEFAULT_PARAMS            0
-#define CSIPHY_LANE_ENABLE               1
-#define CSIPHY_SETTLE_CNT_LOWER_BYTE     2
-#define CSIPHY_SETTLE_CNT_HIGHER_BYTE    3
-#define CSIPHY_2PH_REGS                  4
-#define CSIPHY_3PH_REGS                  5
-#define CSIPHY_SKEW_CAL                  6
-#define CSIPHY_2PH_COMBO_REGS            7
-#define CSIPHY_3PH_COMBO_REGS            8
-#define CSIPHY_2PH_3PH_COMBO_REGS        9
-#define CSIPHY_AUXILIARY_SETTING         10
-#define CSIPHY_CDR_LN_SETTINGS           11
+#define CSIPHY_DEFAULT_PARAMS            BIT(0)
+#define CSIPHY_LANE_ENABLE               BIT(1)
+#define CSIPHY_SETTLE_CNT_LOWER_BYTE     BIT(2)
+#define CSIPHY_SETTLE_CNT_HIGHER_BYTE    BIT(3)
+#define CSIPHY_2PH_REGS                  BIT(4)
+#define CSIPHY_3PH_REGS                  BIT(5)
+#define CSIPHY_SKEW_CAL                  BIT(6)
+#define CSIPHY_2PH_COMBO_REGS            BIT(7)
+#define CSIPHY_3PH_COMBO_REGS            BIT(8)
+#define CSIPHY_2PH_3PH_COMBO_REGS        BIT(9)
+#define CSIPHY_AUXILIARY_SETTING         BIT(10)
+#define CSIPHY_CDR_LN_SETTINGS           BIT(11)
+#define CSIPHY_SHORT_CHANNEL_PARAMS      BIT(12)
+#define CSIPHY_STANDARD_CHANNEL_PARAMS   BIT(13)
 
 #define CSIPHY_MAX_INSTANCES_PER_PHY     3
 
@@ -88,6 +90,11 @@ enum cam_csiphy_state {
 	CAM_CSIPHY_INIT,
 	CAM_CSIPHY_ACQUIRE,
 	CAM_CSIPHY_START,
+};
+
+enum cam_csiphy_datarate_channel {
+	CAM_CSIPHY_DATARATE_SHORT_CHANNEL,
+	CAM_CSIPHY_DATARATE_STANDARD_CHANNEL,
 };
 
 /**
@@ -227,7 +234,7 @@ struct csiphy_device;
 struct data_rate_reg_info_t {
 	uint64_t bandwidth;
 	ssize_t  data_rate_reg_array_size;
-	struct csiphy_reg_t *data_rate_reg_array[CAM_CSIPHY_MAX_DATARATE_VARIANTS];
+	struct csiphy_reg_t *data_rate_reg_array[MAX_CSIPHY][CAM_CSIPHY_MAX_DATARATE_VARIANTS];
 };
 
 /**
@@ -316,6 +323,7 @@ struct csiphy_ctrl_t {
  * @conn_csid_idx              : Connected CSID core idx (Primary csid in case of dual ife)
  * @use_hw_client_voting       : Whether to use hw client voting for clk on chipsets with cesta
  * @is_drv_config_en           : If drv is configured in CSID
+ * @channel_type              : Channel type for different channel settings
  */
 struct cam_csiphy_param {
 	uint16_t                         lane_assign;
@@ -334,6 +342,7 @@ struct cam_csiphy_param {
 	int32_t                          conn_csid_idx;
 	bool                             use_hw_client_voting;
 	bool                             is_drv_config_en;
+	uint32_t                         channel_type;
 };
 
 struct csiphy_work_queue {

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_HW_INTF_H_
@@ -23,12 +23,31 @@
 /* Number of times to retry while polling */
 #define CAM_CPAS_POLL_QH_RETRY_CNT 50
 
+/* Number of CPAS hw caps registers */
+#define CAM_CPAS_MAX_CAPS_REGS 2
+
 /**
  * enum cam_cpas_hw_type - Enum for CPAS HW type
  */
 enum cam_cpas_hw_type {
 	CAM_HW_CPASTOP,
 	CAM_HW_CAMSSTOP,
+};
+
+/**
+ * enum cam_cpas_reg_base - Enum for register base identifier. These
+ *                          are the identifiers used in generic register
+ *                          write/read APIs provided by cpas driver.
+ */
+enum cam_cpas_reg_base {
+	CAM_CPAS_REG_CPASTOP,
+	CAM_CPAS_REG_CAMNOC,
+	CAM_CPAS_REG_CAMSS,
+	CAM_CPAS_REG_RPMH,
+	CAM_CPAS_REG_CESTA,
+	CAM_CPAS_REG_CAMNOC_RT,
+	CAM_CPAS_REG_CAMNOC_NRT,
+	CAM_CPAS_REG_MAX
 };
 
 /**
@@ -47,10 +66,13 @@ enum cam_cpas_hw_cmd_process {
 	CAM_CPAS_HW_CMD_GET_SCID,
 	CAM_CPAS_HW_CMD_ACTIVATE_LLC,
 	CAM_CPAS_HW_CMD_DEACTIVATE_LLC,
+	CAM_CPAS_HW_CMD_CONFIGURE_STALING_LLC,
+	CAM_CPAS_HW_CMD_NOTIF_STALL_INC_LLC,
 	CAM_CPAS_HW_CMD_DUMP_BUFF_FILL_INFO,
 	CAM_CPAS_HW_CMD_CSID_INPUT_CORE_INFO_UPDATE,
 	CAM_CPAS_HW_CMD_CSID_PROCESS_RESUME,
 	CAM_CPAS_HW_CMD_ENABLE_DISABLE_DOMAIN_ID_CLK,
+	CAM_CPAS_HW_CMD_DUMP_STATE_MONITOR_INFO,
 	CAM_CPAS_HW_CMD_INVALID,
 };
 
@@ -151,7 +173,8 @@ struct cam_cpas_hw_cmd_notify_event {
  * @camera_family: Camera family type
  * @camera_version: Camera version
  * @cpas_version: CPAS version
- * @camera_capability: Camera hw capabilities
+ * @camera_capability: array of camera hw capabilities
+ * @num_capability_reg: Number of camera hw capabilities registers
  * @fuse_info: Fuse information
  *
  */
@@ -159,7 +182,8 @@ struct cam_cpas_hw_caps {
 	uint32_t camera_family;
 	struct cam_hw_version camera_version;
 	struct cam_hw_version cpas_version;
-	uint32_t camera_capability;
+	uint32_t camera_capability[CAM_CPAS_MAX_CAPS_REGS];
+	uint32_t num_capability_reg;
 	struct cam_cpas_fuse_info fuse_info;
 };
 

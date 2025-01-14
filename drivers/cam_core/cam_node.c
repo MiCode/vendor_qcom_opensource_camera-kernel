@@ -722,10 +722,10 @@ int cam_node_shutdown(struct cam_node *node)
 
 	for (i = 0; i < node->ctx_size; i++) {
 		if (node->ctx_list[i].dev_hdl > 0) {
-			CAM_DBG(CAM_CORE,
-				"Node [%s] invoking shutdown on context [%d]",
-				node->name, i);
 			rc = cam_context_shutdown(&(node->ctx_list[i]));
+			CAM_DBG(CAM_CORE,
+				"Node [%s] invoking shutdown on context [%d], rc %d",
+				node->name, i, rc);
 		}
 	}
 
@@ -734,6 +734,26 @@ int cam_node_shutdown(struct cam_node *node)
 			NULL);
 
 	return 0;
+}
+
+static int __cam_node_handle_synx_test(
+	struct cam_node *node, void *params)
+{
+	int i, rc = -EINVAL;
+
+	for (i = 0; i < node->ctx_size; i++) {
+		if (node->ctx_list[i].dev_hdl > 0) {
+			CAM_ERR(CAM_CORE, "Node [%s] has active context [%d]",
+				node->name, i);
+			return -EAGAIN;
+		}
+	}
+
+	if (node->hw_mgr_intf.synx_trigger)
+		rc = node->hw_mgr_intf.synx_trigger(
+			node->hw_mgr_intf.hw_mgr_priv, params);
+
+	return rc;
 }
 
 int cam_node_init(struct cam_node *node, struct cam_hw_mgr_intf *hw_mgr_intf,
@@ -1028,6 +1048,21 @@ release_kfree:
 			    node->name);
 			rc = -EFAULT;
 		}
+		break;
+	}
+	case CAM_SYNX_TEST_TRIGGER: {
+		struct cam_synx_test_params synx_params;
+
+		if (copy_from_user(&synx_params, u64_to_user_ptr(cmd->handle),
+			sizeof(synx_params))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = __cam_node_handle_synx_test(node, &synx_params);
+		if (rc)
+			CAM_ERR(CAM_CORE, "Synx test on %s failed(rc = %d)",
+			    node->name, rc);
 		break;
 	}
 	default:

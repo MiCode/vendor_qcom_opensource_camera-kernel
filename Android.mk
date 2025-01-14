@@ -1,4 +1,5 @@
-ifneq ($(TARGET_BOARD_PLATFORM),qssi)
+ifneq (, $(filter $(call get-component-name), miodm))
+ifeq ($(XIAOMI_CAMERA_ODM_ZORN_SERIES_UPGRADE), true)
 CAMERA_DLKM_ENABLED := true
 ifeq ($(TARGET_KERNEL_DLKM_DISABLE), true)
 	ifeq ($(TARGET_KERNEL_DLKM_CAMERA_OVERRIDE), false)
@@ -14,6 +15,8 @@ LOCAL_PATH := $(call my-dir)
 # Path to DLKM make scripts
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
+LOCAL_MODULE_DDK_BUILD := true
+
 # List of board platforms for which MMRM driver API should be enabled
 MMRM_BOARDS := taro parrot kalama pineapple
 
@@ -22,6 +25,9 @@ SYNX_VENDOR_BOARDS := pineapple
 
 # List of board platforms for which SMCINVOKE_DLKM driver API should be enabled
 SMCINVOKE_DLKM_BOARDS := pineapple
+
+# List of board platforms for which SMMU_PROXY_DLKM driver API should be enabled
+SMMU_PROXY_DLKM_BOARDS := pineapple
 
 CAMERA_SRC_FILES := \
                     $(addprefix $(LOCAL_PATH)/, $(call all-named-files-under,*.h,drivers dt-bindings include))\
@@ -86,6 +92,61 @@ else
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 endif
 
+# MIUI ADD: Camera_CameraSkyNet
+include $(CLEAR_VARS)
+# For incremental compilation support.
+LOCAL_SRC_FILES             :=  \
+                                $(shell find $(LOCAL_PATH)/config -L -type f)      \
+                                $(shell find $(LOCAL_PATH)/drivers -L -type f)     \
+                                $(shell find $(LOCAL_PATH)/dt-bindings -L -type f) \
+                                $(shell find $(LOCAL_PATH)/include -L -type f)     \
+                                $(LOCAL_PATH)/Android.mk \
+                                $(LOCAL_PATH)/board.mk   \
+                                $(LOCAL_PATH)/product.mk \
+                                $(LOCAL_PATH)/Kbuild
+LOCAL_MODULE_PATH           := $(KERNEL_MODULES_OUT)
+LOCAL_MODULE                := cameralog.ko
+LOCAL_MODULE_TAGS           := optional
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+# END Camera_CameraSkyNet
+
+# MIUI ADD: Camera_CameraOpt
+include $(CLEAR_VARS)
+# For incremental compilation support.
+LOCAL_SRC_FILES             :=  \
+                                $(shell find $(LOCAL_PATH)/config -L -type f)      \
+                                $(shell find $(LOCAL_PATH)/drivers -L -type f)     \
+                                $(shell find $(LOCAL_PATH)/dt-bindings -L -type f) \
+                                $(shell find $(LOCAL_PATH)/include -L -type f)     \
+                                $(LOCAL_PATH)/Android.mk \
+                                $(LOCAL_PATH)/board.mk   \
+                                $(LOCAL_PATH)/product.mk \
+                                $(LOCAL_PATH)/Kbuild
+LOCAL_MODULE_PATH           := $(KERNEL_MODULES_OUT)
+LOCAL_MODULE                := cameramsger.ko
+LOCAL_MODULE_TAGS           := optional
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+# END Camera_CameraOpt
+
+# MIUI ADD: Camera_CamSched
+include $(CLEAR_VARS)
+# For incremental compilation support.
+LOCAL_SRC_FILES             :=  \
+                                $(shell find $(LOCAL_PATH)/config -L -type f)      \
+                                $(shell find $(LOCAL_PATH)/drivers -L -type f)     \
+                                $(shell find $(LOCAL_PATH)/dt-bindings -L -type f) \
+                                $(shell find $(LOCAL_PATH)/include -L -type f)     \
+                                $(LOCAL_PATH)/Android.mk \
+                                $(LOCAL_PATH)/board.mk   \
+                                $(LOCAL_PATH)/product.mk \
+                                $(LOCAL_PATH)/Kbuild
+LOCAL_MODULE_PATH           := $(KERNEL_MODULES_OUT)
+LOCAL_MODULE                := mi_cam.ko
+LOCAL_MODULE_TAGS           := optional
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+# END Camera_CamSched
+
 endif # End of check for board platform
+endif # XIAOMI_CAMERA_ODM_AURORA_SERIES_UPGRADE
 endif # ifeq ($(CAMERA_DLKM_ENABLED),true)
 endif

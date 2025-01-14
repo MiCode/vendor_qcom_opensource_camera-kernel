@@ -66,6 +66,17 @@ enum cam_sfe_bus_sfe_out_type {
 };
 
 /*
+ * struct cam_sfe_bus_wr_err_irq_desc:
+ *
+ * @Brief:        Bus wr error irq description
+ */
+struct cam_sfe_bus_wr_err_irq_desc {
+	uint32_t  bitmask;
+	char     *err_name;
+	char     *desc;
+};
+
+/*
  * struct cam_sfe_constraint_error_desc:
  *
  * @Brief:        Constraint error desc
@@ -198,6 +209,8 @@ struct cam_sfe_bus_wr_hw_info {
 		sfe_out_hw_info[CAM_SFE_BUS_SFE_OUT_MAX];
 	struct cam_sfe_bus_wr_constraint_error_info
 		*constraint_error_info;
+	uint32_t num_bus_wr_errors;
+	struct cam_sfe_bus_wr_err_irq_desc *bus_wr_err_desc;
 	uint32_t comp_done_mask[CAM_SFE_BUS_WR_COMP_GRP_MAX];
 	uint32_t num_comp_grp;
 	uint32_t line_done_cfg;

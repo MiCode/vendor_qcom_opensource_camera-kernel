@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_JPEG_DMA_680_HW_INFO_VER_4_2_0_H
@@ -32,6 +33,16 @@ static struct cam_jpeg_dma_device_hw_info cam_jpeg_dma_680_hw_info = {
 		.misr_cfg0 = 0x160,
 		.misr_cfg1 = 0x164,
 	},
+	.debug_reg_offset = {
+		.top_offset = 0x0,
+		.top_range = 0x19,
+		.we_offset = 0xB8,
+		.we_range = 0x9,
+		.we_qos_offset = 0x144,
+		.we_qos_range = 0x1C,
+		.perf_offset = 0xFEC,
+		.perf_range = 0x5,
+		},
 	.reg_val = {
 		.int_clr_clearall = 0xFFFFFFFF,
 		.int_mask_disable_all = 0x00000000,

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -18,7 +19,7 @@
 #define CAM_TFE_BUS_CLIENT_NAME_MAX_LENGTH 32
 
 #define CAM_TFE_BUS_1_0             0x1000
-#define CAM_TFE_BUS_MAX_MID_PER_PORT        1
+#define CAM_TFE_BUS_MAX_MID_PER_PORT        2
 
 
 #define CAM_TFE_ADD_REG_VAL_PAIR(buf_array, index, offset, val)    \
@@ -173,7 +174,7 @@ struct cam_tfe_bus_tfe_out_hw_info {
 	uint32_t                            max_height;
 	uint32_t                            composite_group;
 	uint32_t                            rup_group_id;
-	uint32_t                            mid;
+	uint32_t                            mid[CAM_TFE_BUS_MAX_MID_PER_PORT];
 };
 
 /*
@@ -195,6 +196,9 @@ struct cam_tfe_bus_tfe_out_hw_info {
  * @rdi_width:             RDI WM width
  * @support_consumed_addr: Indicate if bus support consumed address
  * @pdaf_rdi2_mux_en:      Indicate is PDAF is muxed with RDI2
+ * @max_bw_counter_limit:  Max BW counter limit
+ * @counter_limit_shift:   Mask shift for BW counter limit
+ * @counter_limit_mask:    Default Mask of BW limit counter
  */
 struct cam_tfe_bus_hw_info {
 	struct cam_tfe_bus_reg_offset_common common_reg;
@@ -214,6 +218,9 @@ struct cam_tfe_bus_hw_info {
 	uint32_t rdi_width;
 	bool support_consumed_addr;
 	bool pdaf_rdi2_mux_en;
+	uint32_t max_bw_counter_limit;
+	uint32_t counter_limit_shift;
+	uint32_t counter_limit_mask;
 };
 
 /*

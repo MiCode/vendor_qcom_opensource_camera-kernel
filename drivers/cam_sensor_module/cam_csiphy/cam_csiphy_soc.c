@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_csiphy_soc.h"
@@ -11,6 +11,7 @@
 #include "include/cam_csiphy_2_1_2_hwreg.h"
 #include "include/cam_csiphy_2_1_3_hwreg.h"
 #include "include/cam_csiphy_2_2_0_hwreg.h"
+#include "include/cam_csiphy_2_3_0_hwreg.h"
 
 /* Clock divide factor for CPHY spec v1.0 */
 #define CSIPHY_DIVISOR_16                    16
@@ -151,7 +152,7 @@ enum cam_vote_level get_clk_voting_dynamic(
 		do_div(phy_data_rate, CSIPHY_DIVISOR_8);
 	}
 
-	 /* round off to next integer */
+	/* round off to next integer */
 	phy_data_rate += 1;
 	csiphy_dev->current_data_rate = phy_data_rate;
 
@@ -162,7 +163,8 @@ enum cam_vote_level get_clk_voting_dynamic(
 		if (soc_info->clk_rate[cam_vote_level]
 			[csiphy_dev->rx_clk_src_idx] > phy_data_rate) {
 			CAM_DBG(CAM_CSIPHY,
-				"match detected %s : %llu:%d level : %d",
+				"Found match PHY:%d clk_name:%s data_rate:%llu clk_rate:%d level:%d",
+				soc_info->index,
 				soc_info->clk_name[csiphy_dev->rx_clk_src_idx],
 				phy_data_rate,
 				soc_info->clk_rate[cam_vote_level]
@@ -181,6 +183,7 @@ int32_t cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 	struct cam_hw_soc_info   *soc_info;
 	enum cam_vote_level vote_level;
 	struct cam_csiphy_param *param = &csiphy_dev->csiphy_info[index];
+	int i;
 
 	soc_info = &csiphy_dev->soc_info;
 
@@ -191,6 +194,13 @@ int32_t cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 	}
 
 	vote_level = csiphy_dev->ctrl_reg->getclockvoting(csiphy_dev, index);
+
+	for (i = 0; i < soc_info->num_clk; i++) {
+		CAM_DBG(CAM_CSIPHY, "PHY:%d %s:%d",
+			soc_info->index,
+			soc_info->clk_name[i],
+			soc_info->clk_rate[vote_level][i]);
+	}
 
 	rc = cam_soc_util_enable_platform_resource(soc_info,
 		(soc_info->is_clk_drv_en && param->use_hw_client_voting) ?
@@ -205,7 +215,7 @@ int32_t cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 
 	if (soc_info->is_clk_drv_en && param->use_hw_client_voting && param->is_drv_config_en) {
 		int clk_vote_level_high = vote_level;
-		int clk_vote_level_low = CAM_LOWSVS_VOTE;
+		int clk_vote_level_low = soc_info->lowest_clk_level;
 
 		rc = cam_soc_util_set_clk_rate_level(soc_info, param->conn_csid_idx,
 			clk_vote_level_high, clk_vote_level_low, false);
@@ -279,6 +289,7 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 	char      *csi_3p_clk_name = "csi_phy_3p_clk";
 	char      *csi_3p_clk_src_name = "csiphy_3p_clk_src";
 	struct cam_hw_soc_info   *soc_info;
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	soc_info = &csiphy_dev->soc_info;
 
@@ -288,10 +299,9 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 		return  rc;
 	}
 
-	rc = of_property_read_u32(soc_info->dev->of_node, "rgltr-enable-sync",
-		&is_regulator_enable_sync);
-	if (rc) {
-		rc = 0;
+	if (of_property_read_u32(soc_info->dev->of_node, "rgltr-enable-sync",
+		&is_regulator_enable_sync)) {
+		/* this is not fatal, overwrite to 0 */
 		is_regulator_enable_sync = 0;
 	}
 
@@ -322,10 +332,15 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 		csiphy_dev->hw_version = CSIPHY_VERSION_V220;
 		csiphy_dev->is_divisor_32_comp = true;
 		csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.3.0")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_3_0;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V230;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
 	} else {
 		CAM_ERR(CAM_CSIPHY, "invalid hw version : 0x%x",
 			csiphy_dev->hw_version);
-		rc =  -EINVAL;
+		rc = -EINVAL;
 		return rc;
 	}
 
@@ -368,8 +383,16 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 	csiphy_dev->csiphy_max_clk =
 		soc_info->clk_rate[0][soc_info->src_clk_idx];
 
+	for (i = 0; i < soc_info->irq_count; i++)
+		irq_data[i] = csiphy_dev;
+
+	rc = cam_cpas_query_drv_enable(NULL, &soc_info->is_clk_drv_en);
+	if (rc) {
+		CAM_ERR(CAM_CSIPHY, "Failed to query DRV enable rc:%d", rc);
+		return rc;
+	}
 	rc = cam_soc_util_request_platform_resource(&csiphy_dev->soc_info,
-		cam_csiphy_irq, csiphy_dev);
+		cam_csiphy_irq, &(irq_data[0]));
 
 	return rc;
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_eeprom_dev.h"
@@ -11,6 +11,9 @@
 #include "cam_debug_util.h"
 #include "camera_main.h"
 #include "cam_compat.h"
+/* xiaomi add for cci start */
+#include "cam_cci_debug_util.h"
+/* xiaomi add for cci end */
 
 static struct cam_i3c_eeprom_data {
 	struct cam_eeprom_ctrl_t                  *e_ctrl;
@@ -248,6 +251,8 @@ static int cam_eeprom_i2c_component_bind(struct device *dev,
 	rc = cam_eeprom_init_subdev(e_ctrl);
 	if (rc)
 		goto free_soc;
+
+	cam_sensor_module_add_i2c_device((void *) e_ctrl, CAM_SENSOR_EEPROM);
 
 	if (soc_private->i2c_info.slave_addr != 0)
 		e_ctrl->io_master_info.client->addr =
@@ -524,6 +529,8 @@ static int cam_eeprom_component_bind(struct device *dev,
 	if (rc)
 		goto free_soc;
 
+	cam_sensor_module_add_i2c_device((void *) e_ctrl, CAM_SENSOR_EEPROM);
+
 	e_ctrl->bridge_intf.device_hdl = -1;
 	e_ctrl->bridge_intf.ops.get_dev_info = NULL;
 	e_ctrl->bridge_intf.ops.link_setup = NULL;
@@ -534,6 +541,17 @@ static int cam_eeprom_component_bind(struct device *dev,
 
 	g_i3c_eeprom_data[e_ctrl->soc_info.index].e_ctrl = e_ctrl;
 	init_completion(&g_i3c_eeprom_data[e_ctrl->soc_info.index].probe_complete);
+
+	/* xiaomi add for cci debug start */
+	rc = cam_cci_dev_create_debugfs_entry(e_ctrl->device_name,
+		e_ctrl->soc_info.index, CAM_EEPROM_NAME,
+		&e_ctrl->io_master_info, e_ctrl->cci_i2c_master,
+		&e_ctrl->cci_debug);
+	if (rc) {
+		CAM_WARN(CAM_EEPROM, "debugfs creation failed");
+		rc = 0;
+	}
+	/* xiaomi add for cci debug end */
 
 	return rc;
 free_soc:
@@ -582,6 +600,9 @@ static void cam_eeprom_component_unbind(struct device *dev,
 	mutex_unlock(&(e_ctrl->eeprom_mutex));
 	mutex_destroy(&(e_ctrl->eeprom_mutex));
 	cam_unregister_subdev(&(e_ctrl->v4l2_dev_str));
+	/* xiaomi add for cci debug start */
+	cam_cci_dev_remove_debugfs_entry((void *)e_ctrl->cci_debug);
+	/* xiaomi add for cci debug end */
 	kfree(soc_info->soc_private);
 	kfree(e_ctrl->io_master_info.cci_client);
 	platform_set_drvdata(pdev, NULL);

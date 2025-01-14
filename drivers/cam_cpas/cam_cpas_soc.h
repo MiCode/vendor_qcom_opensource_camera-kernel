@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_SOC_H_
@@ -14,6 +14,15 @@
 #define CAM_REGULATOR_LEVEL_MAX 16
 #define CAM_CPAS_MAX_TREE_NODES 63
 #define CAM_CPAS_MAX_FUSE_FEATURE 10
+
+/**
+ * enum cam_cpas_num_subparts_types - Enum for types of number of camera subparts
+ */
+enum cam_cpas_num_subparts_types {
+	CAM_CPAS_AVAILABLE_NUM_SUBPARTS,
+	CAM_CPAS_FUNCTIONAL_NUM_SUBPARTS,
+	CAM_CPAS_NUM_SUBPARTS_MAX_TYPES,
+};
 
 /**
  * struct cpas_tree_node: Generic cpas tree node for BW voting
@@ -91,6 +100,21 @@ struct cam_cpas_feature_info {
 };
 
 /**
+ * struct cam_sys_cache_local_info : camera cache info saving locally
+ *
+ * @type:      cache type small/large etc.
+ * @staling_distance:       staling_distance
+ * @mode:      camera llc's stalling mode
+ * @op_type:      cache operation type EVICT, FORGET
+ */
+struct cam_sys_cache_local_info {
+	enum cam_sys_cache_config_types  type;
+	uint32_t staling_distance;
+	enum cam_sys_cache_llcc_staling_mode mode;
+	enum cam_sys_cache_llcc_staling_op_type op_type;
+};
+
+/**
  * struct cam_sys_cache_info : Last level camera cache info
  *
  * @ref_cnt:   Ref cnt activate/deactivate cache
@@ -99,6 +123,9 @@ struct cam_cpas_feature_info {
  * @size:      Cache size
  * @scid:      Slice ID
  * @slic_desc: Slice descriptor
+ * @staling_distance:       staling_distance
+ * @mode:      camera llc's stalling mode
+ * @op_type:      cache operation type EVICT, FORGET
  */
 struct cam_sys_cache_info {
 	uint32_t                         ref_cnt;
@@ -108,6 +135,10 @@ struct cam_sys_cache_info {
 	int32_t                          scid;
 	const char                      *name;
 	struct llcc_slice_desc          *slic_desc;
+	uint32_t staling_distance;
+	enum cam_sys_cache_llcc_staling_mode mode;
+	enum cam_sys_cache_llcc_staling_op_type op_type;
+
 };
 
 
@@ -182,6 +213,35 @@ struct cam_cpas_domain_id_support_clks {
 };
 
 /**
+ * struct cam_cpas_soc_irq_data: irq data to be passed in irq handler from ISR
+ *
+ * @cpas_hw: cpas hw info
+ * @camnoc_type: type of camnoc associated with the irq
+ *
+ */
+struct cam_cpas_soc_irq_data {
+	struct cam_hw_info *cpas_hw;
+	enum cam_camnoc_hw_type camnoc_type;
+};
+
+/**
+ * struct cam_cpas_sysfs_info - cpas sysfs info
+ *
+ * @kobj:          Kobj for camera directory
+ * @num_ifes:      Number of available and functional IFEs
+ * @num_ife_lites: Number of available and functional IFE-LITEs
+ * @num_sfes:      Number of available and functional SFEs
+ * @num_custom:    Number of available and functional CUSTOM
+ */
+struct cam_cpas_sysfs_info {
+	struct kobject *kobj;
+	uint32_t        num_ifes[CAM_CPAS_NUM_SUBPARTS_MAX_TYPES];
+	uint32_t        num_ife_lites[CAM_CPAS_NUM_SUBPARTS_MAX_TYPES];
+	uint32_t        num_sfes[CAM_CPAS_NUM_SUBPARTS_MAX_TYPES];
+	uint32_t        num_custom[CAM_CPAS_NUM_SUBPARTS_MAX_TYPES];
+};
+
+/**
  * struct cam_cpas_private_soc : CPAS private DT info
  *
  * @arch_compat: ARCH compatible string
@@ -201,10 +261,12 @@ struct cam_cpas_domain_id_support_clks {
  *      camnoc axi clock
  * @camnoc_axi_min_ib_bw: Min camnoc BW which varies based on target
  * @fuse_info: fuse information
+ * @sysfs_info: Camera subparts sysfs information
  * @rpmh_info: RPMH BCM info
  * @num_feature_info: number of feature_info entries
  * @feature_info: Structure for storing feature information
  * @num_caches: Number of last level caches
+ * @part_info: Camera Hw subpart info
  * @llcc_info: Cache info
  * @enable_smart_qos: Whether to enable Smart QoS mechanism on current chipset
  * @enable_cam_ddr_drv: Whether to enable Camera DDR DRV on current chipset
@@ -213,6 +275,7 @@ struct cam_cpas_domain_id_support_clks {
  * @icp_clk_index: Index of optional icp clk
  * @domain_id_info: Stores all information related to domain id support
  * @domain_id_clks: All clock related information for domain id support
+ * @irq_data: array of data for each irq line to be passed in irq handler
  */
 struct cam_cpas_private_soc {
 	const char *arch_compat;
@@ -230,10 +293,12 @@ struct cam_cpas_private_soc {
 	uint32_t camnoc_axi_clk_bw_margin;
 	uint64_t camnoc_axi_min_ib_bw;
 	struct cam_cpas_fuse_info fuse_info;
+	struct cam_cpas_sysfs_info sysfs_info;
 	uint32_t rpmh_info[CAM_RPMH_BCM_INFO_MAX];
 	uint32_t num_feature_info;
 	struct cam_cpas_feature_info  feature_info[CAM_CPAS_MAX_FUSE_FEATURE];
 	uint32_t num_caches;
+	uint32_t part_info;
 	struct cam_sys_cache_info *llcc_info;
 	bool enable_smart_qos;
 	bool enable_cam_ddr_drv;
@@ -242,6 +307,7 @@ struct cam_cpas_private_soc {
 	int32_t icp_clk_index;
 	struct cam_cpas_domain_id_info domain_id_info;
 	struct cam_cpas_domain_id_support_clks *domain_id_clks;
+	struct cam_cpas_soc_irq_data *irq_data;
 };
 
 void cam_cpas_dump_tree_vote_info(struct cam_hw_info *cpas_hw,

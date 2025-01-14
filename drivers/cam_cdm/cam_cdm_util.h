@@ -1,13 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CDM_UTIL_H_
 #define _CAM_CDM_UTIL_H_
 
 /* Max len for tag name for header while dumping cmd buffer*/
-#define CAM_CDM_CMD_TAG_MAX_LEN 32
+#define CAM_CDM_CMD_TAG_MAX_LEN 128
 
 #include <linux/types.h>
 

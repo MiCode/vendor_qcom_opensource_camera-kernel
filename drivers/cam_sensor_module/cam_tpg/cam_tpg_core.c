@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_tpg_core.h"
@@ -40,7 +40,7 @@ int cam_tpg_publish_dev_info(
 	info->dev_id = CAM_REQ_MGR_DEVICE_TPG;
 	strlcpy(info->name, CAM_TPG_NAME, sizeof(info->name));
 	/* Hard code for now */
-	info->p_delay = 2;
+	info->p_delay = 1;
 	info->trigger = CAM_TRIGGER_POINT_SOF;
 
 	return rc;
@@ -78,18 +78,49 @@ int cam_tpg_setup_link(
 static int cam_tpg_notify_frame_skip(
 	struct cam_req_mgr_apply_request *apply)
 {
-	CAM_DBG(CAM_TPG, "Got Skip frame from crm");
+	struct cam_tpg_device *tpg_dev = NULL;
+
+	if (apply == NULL) {
+		CAM_ERR(CAM_TPG, "invalid parameters");
+		return -EINVAL;
+	}
+	tpg_dev = (struct cam_tpg_device *)cam_get_device_priv(apply->dev_hdl);
+	if (tpg_dev == NULL) {
+		CAM_ERR(CAM_TPG, "Device data is NULL");
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_TPG, "TPG[%d] Got Skip frame from crm for request %lld",
+		tpg_dev->soc_info.index,
+		apply->request_id);
 	return 0;
 }
 
 static int cam_tpg_apply_req(
 	struct cam_req_mgr_apply_request *apply)
 {
+	struct cam_tpg_device *tpg_dev = NULL;
+
 	if (!apply) {
 		CAM_ERR(CAM_TPG, "invalid parameters");
 		return -EINVAL;
 	}
-	CAM_DBG(CAM_TPG, "Got Apply request from crm %lld", apply->request_id);
+	tpg_dev = (struct cam_tpg_device *)
+		cam_get_device_priv(apply->dev_hdl);
+
+	if (tpg_dev == NULL) {
+		CAM_ERR(CAM_TPG, "Device data is NULL");
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_TPG, "TPG[%d] Got Apply request from crm %lld",
+		tpg_dev->soc_info.index,
+		apply->request_id);
+	mutex_lock(&tpg_dev->mutex);
+	tpg_hw_apply(&tpg_dev->tpg_hw,
+		apply->request_id);
+	mutex_unlock(&tpg_dev->mutex);
+
 	return 0;
 }
 
@@ -335,8 +366,6 @@ static int __cam_tpg_handle_stop_dev(
 	if (rc) {
 		CAM_ERR(CAM_TPG, "TPG[%d] STOP_DEV failed", tpg_dev->soc_info.index);
 	} else {
-		/* Free all allocated streams during stop dev */
-		tpg_hw_free_streams(&tpg_dev->tpg_hw);
 		tpg_dev->state = CAM_TPG_STATE_ACQUIRE;
 		CAM_INFO(CAM_TPG, "TPG[%d] STOP_DEV done.", tpg_dev->soc_info.index);
 	}
@@ -451,6 +480,7 @@ static int cam_tpg_validate_cmd_descriptor(
 
 	*cmd_addr = (uintptr_t)cmd_header;
 end:
+	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
 	return rc;
 }
 
@@ -460,9 +490,26 @@ static int cam_tpg_cmd_buf_parse(
 {
 	int rc = 0, i = 0;
 	struct cam_cmd_buf_desc *cmd_desc = NULL;
+	struct tpg_hw_request *req = NULL;
 
 	if (!tpg_dev || !packet)
 		return -EINVAL;
+
+	/* Allocate space for TPG requests */
+	req = tpg_hw_create_request(&tpg_dev->tpg_hw,
+			packet->header.request_id);
+	if (req == NULL) {
+		CAM_ERR(CAM_TPG, "TPG[%d] Unable to create hw request ",
+			tpg_dev->soc_info.index);
+		return -EINVAL;
+	}
+
+	rc = tpg_hw_request_set_opcode(req,
+			packet->header.op_code & 0xFF);
+	if (rc < 0)
+		goto free_request;
+
+	CAM_DBG(CAM_TPG, "Queue TPG requests for request id %lld", req->request_id);
 
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		uint32_t cmd_type = TPG_CMD_TYPE_INVALID;
@@ -476,27 +523,36 @@ static int cam_tpg_cmd_buf_parse(
 
 		rc = cam_tpg_validate_cmd_descriptor(cmd_desc,
 				&cmd_type, &cmd_addr);
-		if (rc < 0)
+		if (rc < 0) {
+			kfree(req);
 			goto end;
+		}
 
 		cmd_header = (struct tpg_command_header_t *)cmd_addr;
 
 		switch (cmd_type) {
 		case TPG_CMD_TYPE_GLOBAL_CONFIG:
-			rc = tpg_hw_copy_global_config(&tpg_dev->tpg_hw,
-				(struct tpg_global_config_t *)cmd_addr);
+			/* Copy the global config to request */
+			memcpy(&req->global_config,
+				(struct tpg_global_config_t *)cmd_addr,
+				sizeof(struct tpg_global_config_t));
+			tpg_dev->tpg_hw.tpg_clock = req->global_config.tpg_clock;
 			break;
 		case TPG_CMD_TYPE_STREAM_CONFIG: {
 			if (cmd_header->cmd_version == 3) {
 				rc = tpg_hw_add_stream_v3(&tpg_dev->tpg_hw,
+					req,
 					(struct tpg_stream_config_v3_t *)cmd_addr);
 				CAM_DBG(CAM_TPG, "Stream config v3");
 			} else if (cmd_header->cmd_version == 1 ||
 				cmd_header->cmd_version == 2) {
 				rc = tpg_hw_add_stream(&tpg_dev->tpg_hw,
+					req,
 					(struct tpg_stream_config_t *)cmd_addr);
 				CAM_DBG(CAM_TPG, "Stream config");
 			}
+			if (rc < 0)
+				goto free_request;
 			break;
 		}
 		case TPG_CMD_TYPE_SETTINGS_CONFIG: {
@@ -515,10 +571,17 @@ static int cam_tpg_cmd_buf_parse(
 				tpg_dev->soc_info.index,
 				cmd_type);
 			rc = -EINVAL;
+			goto free_request;
 			break;
 		}
 	}
+	tpg_hw_add_request(&tpg_dev->tpg_hw, req);
 end:
+	return rc;
+free_request:
+	/* free the request and return the failure */
+	tpg_hw_free_request(&tpg_dev->tpg_hw, req);
+	kfree(req);
 	return rc;
 }
 
@@ -581,10 +644,17 @@ static int cam_tpg_packet_parse(
 		tpg_hw_config(&tpg_dev->tpg_hw, TPG_HW_CMD_INIT_CONFIG, NULL);
 		break;
 	}
-	case CAM_TPG_PACKET_OPCODE_NOP: {
+	case CAM_TPG_PACKET_OPCODE_NOP:
+	case CAM_TPG_PACKET_OPCODE_UPDATE:
+	{
 		struct cam_req_mgr_add_request add_req = {0};
+		rc = cam_tpg_cmd_buf_parse(tpg_dev, csl_packet);
+		if (rc < 0) {
+			CAM_ERR(CAM_TPG, "CMD buffer parse failed");
+			goto end;
+		}
 
-		CAM_DBG(CAM_TPG, "TPG[%d] NOP packet request id : %llu",
+		CAM_DBG(CAM_TPG, "TPG[%d] packet request id : %llu",
 				tpg_dev->soc_info.index,
 				csl_packet->header.request_id);
 		if ((tpg_dev->crm_intf.link_hdl != -1) &&
@@ -595,7 +665,7 @@ static int cam_tpg_packet_parse(
 			add_req.req_id = csl_packet->header.request_id;
 			tpg_dev->crm_intf.crm_cb->add_req(&add_req);
 		} else {
-			CAM_ERR(CAM_TPG, "TPG[%d] invalid link req: %llu",
+			CAM_ERR(CAM_TPG, "TPG[%d] add request %d failed",
 					tpg_dev->soc_info.index,
 					csl_packet->header.request_id);
 		}
@@ -609,6 +679,7 @@ static int cam_tpg_packet_parse(
 		break;
 	}
 end:
+	cam_mem_put_cpu_buf(config->packet_handle);
 	return rc;
 }
 

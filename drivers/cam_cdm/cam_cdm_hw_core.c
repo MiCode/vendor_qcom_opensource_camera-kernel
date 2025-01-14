@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -865,7 +865,7 @@ int cam_hw_cdm_submit_gen_irq(
 		core->bl_fifo[fifo_idx].bl_tag, cdm_cmd->cmd_arrary_count, cdm_cmd->cookie);
 
 	rc = cam_mem_get_io_buf(cdm_cmd->genirq_buff->handle, core->iommu_hdl.non_secure,
-		&hw_vaddr_ptr, &len, NULL);
+		&hw_vaddr_ptr, &len, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Getting a hwva from mem_hdl failed. rc: %d", rc);
 		return -EINVAL;
@@ -972,7 +972,7 @@ int cam_hw_cdm_submit_debug_gen_irq(
 		core->bl_fifo[fifo_idx].bl_tag, cdm_cmd->cmd_arrary_count, cdm_cmd->cookie);
 
 	rc = cam_mem_get_io_buf(cdm_cmd->genirq_buff->handle, core->iommu_hdl.non_secure,
-		&hw_vaddr_ptr, &len, NULL);
+		&hw_vaddr_ptr, &len, NULL, NULL);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Getting a hwva from mem_hdl failed. rc: %d", rc);
 		return -EINVAL;
@@ -1101,7 +1101,7 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 		if (req->data->type == CAM_CDM_BL_CMD_TYPE_MEM_HANDLE) {
 			rc = cam_mem_get_io_buf(cdm_cmd->cmd[i].bl_addr.mem_handle,
 				core->iommu_hdl.non_secure, &hw_vaddr_ptr,
-				&len, NULL);
+				&len, NULL, NULL);
 			if (rc) {
 				CAM_ERR(CAM_CDM,
 					"Getting a hwva from mem_hdl failed. rc: %d, cmd_ent: %u",
@@ -1116,7 +1116,6 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 				break;
 			}
 
-			rc = 0;
 			hw_vaddr_ptr = (dma_addr_t)cdm_cmd->cmd[i].bl_addr.hw_iova;
 			len = cdm_cmd->cmd[i].len + cdm_cmd->cmd[i].offset;
 		} else {
@@ -1320,7 +1319,7 @@ static void cam_hw_cdm_work(struct work_struct *work)
 	}
 
 	cam_common_util_thread_switch_delay_detect(
-		"CDM workq schedule",
+		"cam_cdm_workq", "schedule", cam_hw_cdm_work,
 		payload->workq_scheduled_ts,
 		CAM_WORKQ_SCHEDULE_TIME_THRESHOLD);
 
@@ -1350,6 +1349,8 @@ static void cam_hw_cdm_work(struct work_struct *work)
 				fifo_idx, payload->irq_data, core->arbitration);
 			mutex_unlock(&core->bl_fifo[fifo_idx].fifo_lock);
 			mutex_unlock(&cdm_hw->hw_mutex);
+			kfree(payload);
+			payload = NULL;
 			return;
 		}
 
@@ -1862,20 +1863,6 @@ int cam_hw_cdm_flush_hw(struct cam_hw_info *cdm_hw, uint32_t handle)
 	return rc;
 }
 
-int cam_hw_cdm_handle_error(
-	struct cam_hw_info *cdm_hw,
-	uint32_t            handle)
-{
-	struct cam_cdm *cdm_core = NULL;
-	int rc = 0;
-
-	cdm_core = (struct cam_cdm *)cdm_hw->core_info;
-
-	rc = cam_hw_cdm_handle_error_info(cdm_hw, handle);
-
-	return rc;
-}
-
 int cam_hw_cdm_hang_detect(
 	struct cam_hw_info *cdm_hw,
 	uint32_t            handle)
@@ -1909,7 +1896,7 @@ int cam_hw_cdm_get_cdm_config(struct cam_hw_info *cdm_hw)
 	core = (struct cam_cdm *)cdm_hw->core_info;
 	soc_info = &cdm_hw->soc_info;
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-			CAM_SVS_VOTE, true);
+			soc_info->lowest_clk_level, true);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Enable platform failed for dev %s",
 				soc_info->dev_name);
@@ -2012,7 +1999,7 @@ int cam_hw_cdm_init(void *hw_priv,
 	cdm_core = (struct cam_cdm *)cdm_hw->core_info;
 
 	rc = cam_soc_util_enable_platform_resource(soc_info, CAM_CLK_SW_CLIENT_IDX, true,
-		CAM_SVS_VOTE, true);
+		soc_info->lowest_clk_level, true);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Enable platform failed for %s%d",
 			soc_info->label_name, soc_info->index);
@@ -2259,6 +2246,7 @@ static int cam_hw_cdm_component_bind(struct device *dev,
 	struct cam_cpas_register_params cpas_parms;
 	char cdm_name[128], work_q_name[128];
 	struct platform_device *pdev = to_platform_device(dev);
+	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
 	cdm_hw_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!cdm_hw_intf)
@@ -2373,8 +2361,11 @@ static int cam_hw_cdm_component_bind(struct device *dev,
 		CAM_DBG(CAM_CDM, "wq %s", work_q_name);
 	}
 
+	for (i = 0; i < cdm_hw->soc_info.irq_count; i++)
+		irq_data[i] = cdm_hw;
+
 	rc = cam_soc_util_request_platform_resource(&cdm_hw->soc_info,
-			cam_hw_cdm_irq, cdm_hw);
+			cam_hw_cdm_irq, &(irq_data[0]));
 	if (rc) {
 		CAM_ERR(CAM_CDM,
 			"Failed to request platform resource for %s%u",

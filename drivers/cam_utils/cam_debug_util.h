@@ -1,22 +1,29 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_DEBUG_UTIL_H_
 #define _CAM_DEBUG_UTIL_H_
 
+#include <dt-bindings/msm-camera.h>
 #include <linux/platform_device.h>
 #include "cam_presil_hw_access.h"
 #include "cam_trace.h"
+#include "cam_common_util.h"
 
 extern unsigned long long debug_mdl;
 extern unsigned int debug_type;
 extern unsigned int debug_priority;
 extern unsigned int debug_drv;
+extern unsigned int debug_bypass_drivers;
 
 #define CAM_IS_NULL_TO_STR(ptr) ((ptr) ? "Non-NULL" : "NULL")
+
+#define CAM_LOG_BUF_LEN                  512
+#define BYPASS_VALUE       0xDEADBEEF
+#define DEFAULT_CLK_VALUE  19200000
 
 /* Module IDs used for debug logging */
 enum cam_debug_module_id {
@@ -57,6 +64,13 @@ enum cam_debug_module_id {
 	CAM_DMA_FENCE,           /* bit 34 */
 	CAM_SENSOR_UTIL,         /* bit 35 */
 	CAM_SYNX,                /* bit 36 */
+#if IS_ENABLED(CONFIG_MIISP)
+	CAM_ISPV4, 				 /* bit 37 */
+#endif
+	CAM_APERTURE = 60,       /* bit 60 */
+	MI_PARKLENS = 61,        /* bit 61 */
+	MI_DEBUG = 62,           /* bit 62 */
+	MI_PERF  = 63,           /* bit 63 */
 	CAM_DBG_MOD_MAX
 };
 
@@ -78,6 +92,23 @@ enum cam_debug_priority {
 	CAM_DBG_PRIORITY_1,
 	CAM_DBG_PRIORITY_2,
 };
+
+/* xiaomi add hw trigger - begin */
+/*
+ * CAM_DEBUG_HW_TRIGGER
+ * @brief    :  This macro is used to set the value of GPIO and print the corresponding
+ *              log when the status meets the conditions.
+ *
+ * @__module :  Respective module id which is been calling this Macro
+ * @fmt      :  Formatted string which needs to be print in log
+ * @args     :  Arguments which needs to be print in log
+ */
+#define CAM_DEBUG_HW_TRIGGER(status, __module, fmt, args...)                  \
+	({if (unlikely(status)) {                                             \
+		cam_debug_hw_trigger(__module, status);                       \
+		CAM_ERR(__module, fmt, ##args);                               \
+	}})
+/* xiaomi add hw trigger - end */
 
 static const char *cam_debug_mod_name[CAM_DBG_MOD_MAX] = {
 	[CAM_CDM]         = "CAM-CDM",
@@ -117,6 +148,13 @@ static const char *cam_debug_mod_name[CAM_DBG_MOD_MAX] = {
 	[CAM_DMA_FENCE]   = "CAM-DMA-FENCE",
 	[CAM_SENSOR_UTIL] = "CAM-SENSOR-UTIL",
 	[CAM_SYNX]        = "CAM_SYNX",
+#if IS_ENABLED(CONFIG_MIISP)
+	[CAM_ISPV4]       = "CAM-ISPV4",
+#endif
+	[CAM_APERTURE]    = "MI-CAM-APERTURE",
+	[MI_PARKLENS]     = "MI-CAM-PARKLENS",
+	[MI_DEBUG]        = "MI-CAM-DEBUG",
+	[MI_PERF]         = "MI-CAM-PERF",
 };
 
 #define ___CAM_DBG_MOD_NAME(module_id)                                      \
@@ -157,7 +195,12 @@ __builtin_choose_expr(((module_id) == CAM_TPG), "CAM-TPG",                  \
 __builtin_choose_expr(((module_id) == CAM_DMA_FENCE), "CAM-DMA-FENCE",      \
 __builtin_choose_expr(((module_id) == CAM_SENSOR_UTIL), "CAM-SENSOR-UTIL",      \
 __builtin_choose_expr(((module_id) == CAM_SYNX), "CAM-SYNX",                \
-"CAMERA")))))))))))))))))))))))))))))))))))))
+__builtin_choose_expr(((module_id) == CAM_ISPV4), "CAM-ISPV4",              \
+__builtin_choose_expr(((module_id) == CAM_APERTURE), "CAM-APERTURE",        \
+__builtin_choose_expr(((module_id) == MI_PARKLENS), "MI-CAM-PARKLENS",      \
+__builtin_choose_expr(((module_id) == MI_DEBUG), "MI-DEBUG",                \
+__builtin_choose_expr(((module_id) == MI_PERF), "MI-PERF",                  \
+"CAMERA")))))))))))))))))))))))))))))))))))))))))
 
 #define CAM_DBG_MOD_NAME(module_id) \
 ((module_id < CAM_DBG_MOD_MAX) ? cam_debug_mod_name[module_id] : "CAMERA")
@@ -192,24 +235,29 @@ enum cam_log_print_type {
 	CAM_PRINT_BOTH  = 0x3,
 };
 
-#define __CAM_LOG_FMT KERN_INFO "%s: %s: %s: %d "
+#define __CAM_LOG_FMT KERN_INFO "[%llu:%llu:%llu.%llu] %s: %s: %s: %d: %s "
+// #define __CAM_LOG_FMT KERN_INFO "%s: %s: %s: %d: %s "
 
 /**
  * cam_print_log() - function to print logs (internal use only, use macros instead)
  *
- * @type: corresponds to enum cam_log_print_type, selects if logs are printed in log buffer,
+ * @type:      Corresponds to enum cam_log_print_type, selects if logs are printed in log buffer,
  *        trace buffers or both
- * @fmt:  formatting string
- * @args: arguments corresponding to formatting string
+ * @module_id: Module calling the log macro
+ * @tag:       Tag for log level
+ * @func:      Function string
+ * @line:      Line number
+ * @fmt:       Formatting string
  */
 
-void cam_print_log(int type, const char *fmt, ...);
+void cam_print_log(int type, int module, int tag, const char *func,
+	int line, const char *fmt, ...);
 
 #define __CAM_LOG(type, tag, module_id, fmt, args...)                               \
 ({                                                                                  \
-	cam_print_log(type, __CAM_LOG_FMT fmt,                                      \
-		__CAM_LOG_TAG_NAME(tag), __CAM_DBG_MOD_NAME(module_id), __func__,   \
-		__LINE__, ##args);                                                  \
+	cam_print_log(type,                                      \
+		module_id, tag, __func__,   \
+		__LINE__,  fmt, ##args);                                                  \
 })
 
 #define CAM_LOG(tag, module_id, fmt, args...) \
@@ -379,6 +427,21 @@ struct camera_debug_settings {
  * @return const struct camera_debug_settings pointer.
  */
 const struct camera_debug_settings *cam_debug_get_settings(void);
+
+/* xiaomi add hw trigger - begin */
+/*
+ *  cam_debug_hw_trigger()
+ *
+ * @brief     :  Debug for hw question.set up this as a hw trigger
+ *               cam_hw_trigger_override[0]= (offset) + value(in schematic diagram)
+ *
+ * @module_id :  Respective Module ID which is calling this function
+ * @status    :  The state value used to determine whether to trigger
+ *
+ * @return    :  If there is no error, it will return 0
+ */
+int cam_debug_hw_trigger(unsigned int module_id, bool status);
+/* xiaomi add hw trigger - end */
 
 /**
  * @brief : API to parse and store input from sysfs debug node
