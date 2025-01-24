@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/delay.h>
 #include "cam_io_util.h"
@@ -11,6 +12,7 @@
 #include "cre_hw.h"
 #include "cre_dev_intf.h"
 #include "cre_bus_wr.h"
+#include "cam_mem_mgr_api.h"
 #include <media/cam_cre.h>
 
 static struct cre_bus_wr *wr_info;
@@ -368,7 +370,7 @@ static int cam_cre_bus_wr_probe(struct cam_cre_hw *cam_cre_hw_info,
 		CAM_ERR(CAM_CRE, "Invalid cam_cre_hw_info");
 		return -EINVAL;
 	}
-	wr_info = kzalloc(sizeof(struct cre_bus_wr), GFP_KERNEL);
+	wr_info = CAM_MEM_ZALLOC(sizeof(struct cre_bus_wr), GFP_KERNEL);
 	if (!wr_info) {
 		CAM_ERR(CAM_CRE, "Out of memory");
 		return -ENOMEM;

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_CONTEXT_H_
@@ -71,6 +71,9 @@
 /* Congestion count threshold */
 #define CAM_ISP_CONTEXT_CONGESTION_CNT_MAX 3
 
+/* Number of init requests expected post flush to issue resume */
+#define CAM_ISP_CONTEXT_NUM_INIT_REQ_RCVD_POST_FLUSH 2
+
 /* forward declaration */
 struct cam_isp_context;
 
@@ -130,21 +133,22 @@ enum cam_isp_state_change_trigger {
 #define CAM_ISP_CTX_DISABLE_RECOVERY_AEB           BIT(0)
 #define CAM_ISP_CTX_DISABLE_RECOVERY_BUS_OVERFLOW  BIT(1)
 #define CAM_ISP_CTX_DISABLE_RECOVERY_BUBBLE        BIT(2)
+#define CAM_ISP_CTX_DISABLE_RECOVERY_CSID          BIT(3)
 
 /**
  * struct cam_isp_ctx_debug -  Contains debug parameters
  *
  * @dentry:                     Debugfs entry
  * @enable_state_monitor_dump:  Enable isp state monitor dump
- * @enable_cdm_cmd_buff_dump:   Enable CDM Command buffer dump
  * @disable_internal_recovery:  Disable internal kernel recovery mask
+ * @enable_cdm_cmd_buff_dump:   Enable CDM Command buffer dump
  *
  */
 struct cam_isp_ctx_debug {
 	struct dentry  *dentry;
 	uint32_t        enable_state_monitor_dump;
-	uint8_t         enable_cdm_cmd_buff_dump;
 	uint32_t        disable_internal_recovery_mask;
+	uint8_t         enable_cdm_cmd_buff_dump;
 };
 
 /**
@@ -196,7 +200,7 @@ struct cam_isp_ctx_req {
 	uint32_t                              num_fence_map_in;
 	uint32_t                              num_acked;
 	uint32_t                              num_deferred_acks;
-	uint32_t                  deferred_fence_map_index[CAM_ISP_CTX_RES_MAX];
+	uint32_t                             *deferred_fence_map_index;
 	int32_t                               bubble_report;
 	struct cam_isp_prepare_hw_update_data hw_update_data;
 	enum cam_hw_config_reapply_type       reapply_type;
@@ -378,6 +382,7 @@ struct cam_isp_fcg_prediction_tracker {
  * @req_info                   Request id information about last buf done
  * @dbg_monitors:              Debug monitors for ISP context
  * @apply_in_progress          Whether request apply is in progress
+ * @get_rup_during_apply:      Whether getting rup irq during applying
  * @init_timestamp:            Timestamp at which this context is initialized
  * @isp_device_type:           ISP device type
  * @rxd_epoch:                 Indicate whether epoch has been received. Used to
@@ -396,6 +401,7 @@ struct cam_isp_fcg_prediction_tracker {
  * @mswitch_default_apply_delay_ref_cnt: Ref cnt for this context to decide when to apply
  *                                       mode switch settings
  * @hw_idx:                    Hardware ID
+ * @num_inits_post_flush:      Number of INITs received post flush
  * @fcg_tracker:               FCG prediction tracker containing number of previously skipped
  *                             frames and indicates which prediction should be used
  * @rdi_only_context:          Get context type information.
@@ -451,6 +457,7 @@ struct cam_isp_context {
 	struct cam_isp_context_req_id_info    req_info;
 	struct cam_isp_context_debug_monitors dbg_monitors;
 	atomic_t                              apply_in_progress;
+	atomic_t                              get_rup_during_apply;
 	atomic_t                              internal_recovery_set;
 	unsigned int                          init_timestamp;
 	uint32_t                              isp_device_type;
@@ -467,6 +474,7 @@ struct cam_isp_context {
 	int32_t                               mswitch_default_apply_delay_max_cnt;
 	atomic_t                              mswitch_default_apply_delay_ref_cnt;
 	uint32_t                              hw_idx;
+	uint32_t                              num_inits_post_flush;
 	struct cam_isp_fcg_prediction_tracker fcg_tracker;
 	bool                                  rdi_only_context;
 	bool                                  offline_context;
@@ -485,6 +493,8 @@ struct cam_isp_context {
 	bool                                  handle_mswitch;
 	bool                                  mode_switch_en;
 	bool                                  sfe_en;
+	bool                                  standby_en;
+	bool                                  is_dumpped;
 };
 
 /**
@@ -649,5 +659,29 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
  *
  */
 int cam_isp_context_deinit(struct cam_isp_context *ctx);
+
+/*xiaomi added detect framerate begin*/
+/**
+ * cam_isp_detect_framerate()
+ *
+ * @brief                function to detect framerate - xiaomi added
+ *
+ * @ctx:                 ISP context
+ * @interval:            frame interval num to calculate framerate
+ *
+ */
+void cam_isp_detect_framerate(struct cam_isp_context *ctx,
+	uint interval);
+
+/**
+ * @brief                 function to get frame batchsize of HFR - xiaomi add
+ *
+ * @ctx:                  ISP context obj to be detected
+ * @cpkt:                 camera packet
+ *
+ */
+void cam_isp_get_frame_batchsize(struct cam_context *ctx,
+	struct cam_packet *cpkt);
+/*xiaomi added detect framerate end*/
 
 #endif  /* __CAM_ISP_CONTEXT_H__ */

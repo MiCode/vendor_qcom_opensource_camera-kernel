@@ -13,7 +13,7 @@
 static const char lrme_dev_name[] = "cam-lrme";
 
 static int __cam_lrme_ctx_acquire_dev_in_available(struct cam_context *ctx,
-	struct cam_acquire_dev_cmd *cmd)
+	struct cam_acquire_dev_cmd_unified *args)
 {
 	int rc = 0;
 	uintptr_t ctxt_to_hw_map = (uintptr_t)ctx->ctxt_to_hw_map;
@@ -21,7 +21,7 @@ static int __cam_lrme_ctx_acquire_dev_in_available(struct cam_context *ctx,
 
 	CAM_DBG(CAM_LRME, "Enter ctx %d", ctx->ctx_id);
 
-	rc = cam_context_acquire_dev_to_hw(ctx, cmd);
+	rc = cam_context_acquire_dev_to_hw(ctx, args);
 	if (rc) {
 		CAM_ERR(CAM_LRME, "Failed to acquire");
 		return rc;

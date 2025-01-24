@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_REQ_MGR_INTERFACE_H
@@ -23,6 +23,7 @@ struct cam_req_mgr_apply_request;
 struct cam_req_mgr_flush_request;
 struct cam_req_mgr_link_evt_data;
 struct cam_req_mgr_dump_info;
+struct cam_req_mgr_notify_msg;
 
 /* Request Manager -- camera device driver interface */
 /**
@@ -33,12 +34,14 @@ struct cam_req_mgr_dump_info;
  * @cam_req_mgr_add_req       : to info CRM about new rqeuest received from
  *                              userspace
  * @cam_req_mgr_notify_timer  : start the timer
+ * @cam_req_mgr_notify_msg    : notify the message
  */
 typedef int (*cam_req_mgr_notify_trigger)(struct cam_req_mgr_trigger_notify *);
 typedef int (*cam_req_mgr_notify_err)(struct cam_req_mgr_error_notify *);
 typedef int (*cam_req_mgr_add_req)(struct cam_req_mgr_add_request *);
 typedef int (*cam_req_mgr_notify_timer)(struct cam_req_mgr_timer_notify *);
 typedef int (*cam_req_mgr_notify_stop)(struct cam_req_mgr_notify_stop *);
+typedef int (*cam_req_mgr_notify_msg)(struct cam_req_mgr_notify_msg *);
 
 /**
  * @brief: cam req mgr to camera device drivers
@@ -69,6 +72,7 @@ typedef int (*cam_req_mgr_dump_req)(struct cam_req_mgr_dump_info *);
  * @add_req        : payload to inform which device and what request is received
  * @notify_timer   : payload for timer start event
  * @notify_stop    : payload to inform stop event
+ * @notify_msg     : payload to inform a message
  */
 struct cam_req_mgr_crm_cb {
 	cam_req_mgr_notify_trigger  notify_trigger;
@@ -76,6 +80,7 @@ struct cam_req_mgr_crm_cb {
 	cam_req_mgr_add_req         add_req;
 	cam_req_mgr_notify_timer    notify_timer;
 	cam_req_mgr_notify_stop     notify_stop;
+	cam_req_mgr_notify_msg      notify_msg;
 };
 
 /**
@@ -214,42 +219,63 @@ enum cam_req_mgr_device_id {
 
 /**
  * enum cam_req_mgr_link_evt_type
- * @CAM_REQ_MGR_LINK_EVT_ERR               : error on the link from any of the
- *                                           connected devices
- * @CAM_REQ_MGR_LINK_EVT_PAUSE             : to pause the link
- * @CAM_REQ_MGR_LINK_EVT_RESUME            : resumes the link which was paused
- * @CAM_REQ_MGR_LINK_EVT_SOF_FREEZE        : request manager has detected an
- *                                           sof freeze
- * @CAM_REQ_MGR_LINK_EVT_STALLED           : Indicate to all connected devices
- *                                           that the pipeline is stalled.
- *                                           Devices can handle accordingly
- * @CAM_REQ_MGR_LINK_EVT_EOF               : Indicate to all connected devices
- *                                           that we get an EOF
- * @CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES : Notify sub devices of the properties
- *                                           updating
- * @CAM_REQ_MGR_LINK_EVT_MAX               : invalid event type
+ * @CAM_REQ_MGR_LINK_EVT_ERR                     : error on the link from any of the
+ *                                                 connected devices
+ * @CAM_REQ_MGR_LINK_EVT_PAUSE                   : to pause the link vote down
+ * @CAM_REQ_MGR_LINK_EVT_RESUME                  : resumes the link which was paused votes up
+ * @CAM_REQ_MGR_LINK_EVT_RESUME_HW               : seeking synced resume to unpause HW
+ * @CAM_REQ_MGR_LINK_EVT_SOF_FREEZE              : request manager has detected an
+ *                                                 sof freeze
+ * @CAM_REQ_MGR_LINK_EVT_STALLED                 : Indicate to all connected devices
+ *                                                 that the pipeline is stalled.
+ *                                                 Devices can handle accordingly
+ * @CAM_REQ_MGR_LINK_EVT_EOF                     : Indicate to all connected devices
+ *                                                 that we get an EOF
+ * @CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES       : Notify sub devices of the properties
+ *                                                 updating
+ * @CAM_REQ_MGR_LINK_EVT_SENSOR_FRAME_INFO       : Notify sub devices of the sensor frame info
+ * @CAM_REQ_MGR_LINK_EVT_FRAME_DURATION_CHANGING : Check if the frame skip packet is avaliable
+ * @CAM_REQ_MGR_LINK_EVT_MAX                     : invalid event type
  */
 enum cam_req_mgr_link_evt_type {
 	CAM_REQ_MGR_LINK_EVT_ERR,
 	CAM_REQ_MGR_LINK_EVT_PAUSE,
 	CAM_REQ_MGR_LINK_EVT_RESUME,
+	CAM_REQ_MGR_LINK_EVT_RESUME_HW,
 	CAM_REQ_MGR_LINK_EVT_SOF_FREEZE,
 	CAM_REQ_MGR_LINK_EVT_STALLED,
 	CAM_REQ_MGR_LINK_EVT_EOF,
 	CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES,
+	CAM_REQ_MGR_LINK_EVT_SENSOR_FRAME_INFO,
+	CAM_REQ_MGR_LINK_EVT_FRAME_DURATION_CHANGING,
 	CAM_REQ_MGR_LINK_EVT_MAX,
 };
 
 /**
+ * enum cam_req_mgr_msg_type
+ * @CAM_REQ_MGR_MSG_SENSOR_FRAME_INFO  : sensor frame info message type
+ * @CAM_REQ_MGR_MSG_UPDATE_DEVICE_INFO : Update device specific info
+ * @CAM_REQ_MGR_MSG_MAX                : invalid msg type
+ * @CAM_REQ_MGR_MSG_CHECK_FOR_RESUME   : Check for synced resume post flush
+ */
+enum cam_req_mgr_msg_type {
+	CAM_REQ_MGR_MSG_SENSOR_FRAME_INFO,
+	CAM_REQ_MGR_MSG_UPDATE_DEVICE_INFO,
+	CAM_REQ_MGR_MSG_NOTIFY_FOR_SYNCED_RESUME,
+	CAM_REQ_MGR_MSG_MAX,
+};
+
+/**
  * struct cam_req_mgr_trigger_notify
- * @link_hdl : link identifier
- * @dev_hdl  : device handle which has sent this req id
- * @frame_id : frame id for internal tracking
- * @trigger  : trigger point of this notification, CRM will send apply
- *             only to the devices which subscribe to this point.
- * @sof_timestamp_val: Captured time stamp value at sof hw event
- * @req_id   : req id which returned buf_done
- * @trigger_id: ID to differentiate between the trigger devices
+ * @link_hdl          : link identifier
+ * @dev_hdl           : device handle which has sent this req id
+ * @frame_id          : frame id for internal tracking
+ * @trigger           : trigger point of this notification, CRM will send apply
+ *                      only to the devices which subscribe to this point.
+ * @sof_timestamp_val : Captured time stamp value at sof hw event
+ * @req_id            : req id which returned buf_done
+ * @trigger_id        : ID to differentiate between the trigger devices
+ * @boot_timestamp    : Captured boot time stamp value at sof hw event
  */
 struct cam_req_mgr_trigger_notify {
 	int32_t  link_hdl;
@@ -259,6 +285,7 @@ struct cam_req_mgr_trigger_notify {
 	uint64_t sof_timestamp_val;
 	uint64_t req_id;
 	int32_t  trigger_id;
+	uint64_t boot_timestamp;
 };
 
 /**
@@ -317,12 +344,49 @@ struct cam_req_mgr_add_request {
 /**
  * struct cam_req_mgr_notify_stop
  * @link_hdl             : link identifier
- *
  */
 struct cam_req_mgr_notify_stop {
 	int32_t  link_hdl;
 };
 
+/**
+ * struct cam_req_mgr_sensor_frame_info
+ * @frame_sync_shift  : Indicates how far the frame synchronization
+ *                    : reference point from SOF, this is used to
+ *                    : align with userland and kernel frame sync offset.
+ * @frame_duration    : The sensor frame duration betwwen previous SOF and current SOF
+ * @blanking_duration : The vertical blanking between previous EOF and current SOF
+ * @use_for_wd        : If set frame duration is to be used for WD timer for ePCR
+ *                      scenarios
+ *
+ */
+struct cam_req_mgr_sensor_frame_info {
+	uint64_t frame_sync_shift;
+	uint64_t frame_duration;
+	uint64_t blanking_duration;
+	bool     use_for_wd;
+};
+
+/**
+ * struct cam_req_mgr_notify_msg
+ * @link_hdl         : link identifier
+ * @dev_hdl          : Indicate which device sends this message
+ * @req_id           : Indicate which req sends this message
+ * @msg_type         : Message type
+ * @frame_info       : Frame info structure includes frame duration and
+ *                   : vertical blanking
+ * @ife_hw_name      : Update acquired IFE/SFE name
+ */
+struct cam_req_mgr_notify_msg {
+	int32_t  link_hdl;
+	int32_t  dev_hdl;
+	uint64_t req_id;
+	enum cam_req_mgr_msg_type msg_type;
+	union {
+		struct cam_req_mgr_sensor_frame_info frame_info;
+		char ife_hw_name[30];
+	} u;
+};
 
 /* CRM to KMD devices */
 /**
@@ -334,6 +398,7 @@ struct cam_req_mgr_notify_stop {
  * @m_delay : delay between time modeswitch settings applied and take effect
  * @trigger : Trigger point for the client
  * @trigger_on : This device provides trigger
+ * @resume_sync_on: Device is seeking sync to resume post flush/halt
  */
 struct cam_req_mgr_device_info {
 	int32_t                     dev_hdl;
@@ -343,6 +408,7 @@ struct cam_req_mgr_device_info {
 	enum cam_modeswitch_delay   m_delay;
 	uint32_t                    trigger;
 	bool                        trigger_on;
+	bool                        resume_sync_on;
 };
 
 /**
@@ -367,16 +433,18 @@ struct cam_req_mgr_core_dev_link_setup {
 
 /**
  * struct cam_req_mgr_apply_request
- * @link_hdl                 : link identifier
- * @dev_hdl                  : device handle for cross check
- * @request_id               : request id settings to apply
- * @last_applied_max_pd_req  : Last applied request on highest pd device
- *                             -1 is considered invalid
- * @report_if_bubble         : report to crm if failure in applying
- * @trigger_point            : the trigger point of this apply
- * @re_apply                 : to skip re_apply for buf_done request
- * @recovery                 : Indicate if it is recovery req
- *
+ * @link_hdl                    : link identifier
+ * @dev_hdl                     : device handle for cross check
+ * @request_id                  : request id settings to apply
+ * @last_applied_max_pd_req     : Last applied request on highest pd device
+ *                                -1 is considered invalid
+ * @report_if_bubble            : report to crm if failure in applying
+ * @trigger_point               : the trigger point of this apply
+ * @last_applied_done_timestamp : Last setting apply done timestamp value
+ * @re_apply                    : to skip re_apply for buf_done request
+ * @recovery                    : Indicate if it is recovery req
+ * @no_further_requests         : No further requests on link notification
+ * @frame_duration_changing     : Indicate if the frame duration is changing in this applying
  */
 struct cam_req_mgr_apply_request {
 	int32_t    link_hdl;
@@ -385,8 +453,11 @@ struct cam_req_mgr_apply_request {
 	int64_t    last_applied_max_pd_req;
 	int32_t    report_if_bubble;
 	uint32_t   trigger_point;
+	uint64_t   last_applied_done_timestamp;
 	bool       re_apply;
 	bool       recovery;
+	bool       no_further_requests;
+	bool       frame_duration_changing;
 };
 
 /**
@@ -395,6 +466,7 @@ struct cam_req_mgr_apply_request {
  * @dev_hdl     : device handle for cross check
  * @type        : cancel request type flush all or a request
  * @req_id      : request id to cancel
+ * @enable_sensor_standby : Enable sensor standby
  *
  */
 struct cam_req_mgr_flush_request {
@@ -402,17 +474,21 @@ struct cam_req_mgr_flush_request {
 	int32_t     dev_hdl;
 	uint32_t    type;
 	uint64_t    req_id;
+	bool        enable_sensor_standby;
 };
 
 /**
  * struct cam_req_mgr_event_data
- * @link_hdl          : link handle
- * @req_id            : request id
- * @try_for_recovery  : Link is stalled allow subdevices to recover if
- *                      possible
- * @evt_type          : link event
- * @error             : error code
- * @properties_mask   : properties mask
+ * @link_hdl                : link handle
+ * @req_id                  : request id
+ * @try_for_recovery        : Link is stalled allow subdevices to recover if
+ *                            possible
+ * @evt_type                : link event
+ * @error                   : error code
+ * @properties_mask         : properties mask
+ * @frame_info              : Frame info structure includes frame duration and
+ *                          : vertical blanking
+ * @frame_duration_changing : Indicate if the sensor changes frame duration
  */
 struct cam_req_mgr_link_evt_data {
 	int32_t  link_hdl;
@@ -423,6 +499,9 @@ struct cam_req_mgr_link_evt_data {
 	union {
 		enum cam_req_mgr_device_error error;
 		uint32_t properties_mask;
+		struct cam_req_mgr_sensor_frame_info frame_info;
+		bool frame_duration_changing;
+		bool is_recovery;
 	} u;
 };
 

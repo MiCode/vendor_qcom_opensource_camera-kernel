@@ -19,6 +19,7 @@
 #include "cam_cpas_soc.h"
 #include "cam_compat.h"
 #include "cam_vmrm_interface.h"
+#include "cam_mem_mgr_api.h"
 
 static uint cpas_dump;
 module_param(cpas_dump, uint, 0644);
@@ -168,6 +169,40 @@ void cam_cpas_dump_full_tree_state(struct cam_hw_info *cpas_hw, const char *iden
 	CAM_INFO(CAM_CPAS, "Dumping cpas tree full state end ============== %s", identifier);
 }
 
+void cam_cpas_dump_cons_axi_vote_info(
+	const struct cam_cpas_client *cpas_client,
+	const char *identifier,
+	struct cam_axi_consolidate_vote *axi_vote)
+{
+	int i;
+
+	if ((cpas_dump & BIT(0)) == 0)
+		return;
+
+	if (!axi_vote || (axi_vote->num_paths >
+		CAM_CPAS_MAX_PATHS_PER_CLIENT)) {
+		CAM_ERR(CAM_PERF, "Invalid num_paths %d",
+			axi_vote ? axi_vote->num_paths : -1);
+		return;
+	}
+
+	for (i = 0; i < axi_vote->num_paths; i++) {
+		CAM_INFO(CAM_PERF,
+		"Client [%s][%d] : [%s], Path=[%d] [%d],[HIGH LOW] camnoc[%llu %llu], mnoc_ab[%llu %llu], mnoc_ib[%llu %llu]",
+		cpas_client->data.identifier, cpas_client->data.cell_index,
+		identifier,
+		axi_vote->axi_path[i].path_data_type,
+		axi_vote->axi_path[i].transac_type,
+		axi_vote->axi_path[i].drv_vote.high.camnoc,
+		axi_vote->axi_path[i].drv_vote.low.camnoc,
+		axi_vote->axi_path[i].drv_vote.high.ab,
+		axi_vote->axi_path[i].drv_vote.low.ab,
+		axi_vote->axi_path[i].drv_vote.high.ib,
+		axi_vote->axi_path[i].drv_vote.low.ib);
+	}
+
+}
+
 void cam_cpas_dump_axi_vote_info(
 	const struct cam_cpas_client *cpas_client,
 	const char *identifier,
@@ -246,12 +281,12 @@ int cam_cpas_node_tree_cleanup(struct cam_cpas *cpas_core,
 
 	for (i = 0; i < CAM_CPAS_MAX_TREE_NODES; i++) {
 		if (soc_private->tree_node[i]) {
-			kfree(soc_private->tree_node[i]->bw_info);
-			kfree(soc_private->tree_node[i]->axi_port_idx_arr);
+			CAM_MEM_FREE(soc_private->tree_node[i]->bw_info);
+			CAM_MEM_FREE(soc_private->tree_node[i]->axi_port_idx_arr);
 			soc_private->tree_node[i]->bw_info = NULL;
 			soc_private->tree_node[i]->axi_port_idx_arr = NULL;
 			of_node_put(soc_private->tree_node[i]->tree_dev_node);
-			kfree(soc_private->tree_node[i]);
+			CAM_MEM_FREE(soc_private->tree_node[i]);
 			soc_private->tree_node[i] = NULL;
 		}
 	}
@@ -337,13 +372,14 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 	struct device_node *mnoc_node, int *mnoc_idx)
 {
 	int rc = 0, count, i;
-	bool ib_voting_needed = false, is_rt_port = false;
+	bool ib_voting_needed = false;
 	struct of_phandle_args src_args = {0}, dst_args = {0};
 	struct cam_cpas_axi_port *curr_axi_port;
 
 	ib_voting_needed = of_property_read_bool(curr_node_ptr->tree_dev_node,
 		"ib-bw-voting-needed");
-	is_rt_port = of_property_read_bool(curr_node_ptr->tree_dev_node, "rt-axi-port");
+	curr_node_ptr->is_rt_node = of_property_read_bool(curr_node_ptr->tree_dev_node,
+		"rt-axi-port");
 
 	if (soc_private->bus_icc_based) {
 		if (soc_private->use_cam_icc_path_str)
@@ -459,7 +495,7 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 			 */
 			curr_node_ptr->axi_port_idx_arr[i] = *mnoc_idx;
 			curr_axi_port->ib_bw_voting_needed = ib_voting_needed;
-			curr_axi_port->is_rt = is_rt_port;
+			curr_axi_port->is_rt = curr_node_ptr->is_rt_node;
 			CAM_DBG(CAM_PERF, "Adding Bus Client=[%s] : src=%d, dst=%d mnoc_idx:%d",
 				curr_axi_port->bus_client.common_data.name,
 				curr_axi_port->bus_client.common_data.src_id,
@@ -472,6 +508,11 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 		if (soc_private->enable_cam_ddr_drv) {
 			CAM_ERR(CAM_CPAS, "DRV not supported for old bus scaling clients");
 			return -EPERM;
+		}
+
+		if (*mnoc_idx >= CAM_CPAS_MAX_AXI_PORTS) {
+			CAM_ERR(CAM_CPAS, "Invalid mnoc index: %d", *mnoc_idx);
+			return -EINVAL;
 		}
 
 		curr_axi_port =  &cpas_core->axi_port[*mnoc_idx];
@@ -489,7 +530,7 @@ static int cam_cpas_parse_mnoc_node(struct cam_cpas *cpas_core,
 			curr_axi_port->bus_client.common_data.name;
 		curr_node_ptr->axi_port_idx_arr[0] = *mnoc_idx;
 		curr_axi_port->ib_bw_voting_needed = ib_voting_needed;
-		curr_axi_port->is_rt = is_rt_port;
+		curr_axi_port->is_rt = curr_node_ptr->is_rt_node;
 		(*mnoc_idx)++;
 		cpas_core->num_axi_ports++;
 	}
@@ -556,7 +597,8 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 
 		camnoc_max_needed = of_property_read_bool(level_node, "camnoc-max-needed");
 		for_each_available_child_of_node(level_node, curr_node) {
-			curr_node_ptr = kzalloc(sizeof(struct cam_cpas_tree_node), GFP_KERNEL);
+			curr_node_ptr = CAM_MEM_ZALLOC(sizeof(struct cam_cpas_tree_node),
+							GFP_KERNEL);
 			if (!curr_node_ptr)
 				return -ENOMEM;
 
@@ -587,14 +629,16 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 				return rc;
 			}
 
-			curr_node_ptr->bw_info = kzalloc((sizeof(struct cam_cpas_axi_bw_info) *
+			curr_node_ptr->bw_info =
+				CAM_MEM_ZALLOC((sizeof(struct cam_cpas_axi_bw_info) *
 				num_drv_ports), GFP_KERNEL);
 			if (!curr_node_ptr->bw_info) {
 				CAM_ERR(CAM_CPAS, "Failed in allocating memory for bw info");
 				return -ENOMEM;
 			}
 
-			curr_node_ptr->axi_port_idx_arr = kzalloc((sizeof(int) * num_drv_ports),
+			curr_node_ptr->axi_port_idx_arr =
+				CAM_MEM_ZALLOC((sizeof(int) * num_drv_ports),
 				GFP_KERNEL);
 			if (!curr_node_ptr->axi_port_idx_arr) {
 				CAM_ERR(CAM_CPAS, "Failed in allocating memory for port indices");
@@ -808,6 +852,7 @@ static int cam_cpas_parse_node_tree(struct cam_cpas *cpas_core,
 			if (parent_node) {
 				of_property_read_u32(parent_node, "cell-index", &cell_idx);
 				curr_node_ptr->parent_node = soc_private->tree_node[cell_idx];
+				curr_node_ptr->is_rt_node = curr_node_ptr->parent_node->is_rt_node;
 			} else {
 				CAM_DBG(CAM_CPAS, "no parent node at this level");
 			}
@@ -1030,13 +1075,18 @@ static int cam_cpas_parse_sys_cache_uids(
 	soc_private->llcc_info = NULL;
 	soc_private->num_caches = 0;
 
+	if (cam_presil_mode_enabled()) {
+		CAM_INFO(CAM_CPAS, "PRESIL parse syscache uids is DISABLED");
+		return 0;
+	}
+
 	num_caches = of_property_count_strings(of_node, "sys-cache-names");
 	if (num_caches <= 0) {
 		CAM_DBG(CAM_CPAS, "no cache-names found");
 		return 0;
 	}
 
-	soc_private->llcc_info = kcalloc(num_caches,
+	soc_private->llcc_info = CAM_MEM_ZALLOC_ARRAY(num_caches,
 		sizeof(struct cam_sys_cache_info), GFP_KERNEL);
 	if (!soc_private->llcc_info)
 		return -ENOMEM;
@@ -1113,7 +1163,7 @@ static int cam_cpas_parse_sys_cache_uids(
 	return 0;
 
 end:
-	kfree(soc_private->llcc_info);
+	CAM_MEM_FREE(soc_private->llcc_info);
 	soc_private->llcc_info = NULL;
 	return rc;
 }
@@ -1152,7 +1202,7 @@ static int cam_cpas_parse_domain_id_mapping(struct device_node *of_node,
 	}
 
 	soc_private->domain_id_info.domain_id_entries =
-		kcalloc(soc_private->domain_id_info.num_domain_ids,
+		CAM_MEM_ZALLOC_ARRAY(soc_private->domain_id_info.num_domain_ids,
 			sizeof(struct cam_cpas_domain_id_mapping), GFP_KERNEL);
 	if (!soc_private->domain_id_info.domain_id_entries) {
 		CAM_ERR(CAM_CPAS,
@@ -1199,7 +1249,7 @@ static int cam_cpas_parse_domain_id_mapping(struct device_node *of_node,
 
 err:
 	soc_private->domain_id_info.num_domain_ids = 0;
-	kfree(soc_private->domain_id_info.domain_id_entries);
+	CAM_MEM_FREE(soc_private->domain_id_info.domain_id_entries);
 	soc_private->domain_id_info.domain_id_entries = NULL;
 	return rc;
 }
@@ -1211,7 +1261,7 @@ static int cam_cpas_get_domain_id_support_clks(struct device_node *of_node,
 	int rc = 0, count, i;
 	struct cam_cpas_domain_id_support_clks *domain_id_clks;
 
-	soc_private->domain_id_clks = kzalloc(sizeof(struct cam_cpas_domain_id_support_clks),
+	soc_private->domain_id_clks = CAM_MEM_ZALLOC(sizeof(struct cam_cpas_domain_id_support_clks),
 		GFP_KERNEL);
 	if (!soc_private->domain_id_clks) {
 		CAM_ERR(CAM_CPAS, "Failed in allocating memory for domain_id_clk");
@@ -1264,7 +1314,7 @@ static int cam_cpas_get_domain_id_support_clks(struct device_node *of_node,
 	return rc;
 
 err:
-	kfree(domain_id_clks);
+	CAM_MEM_FREE(domain_id_clks);
 	return rc;
 }
 
@@ -1323,6 +1373,14 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 	}
 
 	CAM_DBG(CAM_CPAS, "camnoc-axi-min-ib-bw = %llu", soc_private->camnoc_axi_min_ib_bw);
+
+	rc = of_property_read_u64(of_node, "cam-max-rt-axi-bw", &soc_private->cam_max_rt_axi_bw);
+	if (rc) {
+		CAM_DBG(CAM_CPAS, "failed to read cam-max-rt-axi-bw rc:%d", rc);
+		soc_private->cam_max_rt_axi_bw = 0;
+	}
+
+	CAM_DBG(CAM_CPAS, "cam-max-rt-axi-bw = %llu", soc_private->cam_max_rt_axi_bw);
 
 	soc_private->client_id_based = of_property_read_bool(of_node, "client-id-based");
 	soc_private->bus_icc_based = of_property_read_bool(of_node, "interconnect-names");
@@ -1469,7 +1527,7 @@ parse_ahb_table:
 		}
 
 		cpas_core->cpas_client[i] =
-			kzalloc(sizeof(struct cam_cpas_client), GFP_KERNEL);
+			CAM_MEM_ZALLOC(sizeof(struct cam_cpas_client), GFP_KERNEL);
 		if (!cpas_core->cpas_client[i]) {
 			rc = -ENOMEM;
 			goto cleanup_clients;
@@ -1549,13 +1607,18 @@ parse_ahb_table:
 		soc_private->num_vdd_ahb_mapping = count;
 	}
 
+	soc_private->enable_secure_qos_update = of_property_read_bool(of_node,
+			"enable-secure-qos-update");
+	CAM_DBG(CAM_CPAS, "Enable secure qos update: %s",
+		CAM_BOOL_TO_YESNO(soc_private->enable_secure_qos_update));
+
 	soc_private->enable_smart_qos = of_property_read_bool(of_node,
 			"enable-smart-qos");
 
 	if (soc_private->enable_smart_qos) {
 		uint32_t value;
 
-		soc_private->smart_qos_info = kzalloc(sizeof(struct cam_cpas_smart_qos_info),
+		soc_private->smart_qos_info = CAM_MEM_ZALLOC(sizeof(struct cam_cpas_smart_qos_info),
 			GFP_KERNEL);
 		if (!soc_private->smart_qos_info) {
 			rc = -ENOMEM;
@@ -1843,7 +1906,7 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		return -EINVAL;
 	}
 
-	soc_info->soc_private = kzalloc(sizeof(struct cam_cpas_private_soc),
+	soc_info->soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_cpas_private_soc),
 		GFP_KERNEL);
 	if (!soc_info->soc_private) {
 		CAM_ERR(CAM_CPAS, "Failed to allocate soc private");
@@ -1857,8 +1920,9 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		goto free_soc_private;
 	}
 
-	soc_private->irq_data = kcalloc(soc_info->irq_count, sizeof(struct cam_cpas_soc_irq_data),
-		GFP_KERNEL);
+	soc_private->irq_data = CAM_MEM_ZALLOC_ARRAY(soc_info->irq_count,
+					sizeof(struct cam_cpas_soc_irq_data),
+					GFP_KERNEL);
 	if (!soc_private->irq_data) {
 		CAM_ERR(CAM_CPAS, "Failed to allocate irq data");
 		rc = -ENOMEM;
@@ -1902,11 +1966,11 @@ int cam_cpas_soc_init_resources(struct cam_hw_soc_info *soc_info,
 release_res:
 	cam_soc_util_release_platform_resource(soc_info);
 free_irq_data:
-	kfree(soc_private->irq_data);
+	CAM_MEM_FREE(soc_private->irq_data);
 free_soc_private:
-	kfree(soc_private->llcc_info);
-	kfree(soc_private->smart_qos_info);
-	kfree(soc_info->soc_private);
+	CAM_MEM_FREE(soc_private->llcc_info);
+	CAM_MEM_FREE(soc_private->smart_qos_info);
+	CAM_MEM_FREE(soc_info->soc_private);
 	soc_info->soc_private = NULL;
 	return rc;
 }
@@ -1925,18 +1989,18 @@ int cam_cpas_soc_deinit_resources(struct cam_hw_soc_info *soc_info)
 			CAM_ERR(CAM_CPAS, "Error Put optional clk failed rc=%d", rc);
 	}
 
-	kfree(soc_private->domain_id_info.domain_id_entries);
+	CAM_MEM_FREE(soc_private->domain_id_info.domain_id_entries);
 
-	kfree(soc_private->domain_id_clks);
+	CAM_MEM_FREE(soc_private->domain_id_clks);
 
 	rc = cam_soc_util_release_platform_resource(soc_info);
 	if (rc)
 		CAM_ERR(CAM_CPAS, "release platform failed, rc=%d", rc);
 
-	kfree(soc_private->irq_data);
-	kfree(soc_private->llcc_info);
-	kfree(soc_private->smart_qos_info);
-	kfree(soc_info->soc_private);
+	CAM_MEM_FREE(soc_private->irq_data);
+	CAM_MEM_FREE(soc_private->llcc_info);
+	CAM_MEM_FREE(soc_private->smart_qos_info);
+	CAM_MEM_FREE(soc_info->soc_private);
 	soc_info->soc_private = NULL;
 
 	return rc;

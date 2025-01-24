@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -24,6 +24,7 @@
 #include "cam_tfe_csid_hw_intf.h"
 #include <dt-bindings/msm-camera.h>
 #include "cam_cpas_hw_intf.h"
+#include "cam_mem_mgr_api.h"
 
 /* Timeout value in msec */
 #define TFE_CSID_TIMEOUT                               1000
@@ -1199,7 +1200,6 @@ static int cam_tfe_csid_enable_hw(struct cam_tfe_csid_hw  *csid_hw)
 	csid_hw->fatal_err_detected = false;
 	csid_hw->device_enabled = 1;
 	spin_unlock_irqrestore(&csid_hw->spin_lock, flags);
-	cam_tasklet_start(csid_hw->tasklet);
 
 	if (csid_hw->pxl_pipe_enable ) {
 		path_data = (struct cam_tfe_csid_path_cfg  *)
@@ -1212,7 +1212,6 @@ static int cam_tfe_csid_enable_hw(struct cam_tfe_csid_hw  *csid_hw)
 			csid_hw->rdi_res[i].res_priv;
 		path_data->res_sof_cnt = 0;
 	}
-
 
 	return rc;
 
@@ -1261,8 +1260,6 @@ static int cam_tfe_csid_disable_hw(struct cam_tfe_csid_hw *csid_hw)
 	/* Disable the top IRQ interrupt */
 	cam_io_w_mb(0, soc_info->reg_map[0].mem_base +
 		csid_reg->cmn_reg->csid_top_irq_mask_addr);
-
-	cam_tasklet_stop(csid_hw->tasklet);
 
 	rc = cam_tfe_csid_disable_soc_resources(soc_info);
 	if (rc)
@@ -3259,9 +3256,10 @@ static int cam_tfe_csid_put_evt_payload(
 			csid_hw->hw_intf->hw_idx);
 		return -EINVAL;
 	}
+
+	CAM_COMMON_SANITIZE_LIST_ENTRY((*evt_payload), struct cam_csid_evt_payload);
 	spin_lock_irqsave(&csid_hw->spin_lock, flags);
-	list_add_tail(&(*evt_payload)->list,
-		&csid_hw->free_payload_list);
+	list_add_tail(&(*evt_payload)->list, &csid_hw->free_payload_list);
 	*evt_payload = NULL;
 	spin_unlock_irqrestore(&csid_hw->spin_lock, flags);
 
@@ -3994,7 +3992,7 @@ int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
 		tfe_csid_hw->ipp_res.res_state =
 			CAM_ISP_RESOURCE_STATE_AVAILABLE;
 		tfe_csid_hw->ipp_res.hw_intf = tfe_csid_hw->hw_intf;
-		path_data = kzalloc(sizeof(*path_data),
+		path_data = CAM_MEM_ZALLOC(sizeof(*path_data),
 					GFP_KERNEL);
 		if (!path_data) {
 			rc = -ENOMEM;
@@ -4015,7 +4013,7 @@ int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
 			CAM_ISP_RESOURCE_STATE_AVAILABLE;
 		tfe_csid_hw->rdi_res[i].hw_intf = tfe_csid_hw->hw_intf;
 
-		path_data = kzalloc(sizeof(*path_data),
+		path_data = CAM_MEM_ZALLOC(sizeof(*path_data),
 			GFP_KERNEL);
 		if (!path_data) {
 			rc = -ENOMEM;
@@ -4070,11 +4068,11 @@ int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
 	return 0;
 err:
 	if (rc) {
-		kfree(tfe_csid_hw->ipp_res.res_priv);
+		CAM_MEM_FREE(tfe_csid_hw->ipp_res.res_priv);
 		for (i = 0; i <
 			tfe_csid_hw->csid_info->csid_reg->cmn_reg->num_rdis;
 			i++)
-			kfree(tfe_csid_hw->rdi_res[i].res_priv);
+			CAM_MEM_FREE(tfe_csid_hw->rdi_res[i].res_priv);
 	}
 
 	return rc;
@@ -4092,12 +4090,12 @@ int cam_tfe_csid_hw_deinit(struct cam_tfe_csid_hw *tfe_csid_hw)
 	}
 
 	/* release the privdate data memory from resources */
-	kfree(tfe_csid_hw->ipp_res.res_priv);
+	CAM_MEM_FREE(tfe_csid_hw->ipp_res.res_priv);
 
 	for (i = 0; i <
 		tfe_csid_hw->csid_info->csid_reg->cmn_reg->num_rdis;
 		i++) {
-		kfree(tfe_csid_hw->rdi_res[i].res_priv);
+		CAM_MEM_FREE(tfe_csid_hw->rdi_res[i].res_priv);
 	}
 
 	cam_tfe_csid_deinit_soc_resources(&tfe_csid_hw->hw_info->soc_info);

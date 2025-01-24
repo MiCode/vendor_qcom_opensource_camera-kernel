@@ -1,13 +1,18 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_OFE_SOC_H_
 #define _CAM_OFE_SOC_H_
 
 #include "cam_soc_util.h"
+
+struct cam_ofe_soc_private {
+	uint32_t  num_pid;
+	uint32_t *pid;
+};
 
 int cam_ofe_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	irq_handler_t ofe_irq_handler, void *irq_data);

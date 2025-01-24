@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/slab.h>
 #include "cam_tfe_csid_soc.h"
 #include "cam_cpas_api.h"
 #include "cam_debug_util.h"
-
+#include "cam_mem_mgr_api.h"
 
 int cam_tfe_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	irq_handler_t csid_irq_handler, void *data)
@@ -17,7 +17,7 @@ int cam_tfe_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	struct cam_tfe_csid_soc_private      *soc_private;
 	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
-	soc_private = kzalloc(sizeof(struct cam_tfe_csid_soc_private),
+	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_tfe_csid_soc_private),
 		GFP_KERNEL);
 	if (!soc_private)
 		return -ENOMEM;
@@ -41,7 +41,7 @@ int cam_tfe_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	}
 
 	memset(&cpas_register_param, 0, sizeof(cpas_register_param));
-	strlcpy(cpas_register_param.identifier, "csid",
+	strscpy(cpas_register_param.identifier, "csid",
 		CAM_HW_IDENTIFIER_LENGTH);
 	cpas_register_param.cell_index = soc_info->index;
 	cpas_register_param.dev = soc_info->dev;
@@ -58,7 +58,7 @@ int cam_tfe_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 release_soc:
 	cam_soc_util_release_platform_resource(soc_info);
 free_soc_private:
-	kfree(soc_private);
+	CAM_MEM_FREE(soc_private);
 
 	return rc;
 }

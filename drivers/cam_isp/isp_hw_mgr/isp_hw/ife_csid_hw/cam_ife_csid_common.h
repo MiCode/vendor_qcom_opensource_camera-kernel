@@ -19,7 +19,11 @@
  * CRC error threshold is set to be 1% of frame width and
  * this macro is used as divisor in calculation
  */
-#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR                  100
+#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR                  65535 //changed by xiaomi
+/*add by xiaomi start*/
+#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR_XIAOMI           65535
+#define CAM_IFE_CSID_MIN_CRC_ERR_DIVISOR_XIAOMI           1
+/*add by xiaomi end*/
 
 #define CAM_IFE_CSID_HW_CAP_IPP                           0x1
 #define CAM_IFE_CSID_HW_CAP_RDI                           0x2
@@ -40,6 +44,13 @@
 
 #define CAM_IFE_CSID_LOG_BUF_LEN                          1024
 
+/**
+ * CSID debug err vector related fields
+ */
+#define CAM_IFE_CSID_DEBUG_VEC_FIFO_SIZE                  4
+#define CAM_IFE_CSID_DEBUG_TIMESTAMP_IRQ_SEL_SHIFT        1
+#define CAM_IFE_CSID_DEBUG_VEC_ERR_REGS                   3
+
 #define CAM_IFE_CSID_CAP_INPUT_LCR                        BIT(0)
 #define CAM_IFE_CSID_CAP_RDI_UNPACK_MSB                   BIT(1)
 #define CAM_IFE_CSID_CAP_LINE_SMOOTHING_IN_RDI            BIT(2)
@@ -48,6 +59,8 @@
 #define CAM_IFE_CSID_CAP_SKIP_PATH_CFG1                   BIT(5)
 #define CAM_IFE_CSID_CAP_SKIP_EPOCH_CFG                   BIT(6)
 #define CAM_IFE_CSID_CAP_MULTI_CTXT                       BIT(7)
+#define CAM_IFE_CSID_CAP_DEBUG_ERR_VEC                    BIT(8)
+#define CAM_IFE_CSID_CAP_TOP_MASK_ALL_IRQS                BIT(9)
 
 /*
  * CSID RX debug vc-dt capture
@@ -103,6 +116,8 @@ enum cam_ife_csid_mem_base_id {
 enum cam_ife_csid_path_multi_vc_dt_grp {
 	CAM_IFE_CSID_MULTI_VC_DT_GRP_0,
 	CAM_IFE_CSID_MULTI_VC_DT_GRP_1,
+	CAM_IFE_CSID_MULTI_VC_DT_GRP_2,
+	CAM_IFE_CSID_MULTI_VC_DT_GRP_3,
 	CAM_IFE_CSID_MULTI_VC_DT_GRP_MAX,
 };
 
@@ -200,13 +215,17 @@ struct cam_ife_csid_rx_debug_mask {
  *
  * @bitmask    :     Bitmask of the IRQ
  * @err_type   :     Error type for ISP hardware event
- * @irq_desc   :     String to describe the IRQ bit
+ * @irq_name   :     IRQ name
+ * @desc       :     String to describe the IRQ bit
+ * @debug      :     Debug guidance for the error
  * @err_handler:     Error handler which gets invoked if error IRQ bit set
  */
 struct cam_ife_csid_irq_desc {
 	uint32_t    bitmask;
 	uint32_t    err_type;
-	uint8_t    *desc;
+	char       *irq_name;
+	char       *desc;
+	char       *debug;
 	void       (*err_handler)(void *csid_hw, void *res);
 };
 
@@ -217,6 +236,7 @@ struct cam_ife_csid_irq_desc {
  * @err_type   :        Error type for ISP hardware event
  * @err_name   :        IRQ name
  * @desc       :        String to describe about the IRQ
+ * @debug      :        Debug guidance for the error
  * @err_handler:        Error handler which gets invoked if error IRQ bit set
  */
 struct cam_ife_csid_top_irq_desc {
@@ -224,6 +244,7 @@ struct cam_ife_csid_top_irq_desc {
 	uint32_t    err_type;
 	char       *err_name;
 	char       *desc;
+	char       *debug;
 	void       (*err_handler)(void *csid_hw);
 };
 
@@ -425,6 +446,7 @@ struct cam_ife_csid_debug_info {
  * @pf_err_detected:        flag to indicate if camnoc has encountered
  *                          error - page fault
  * @domain_id_security      Flag to determine if target has domain-id based security
+ * @last_exp_valid:         Flag to indicate if last exp info is valid for epoch callback
  */
 struct cam_ife_csid_hw_flags {
 	bool                  device_enabled;
@@ -441,6 +463,7 @@ struct cam_ife_csid_hw_flags {
 	bool                  sfe_en;
 	bool                  pf_err_detected;
 	bool                  domain_id_security;
+	bool                  last_exp_valid;
 };
 
 /*
@@ -528,4 +551,9 @@ int cam_ife_csid_get_base(struct cam_hw_soc_info *soc_info,
 const char *cam_ife_csid_reset_type_to_string(enum cam_ife_csid_reset_type reset_type);
 
 const uint8_t **cam_ife_csid_get_irq_reg_tag_ptr(void);
+
+/* xiaomi add mipi_error_flag begin */
+void count_mipi_error(uint32_t res_type);
+/* xiaomi add mipi_error_flag end */
+
 #endif /*_CAM_IFE_CSID_COMMON_H_ */

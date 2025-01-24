@@ -78,11 +78,11 @@ static int cam_jpeg_context_mini_dump(void *priv, void *args)
 }
 
 static int __cam_jpeg_ctx_acquire_dev_in_available(struct cam_context *ctx,
-	struct cam_acquire_dev_cmd *cmd)
+	struct cam_acquire_dev_cmd_unified *args)
 {
 	int rc;
 
-	rc = cam_context_acquire_dev_to_hw(ctx, cmd);
+	rc = cam_context_acquire_dev_to_hw(ctx, args);
 	if (rc)
 		CAM_ERR(CAM_JPEG, "Unable to Acquire device %d", rc);
 	else

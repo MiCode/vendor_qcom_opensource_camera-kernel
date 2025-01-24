@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -22,6 +22,7 @@
 #include "cam_io_util.h"
 #include "cam_req_mgr_workq.h"
 #include "cam_common_util.h"
+#include "cam_mem_mgr_api.h"
 
 #define CAM_CDM_VIRTUAL_NAME "qcom,cam_virtual_cdm"
 
@@ -62,7 +63,7 @@ static void cam_virtual_cdm_work(struct work_struct *work)
 						node, node->request_type);
 				}
 				list_del_init(&node->entry);
-				kfree(node);
+				CAM_MEM_FREE(node);
 			} else {
 				CAM_ERR(CAM_CDM, "Invalid node for inline irq");
 			}
@@ -72,7 +73,7 @@ static void cam_virtual_cdm_work(struct work_struct *work)
 			CAM_DBG(CAM_CDM, "CDM HW reset done IRQ");
 			complete(&core->reset_complete);
 		}
-		kfree(payload);
+		CAM_MEM_FREE(payload);
 	}
 
 }
@@ -90,18 +91,18 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 		uintptr_t vaddr_ptr = 0;
 		size_t len = 0;
 
-		if ((!cdm_cmd->cmd[i].len) &&
-			(cdm_cmd->cmd[i].len > 0x100000)) {
+		if ((!cdm_cmd->cmd_flex[i].len) &&
+			(cdm_cmd->cmd_flex[i].len > 0x100000)) {
 			CAM_ERR(CAM_CDM,
 				"len(%d) is invalid count=%d total cnt=%d",
-				cdm_cmd->cmd[i].len, i,
+				cdm_cmd->cmd_flex[i].len, i,
 				req->data->cmd_arrary_count);
 			rc = -EINVAL;
 			break;
 		}
 		if (req->data->type == CAM_CDM_BL_CMD_TYPE_MEM_HANDLE) {
 			rc = cam_mem_get_cpu_buf(
-				cdm_cmd->cmd[i].bl_addr.mem_handle, &vaddr_ptr,
+				cdm_cmd->cmd_flex[i].bl_addr.mem_handle, &vaddr_ptr,
 				&len);
 			if (rc) {
 				CAM_ERR(CAM_CDM,
@@ -111,8 +112,8 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 		} else if (req->data->type ==
 			CAM_CDM_BL_CMD_TYPE_KERNEL_IOVA) {
 			rc = 0;
-			vaddr_ptr = cdm_cmd->cmd[i].bl_addr.kernel_iova;
-			len = cdm_cmd->cmd[i].offset + cdm_cmd->cmd[i].len;
+			vaddr_ptr = cdm_cmd->cmd_flex[i].bl_addr.kernel_iova;
+			len = cdm_cmd->cmd_flex[i].offset + cdm_cmd->cmd_flex[i].len;
 		} else {
 			CAM_ERR(CAM_CDM,
 				"Only mem hdl/Kernel va type is supported %d",
@@ -121,38 +122,38 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 		}
 
 		if ((!rc) && (vaddr_ptr) && (len) &&
-			(len >= cdm_cmd->cmd[i].offset)) {
+			(len >= cdm_cmd->cmd_flex[i].offset)) {
 
 
-			if ((len - cdm_cmd->cmd[i].offset) <
-				cdm_cmd->cmd[i].len) {
+			if ((len - cdm_cmd->cmd_flex[i].offset) <
+				cdm_cmd->cmd_flex[i].len) {
 				CAM_ERR(CAM_CDM, "Not enough buffer");
 				rc = -EINVAL;
 				goto put_cpu_buf;
 			}
 			CAM_DBG(CAM_CDM,
 				"hdl=%x vaddr=%pK offset=%d cmdlen=%d:%zu",
-				cdm_cmd->cmd[i].bl_addr.mem_handle,
-				(void *)vaddr_ptr, cdm_cmd->cmd[i].offset,
-				cdm_cmd->cmd[i].len, len);
+				cdm_cmd->cmd_flex[i].bl_addr.mem_handle,
+				(void *)vaddr_ptr, cdm_cmd->cmd_flex[i].offset,
+				cdm_cmd->cmd_flex[i].len, len);
 			rc = cam_cdm_util_cmd_buf_write(
 				&client->changebase_addr,
 				((uint32_t *)vaddr_ptr +
-					((cdm_cmd->cmd[i].offset)/4)),
-				cdm_cmd->cmd[i].len, client->data.base_array,
+					((cdm_cmd->cmd_flex[i].offset)/4)),
+				cdm_cmd->cmd_flex[i].len, client->data.base_array,
 				client->data.base_array_cnt, core->bl_tag);
 			if (rc) {
 				CAM_ERR(CAM_CDM,
 					"write failed for cnt=%d:%d len %u",
 					i, req->data->cmd_arrary_count,
-					cdm_cmd->cmd[i].len);
+					cdm_cmd->cmd_flex[i].len);
 				goto put_cpu_buf;
 			}
 		} else {
 			CAM_ERR(CAM_CDM,
 				"Sanity check failed for hdl=%x len=%zu:%d",
-				cdm_cmd->cmd[i].bl_addr.mem_handle, len,
-				cdm_cmd->cmd[i].offset);
+				cdm_cmd->cmd_flex[i].bl_addr.mem_handle, len,
+				cdm_cmd->cmd_flex[i].offset);
 			CAM_ERR(CAM_CDM,
 				"Sanity check failed for cmd_count=%d cnt=%d",
 				i, req->data->cmd_arrary_count);
@@ -168,7 +169,7 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 			if (req->data->flag && (i == req->data->cmd_arrary_count)) {
 				struct cam_cdm_bl_cb_request_entry *node;
 
-				node = kzalloc(sizeof(
+				node = CAM_MEM_ZALLOC(sizeof(
 					struct cam_cdm_bl_cb_request_entry),
 					GFP_KERNEL);
 				if (!node) {
@@ -185,7 +186,7 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 					&core->bl_request_list);
 				mutex_unlock(&cdm_hw->hw_mutex);
 
-				payload = kzalloc(sizeof(
+				payload = CAM_MEM_ZALLOC(sizeof(
 					struct cam_cdm_work_payload),
 					GFP_ATOMIC);
 				if (payload) {
@@ -208,7 +209,7 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 				core->bl_tag = 0;
 
 			if (req->data->type == CAM_CDM_BL_CMD_TYPE_MEM_HANDLE)
-				cam_mem_put_cpu_buf(cdm_cmd->cmd[i].bl_addr.mem_handle);
+				cam_mem_put_cpu_buf(cdm_cmd->cmd_flex[i].bl_addr.mem_handle);
 		}
 
 	}
@@ -217,7 +218,7 @@ int cam_virtual_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 
 put_cpu_buf:
 	if (req->data->type == CAM_CDM_BL_CMD_TYPE_MEM_HANDLE)
-		cam_mem_put_cpu_buf(cdm_cmd->cmd[i].bl_addr.mem_handle);
+		cam_mem_put_cpu_buf(cdm_cmd->cmd_flex[i].bl_addr.mem_handle);
 
 err:
 	mutex_unlock(&client->lock);
@@ -234,26 +235,26 @@ int cam_virtual_cdm_probe(struct platform_device *pdev)
 	int rc;
 	struct cam_cpas_register_params cpas_parms;
 
-	cdm_hw_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
+	cdm_hw_intf = CAM_MEM_ZALLOC(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!cdm_hw_intf)
 		return -ENOMEM;
 
-	cdm_hw = kzalloc(sizeof(struct cam_hw_info), GFP_KERNEL);
+	cdm_hw = CAM_MEM_ZALLOC(sizeof(struct cam_hw_info), GFP_KERNEL);
 	if (!cdm_hw) {
-		kfree(cdm_hw_intf);
+		CAM_MEM_FREE(cdm_hw_intf);
 		return -ENOMEM;
 	}
 
-	cdm_hw->core_info = kzalloc(sizeof(struct cam_cdm), GFP_KERNEL);
+	cdm_hw->core_info = CAM_MEM_ZALLOC(sizeof(struct cam_cdm), GFP_KERNEL);
 	if (!cdm_hw->core_info) {
-		kfree(cdm_hw);
-		kfree(cdm_hw_intf);
+		CAM_MEM_FREE(cdm_hw);
+		CAM_MEM_FREE(cdm_hw_intf);
 		return -ENOMEM;
 	}
 	cdm_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
 	cdm_hw->soc_info.pdev = pdev;
 	cdm_hw_intf->hw_type = CAM_VIRTUAL_CDM;
-	cdm_hw->soc_info.soc_private = kzalloc(
+	cdm_hw->soc_info.soc_private = CAM_MEM_ZALLOC(
 			sizeof(struct cam_cdm_private_dt_data), GFP_KERNEL);
 	if (!cdm_hw->soc_info.soc_private) {
 		rc = -ENOMEM;
@@ -263,7 +264,7 @@ int cam_virtual_cdm_probe(struct platform_device *pdev)
 	rc = cam_cdm_soc_load_dt_private(pdev, cdm_hw->soc_info.soc_private);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Failed to load CDM dt private data");
-		kfree(cdm_hw->soc_info.soc_private);
+		CAM_MEM_FREE(cdm_hw->soc_info.soc_private);
 		cdm_hw->soc_info.soc_private = NULL;
 		goto soc_load_failed;
 	}
@@ -313,7 +314,7 @@ int cam_virtual_cdm_probe(struct platform_device *pdev)
 	cpas_parms.cell_index = cdm_hw->soc_info.index;
 	cpas_parms.dev = &pdev->dev;
 	cpas_parms.userdata = cdm_hw_intf;
-	strlcpy(cpas_parms.identifier, "cam-cdm-intf",
+	strscpy(cpas_parms.identifier, "cam-cdm-intf",
 		CAM_HW_IDENTIFIER_LENGTH);
 	rc = cam_cpas_register_client(&cpas_parms);
 	if (rc) {
@@ -340,15 +341,15 @@ int cam_virtual_cdm_probe(struct platform_device *pdev)
 intf_registration_failed:
 	cam_cpas_unregister_client(cdm_core->cpas_handle);
 cpas_registration_failed:
-	kfree(cdm_hw->soc_info.soc_private);
+	CAM_MEM_FREE(cdm_hw->soc_info.soc_private);
 	flush_workqueue(cdm_core->work_queue);
 	destroy_workqueue(cdm_core->work_queue);
 	mutex_unlock(&cdm_hw->hw_mutex);
 	mutex_destroy(&cdm_hw->hw_mutex);
 soc_load_failed:
-	kfree(cdm_hw->core_info);
-	kfree(cdm_hw);
-	kfree(cdm_hw_intf);
+	CAM_MEM_FREE(cdm_hw->core_info);
+	CAM_MEM_FREE(cdm_hw);
+	CAM_MEM_FREE(cdm_hw_intf);
 	return rc;
 }
 
@@ -399,10 +400,10 @@ int cam_virtual_cdm_remove(struct platform_device *pdev)
 	flush_workqueue(cdm_core->work_queue);
 	destroy_workqueue(cdm_core->work_queue);
 	mutex_destroy(&cdm_hw->hw_mutex);
-	kfree(cdm_hw->soc_info.soc_private);
-	kfree(cdm_hw->core_info);
-	kfree(cdm_hw);
-	kfree(cdm_hw_intf);
+	CAM_MEM_FREE(cdm_hw->soc_info.soc_private);
+	CAM_MEM_FREE(cdm_hw->core_info);
+	CAM_MEM_FREE(cdm_hw);
+	CAM_MEM_FREE(cdm_hw_intf);
 	rc = 0;
 
 	return rc;

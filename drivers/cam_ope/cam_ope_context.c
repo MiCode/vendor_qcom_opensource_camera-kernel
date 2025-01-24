@@ -64,11 +64,11 @@ static int cam_ope_context_dump_active_request(void *data, void *args)
 }
 
 static int __cam_ope_acquire_dev_in_available(struct cam_context *ctx,
-	struct cam_acquire_dev_cmd *cmd)
+	struct cam_acquire_dev_cmd_unified *args)
 {
 	int rc;
 
-	rc = cam_context_acquire_dev_to_hw(ctx, cmd);
+	rc = cam_context_acquire_dev_to_hw(ctx, args);
 	if (!rc) {
 		ctx->state = CAM_CTX_ACQUIRED;
 		trace_cam_context_state("OPE", ctx);

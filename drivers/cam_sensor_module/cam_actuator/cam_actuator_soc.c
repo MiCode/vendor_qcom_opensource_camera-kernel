@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -79,6 +79,9 @@ int32_t cam_actuator_parse_dt(struct cam_actuator_ctrl_t *a_ctrl,
 		CAM_DBG(CAM_ACTUATOR, "get for regulator %s",
 			soc_info->rgltr_name[i]);
 	}
+
+	cam_sensor_utils_parse_pm_ctrl_flag(of_node, &(a_ctrl->io_master_info));
+
 	if (!soc_info->gpio_data) {
 		CAM_DBG(CAM_ACTUATOR, "No GPIO found");
 		rc = 0;

@@ -29,7 +29,7 @@
 #define CAM_HW_ID_CSID0         (CAM_HW_ID_BASE + 0x500)
 #define CAM_HW_ID_IFE0          (CAM_HW_ID_BASE + 0x600)
 #define CAM_HW_ID_ICP           (CAM_HW_ID_BASE + 0x700)
-#define CAM_HW_ID_IPE0          (CAM_HW_ID_BASE + 0x800)
+#define CAM_HW_ID_IPE           (CAM_HW_ID_BASE + 0x800)
 #define CAM_HW_ID_BPS           (CAM_HW_ID_BASE + 0x900)
 #define CAM_HW_ID_OFE           (CAM_HW_ID_BASE + 0xa00)
 #define CAM_HW_ID_SENSOR0       (CAM_HW_ID_BASE + 0xb00)
@@ -74,7 +74,7 @@
 #define CAM_VMRM_RECV_MSG_BUF_SIZE        256
 
 /* default inter vm messaging timeout*/
-#define CAM_VMRM_INTER_VM_MSG_TIMEOUT     200
+#define CAM_VMRM_INTER_VM_MSG_TIMEOUT     500
 
 /* resource request client name*/
 #define CAM_RESOURCE_REQ_CLIENT_NAME "cam_vmrm"

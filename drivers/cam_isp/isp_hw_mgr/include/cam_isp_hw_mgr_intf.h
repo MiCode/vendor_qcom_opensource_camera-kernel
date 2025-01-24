@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_MGR_INTF_H_
@@ -41,6 +41,9 @@
 /* Appliacble vote paths for dual ife, based on no. of UAPI definitions */
 #define CAM_ISP_MAX_PER_PATH_VOTES 40
 
+/* Appliacble number of per path exp info including csid and downstream hw  */
+#define CAM_ISP_MAX_PER_PATH_EXP_INFO 40
+
 /* Output params for acquire from hw_mgr to ctx */
 #define CAM_IFE_CTX_CUSTOM_EN          BIT(0)
 #define CAM_IFE_CTX_FRAME_HEADER_EN    BIT(1)
@@ -61,6 +64,11 @@
  * worst case DUAL IFE/SFE use case plus some margin.
  */
 #define CAM_ISP_SFE_CTX_CFG_MAX                 40
+
+/* Maximum number of channels/contexts for FCG modules */
+#define CAM_ISP_MAX_FCG_CH_CTXS        3
+#define CAM_ISP_IFE_MAX_FCG_CH_CTXS    3
+#define CAM_ISP_SFE_MAX_FCG_CHANNELS   2
 
 /**
  *  enum cam_isp_hw_event_type - Collection of the ISP hardware events
@@ -134,6 +142,9 @@ enum cam_isp_hw_err_type {
 	CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED   = 0x00010000,
 	CAM_ISP_HW_ERROR_CSID_CAMIF_FRAME_DROP        = 0x00020000,
 	CAM_ISP_HW_ERROR_HWPD_VIOLATION               = 0x00040000,
+	CAM_ISP_HW_ERROR_CSID_MISSING_SOT             = 0x00080000,
+	CAM_ISP_HW_ERROR_CSID_ILLEGAL_DT_SWITCH       = 0x00100000,
+	CAM_ISP_HW_ERROR_DRV_VOTEUP_LATE              = 0x00200000
 };
 
 /**
@@ -152,12 +163,14 @@ enum cam_isp_hw_stop_cmd {
  * @is_internal_stop:          Stop triggered internally for reset & recovery
  * @stop_only:                 Send stop only to hw drivers. No Deinit to be
  *                             done.
+ * @standby_en:                Sensor standby is enabled
  *
  */
 struct cam_isp_stop_args {
 	enum cam_isp_hw_stop_cmd      hw_stop_cmd;
 	bool                          is_internal_stop;
 	bool                          stop_only;
+	bool                          standby_en;
 };
 
 /**
@@ -315,6 +328,33 @@ struct cam_isp_fcg_config_info {
 };
 
 /**
+ * struct cam_isp_path_exp_order_update_internal - ISP exp order update internal struct
+ *
+ * This config will contain number of processed and sensor out exposures
+ * applicable until updated. Also, this config contains an array
+ * of path to exposure order info map.
+ *
+ * @version:            Version info
+ * @num_process_exp:    Number of processed exposures
+ * @num_out_exp:        Number of sensor output exposures
+ * @num_path_exp_info:  Number of per path exp info
+ * @num_valid_params:   Number of valid params being used
+ * @valid_param_mask:   Indicate the exact params being used
+ * @params:             Params for future change
+ * @exp_info:           Exposure info for each path
+ */
+struct cam_isp_path_exp_order_update_internal {
+	__u32                                   version;
+	__u32                                   num_process_exp;
+	__u32                                   num_sensor_out_exp;
+	__u32                                   num_path_exp_info;
+	__u32                                   num_valid_params;
+	__u32                                   valid_params_mask;
+	__u32                                   params[4];
+	struct cam_isp_per_path_exp_info        exp_info[CAM_ISP_MAX_PER_PATH_EXP_INFO];
+};
+
+/**
  * struct cam_isp_prepare_hw_update_data - hw prepare data
  *
  * @isp_mgr_ctx:            ISP HW manager Context for current request
@@ -326,38 +366,42 @@ struct cam_isp_fcg_config_info {
  * @frame_header_res_id:    Out port res_id corresponding to frame header
  * @bw_clk_config:          BW and clock config info
  * @isp_drv_config:         DRV config info
- * @bw_config_valid:        Flag indicating if DRV config is valid for current request
+ * @drv_config_valid:       Flag indicating if DRV config is valid for current request
  * @isp_irq_comp_cfg:       IRQ comp configuration for MC-based TFEs
  * @irq_comp_cfg_valid:     Flag indicating if IRQ comp cfg is valid for current request
- * @reg_dump_buf_desc:     cmd buffer descriptors for reg dump
- * @num_reg_dump_buf:      Count of descriptors in reg_dump_buf_desc
- * @packet:                CSL packet from user mode driver
- * @mup_val:               MUP value if configured
- * @num_exp:               Num of exposures
- * @mup_en:                Flag if dynamic sensor switch is enabled
- * @fcg_info:              Track FCG config for further usage in config stage
+ * @isp_exp_order_update:   Exposure order update for ISP paths
+ * @exp_order_update_valid: Flag indicating if exposure order update is valid for current request
+ * @reg_dump_buf_desc:      cmd buffer descriptors for reg dump
+ * @num_reg_dump_buf:       Count of descriptors in reg_dump_buf_desc
+ * @packet:                 CSL packet from user mode driver
+ * @mup_val:                MUP value if configured
+ * @num_exp:                Num of exposures
+ * @mup_en:                 Flag if dynamic sensor switch is enabled
+ * @fcg_info:               Track FCG config for further usage in config stage
  *
  */
 struct cam_isp_prepare_hw_update_data {
-	void                                 *isp_mgr_ctx;
-	uint32_t                              packet_opcode_type;
-	uint32_t                             *frame_header_cpu_addr;
-	uint64_t                              frame_header_iova;
-	uint32_t                              frame_header_res_id;
-	struct cam_isp_bw_clk_config_info     bw_clk_config;
-	struct cam_isp_drv_config             isp_drv_config;
-	bool                                  drv_config_valid;
-	struct cam_isp_irq_comp_cfg           isp_irq_comp_cfg;
-	bool                                  irq_comp_cfg_valid;
-	struct cam_cmd_buf_desc               reg_dump_buf_desc[
-						CAM_REG_DUMP_MAX_BUF_ENTRIES];
-	uint32_t                              num_reg_dump_buf;
-	struct cam_packet                    *packet;
-	struct cam_kmd_buf_info               kmd_cmd_buff_info;
-	uint32_t                              mup_val;
-	uint32_t                              num_exp;
-	bool                                  mup_en;
-	struct cam_isp_fcg_config_info        fcg_info;
+	void                                          *isp_mgr_ctx;
+	uint32_t                                       packet_opcode_type;
+	uint32_t                                      *frame_header_cpu_addr;
+	uint64_t                                       frame_header_iova;
+	uint32_t                                       frame_header_res_id;
+	struct cam_isp_bw_clk_config_info              bw_clk_config;
+	struct cam_isp_drv_config                      isp_drv_config;
+	bool                                           drv_config_valid;
+	struct cam_isp_irq_comp_cfg                    isp_irq_comp_cfg;
+	bool                                           irq_comp_cfg_valid;
+	struct cam_isp_path_exp_order_update_internal  isp_exp_order_update;
+	bool                                           exp_order_update_valid;
+	struct cam_cmd_buf_desc                        reg_dump_buf_desc[
+							CAM_REG_DUMP_MAX_BUF_ENTRIES];
+	uint32_t                                       num_reg_dump_buf;
+	struct cam_packet                             *packet;
+	struct cam_kmd_buf_info                        kmd_cmd_buff_info;
+	uint32_t                                       mup_val;
+	uint32_t                                       num_exp;
+	bool                                           mup_en;
+	struct cam_isp_fcg_config_info                 fcg_info;
 };
 
 
@@ -403,6 +447,7 @@ struct cam_isp_hw_epoch_event_data {
  * @comp_group_id:       Bus comp group id
  * @last_consumed_addr:  Last consumed addr
  * @timestamp:           Timestamp for the buf done event
+ * @is_early_done:       Indicates if its an early done event
  *
  */
 struct cam_isp_hw_done_event_data {
@@ -411,6 +456,7 @@ struct cam_isp_hw_done_event_data {
 	uint32_t             comp_group_id;
 	uint32_t             last_consumed_addr;
 	uint64_t             timestamp;
+	bool                 is_early_done;
 };
 
 /**
@@ -466,6 +512,7 @@ enum cam_isp_hw_mgr_command {
 	CAM_ISP_HW_MGR_GET_BUS_COMP_GROUP,
 	CAM_ISP_HW_MGR_CMD_UPDATE_CLOCK,
 	CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR,
+	CAM_ISP_HW_MGR_SET_DRV_INFO,
 	CAM_ISP_HW_MGR_CMD_MAX,
 };
 
@@ -476,6 +523,48 @@ enum cam_isp_ctx_type {
 	CAM_ISP_CTX_OFFLINE,
 	CAM_ISP_CTX_MAX,
 };
+
+/**
+ * struct cam_isp_hw_drv_info - DRV info
+ *
+ * @req_id:                 Request id
+ * @path_idle_en:           Mask for paths to be considered for consolidated IDLE signal.
+ *                          When paths matching the mask go idle, BW is voted down.
+ * @frame_duration:         Frame duration for a request
+ * @blanking_duration:      Vertical blanking duration for a request, and it is representing
+ *                          the blanking durations before the frame for this request.
+ * @drv_blanking_threshold: DRV blanking threshold
+ * @timeout_val:            DRV timeout value
+ * @update_drv:             This to tell DRV needs to be updated or not
+ * @drv_en:                 DRV is enabled or not
+ * @is_blob_config_valid:   DV blob is valid or not
+ *
+ */
+struct cam_isp_hw_drv_info {
+	uint64_t req_id;
+	uint32_t path_idle_en;
+	uint64_t frame_duration;
+	uint64_t blanking_duration;
+	uint64_t drv_blanking_threshold;
+	uint32_t timeout_val;
+	bool     update_drv;
+	bool     drv_en;
+	bool     is_blob_config_valid;
+};
+
+/**
+ * struct cam_isp_hw_per_req_info - per request info
+ *
+ * @drv_info:               DRV config related information
+ * @mup_en:                 is mup enabled or not
+ *
+ */
+struct cam_isp_hw_per_req_info {
+	struct cam_isp_hw_drv_info drv_info;
+	bool mup_en;
+};
+
+
 /**
  * struct cam_isp_hw_cmd_args - Payload for hw manager command
  *
@@ -486,24 +575,31 @@ enum cam_isp_ctx_type {
  * @last_cdm_done:         Last cdm done request
  * @ctx_info:              Gives info about context(RDI, PIX, bubble recovery)
  * @sof_ts:                SOF timestamps (current, boot and previous)
+ * @default_cfg_params:    The params for default config
+ * @drv_info:              DRV info for corresponding req
  * @cdm_done_ts:           CDM callback done timestamp
  */
 struct cam_isp_hw_cmd_args {
 	uint32_t                          cmd_type;
 	void                             *cmd_data;
 	union {
-		uint32_t                         sof_irq_enable;
-		uint32_t                         packet_op_code;
-		uint64_t                         last_cdm_done;
+		uint32_t                      sof_irq_enable;
+		uint32_t                      packet_op_code;
+		uint64_t                      last_cdm_done;
 		struct {
-			uint64_t                 type;
-			bool                     bubble_recover_dis;
+			uint64_t                  type;
+			bool                      bubble_recover_dis;
 		} ctx_info;
 		struct {
-			uint64_t                 curr;
-			uint64_t                 prev;
-			uint64_t                 boot;
+			uint64_t                  curr;
+			uint64_t                  prev;
+			uint64_t                  boot;
 		} sof_ts;
+		struct {
+			int64_t                   last_applied_max_pd_req;
+			bool                      force_disable_drv;
+		} default_cfg_params;
+		struct cam_isp_hw_drv_info    drv_info;
 	} u;
 	struct timespec64 cdm_done_ts;
 };

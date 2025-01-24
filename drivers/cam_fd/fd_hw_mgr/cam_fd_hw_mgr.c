@@ -2155,7 +2155,7 @@ int cam_fd_hw_mgr_init(struct device_node *of_node,
 		goto detach_smmu;
 	}
 
-	g_fd_hw_mgr.work_data = kcalloc(CAM_FD_WORKQ_NUM_TASK,
+	g_fd_hw_mgr.work_data = CAM_MEM_ZALLOC_ARRAY(CAM_FD_WORKQ_NUM_TASK,
 		sizeof(struct cam_fd_mgr_work_data), GFP_KERNEL);
 
 	for (i = 0; i < CAM_FD_WORKQ_NUM_TASK; i++)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -9,11 +9,12 @@
 #include <linux/interrupt.h>
 #include <linux/list.h>
 #include <linux/ratelimit.h>
+
 #include "cam_tasklet_util.h"
 #include "cam_irq_controller.h"
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
-
+#include "cam_mem_mgr_api.h"
 
 /* Threshold for scheduling delay in ms */
 #define CAM_TASKLET_SCHED_TIME_THRESHOLD        5
@@ -217,15 +218,21 @@ void cam_tasklet_enqueue_cmd(
 	}
 
 	CAM_DBG(CAM_ISP, "Enqueue tasklet cmd idx:%d", tasklet->index);
-	tasklet_cmd->bottom_half_handler = bottom_half_handler;
-	tasklet_cmd->payload = evt_payload_priv;
-	tasklet_cmd->handler_priv = handler_priv;
-	tasklet_cmd->tasklet_enqueue_ts = ktime_get();
-	spin_lock_irqsave(&tasklet->tasklet_lock, flags);
-	list_add_tail(&tasklet_cmd->list,
-		&tasklet->used_cmd_list);
-	spin_unlock_irqrestore(&tasklet->tasklet_lock, flags);
-	tasklet_hi_schedule(&tasklet->tasklet);
+	if (!cam_presil_mode_enabled()) {
+		tasklet_cmd->bottom_half_handler = bottom_half_handler;
+		tasklet_cmd->payload = evt_payload_priv;
+		tasklet_cmd->handler_priv = handler_priv;
+		tasklet_cmd->tasklet_enqueue_ts = ktime_get();
+		spin_lock_irqsave(&tasklet->tasklet_lock, flags);
+		list_add_tail(&tasklet_cmd->list,
+			&tasklet->used_cmd_list);
+		spin_unlock_irqrestore(&tasklet->tasklet_lock, flags);
+		tasklet_hi_schedule(&tasklet->tasklet);
+	} else {
+		cam_presil_enqueue_presil_irq_tasklet(bottom_half_handler,
+			handler_priv,
+			evt_payload_priv);
+	}
 }
 
 int cam_tasklet_init(
@@ -236,7 +243,7 @@ int cam_tasklet_init(
 	int i;
 	struct cam_tasklet_info  *tasklet = NULL;
 
-	tasklet = kzalloc(sizeof(struct cam_tasklet_info), GFP_KERNEL);
+	tasklet = CAM_MEM_ZALLOC(sizeof(struct cam_tasklet_info), GFP_KERNEL);
 	if (!tasklet) {
 		CAM_DBG(CAM_ISP,
 			"Error! Unable to allocate memory for tasklet");
@@ -273,7 +280,7 @@ void cam_tasklet_deinit(void    **tasklet_info)
 		tasklet_kill(&tasklet->tasklet);
 		tasklet_disable(&tasklet->tasklet);
 	}
-	kfree(tasklet);
+	CAM_MEM_FREE(tasklet);
 	*tasklet_info = NULL;
 }
 

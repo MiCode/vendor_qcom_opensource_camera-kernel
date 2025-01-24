@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -19,6 +19,7 @@
 #include "cam_debug_util.h"
 #include "cam_cdm_util.h"
 #include "cam_cpas_api.h"
+#include "cam_mem_mgr_api.h"
 
 #define CAM_VFE_CAMIF_IRQ_SOF_DEBUG_CNT_MAX 2
 
@@ -573,7 +574,7 @@ int cam_vfe_fe_ver1_init(
 	struct cam_vfe_mux_fe_data     *fe_priv = NULL;
 	struct cam_vfe_fe_ver1_hw_info *fe_info = fe_hw_info;
 
-	fe_priv = kzalloc(sizeof(struct cam_vfe_mux_fe_data),
+	fe_priv = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_mux_fe_data),
 		GFP_KERNEL);
 	if (!fe_priv) {
 		CAM_ERR(CAM_ISP, "Error! Failed to alloc for fe_priv");
@@ -618,7 +619,7 @@ int cam_vfe_fe_ver1_deinit(
 		return -ENODEV;
 	}
 
-	kfree(fe_priv);
+	CAM_MEM_FREE(fe_priv);
 
 	return 0;
 }

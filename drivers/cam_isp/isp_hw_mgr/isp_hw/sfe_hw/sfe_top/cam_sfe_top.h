@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SFE_TOP_H_
@@ -48,6 +48,7 @@ struct cam_sfe_top_err_irq_desc {
 	uint32_t  bitmask;
 	char     *err_name;
 	char     *desc;
+	char     *debug;
 };
 
 struct cam_sfe_top_debug_info {

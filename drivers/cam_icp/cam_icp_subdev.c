@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -33,7 +33,7 @@
 #include "camera_main.h"
 #include "cam_common_util.h"
 #include "cam_context_utils.h"
-
+#include "cam_mem_mgr_api.h"
 
 #define CAM_ICP_IS_DEV_IDX_INVALID(dev_idx)                   \
 ({                                                            \
@@ -101,7 +101,16 @@ static void cam_icp_dev_iommu_fault_handler(struct cam_smmu_pf_info *pf_smmu_inf
 
 	pf_args.pf_smmu_info = pf_smmu_info;
 
+	/* Checked whether client with SMMU issued pid should be handled by this handler */
+	if (node->ctx_size != 0) {
+		pf_args.check_pid = true;
+		cam_context_dump_pf_info(&(node->ctx_list[0]), &pf_args);
+		if (!pf_args.pid_found)
+			return;
+	}
+
 	for (i = 0; i < node->ctx_size; i++) {
+		pf_args.check_pid = false;
 		cam_context_dump_pf_info(&(node->ctx_list[i]), &pf_args);
 		if (pf_args.pf_context_info.ctx_found)
 			/* found ctx and packet of the faulted address */
@@ -251,7 +260,7 @@ const struct v4l2_subdev_internal_ops cam_icp_subdev_internal_ops = {
 
 static inline void cam_icp_subdev_clean_up(uint32_t device_idx)
 {
-	kfree(g_icp_dev[device_idx]);
+	CAM_MEM_FREE(g_icp_dev[device_idx]);
 	g_icp_dev[device_idx] = NULL;
 }
 
@@ -266,7 +275,10 @@ static int cam_icp_component_bind(struct device *dev,
 	struct cam_icp_subdev *icp_dev;
 	char *subdev_name;
 	uint32_t device_idx;
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	if (!pdev) {
 		CAM_ERR(CAM_ICP, "Invalid params: pdev is %s",
 			CAM_IS_NULL_TO_STR(pdev));
@@ -292,13 +304,6 @@ static int cam_icp_component_bind(struct device *dev,
 	else
 		subdev_name = cam_icp_subdev_name_arr[device_idx];
 
-	icp_dev = kzalloc(sizeof(struct cam_icp_subdev), GFP_KERNEL);
-	if (!icp_dev) {
-		CAM_ERR(CAM_ICP,
-			"Unable to allocate memory for icp device:%s size:%llu",
-			pdev->name, sizeof(struct cam_icp_subdev));
-		return -ENOMEM;
-	}
 
 	mutex_lock(&g_dev_lock);
 	if (g_icp_dev[device_idx]) {
@@ -309,6 +314,17 @@ static int cam_icp_component_bind(struct device *dev,
 		mutex_unlock(&g_dev_lock);
 		goto probe_fail;
 	}
+	mutex_unlock(&g_dev_lock);
+
+	icp_dev = CAM_MEM_ZALLOC(sizeof(struct cam_icp_subdev), GFP_KERNEL);
+	if (!icp_dev) {
+		CAM_ERR(CAM_ICP,
+			"Unable to allocate memory for icp device:%s size:%llu",
+			pdev->name, sizeof(struct cam_icp_subdev));
+		return -ENOMEM;
+	}
+
+	mutex_lock(&g_dev_lock);
 	g_icp_dev[device_idx] = icp_dev;
 	mutex_unlock(&g_dev_lock);
 
@@ -360,6 +376,9 @@ static int cam_icp_component_bind(struct device *dev,
 
 	CAM_DBG(CAM_ICP, "device[%s] id: %u component bound successfully",
 		subdev_name, device_idx);
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 
 	return rc;
 
@@ -368,6 +387,7 @@ ctx_fail:
 		cam_icp_context_deinit(&icp_dev->ctx_icp[i]);
 	cam_icp_hw_mgr_deinit(device_idx);
 hw_init_fail:
+	cam_node_deinit(icp_dev->node);
 	cam_subdev_remove(&icp_dev->sd);
 probe_fail:
 	cam_icp_subdev_clean_up(device_idx);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -13,6 +13,7 @@
 #include "cam_irq_controller.h"
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
+#include "cam_mem_mgr_api.h"
 
 #define CAM_IRQ_LINE_TEST_TIMEOUT_MS 1000
 #define CAM_IRQ_MAX_DEPENDENTS 13
@@ -64,6 +65,7 @@ struct cam_irq_evt_handler {
  * @set_reg_offset:         Offset of IRQ SET register
  * @test_set_val:           Value to write to IRQ SET register to trigger IRQ
  * @test_sub_val:           Value to write to IRQ MASK register to receive test IRQ
+ * @force_rd_mask:          Mask value for bits to be read in hw errata cases
  * @top_half_enable_mask:   Array of enabled bit_mask sorted by priority
  * @aggr_mask:              Aggregate mask to keep track of the overall mask
  *                          after subscribe/unsubscribe calls
@@ -79,6 +81,7 @@ struct cam_irq_register_obj {
 	uint32_t                     set_reg_offset;
 	uint32_t                     test_set_val;
 	uint32_t                     test_sub_val;
+	uint32_t                     force_rd_mask;
 	uint32_t                     top_half_enable_mask[CAM_IRQ_PRIORITY_MAX];
 	uint32_t                     aggr_mask;
 	uint32_t                     dependent_read_mask[CAM_IRQ_MAX_DEPENDENTS];
@@ -352,14 +355,14 @@ int cam_irq_controller_deinit(void **irq_controller)
 			&controller->evt_handler_list_head,
 			struct cam_irq_evt_handler, list_node);
 		list_del_init(&evt_handler->list_node);
-		kfree(evt_handler->evt_bit_mask_arr);
-		kfree(evt_handler);
+		CAM_MEM_FREE(evt_handler->evt_bit_mask_arr);
+		CAM_MEM_FREE(evt_handler);
 	}
 
-	kfree(controller->th_payload.evt_status_arr);
-	kfree(controller->irq_status_arr);
-	kfree(controller->irq_register_arr);
-	kfree(controller);
+	CAM_MEM_FREE(controller->th_payload.evt_status_arr);
+	CAM_MEM_FREE(controller->irq_status_arr);
+	CAM_MEM_FREE(controller->irq_register_arr);
+	CAM_MEM_FREE(controller);
 	*irq_controller = NULL;
 	return 0;
 }
@@ -381,13 +384,13 @@ int cam_irq_controller_init(const char       *name,
 		return rc;
 	}
 
-	controller = kzalloc(sizeof(struct cam_irq_controller), GFP_KERNEL);
+	controller = CAM_MEM_ZALLOC(sizeof(struct cam_irq_controller), GFP_KERNEL);
 	if (!controller) {
 		CAM_DBG(CAM_IRQ_CTRL, "Failed to allocate IRQ Controller");
 		return -ENOMEM;
 	}
 
-	controller->irq_register_arr = kzalloc(register_info->num_registers *
+	controller->irq_register_arr = CAM_MEM_ZALLOC(register_info->num_registers *
 		sizeof(struct cam_irq_register_obj), GFP_KERNEL);
 	if (!controller->irq_register_arr) {
 		CAM_DBG(CAM_IRQ_CTRL, "Failed to allocate IRQ register Arr");
@@ -395,7 +398,7 @@ int cam_irq_controller_init(const char       *name,
 		goto reg_alloc_error;
 	}
 
-	controller->irq_status_arr = kzalloc(register_info->num_registers *
+	controller->irq_status_arr = CAM_MEM_ZALLOC(register_info->num_registers *
 		sizeof(uint32_t), GFP_KERNEL);
 	if (!controller->irq_status_arr) {
 		CAM_DBG(CAM_IRQ_CTRL, "Failed to allocate IRQ status Arr");
@@ -404,7 +407,7 @@ int cam_irq_controller_init(const char       *name,
 	}
 
 	controller->th_payload.evt_status_arr =
-		kzalloc(register_info->num_registers * sizeof(uint32_t),
+		CAM_MEM_ZALLOC(register_info->num_registers * sizeof(uint32_t),
 		GFP_KERNEL);
 	if (!controller->th_payload.evt_status_arr) {
 		CAM_DBG(CAM_IRQ_CTRL,
@@ -415,8 +418,7 @@ int cam_irq_controller_init(const char       *name,
 
 	strscpy(controller->name, name, CAM_IRQ_CTRL_NAME_LEN);
 
-	CAM_DBG(CAM_IRQ_CTRL, "num_registers: %d",
-		register_info->num_registers);
+	CAM_DBG(CAM_IRQ_CTRL, "num_registers: %d", register_info->num_registers);
 	for (i = 0; i < register_info->num_registers; i++) {
 		controller->irq_register_arr[i].index = i;
 		controller->irq_register_arr[i].mask_reg_offset =
@@ -431,6 +433,8 @@ int cam_irq_controller_init(const char       *name,
 			register_info->irq_reg_set[i].test_set_val;
 		controller->irq_register_arr[i].test_sub_val =
 			register_info->irq_reg_set[i].test_sub_val;
+		controller->irq_register_arr[i].force_rd_mask =
+			register_info->irq_reg_set[i].force_rd_mask;
 		controller->irq_register_arr[i].dirty_clear = true;
 		CAM_DBG(CAM_IRQ_CTRL, "i %d mask_reg_offset: 0x%x", i,
 			controller->irq_register_arr[i].mask_reg_offset);
@@ -469,11 +473,11 @@ int cam_irq_controller_init(const char       *name,
 	return rc;
 
 evt_mask_alloc_error:
-	kfree(controller->irq_status_arr);
+	CAM_MEM_FREE(controller->irq_status_arr);
 status_alloc_error:
-	kfree(controller->irq_register_arr);
+	CAM_MEM_FREE(controller->irq_register_arr);
 reg_alloc_error:
-	kfree(controller);
+	CAM_MEM_FREE(controller);
 
 	return rc;
 }
@@ -602,13 +606,13 @@ int cam_irq_controller_subscribe_irq(void *irq_controller,
 		return -EINVAL;
 	}
 
-	evt_handler = kzalloc(sizeof(struct cam_irq_evt_handler), GFP_KERNEL);
+	evt_handler = CAM_MEM_ZALLOC(sizeof(struct cam_irq_evt_handler), GFP_KERNEL);
 	if (!evt_handler) {
 		CAM_DBG(CAM_IRQ_CTRL, "Error allocating hlist_node");
 		return -ENOMEM;
 	}
 
-	evt_handler->evt_bit_mask_arr = kzalloc(sizeof(uint32_t) *
+	evt_handler->evt_bit_mask_arr = CAM_MEM_ZALLOC(sizeof(uint32_t) *
 		controller->num_registers, GFP_KERNEL);
 	if (!evt_handler->evt_bit_mask_arr) {
 		CAM_DBG(CAM_IRQ_CTRL, "Error allocating hlist_node");
@@ -651,7 +655,7 @@ int cam_irq_controller_subscribe_irq(void *irq_controller,
 	return evt_handler->index;
 
 free_evt_handler:
-	kfree(evt_handler);
+	CAM_MEM_FREE(evt_handler);
 	evt_handler = NULL;
 
 	return rc;
@@ -750,8 +754,8 @@ int cam_irq_controller_unsubscribe_irq(void *irq_controller,
 	__cam_irq_controller_disable_irq(controller, evt_handler);
 	cam_irq_controller_clear_irq(controller, evt_handler);
 
-	kfree(evt_handler->evt_bit_mask_arr);
-	kfree(evt_handler);
+	CAM_MEM_FREE(evt_handler->evt_bit_mask_arr);
+	CAM_MEM_FREE(evt_handler);
 
 end:
 	cam_irq_controller_unlock_irqrestore(controller, flags);
@@ -781,8 +785,8 @@ int cam_irq_controller_unsubscribe_irq_evt(void *irq_controller,
 	__cam_irq_controller_disable_irq_evt(controller, evt_handler);
 	cam_irq_controller_clear_irq(controller, evt_handler);
 
-	kfree(evt_handler->evt_bit_mask_arr);
-	kfree(evt_handler);
+	CAM_MEM_FREE(evt_handler->evt_bit_mask_arr);
+	CAM_MEM_FREE(evt_handler);
 
 end:
 	cam_irq_controller_unlock_irqrestore(controller, flags);
@@ -815,7 +819,8 @@ static bool cam_irq_controller_match_bit_mask(
 
 	for (i = 0; i < controller->num_registers; i++) {
 		if (evt_handler->evt_bit_mask_arr[i] &
-			controller->irq_status_arr[i])
+			(controller->irq_status_arr[i] |
+			controller->irq_register_arr[i].force_rd_mask))
 			return true;
 	}
 
@@ -984,8 +989,7 @@ static void __cam_irq_controller_read_registers(struct cam_irq_controller *contr
 	if (controller->global_irq_cmd_offset && !controller->delayed_global_clear) {
 		cam_io_w_mb(controller->global_clear_bitmask,
 			controller->mem_base + controller->global_irq_cmd_offset);
-		CAM_DBG(CAM_IRQ_CTRL, "Global Clear done from %s",
-			controller->name);
+		CAM_DBG(CAM_IRQ_CTRL, "Global Clear done from %s", controller->name);
 	}
 }
 
@@ -1020,11 +1024,14 @@ static void cam_irq_controller_get_need_reg_read(
 	for (i = 0; i < controller->num_registers; i++) {
 		irq_register = &controller->irq_register_arr[i];
 		for_each_set_bit(j, &dependent_bitmap, CAM_IRQ_MAX_DEPENDENTS) {
-			if (irq_register->dependent_read_mask[j] & controller->irq_status_arr[i])
+			if (irq_register->dependent_read_mask[j] &
+				(controller->irq_status_arr[i] | irq_register->force_rd_mask))
 				need_reg_read[j] = true;
 
-			CAM_DBG(CAM_IRQ_CTRL, "(%s) reg:%d dep:%d need_reg_read = %d",
-					controller->name, i, j, need_reg_read[j]);
+			CAM_DBG(CAM_IRQ_CTRL,
+				"(%s) reg:%d dep:%d need_reg_read = %d force_rd_mask: 0x%x",
+					controller->name, i, j, need_reg_read[j],
+					irq_register->force_rd_mask);
 		}
 	}
 }
@@ -1094,11 +1101,13 @@ static void cam_irq_controller_process_th(struct cam_irq_controller *controller,
 	for (i = 0; i < controller->num_registers; i++) {
 		irq_register = &controller->irq_register_arr[i];
 		for (j = 0; j < CAM_IRQ_PRIORITY_MAX; j++) {
-			if (irq_register->top_half_enable_mask[j] & controller->irq_status_arr[i])
+			if (irq_register->top_half_enable_mask[j] &
+				(controller->irq_status_arr[i] | irq_register->force_rd_mask))
 				need_th_processing[j] = true;
 
-			CAM_DBG(CAM_IRQ_CTRL, "reg:%d priority:%d need_th_processing = %d",
-				i, j, need_th_processing[j]);
+			CAM_DBG(CAM_IRQ_CTRL,
+				"reg:%d priority:%d need_th_processing = %d force_rd_mask: 0x%x",
+				i, j, need_th_processing[j], irq_register->force_rd_mask);
 		}
 	}
 
@@ -1236,7 +1245,7 @@ int cam_irq_controller_test_irq_line(void *irq_controller, const char *fmt, ...)
 		return -EINVAL;
 	}
 
-	mask = kcalloc(controller->num_registers, sizeof(uint32_t), GFP_KERNEL);
+	mask = CAM_MEM_ZALLOC_ARRAY(controller->num_registers, sizeof(uint32_t), GFP_KERNEL);
 	if (!mask) {
 		CAM_ERR(CAM_IRQ_CTRL, "%s: cannot allocate mask array of length %d",
 			controller->name, controller->num_registers);
@@ -1246,11 +1255,11 @@ int cam_irq_controller_test_irq_line(void *irq_controller, const char *fmt, ...)
 	for (i = 0; i < controller->num_registers; i++)
 		mask[i] = controller->irq_register_arr[i].test_sub_val;
 
-	test_priv = kzalloc(sizeof(struct cam_irq_line_test_priv), GFP_KERNEL);
+	test_priv = CAM_MEM_ZALLOC(sizeof(struct cam_irq_line_test_priv), GFP_KERNEL);
 	if (!test_priv) {
 		CAM_ERR(CAM_IRQ_CTRL, "%s: cannot allocate test-priv", controller->name);
 		rc = -ENOMEM;
-		goto kfree_exit;
+		goto free_mem;
 	}
 
 	va_start(args, fmt);
@@ -1266,7 +1275,7 @@ int cam_irq_controller_test_irq_line(void *irq_controller, const char *fmt, ...)
 		CAM_ERR(CAM_IRQ_CTRL, "%s: failed to subscribe to test irq line",
 			controller->name);
 		rc = -EINVAL;
-		goto kfree_exit;
+		goto free_mem;
 	}
 
 	for (i = 0; i < controller->num_registers; i++) {
@@ -1296,9 +1305,9 @@ int cam_irq_controller_test_irq_line(void *irq_controller, const char *fmt, ...)
 
 unsub_exit:
 	cam_irq_controller_unsubscribe_irq(controller, handle);
-kfree_exit:
-	kfree(mask);
-	kfree(test_priv);
+free_mem:
+	CAM_MEM_FREE(mask);
+	CAM_MEM_FREE(test_priv);
 	return rc;
 }
 

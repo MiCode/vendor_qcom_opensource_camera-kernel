@@ -13,6 +13,27 @@
 #include <cam_req_mgr_util.h>
 #include <cam_io_util.h>
 
+// XIAOMI ADD: FeatureAutoEQ
+/* max 8 bits:
+ctrl 7 -> ctr0
+4bits/ctrlxxx: indicate the current ctrl(no.) has the mipi error
+
+left 56 bits:
+4bits/ctrlxxx, calc from the lowest bit.
+4bits/ctrlxxx: indicate the current using phy setting index(this_setting_current_choice)
+*/
+extern uint64_t xm_mipi_kmd_setting;
+#define XM_MIPI_KMD_CTRL_NO	((xm_mipi_kmd_setting>>56)&(uint64_t)0xff)
+#define XM_MIPI_KMD_GET_CTRL_FLAG(ctl_no)			((XM_MIPI_KMD_CTRL_NO>>ctl_no) & (uint64_t)0x01)
+#define XM_MIPI_KMD_GET_CTRL_VAL(ctl_no)			((xm_mipi_kmd_setting>>((uint64_t)ctl_no<<2) & (uint64_t)0x0F))
+//#define XM_MIPI_KMD_GET_CTRL_FLAG_VAL(ctl_no, flag, val)	do{char *p1=flag; *p1=XM_MIPI_KMD_GET_CTRL_FLAG(ctl_no); char *p2=val; *p2=XM_MIPI_KMD_GET_CTRL_VAL(ctl_no);} while(0)
+
+#define XM_MIPI_KMD_CLEAR_CTRL_VAL(ctl_no)		(xm_mipi_kmd_setting &= (~((uint64_t)0x0F<<(ctl_no<<2))))
+#define XM_MIPI_KMD_SET_CTRL_FLAG(ctl_no)			(xm_mipi_kmd_setting |= ((uint64_t)1<<(ctl_no+56)))
+#define XM_MIPI_KMD_SET_CTRL_VAL(ctl_no, val)		(xm_mipi_kmd_setting |= (((uint64_t)val&0x0F)<<(ctl_no<<2)))
+#define XM_MIPI_KMD_SET_CTRL_FLAG_VAL(ctl_no, val)	do{XM_MIPI_KMD_CLEAR_CTRL_VAL(ctl_no);XM_MIPI_KMD_SET_CTRL_FLAG(ctl_no); XM_MIPI_KMD_SET_CTRL_VAL(ctl_no, val);} while(0)
+// END: FeatureAutoEQ
+
 /**
  * @csiphy_dev: CSIPhy device structure
  *
@@ -26,6 +47,16 @@ void cam_csiphy_cphy_irq_config(struct csiphy_device *csiphy_dev);
  * This API resets CSIPhy hardware
  */
 void cam_csiphy_reset(struct csiphy_device *csiphy_dev);
+
+/**
+ * @csiphy_dev: CSIPhy device structure
+ * @csiphybase: CSIPhy base addr
+ * @instance  : CSIPhy instance
+ *
+ * This API releases CSIPhy from reset
+ */
+int cam_csiphy_release_from_reset_state(struct csiphy_device *csiphy_dev,
+	void __iomem *csiphybase, int32_t instance);
 
 /**
  * @csiphy_dev: CSIPhy device structure
@@ -75,6 +106,13 @@ int cam_csiphy_util_update_aon_ops(bool get_access, uint32_t phy_idx);
  *
  */
 void cam_csiphy_update_auxiliary_mask(struct csiphy_device *csiphy_dev);
+
+/**
+ * @data:    Qmargin CSID register tuning feedback
+ * @phy_idx: PHY idx
+ *
+ */
+void cam_csiphy_update_qmargin_csid_vals(void *data, int phy_idx);
 
 /**
  * @csiphy_dev: CSIPhy device structure

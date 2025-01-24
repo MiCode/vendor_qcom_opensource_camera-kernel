@@ -132,127 +132,130 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_880_path_irq_desc[] 
 	{
 		.bitmask = BIT(0),
 		.err_type = CAM_ISP_HW_ERROR_CSID_FATAL,
-		.desc = "ILLEGAL_PROGRAMMING",
+		.irq_name = "ILLEGAL_PROGRAMMING",
+		.desc = "SW: Illegal programming sequence",
+		.debug = "Check the following possiblities:",
 		.err_handler = cam_ife_csid_ver2_print_illegal_programming_irq_status,
 	},
 	{0},
 	{
 		.bitmask = BIT(2),
-		.desc = "INFO_DATA_FIFO_FULL",
+		.irq_name = "INFO_DATA_FIFO_FULL",
 	},
 	{
 		.bitmask = BIT(3),
-		.desc = "CAMIF_EOF",
+		.irq_name = "CAMIF_EOF",
 	},
 	{
 		.bitmask = BIT(4),
-		.desc = "CAMIF_SOF",
+		.irq_name = "CAMIF_SOF",
 	},
 	{
 		.bitmask = BIT(5),
-		.desc = "FRAME_DROP_EOF",
+		.irq_name = "FRAME_DROP_EOF",
 	},
 	{
 		.bitmask = BIT(6),
-		.desc = "FRAME_DROP_EOL",
+		.irq_name = "FRAME_DROP_EOL",
 	},
 	{
 		.bitmask = BIT(7),
-		.desc = "FRAME_DROP_SOL",
+		.irq_name = "FRAME_DROP_SOL",
 	},
 	{
 		.bitmask = BIT(8),
-		.desc = "FRAME_DROP_SOF",
+		.irq_name = "FRAME_DROP_SOF",
 	},
 	{
 		.bitmask = BIT(9),
-		.desc = "INFO_INPUT_EOF",
+		.irq_name = "INFO_INPUT_EOF",
 	},
 	{
 		.bitmask = BIT(10),
-		.desc = "INFO_INPUT_EOL",
+		.irq_name = "INFO_INPUT_EOL",
 	},
 	{
 		.bitmask = BIT(11),
-		.desc = "INFO_INPUT_SOL",
+		.irq_name = "INFO_INPUT_SOL",
 	},
 	{
 		.bitmask = BIT(12),
-		.desc = "INFO_INPUT_SOF",
+		.irq_name = "INFO_INPUT_SOF",
 	},
 	{
 		.bitmask = BIT(13),
 		.err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE,
-		.desc = "ERROR_PIX_COUNT",
+		.irq_name = "ERROR_PIX_COUNT",
 		.err_handler = cam_ife_csid_ver2_print_format_measure_info,
 	},
 	{
 		.bitmask = BIT(14),
 		.err_type = CAM_ISP_HW_ERROR_CSID_FRAME_SIZE,
-		.desc = "ERROR_LINE_COUNT",
+		.irq_name = "ERROR_LINE_COUNT",
 		.err_handler = cam_ife_csid_ver2_print_format_measure_info,
 	},
 	{
 		.bitmask = BIT(15),
-		.desc = "VCDT_GRP0_SEL",
+		.irq_name = "VCDT_GRP0_SEL",
 	},
 	{
 		.bitmask = BIT(16),
-		.desc = "VCDT_GRP1_SEL",
+		.irq_name = "VCDT_GRP1_SEL",
 	},
 	{
 		.bitmask = BIT(17),
-		.desc = "VCDT_GRP_CHANGE",
+		.irq_name = "VCDT_GRP_CHANGE",
 	},
 	{
 		.bitmask = BIT(18),
-		.desc = "FRAME_DROP",
+		.irq_name = "FRAME_DROP",
 	},
 	{
 		.bitmask = BIT(19),
 		.err_type = CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW,
-		.desc = "OVERFLOW_RECOVERY: Back pressure/output fifo ovrfl",
+		.irq_name = "OVERFLOW_RECOVERY",
+		.debug = "Back pressure/output fifo ovrfl",
 	},
 	{
 		.bitmask = BIT(20),
-		.desc = "ERROR_REC_CCIF_VIOLATION From Camif",
+		.irq_name = "ERROR_REC_CCIF_VIOLATION From Camif",
 	},
 	{
 		.bitmask = BIT(21),
-		.desc = "CAMIF_EPOCH0",
+		.irq_name = "CAMIF_EPOCH0",
 	},
 	{
 		.bitmask = BIT(22),
-		.desc = "CAMIF_EPOCH1",
+		.irq_name = "CAMIF_EPOCH1",
 	},
 	{
 		.bitmask = BIT(23),
-		.desc = "RUP_DONE",
+		.irq_name = "RUP_DONE",
 	},
 	{
 		.bitmask = BIT(24),
-		.desc = "ILLEGAL_BATCH_ID",
+		.irq_name = "ILLEGAL_BATCH_ID",
 	},
 	{
 		.bitmask = BIT(25),
-		.desc = "BATCH_END_MISSING_VIOLATION",
+		.irq_name = "BATCH_END_MISSING_VIOLATION",
 	},
 	{
 		.bitmask = BIT(26),
-		.desc = "HEIGHT_VIOLATION",
+		.irq_name = "HEIGHT_VIOLATION",
 	},
 	{
 		.bitmask = BIT(27),
-		.desc = "WIDTH_VIOLATION",
+		.irq_name = "WIDTH_VIOLATION",
 	},
 	{
 		.bitmask = BIT(28),
-		.desc = "SENSOR_SWITCH_OUT_OF_SYNC_FRAME_DROP",
+		.irq_name = "SENSOR_SWITCH_OUT_OF_SYNC_FRAME_DROP",
 		.err_handler = cam_ife_csid_hw_ver2_mup_mismatch_handler,
 	},
 	{
 		.bitmask = BIT(29),
-		.desc = "CCIF_VIOLATION: Bad frame timings",
+		.irq_name = "CCIF_VIOLATION: Bad frame timings",
 	},
 };
 
@@ -1105,9 +1108,9 @@ static struct cam_ife_csid_top_debug_mask cam_ife_csid_lite_880_top_debug_mask =
 			BIT_ULL(CAM_IFE_CSID_TOP_ERR_NO_VOTE_DN),
 	},
 
-	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_UP] = 0,
-	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_DN] = 1,
-	.bit_pos[CAM_IFE_CSID_TOP_ERR_NO_VOTE_DN] = 2,
+	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_UP] = 16,
+	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_DN] = 17,
+	.bit_pos[CAM_IFE_CSID_TOP_ERR_NO_VOTE_DN] = 18,
 };
 
 

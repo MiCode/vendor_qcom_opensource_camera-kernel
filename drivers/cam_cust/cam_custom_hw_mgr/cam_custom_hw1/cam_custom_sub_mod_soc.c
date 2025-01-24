@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
 #include "cam_cpas_api.h"
 #include "cam_custom_sub_mod_soc.h"
 #include "cam_debug_util.h"
+#include "cam_mem_mgr_api.h"
 
 int cam_custom_hw_sub_mod_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	irq_handler_t irq_handler, void *data)
@@ -25,7 +26,7 @@ int cam_custom_hw_sub_mod_init_soc_resources(struct cam_hw_soc_info *soc_info,
 		return 0;
 	}
 
-	soc_private = kzalloc(sizeof(struct cam_custom_hw_soc_private),
+	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_custom_hw_soc_private),
 		GFP_KERNEL);
 	if (!soc_private) {
 		CAM_DBG(CAM_CUSTOM, "Error! soc_private Alloc Failed");
@@ -45,7 +46,7 @@ int cam_custom_hw_sub_mod_init_soc_resources(struct cam_hw_soc_info *soc_info,
 
 	memset(&cpas_register_param, 0, sizeof(cpas_register_param));
 
-	strlcpy(cpas_register_param.identifier, "custom",
+	strscpy(cpas_register_param.identifier, "custom",
 		CAM_HW_IDENTIFIER_LENGTH);
 	cpas_register_param.cell_index = soc_info->index;
 	cpas_register_param.dev = soc_info->dev;
@@ -101,7 +102,7 @@ int cam_custom_hw_sub_mod_deinit_soc_resources(struct cam_hw_soc_info *soc_info)
 		CAM_ERR(CAM_CUSTOM,
 			"Error! Release platform resources failed rc=%d", rc);
 
-	kfree(soc_private);
+	CAM_MEM_FREE(soc_private);
 
 	return rc;
 }

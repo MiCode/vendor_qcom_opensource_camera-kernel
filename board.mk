@@ -10,6 +10,14 @@ ifeq ($(CAMERA_DLKM_ENABLED),true)
 ifneq ($(TARGET_BOARD_AUTO),true)
 ifeq ($(call is-board-platform-in-list,$(TARGET_BOARD_PLATFORM)),true)
 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/camera.ko
+# MIUI ADD: Camera_CameraSkyNet
+BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/cameralog.ko
+# END Camera_CameraSkyNet
+# MIUI ADD: Camera_CameraOpt
+ifneq ($(call get-miodm-device-name), $(filter $(call get-miodm-device-name), suiren))
+BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/cameramsger.ko
+endif
+# END Camera_CameraOpt
 endif
 endif
 endif

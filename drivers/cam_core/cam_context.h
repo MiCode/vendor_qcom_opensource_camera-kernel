@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CONTEXT_H_
@@ -21,6 +21,11 @@ struct cam_context;
 
 /* max device name string length*/
 #define CAM_CTX_DEV_NAME_MAX_LENGTH 20
+
+// XIAOMI ADD: FeatureAutoEQ
+#define CAM_PHY_MAX_CTRL_NO 8
+#define CAM_PHY_DTS_NAME 50
+// END: FeatureAutoEQ
 
 /* max request number */
 #define CAM_CTX_REQ_MAX              20
@@ -69,6 +74,7 @@ enum cam_context_state {
  * @buf_tracker:           List of buffers we want to keep ref counts on
  *                         used by the HW block for a particular req
  * @pf_data                page fault debug data
+ * @packet                 pointer to packet
  *
  */
 struct cam_ctx_request {
@@ -89,6 +95,7 @@ struct cam_ctx_request {
 	struct cam_context            *ctx;
 	struct list_head               buf_tracker;
 	struct cam_hw_mgr_pf_request_info  pf_data;
+	void                           *packet;
 };
 
 /**
@@ -107,7 +114,7 @@ struct cam_ctx_request {
  */
 struct cam_ctx_ioctl_ops {
 	int (*acquire_dev)(struct cam_context *ctx,
-			struct cam_acquire_dev_cmd *cmd);
+			struct cam_acquire_dev_cmd_unified *cmd);
 	int (*release_dev)(struct cam_context *ctx,
 			struct cam_release_dev_cmd *cmd);
 	int (*config_dev)(struct cam_context *ctx,
@@ -274,6 +281,44 @@ struct cam_context {
 	cam_ctx_mini_dump_cb_func      mini_dump_cb;
 	int                            img_iommu_hdl;
 	struct timespec64              cdm_done_ts;
+	/*xiaomi added detect framerate begin*/
+	uint64_t                       dbg_timestamp;
+	uint64_t                       dbg_frame;
+	int32_t                        exlink;
+	uint32_t                       batchsize;
+	/*xiaomi added detect framerate end*/
+};
+
+/**
+ * struct cam_context_stream_dump - camera context stream information
+ *
+ * @hw_mgr_ctx_id:         Hw Mgr context id returned from hw mgr
+ * @dev_id:                ID of device associated
+ * @dev_hdl:               Device handle
+ * @link_hdl:              Link handle
+ * @sessoin_hdl:           Session handle
+ * @refcount:              Context object refcount
+ * @last_flush_req:        Last request to flush
+ * @state:                 Current state for top level state machine
+ */
+struct cam_context_stream_dump {
+	uint32_t                       hw_mgr_ctx_id;
+	uint32_t                       dev_id;
+	uint32_t                       dev_hdl;
+	uint32_t                       link_hdl;
+	uint32_t                       session_hdl;
+	uint32_t                       refcount;
+	uint32_t                       last_flush_req;
+	enum cam_context_state         state;
+};
+
+/**
+ * struct cam_context_each_req_info - camera each request information
+ *
+ * @request_id:         request id
+ */
+struct cam_context_each_req_info {
+	uint64_t              request_id;
 };
 
 /**
@@ -442,7 +487,7 @@ int cam_context_handle_message(struct cam_context *ctx,
  *
  */
 int cam_context_handle_acquire_dev(struct cam_context *ctx,
-		struct cam_acquire_dev_cmd *cmd);
+		struct cam_acquire_dev_cmd_unified *cmd);
 
 /**
  * cam_context_handle_acquire_hw()

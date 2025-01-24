@@ -33,6 +33,7 @@
 #define CAM_SYNX_TEST_TRIGGER               (CAM_COMMON_OPCODE_BASE_v2 + 0x5)
 #define CAM_CUSTOM_DEV_CONFIG               (CAM_COMMON_OPCODE_BASE_v2 + 0x6)
 #define CAM_QUERY_CAP_GENERIC_BLOB          (CAM_COMMON_OPCODE_BASE_v2 + 0x7)
+#define CAM_ACQUIRE_DEV_V2                  (CAM_COMMON_OPCODE_BASE_v2 + 0x8)
 
 #define CAM_EXT_OPCODE_BASE                     0x200
 #define CAM_CONFIG_DEV_EXTERNAL                 (CAM_EXT_OPCODE_BASE + 0x1)
@@ -647,6 +648,9 @@ struct cam_query_cap_cmd {
 	__u64        caps_handle;
 };
 
+#define CAM_ACQUIRE_DEV_STRUCT_VERSION_1           1
+#define CAM_ACQUIRE_DEV_STRUCT_VERSION_2           2
+
 /**
  * struct cam_acquire_dev_cmd - Control payload for acquire devices
  *
@@ -666,6 +670,40 @@ struct cam_acquire_dev_cmd {
 	__u32        handle_type;
 	__u32        num_resources;
 	__u64        resource_hdl;
+};
+
+/**
+ * struct cam_acquire_dev_cmd_v2 - Control payload for acquire devices
+ *
+  * @struct_version:     = CAM_ACQUIRE_DEV_STRUCT_VERSION_2 for this struct
+ *                      This value should be the first 32-bits in any structure
+ *                      related to this IOCTL. So that if the struct needs to
+ *                      change, we can first read the starting 32-bits, get the
+ *                      version number and then typecast the data to struct
+ *                      accordingly.
+ * @session_handle:     Session handle for the acquire command
+ * @dev_handle:         Device handle to be returned
+ * @handle_type:        Resource handle type:
+ *                      1 = user pointer, 2 = mem handle
+ * @num_resources:      Number of the resources to be acquired
+ * @resources_hdl:      Resource handle that refers to the actual
+ *                      resource array. Each item in this
+ *                      array is device specific resource structure
+ * @num_valid_params:     number of valid params
+ * @valid_param_mask:     valid param mask
+ * @params:               additional parameters for future usage
+ *
+ */
+struct cam_acquire_dev_cmd_v2 {
+	__u32        struct_version;
+	__s32        session_handle;
+	__s32        dev_handle;
+	__u32        handle_type;
+	__u32        num_resources;
+	__u64        resource_hdl;
+	__u32        num_valid_params;
+	__u32        valid_param_mask;
+	__u32        params[5];
 };
 
 /*
@@ -817,8 +855,15 @@ struct cam_flush_dev_cmd {
 struct cam_ubwc_config {
 	__u32   api_version;
 	__u32   num_ports;
-	struct cam_ubwc_plane_cfg_v1
-		   ubwc_plane_cfg[1][CAM_PACKET_MAX_PLANES - 1];
+	union {
+		struct cam_ubwc_plane_cfg_v1
+			ubwc_plane_cfg[1][CAM_PACKET_MAX_PLANES - 1];
+		struct {
+			struct { } __empty_ubwc_plane_cfg_array_flex;
+			struct cam_ubwc_plane_cfg_v1
+				ubwc_plane_cfg_array_flex[][CAM_PACKET_MAX_PLANES - 1];
+		};
+	};
 };
 
 /**
@@ -835,8 +880,15 @@ struct cam_ubwc_config {
 struct cam_ubwc_config_v2 {
 	__u32   api_version;
 	__u32   num_ports;
-	struct cam_ubwc_plane_cfg_v2
-	   ubwc_plane_cfg[1][CAM_PACKET_MAX_PLANES - 1];
+	union {
+		struct cam_ubwc_plane_cfg_v2
+			ubwc_plane_cfg[1][CAM_PACKET_MAX_PLANES - 1];
+		struct {
+			struct { } __empty_ubwc_plane_cfg_array_flex;
+			struct cam_ubwc_plane_cfg_v2
+				ubwc_plane_cfg_array_flex[][CAM_PACKET_MAX_PLANES - 1];
+		};
+	};
 };
 
 /**
@@ -854,7 +906,14 @@ struct cam_ubwc_config_v2 {
 struct cam_ubwc_config_v3 {
 	__u32   api_version;
 	__u32   num_ports;
-	struct cam_ubwc_plane_cfg_v3 ubwc_plane_cfg[1][CAM_PACKET_MAX_PLANES - 1];
+	union {
+		struct cam_ubwc_plane_cfg_v3 ubwc_plane_cfg[1][CAM_PACKET_MAX_PLANES - 1];
+		struct {
+			struct { } __empty_ubwc_plane_cfg_array_flex;
+			struct cam_ubwc_plane_cfg_v3
+				ubwc_plane_cfg_array_flex[][CAM_PACKET_MAX_PLANES - 1];
+		};
+	};
 };
 
 /**

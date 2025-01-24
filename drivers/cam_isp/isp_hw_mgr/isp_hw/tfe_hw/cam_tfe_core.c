@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -22,6 +22,7 @@
 #include "cam_compat.h"
 #include "cam_common_util.h"
 #include "cam_tfe_csid_hw_intf.h"
+#include "cam_mem_mgr_api.h"
 
 static const char drv_name[] = "tfe";
 
@@ -166,8 +167,8 @@ int cam_tfe_put_evt_payload(void             *core_info,
 		return -EINVAL;
 	}
 
+	CAM_COMMON_SANITIZE_LIST_ENTRY((*evt_payload), struct cam_tfe_irq_evt_payload);
 	spin_lock_irqsave(&tfe_core_info->spin_lock, flags);
-	(*evt_payload)->error_type = 0;
 	list_add_tail(&(*evt_payload)->list, &tfe_core_info->free_payload_list);
 	*evt_payload = NULL;
 	spin_unlock_irqrestore(&tfe_core_info->spin_lock, flags);
@@ -1066,7 +1067,7 @@ static int cam_tfe_top_set_axi_bw_vote(
 		return -EINVAL;
 	}
 
-	agg_vote = kzalloc(sizeof(struct cam_axi_vote), GFP_KERNEL);
+	agg_vote = CAM_MEM_ZALLOC(sizeof(struct cam_axi_vote), GFP_KERNEL);
 	if (!agg_vote) {
 		CAM_ERR(CAM_ISP, "Out of memory");
 		return -ENOMEM;
@@ -1201,7 +1202,7 @@ static int cam_tfe_top_set_axi_bw_vote(
 	}
 
 free_mem:
-	cam_free_clear((void *)agg_vote);
+	CAM_MEM_ZFREE((void *)agg_vote, sizeof(struct cam_axi_vote));
 	agg_vote = NULL;
 	return rc;
 }
@@ -2367,7 +2368,7 @@ int cam_tfe_top_init(
 	struct cam_tfe_rdi_data           *rdi_priv = NULL;
 	int i, j, rc = 0;
 
-	top_priv = kzalloc(sizeof(struct cam_tfe_top_priv),
+	top_priv = CAM_MEM_ZALLOC(sizeof(struct cam_tfe_top_priv),
 		GFP_KERNEL);
 	if (!top_priv) {
 		CAM_DBG(CAM_ISP, "TFE:%DError Failed to alloc for tfe_top_priv",
@@ -2406,7 +2407,7 @@ int cam_tfe_top_init(
 			top_priv->in_rsrc[i].res_id =
 				CAM_ISP_HW_TFE_IN_CAMIF;
 
-			camif_priv = kzalloc(sizeof(struct cam_tfe_camif_data),
+			camif_priv = CAM_MEM_ZALLOC(sizeof(struct cam_tfe_camif_data),
 				GFP_KERNEL);
 			if (!camif_priv) {
 				CAM_DBG(CAM_ISP,
@@ -2432,7 +2433,7 @@ int cam_tfe_top_init(
 			top_priv->in_rsrc[i].res_id =
 				CAM_ISP_HW_TFE_IN_RDI0 + j;
 
-			rdi_priv = kzalloc(sizeof(struct cam_tfe_rdi_data),
+			rdi_priv = CAM_MEM_ZALLOC(sizeof(struct cam_tfe_rdi_data),
 					GFP_KERNEL);
 			if (!rdi_priv) {
 				CAM_DBG(CAM_ISP,
@@ -2476,13 +2477,13 @@ deinit_resources:
 		if (!top_priv->in_rsrc[i].res_priv)
 			continue;
 
-		kfree(top_priv->in_rsrc[i].res_priv);
+		CAM_MEM_FREE(top_priv->in_rsrc[i].res_priv);
 		top_priv->in_rsrc[i].res_priv = NULL;
 		top_priv->in_rsrc[i].res_state =
 			CAM_ISP_RESOURCE_STATE_UNAVAILABLE;
 	}
 free_tfe_top_priv:
-	kfree(core_info->top_priv);
+	CAM_MEM_FREE(core_info->top_priv);
 	core_info->top_priv = NULL;
 end:
 	return rc;
@@ -2513,7 +2514,7 @@ int cam_tfe_top_deinit(struct cam_tfe_top_priv  *top_priv)
 			return -ENODEV;
 		}
 
-		kfree(top_priv->in_rsrc[i].res_priv);
+		CAM_MEM_FREE(top_priv->in_rsrc[i].res_priv);
 		top_priv->in_rsrc[i].res_priv = NULL;
 	}
 
@@ -3049,7 +3050,7 @@ int cam_tfe_core_deinit(struct cam_tfe_hw_core_info  *core_info,
 			core_info->core_index, rc);
 
 	rc = cam_tfe_top_deinit(core_info->top_priv);
-	kfree(core_info->top_priv);
+	CAM_MEM_FREE(core_info->top_priv);
 	core_info->top_priv = NULL;
 
 	if (rc)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -13,7 +13,7 @@
 #include "ope_soc.h"
 #include "cam_soc_util.h"
 #include "cam_debug_util.h"
-
+#include "cam_mem_mgr_api.h"
 
 static int cam_ope_get_dt_properties(struct cam_hw_soc_info *soc_info)
 {
@@ -63,7 +63,7 @@ int cam_ope_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	int num_pid = 0, i = 0;
 	int rc = 0;
 
-	soc_private = kzalloc(sizeof(struct cam_ope_soc_private), GFP_KERNEL);
+	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_ope_soc_private), GFP_KERNEL);
 	if (!soc_private) {
 		CAM_DBG(CAM_ISP, "Error! soc_private Alloc Failed");
 			return -ENOMEM;

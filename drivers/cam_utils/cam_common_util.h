@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_COMMON_UTIL_H_
@@ -76,12 +76,20 @@
 	if (!rem_jiffies) {                                                                  \
 		end_time = ktime_to_timespec64(ktime_get());                                 \
 		CAM_ERR(module_id,                                                           \
-		fmt " (timeout: %ums start: timestamp:[%lld.%06lld] end: timestamp:[%lld.%06lld])",\
+		fmt " (timeout: %ums start: timestamp:[%lld:%06lld] end: timestamp:[%lld:%06lld])",\
 		##args, jiffies_to_msecs(timeout_jiffies),                                   \
 		start_time.tv_sec, (start_time.tv_nsec/NSEC_PER_USEC),                       \
 		end_time.tv_sec, (end_time.tv_nsec/NSEC_PER_USEC));                          \
 	}                                                                                    \
 	rem_jiffies;                                                                         \
+})
+
+/*
+ * Sanitizes the linked list entry for event payload
+ */
+#define CAM_COMMON_SANITIZE_LIST_ENTRY(evt_payload, payload_struct_type)                      \
+({                                                                                            \
+	memset(evt_payload, 0, sizeof(payload_struct_type));                               \
 })
 
 typedef unsigned long (*cam_common_mini_dump_cb) (void *dst,
@@ -408,4 +416,21 @@ int cam_common_register_evt_inject_cb(
 	cam_common_evt_inject_cb evt_inject_cb,
 	enum cam_common_evt_inject_hw_id hw_id);
 
+/**
+ * @brief:                 Memory alloc and copy
+ *
+ * @dst:                   Address of destination address of memory
+ * @src:                   Source address of memory
+ * @size:                  Length of memory
+ *
+ * @return                 0 if success in register non-zero if failes
+ */
+int cam_common_mem_kdup(void **dst, void *src, size_t size);
+
+/**
+ * @brief:                 Free the memory
+ *
+ * @memory:                Address of memory
+ */
+void cam_common_mem_free(void *memory);
 #endif /* _CAM_COMMON_UTIL_H_ */

@@ -1,56 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw.h"
+#include "cam_mem_mgr_api.h"
+#include "cam_io_util.h"
 
-#define BYTES_PER_REGISTER           4
-#define NUM_REGISTER_PER_LINE        4
-#define REG_OFFSET(__start, __i)    ((__start) + ((__i) * BYTES_PER_REGISTER))
 #define CAM_TPG_HW_WAIT_TIMEOUT     msecs_to_jiffies(100)
 #define MAX_ACTIVE_QUEUE_DEPTH      2
 #define MAX_WAITING_QUEUE_DEPTH     32
 #define TIMEOUT_MULTIPLIER_PRESIL   5
 #define TIMEOUT_MULTIPLIER          1
-
-static int cam_io_tpg_dump(void __iomem *base_addr,
-	uint32_t start_offset, int size)
-{
-	char          line_str[128];
-	char         *p_str;
-	int           i;
-	uint32_t      data;
-
-	CAM_DBG(CAM_TPG, "addr=%pK offset=0x%x size=%d",
-		base_addr, start_offset, size);
-
-	if (!base_addr || (size <= 0))
-		return -EINVAL;
-
-	line_str[0] = '\0';
-	p_str = line_str;
-	for (i = 0; i < size; i++) {
-		if (i % NUM_REGISTER_PER_LINE == 0) {
-			snprintf(p_str, 12, "0x%08x: ",
-				REG_OFFSET(start_offset, i));
-			p_str += 11;
-		}
-		data = cam_io_r(base_addr + REG_OFFSET(start_offset, i));
-		snprintf(p_str, 9, "%08x ", data);
-		p_str += 8;
-		if ((i + 1) % NUM_REGISTER_PER_LINE == 0) {
-			CAM_DBG(CAM_TPG, "%s", line_str);
-			line_str[0] = '\0';
-			p_str = line_str;
-		}
-	}
-	if (line_str[0] != '\0')
-		CAM_ERR(CAM_TPG, "%s", line_str);
-
-	return 0;
-}
+#define REQUEST_ID_UNSET           -1
 
 int32_t cam_tpg_mem_dmp(struct cam_hw_soc_info *soc_info)
 {
@@ -64,8 +27,9 @@ int32_t cam_tpg_mem_dmp(struct cam_hw_soc_info *soc_info)
 		return rc;
 	}
 	addr = soc_info->reg_map[0].mem_base;
+	CAM_DBG(CAM_TPG, "TPG[%d] register dump", soc_info->index);
 	size = resource_size(soc_info->mem_block[0]);
-	rc = cam_io_tpg_dump(addr, 0, (size >> 2));
+	rc = cam_io_dump(addr, 0, (size >> 2));
 	if (rc < 0) {
 		CAM_ERR(CAM_TPG, "generating dump failed %d", rc);
 	}
@@ -326,26 +290,26 @@ static int tpg_hw_release_vc_slots_locked(struct tpg_hw *hw,
 			list_for_each_safe(pos, pos_next, &req->vc_slots[i].head) {
 				entry = list_entry(pos, struct tpg_hw_stream, list);
 				list_del(pos);
-				kfree(entry);
+				CAM_MEM_FREE(entry);
 			}
 		} else if (hw->stream_version == 3) {
 			list_for_each_safe(pos, pos_next, &req->vc_slots[i].head) {
 				entry_v3 = list_entry(pos, struct tpg_hw_stream_v3, list);
 				list_del(pos);
-				kfree(entry_v3);
+				CAM_MEM_FREE(entry_v3);
 			}
 		}
 		INIT_LIST_HEAD(&(req->vc_slots[i].head));
 	}
 
 	hw->vc_count = 0;
-	kfree(req->vc_slots);
-	kfree(req);
+	CAM_MEM_FREE(req->vc_slots);
+	CAM_MEM_FREE(req);
 
 	return 0;
 }
 
-static int tpg_hw_free_waiting_requests_locked(struct tpg_hw *hw)
+static int tpg_hw_free_waiting_requests_locked(struct tpg_hw *hw, int64_t req_id)
 {
 	struct list_head *pos = NULL, *pos_next = NULL;
 	struct tpg_hw_request *req = NULL;
@@ -356,11 +320,13 @@ static int tpg_hw_free_waiting_requests_locked(struct tpg_hw *hw)
 	}
 
 	/* free up the pending requests*/
-	CAM_DBG(CAM_TPG, "TPG[%d]  freeing all waiting requests",
-			hw->hw_idx);
 	list_for_each_safe(pos, pos_next, &hw->waiting_request_q) {
 		req = list_entry(pos, struct tpg_hw_request, list);
-		CAM_DBG(CAM_TPG, "TPG[%d] freeing request[%lld] ",
+
+		if ((req_id != REQUEST_ID_UNSET) && (req_id < req->request_id))
+			continue;
+
+		CAM_DBG(CAM_TPG, "TPG[%d] freeing waiting_request[%lld] ",
 				hw->hw_idx, req->request_id);
 		list_del(pos);
 		tpg_hw_release_vc_slots_locked(hw, req);
@@ -379,11 +345,10 @@ static int tpg_hw_free_active_requests_locked(struct tpg_hw *hw)
 	}
 
 	/* free up the active requests*/
-	CAM_DBG(CAM_TPG, "TPG[%d]  freeing all active requests",
-			hw->hw_idx);
 	list_for_each_safe(pos, pos_next, &hw->active_request_q) {
 		req = list_entry(pos, struct tpg_hw_request, list);
-		CAM_DBG(CAM_TPG, "TPG[%d] freeing request[%lld] ",
+
+		CAM_DBG(CAM_TPG, "TPG[%d] freeing active_request[%lld] ",
 				hw->hw_idx, req->request_id);
 		list_del(pos);
 		tpg_hw_release_vc_slots_locked(hw, req);
@@ -684,7 +649,16 @@ static int tpg_hw_lookup_queues_and_apply_req_locked(
 		goto end;
 	}
 
+	/* Post FLUSH_TYPE_ALL, we should not service any request lesser than last_flush_req*/
+	if (request_id <= hw->last_flush_req && hw->last_flush_req != REQUEST_ID_UNSET) {
+		CAM_ERR(CAM_TPG, "TPG[%d] Reject Request: %lld, last request flushed: %lld",
+			hw->hw_idx, request_id, hw->last_flush_req);
+			return -EBADR;
+	}
+
 	if (!list_empty(&hw->waiting_request_q)) {
+		/* Resetting the last_flush_req on reception of first valid request post flush*/
+		hw->last_flush_req = REQUEST_ID_UNSET;
 		req = list_first_entry(&hw->waiting_request_q,
 			struct tpg_hw_request, list);
 		if (req->request_id == request_id) {
@@ -840,8 +814,9 @@ int tpg_hw_stop(struct tpg_hw *hw)
 				hw->hw_idx, rc);
 			break;
 		}
-		tpg_hw_free_waiting_requests_locked(hw);
+		tpg_hw_free_waiting_requests_locked(hw, REQUEST_ID_UNSET);
 		tpg_hw_free_active_requests_locked(hw);
+		hw->last_flush_req = REQUEST_ID_UNSET;
 		break;
 	default:
 		CAM_ERR(CAM_TPG, "TPG[%d] Unsupported HW Version",
@@ -878,6 +853,7 @@ int tpg_hw_acquire(struct tpg_hw *hw,
 		rc = -EINVAL;
 		break;
 	}
+	hw->last_flush_req = REQUEST_ID_UNSET;
 	mutex_unlock(&hw->mutex);
 	return rc;
 }
@@ -903,6 +879,7 @@ int tpg_hw_release(struct tpg_hw *hw)
 		rc = -EINVAL;
 		break;
 	}
+	hw->last_flush_req = REQUEST_ID_UNSET;
 	mutex_unlock(&hw->mutex);
 	return rc;
 }
@@ -1079,7 +1056,7 @@ int tpg_hw_copy_settings_config(
 	}
 
 	hw->register_settings =
-		kzalloc(sizeof(struct tpg_reg_settings) *
+		CAM_MEM_ZALLOC(sizeof(struct tpg_reg_settings) *
 		settings->settings_array_size, GFP_KERNEL);
 
 	if (hw->register_settings == NULL) {
@@ -1246,7 +1223,7 @@ int tpg_hw_reset(struct tpg_hw *hw)
 	/* disable the hw */
 	mutex_lock(&hw->mutex);
 
-	rc = tpg_hw_free_waiting_requests_locked(hw);
+	rc = tpg_hw_free_waiting_requests_locked(hw, REQUEST_ID_UNSET);
 	if (rc)
 		CAM_ERR(CAM_TPG, "TPG[%d] unable to free up the pending requests",
 				hw->hw_idx);
@@ -1263,6 +1240,7 @@ int tpg_hw_reset(struct tpg_hw *hw)
 		}
 		spin_lock_irqsave(&hw->hw_state_lock, flags);
 		hw->state =  TPG_HW_STATE_HW_DISABLED;
+		hw->last_flush_req = REQUEST_ID_UNSET;
 		spin_unlock_irqrestore(&hw->hw_state_lock, flags);
 	}
 
@@ -1290,7 +1268,7 @@ int tpg_hw_add_stream(
 
 	hw->stream_version = 1;
 	mutex_lock(&hw->mutex);
-	stream = kzalloc(sizeof(struct tpg_hw_stream), GFP_KERNEL);
+	stream = CAM_MEM_ZALLOC(sizeof(struct tpg_hw_stream), GFP_KERNEL);
 	if (!stream) {
 		CAM_ERR(CAM_TPG, "TPG[%d] stream allocation failed",
 			hw->hw_idx);
@@ -1340,7 +1318,7 @@ struct tpg_hw_request *tpg_hw_create_request(
 	}
 
 	/* Allocate request */
-	req = kzalloc(sizeof(struct tpg_hw_request),
+	req = CAM_MEM_ZALLOC(sizeof(struct tpg_hw_request),
 			GFP_KERNEL);
 	if (!req) {
 		CAM_ERR(CAM_TPG, "TPG[%d] request allocation failed",
@@ -1349,7 +1327,7 @@ struct tpg_hw_request *tpg_hw_create_request(
 	}
 	req->request_id = request_id;
 	/* Allocate Vc slots in request */
-	req->vc_slots = kcalloc(num_vc_channels, sizeof(struct tpg_vc_slot_info),
+	req->vc_slots = CAM_MEM_ZALLOC_ARRAY(num_vc_channels, sizeof(struct tpg_vc_slot_info),
 			GFP_KERNEL);
 
 	req->vc_count = 0;
@@ -1371,7 +1349,7 @@ struct tpg_hw_request *tpg_hw_create_request(
 			hw->hw_idx, request_id);
 	return req;
 err_exit_1:
-	kfree(req);
+	CAM_MEM_FREE(req);
 	return NULL;
 }
 
@@ -1435,7 +1413,7 @@ int tpg_hw_add_stream_v3(
 
 	hw->stream_version = 3;
 	mutex_lock(&hw->mutex);
-	stream = kzalloc(sizeof(struct tpg_hw_stream_v3), GFP_KERNEL);
+	stream = CAM_MEM_ZALLOC(sizeof(struct tpg_hw_stream_v3), GFP_KERNEL);
 	if (!stream) {
 		CAM_ERR(CAM_TPG, "TPG[%d] stream allocation failed",
 			hw->hw_idx);
@@ -1451,3 +1429,53 @@ int tpg_hw_add_stream_v3(
 	return rc;
 }
 
+int tpg_hw_flush_requests(
+	struct tpg_hw *hw,
+	uint32_t last_flushed_req,
+	bool is_flush_all)
+{
+	int rc = 0;
+	struct list_head *pos = NULL, *pos_next = NULL;
+	struct tpg_hw_request *req = NULL;
+	bool is_request_flushed = false;
+
+	if (!hw) {
+		CAM_ERR(CAM_TPG, "Invalid tpg_hw param");
+		return -EINVAL;
+	}
+	mutex_lock(&hw->mutex);
+
+	if (is_flush_all) {
+		rc = tpg_hw_free_waiting_requests_locked(hw, last_flushed_req);
+		if (rc)
+			CAM_ERR(CAM_TPG, "TPG[%d] unable to free the pending requests",
+				hw->hw_idx);
+
+		/* Setting the last_flushed_req only in case of FLUSH_TYPE_ALL */
+		hw->last_flush_req = last_flushed_req;
+		CAM_INFO(CAM_TPG, "TPG[%d] Last Req pending to be flushed: %lld",
+			hw->hw_idx, hw->last_flush_req);
+	} else {
+		/* Search for request from waiting request list and delete it*/
+		list_for_each_safe(pos, pos_next, &hw->waiting_request_q) {
+			req = list_entry(pos, struct tpg_hw_request, list);
+			if (req->request_id == last_flushed_req) {
+				list_del(pos);
+				hw->waiting_request_q_depth--;
+				is_request_flushed = true;
+				tpg_hw_release_vc_slots_locked(hw, req);
+				CAM_INFO(CAM_TPG, "TPG[%d] Req[%lld] deleted from wait_queue",
+					hw->hw_idx, req->request_id);
+				break;
+			}
+		}
+		if (!is_request_flushed) {
+			CAM_ERR(CAM_TPG, "TPG[%d] Flush req_id[%lld] not found in waiting queue",
+				hw->hw_idx, last_flushed_req);
+			rc = -EINVAL;
+		}
+	}
+
+	mutex_unlock(&hw->mutex);
+	return rc;
+}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -25,6 +25,8 @@
 #include "cam_jpeg_enc_680_hw_info_ver_4_2_0.h"
 #include "cam_jpeg_enc_780_hw_info_ver_4_2_0.h"
 #include "camera_main.h"
+#include "cam_mem_mgr_api.h"
+#include "cam_req_mgr_dev.h"
 
 static int cam_jpeg_enc_register_cpas(struct cam_hw_soc_info *soc_info,
 	struct cam_jpeg_enc_device_core_info *core_info,
@@ -75,15 +77,18 @@ static int cam_jpeg_enc_component_bind(struct device *dev,
 	struct cam_jpeg_enc_soc_private  *soc_private;
 	int i;
 	int rc;
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
-	jpeg_enc_dev_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
+	CAM_GET_TIMESTAMP(ts_start);
+	jpeg_enc_dev_intf = CAM_MEM_ZALLOC(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!jpeg_enc_dev_intf)
 		return -ENOMEM;
 
 	of_property_read_u32(pdev->dev.of_node,
 		"cell-index", &jpeg_enc_dev_intf->hw_idx);
 
-	jpeg_enc_dev = kzalloc(sizeof(struct cam_hw_info), GFP_KERNEL);
+	jpeg_enc_dev = CAM_MEM_ZALLOC(sizeof(struct cam_hw_info), GFP_KERNEL);
 	if (!jpeg_enc_dev) {
 		rc = -ENOMEM;
 		goto error_alloc_dev;
@@ -103,7 +108,7 @@ static int cam_jpeg_enc_component_bind(struct device *dev,
 
 	platform_set_drvdata(pdev, jpeg_enc_dev_intf);
 	jpeg_enc_dev->core_info =
-		kzalloc(sizeof(struct cam_jpeg_enc_device_core_info),
+		CAM_MEM_ZALLOC(sizeof(struct cam_jpeg_enc_device_core_info),
 			GFP_KERNEL);
 	if (!jpeg_enc_dev->core_info) {
 		rc = -ENOMEM;
@@ -153,6 +158,9 @@ static int cam_jpeg_enc_component_bind(struct device *dev,
 
 	core_info->rd_mid = soc_private->rd_mid;
 	core_info->wr_mid = soc_private->wr_mid;
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 
 	return rc;
 
@@ -161,11 +169,11 @@ error_reg_cpas:
 error_init_soc:
 	mutex_destroy(&core_info->core_mutex);
 error_match_dev:
-	kfree(jpeg_enc_dev->core_info);
+	CAM_MEM_FREE(jpeg_enc_dev->core_info);
 error_alloc_core:
-	kfree(jpeg_enc_dev);
+	CAM_MEM_FREE(jpeg_enc_dev);
 error_alloc_dev:
-	kfree(jpeg_enc_dev_intf);
+	CAM_MEM_FREE(jpeg_enc_dev_intf);
 
 	return rc;
 }
@@ -203,7 +211,7 @@ static void cam_jpeg_enc_component_unbind(struct device *dev,
 		CAM_ERR(CAM_JPEG, " unreg failed to reg cpas %d", rc);
 
 	mutex_destroy(&core_info->core_mutex);
-	kfree(core_info);
+	CAM_MEM_FREE(core_info);
 
 deinit_soc:
 	rc = cam_soc_util_release_platform_resource(&jpeg_enc_dev->soc_info);
@@ -211,10 +219,10 @@ deinit_soc:
 		CAM_ERR(CAM_JPEG, "Failed to deinit soc rc=%d", rc);
 
 	mutex_destroy(&jpeg_enc_dev->hw_mutex);
-	kfree(jpeg_enc_dev);
+	CAM_MEM_FREE(jpeg_enc_dev);
 
 free_jpeg_hw_intf:
-	kfree(jpeg_enc_dev_intf);
+	CAM_MEM_FREE(jpeg_enc_dev_intf);
 }
 
 const static struct component_ops cam_jpeg_enc_component_ops = {

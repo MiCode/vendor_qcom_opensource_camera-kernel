@@ -25,6 +25,9 @@
 #include <cam_sensor_io.h>
 #include "cam_debug_util.h"
 #include "cam_context.h"
+/* xiaomi add for cci debug start */
+#include "cam_cci_debug_util.h"
+/* xiaomi add for cci debug end */
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
@@ -35,6 +38,7 @@
 enum cam_sensor_state_t {
 	CAM_SENSOR_INIT,
 	CAM_SENSOR_ACQUIRE,
+	CAM_SENSOR_STANDBY,
 	CAM_SENSOR_CONFIG,
 	CAM_SENSOR_START,
 };
@@ -115,7 +119,11 @@ struct cam_sensor_dev_res_info {
  * @num_batched_frames: Number batched frames
  * @is_stopped_by_user: Indicate if sensor has been stopped by userland
  * @stream_off_after_eof: Indicates if sensor needs to stream off after eof
+ * @stream_off_on_flush: Streaming off sensor on flush all call
  * @is_res_info_updated: Indicate if resolution info is updated
+ * @last_applied_done_timestamp : Last applied done timestamp value
+ * @hw_no_ops: To determine whether HW operations need to be disabled
+ * @cci_debug: Sensor debugfs info and entry
  */
 struct cam_sensor_ctrl_t {
 	char                           device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -153,7 +161,16 @@ struct cam_sensor_ctrl_t {
 	uint32_t                       num_batched_frames;
 	bool                           is_stopped_by_user;
 	bool                           stream_off_after_eof;
+	bool                           stream_off_on_flush;
 	bool                           is_res_info_updated;
+	uint64_t                       last_applied_done_timestamp;
+	bool                           hw_no_ops;
+
+	/* xiaomi add for cci debug start */
+	void                          *cci_debug;
+	uint16_t                       vc_switch_delay;
+	/* xiaomi add for cci debug end */
+
 };
 
 /**

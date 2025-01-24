@@ -26,8 +26,10 @@
 #define CAM_ICC_VOTE                8
 #define CAM_HW_POWER_UP             9
 #define CAM_HW_POWER_DOWN           10
-#define CAM_MSG_TYPE_CUSTOM         11
-#define CAM_MSG_TYPE_MAX            12
+#define CAM_ICP_POWER_COLLAPSE      11
+#define CAM_ICP_POWER_RESUME        12
+#define CAM_ICP_SHUTDOWN            13
+#define CAM_MSG_TYPE_MAX            14
 
 /* vm communication message payload data_size only includes the data size*/
 struct cam_vmrm_msg {

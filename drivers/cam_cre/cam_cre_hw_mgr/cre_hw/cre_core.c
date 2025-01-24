@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -148,7 +148,7 @@ int cam_cre_init_hw(void *device_priv,
 	}
 	cre_hw = core_info->cre_hw_info->cre_hw;
 
-	cpas_vote = kzalloc(sizeof(struct cam_cre_cpas_vote), GFP_KERNEL);
+	cpas_vote = CAM_MEM_ZALLOC(sizeof(struct cam_cre_cpas_vote), GFP_KERNEL);
 	if (!cpas_vote) {
 		CAM_ERR(CAM_ISP, "Out of memory");
 		rc = -ENOMEM;
@@ -205,7 +205,7 @@ enable_soc_resource_failed:
 	else
 		core_info->cpas_start = false;
 free_cpas_vote:
-	cam_free_clear((void *)cpas_vote);
+	CAM_MEM_ZFREE((void *)cpas_vote, sizeof(struct cam_cre_cpas_vote));
 	cpas_vote = NULL;
 end:
 	return rc;

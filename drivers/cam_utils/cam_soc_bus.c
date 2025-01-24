@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/msm-bus.h>
 #include "cam_soc_bus.h"
+#include "cam_mem_mgr_api.h"
 
 /**
  * struct cam_soc_bus_client_data : Bus client data
@@ -128,7 +129,7 @@ int cam_soc_bus_client_register(struct platform_device *pdev,
 	uint32_t client_id;
 	int rc;
 
-	bus_client = kzalloc(sizeof(struct cam_soc_bus_client), GFP_KERNEL);
+	bus_client = CAM_MEM_ZALLOC(sizeof(struct cam_soc_bus_client), GFP_KERNEL);
 	if (!bus_client) {
 		CAM_ERR(CAM_UTIL, "Non Enought Memroy");
 		rc = -ENOMEM;
@@ -137,10 +138,10 @@ int cam_soc_bus_client_register(struct platform_device *pdev,
 
 	*client = bus_client;
 
-	bus_client_data = kzalloc(sizeof(struct cam_soc_bus_client_data),
+	bus_client_data = CAM_MEM_ZALLOC(sizeof(struct cam_soc_bus_client_data),
 		GFP_KERNEL);
 	if (!bus_client_data) {
-		kfree(bus_client);
+		CAM_MEM_FREE(bus_client);
 		*client = NULL;
 		rc = -ENOMEM;
 		goto end;
@@ -205,9 +206,9 @@ int cam_soc_bus_client_register(struct platform_device *pdev,
 fail_unregister_client:
 	msm_bus_scale_unregister_client(bus_client_data->client_id);
 error:
-	kfree(bus_client_data);
+	CAM_MEM_FREE(bus_client_data);
 	bus_client->client_data = NULL;
-	kfree(bus_client);
+	CAM_MEM_FREE(bus_client);
 	*client = NULL;
 end:
 	return rc;
@@ -227,8 +228,8 @@ void cam_soc_bus_client_unregister(void **client)
 		cam_soc_bus_client_update_request(bus_client, 0);
 
 	msm_bus_scale_unregister_client(bus_client_data->client_id);
-	kfree(bus_client_data);
+	CAM_MEM_FREE(bus_client_data);
 	bus_client->client_data = NULL;
-	kfree(bus_client);
+	CAM_MEM_FREE(bus_client);
 	*client = NULL;
 }

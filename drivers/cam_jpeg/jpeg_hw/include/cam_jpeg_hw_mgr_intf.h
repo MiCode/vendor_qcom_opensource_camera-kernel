@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_JPEG_HW_MGR_INTF_H
@@ -11,7 +11,8 @@
 #include <media/cam_jpeg.h>
 #include <media/cam_defs.h>
 
-#define CAM_JPEG_CTX_MAX        24
+/* Xiaomi: enlarge from 24 to 48 */
+#define CAM_JPEG_CTX_MAX        48
 
 enum cam_jpeg_hw_type {
 	CAM_JPEG_DEV_ENC,
@@ -23,15 +24,16 @@ enum cam_jpeg_hw_type {
  * struct cam_jpeg_request_data - Jpeg request data received from command buffers
  * @dev_type                 : Jpeg device type(ENC vs DMA)
  * @request_id               : Request ID
- * @encode_size_buffer_ptr   : Pointer to the buffer location for storing the encode
-                              size of the result
  * @thumbnail_threshold_size : Threshold size for thumbnail image
+ * @out_size_mem_handle      : handle to the buffer to share encoded output size with userspace
+ * @out_size_offset          : offset to memory where out_size_mem_handle is stored
  */
 struct cam_jpeg_request_data {
 	uint32_t                            dev_type;
 	uint64_t                            request_id;
-	uint32_t                           *encode_size_buffer_ptr;
 	uint32_t                            thumbnail_threshold_size;
+	__s32				    out_size_mem_handle;
+	uint32_t			    out_size_offset;
 };
 
 typedef void (*cam_jpeg_mini_dump_cb)(void *priv, void *dst);

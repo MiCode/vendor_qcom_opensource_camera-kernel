@@ -18,6 +18,13 @@
 #include "cam_cpas_api.h"
 #include "cam_compat.h"
 
+// XIAOMI ADD: FeatureAutoEQ
+#include <media/cam_csiphy_xm_data.h>
+uint64_t xm_mipi_kmd_setting = 0;
+uint8_t  xm_mipi_para_index[CAM_PHY_MAX_CTRL_NO] = {0};
+extern struct cam_csiphy_xm_data_t cam_csiphy_xm_data;
+// END: FeatureAutoEQ
+
 #define SCM_SVC_CAMERASS 0x18
 #define SECURE_SYSCALL_ID 0x6
 #define SECURE_SYSCALL_ID_2 0x7
@@ -36,7 +43,31 @@
 #define CSIPHY_POLL_DELAY_US 500
 #define CSIPHY_POLL_TIMEOUT_US 10000
 #define CSPIHY_REFGEN_STATUS_BIT (1 << 7)
-#define CSIPHY_ONTHEGO_BUFSIZE 30
+
+//#define CSIPHY_ONTHEGO_BUFSIZE 30
+
+/* Xiaomi change this value from 90 to 150 */
+#define CSIPHY_ONTHEGO_BUFSIZE 150
+
+#define CSIPHY_QMARGIN_CMN_STATUS_REG_COUNT 11
+#define CSIPHY_QMARGIN_STR_LEN       20
+#define CSIPHY_QMARGIN_DEFAULT_STR   "default"
+
+struct csiphy_qmargin_csid_output {
+	uint32_t csi2_rx_status;
+	uint32_t csi2_total_crc_err;
+	uint32_t csi2_total_pkts_rcvd;
+	bool csi2_err_seen;
+	bool epd_enabled;
+};
+
+struct csiphy_qmargin_sweep_data {
+	struct csiphy_qmargin_csid_output qmargin_csid_output;
+	struct csiphy_reg_t cdr_regs[CAM_CSIPHY_MAX_CPHY_LANES];
+	uint64_t bw;
+};
+
+#define SETTLE_CNT_ADJUSTMENT_OFFSET 10
 
 struct g_csiphy_data {
 	void __iomem *base_address;
@@ -46,15 +77,19 @@ struct g_csiphy_data {
 	uint64_t data_rate_aux_mask;
 	uint32_t aon_cam_id;
 	struct cam_csiphy_aon_sel_params_t *aon_sel_param;
+	struct csiphy_qmargin_sweep_data qmargin_data;
 };
 
 static DEFINE_MUTEX(active_csiphy_cnt_mutex);
 static DEFINE_MUTEX(main_aon_selection);
 static struct g_csiphy_data g_phy_data[MAX_CSIPHY] = {0};
 static int active_csiphy_hw_cnt;
-static char csiphy_onthego_regs[20];
+static char csiphy_onthego_regs[CSIPHY_ONTHEGO_BUFSIZE - 10]; // mod by xiaomi
 static int csiphy_onthego_reg_count[MAX_CSIPHY];
 static unsigned int csiphy_onthego_regvals[MAX_CSIPHY][CSIPHY_ONTHEGO_BUFSIZE];
+static char csiphy_qmargin[CSIPHY_QMARGIN_STR_LEN];
+static unsigned int csiphy_qmargin_output_regs[MAX_CSIPHY][
+	CSIPHY_QMARGIN_CMN_STATUS_REG_COUNT];
 
 
 typedef int (*csiphy_onthego_func)(int *inp, int n_inp, int phy_idx, char *outp);
@@ -81,7 +116,7 @@ static int csiphy_set_onthego_values(const char *val, const struct kernel_param 
 		return -EINVAL;
 	}
 
-	strscpy(csiphy_onthego_regs, p1, 20);
+	strscpy(csiphy_onthego_regs, p1, sizeof(csiphy_onthego_regs)); // mod by xiaomi
 	while ((token = strsep(&p1, ":")) != NULL) {
 		if (!kstrtoint(token, 0, &idx) && idx >= 0 && idx < MAX_CSIPHY)
 			phy_target[idx] = true;
@@ -97,7 +132,15 @@ static int csiphy_set_onthego_values(const char *val, const struct kernel_param 
 		return 0;
 	}
 
+	//xiaomi add begin
+	if (phy_target[idx]) {
+		csiphy_onthego_reg_count[idx] = 0;
+	}
+	//xiaomi add end
+
 	while ((token = strsep(&p1, ",")) != NULL) {
+		while (token && token[0] == ' ')
+			token++;
 		if (!kstrtoint(token, 0, &onthego_val))
 			onthego_values[onthego_idx++] = onthego_val;
 	}
@@ -127,36 +170,26 @@ static int csiphy_get_onthego_values(char *buffer, const struct kernel_param *kp
 	return rc;
 }
 
-static const struct kernel_param_ops csiphy_onthego_ops = {
-	.set = csiphy_set_onthego_values,
-	.get = csiphy_get_onthego_values,
-};
-
-module_param_cb(csiphy_onthego_regs, &csiphy_onthego_ops, csiphy_onthego_get_set, 0644);
-MODULE_PARM_DESC(csiphy_onthego_regs, "Functionality to let csiphy registers program on the fly");
-
 static int csiphy_onthego_get_set(int *inp, int n_inp, int phy_idx, char *outp)
 {
-	int i, idx, rc = 0;
+	int i, idx = 0, rc = 0;
 	char *p;
-
-	idx = csiphy_onthego_reg_count[phy_idx];
 
 	if (inp && n_inp) {
 		for (i = 0; i < n_inp; i++) {
-			csiphy_onthego_regvals[phy_idx][idx] = (unsigned int) inp[i];
-			if (++idx == CSIPHY_ONTHEGO_BUFSIZE) {
+			if (idx >= CSIPHY_ONTHEGO_BUFSIZE) {
 				CAM_WARN(CAM_CSIPHY,
 					"Onthego input for PHY %d reached end of circular buffer, circling back",
 					phy_idx);
 				idx = idx % CSIPHY_ONTHEGO_BUFSIZE;
 			}
+			csiphy_onthego_regvals[phy_idx][idx++] = (unsigned int) inp[i];
 		}
+		csiphy_onthego_reg_count[phy_idx] = idx;
 	}
 
-	csiphy_onthego_reg_count[phy_idx] = idx;
-
 	if (outp) {
+		idx = csiphy_onthego_reg_count[phy_idx];
 		p = outp;
 		rc += scnprintf(p, PAGE_SIZE, "PHY idx %d: ", phy_idx);
 		for (i = 0; i < idx; i++)
@@ -167,6 +200,99 @@ static int csiphy_onthego_get_set(int *inp, int n_inp, int phy_idx, char *outp)
 
 	return rc;
 }
+
+static const struct kernel_param_ops csiphy_onthego_ops = {
+	.set = csiphy_set_onthego_values,
+	.get = csiphy_get_onthego_values,
+};
+
+static int csiphy_qmargin_get_defaults(char *buffer, int phy_idx)
+{
+	int i, bytes_written = 0;
+	char *p = buffer;
+	struct csiphy_reg_t *cdr_regs = &g_phy_data[phy_idx].qmargin_data.cdr_regs[0];
+	struct csiphy_qmargin_csid_output *qmargin_csid_output =
+		&(g_phy_data[phy_idx].qmargin_data.qmargin_csid_output);
+
+	if (g_phy_data[phy_idx].qmargin_data.bw != 0) {
+		bytes_written += scnprintf(p + bytes_written, PAGE_SIZE - bytes_written,
+			"PHY%d_BW: 0x%llx\n", phy_idx,
+			g_phy_data[phy_idx].qmargin_data.bw);
+		bytes_written += scnprintf(p + bytes_written, PAGE_SIZE - bytes_written,
+			"PHY%d_EPD_ENABLED: %s\n", phy_idx,
+			CAM_BOOL_TO_YESNO(qmargin_csid_output->epd_enabled));
+	}
+	for (i = 0; i < CAM_CSIPHY_MAX_CPHY_LANES; i++) {
+		if (!cdr_regs[i].reg_addr)
+			return bytes_written;
+		bytes_written += scnprintf(p + bytes_written, PAGE_SIZE - bytes_written,
+			"PHY%d_CDR_%d, ADDR: 0x%x, DEFAULT: 0x%x\n",
+			phy_idx, i, cdr_regs[i].reg_addr, cdr_regs[i].reg_data);
+	}
+
+	bytes_written += scnprintf(p + bytes_written, PAGE_SIZE - bytes_written, "\n");
+
+	return bytes_written;
+}
+
+static int csiphy_qmargin_get(char *buffer, const struct kernel_param *kp)
+{
+	int bytes_written = 0, i, j;
+	char *p = buffer;
+	struct csiphy_qmargin_csid_output *qmargin_csid_output;
+	char num[10];
+
+	for (i = 0; i < MAX_CSIPHY; i++) {
+		if (strstr(csiphy_qmargin, CSIPHY_QMARGIN_DEFAULT_STR))
+			bytes_written += csiphy_qmargin_get_defaults(p + bytes_written, i);
+
+		snprintf(num, 10, "%d", i);
+
+		if (strstr(csiphy_qmargin, num)) {
+			qmargin_csid_output = &(g_phy_data[i].qmargin_data.qmargin_csid_output);
+			bytes_written += scnprintf(p + bytes_written, PAGE_SIZE - bytes_written,
+				"PHY%d_CSI2_RX: 0x%x\n",
+				i, qmargin_csid_output->csi2_rx_status);
+			bytes_written += scnprintf(p + bytes_written, PAGE_SIZE - bytes_written,
+				"PHY%d_CSI2_CRC: 0x%x\n",
+				i, qmargin_csid_output->csi2_total_crc_err);
+			bytes_written += scnprintf(p + bytes_written, PAGE_SIZE - bytes_written,
+				"PHY%d_CSI2_PKT: 0x%x\n",
+				i, qmargin_csid_output->csi2_total_pkts_rcvd);
+			for (j = 0; j < CSIPHY_QMARGIN_CMN_STATUS_REG_COUNT; j++) {
+				bytes_written += scnprintf(p + bytes_written, PAGE_SIZE -
+					bytes_written, "PHY%d_COMMON_STATUS%u: 0x%x\n",
+					i, j, csiphy_qmargin_output_regs[i][j]);
+				csiphy_qmargin_output_regs[i][j] = 0;
+			}
+			bytes_written += scnprintf(p + bytes_written, PAGE_SIZE -
+				bytes_written, "\n");
+		}
+
+		memset(&(g_phy_data[i].qmargin_data), 0, sizeof(struct csiphy_qmargin_sweep_data));
+	}
+
+	csiphy_qmargin[0] = '\0';
+
+	return bytes_written;
+}
+
+static int csiphy_qmargin_set(const char *val, const struct kernel_param *kp)
+{
+	strscpy(csiphy_qmargin, val, CSIPHY_QMARGIN_STR_LEN);
+
+	return 0;
+}
+
+static const struct kernel_param_ops csiphy_qmargin_ops = {
+	.set = csiphy_qmargin_set,
+	.get = csiphy_qmargin_get,
+};
+
+module_param_cb(csiphy_onthego_regs, &csiphy_onthego_ops, csiphy_onthego_get_set, 0644);
+MODULE_PARM_DESC(csiphy_onthego_regs, "Functionality to let csiphy registers program on the fly");
+module_param_cb(csiphy_qmargin, &csiphy_qmargin_ops, NULL, 0644);
+MODULE_PARM_DESC(csiphy_qmargin, "Functionality to print registers related to PHY tuning");
 
 void cam_csiphy_update_auxiliary_mask(struct csiphy_device *csiphy_dev)
 {
@@ -198,6 +324,27 @@ void cam_csiphy_update_auxiliary_mask(struct csiphy_device *csiphy_dev)
 		CAM_BOOL_TO_YESNO(csiphy_dev->aux_params.aux_mem_update_en));
 }
 
+void cam_csiphy_update_qmargin_csid_vals(void *data, int phy_idx)
+{
+	struct cam_subdev_msg_cdr_sweep_info *qmargin_csid_update =
+		(struct cam_subdev_msg_cdr_sweep_info *) data;
+	struct csiphy_qmargin_csid_output *qmargin_csid_output;
+
+	if (phy_idx < 0 || phy_idx >= MAX_CSIPHY)
+		return;
+
+	qmargin_csid_output = &(g_phy_data[phy_idx].qmargin_data.qmargin_csid_output);
+
+	if (!qmargin_csid_update->csi2_err_seen && qmargin_csid_output->csi2_err_seen)
+		return;
+
+	qmargin_csid_output->csi2_rx_status = qmargin_csid_update->csi2_rx_status;
+	qmargin_csid_output->csi2_total_crc_err = qmargin_csid_update->csi2_rx_total_crc_err;
+	qmargin_csid_output->csi2_total_pkts_rcvd = qmargin_csid_update->csi2_rx_total_pkts_rcvd;
+	qmargin_csid_output->csi2_err_seen = qmargin_csid_update->csi2_err_seen;
+	qmargin_csid_output->epd_enabled = qmargin_csid_update->epd_enabled;
+}
+
 int32_t cam_csiphy_get_instance_offset(struct csiphy_device *csiphy_dev, int32_t dev_handle)
 {
 	int32_t i = 0;
@@ -219,6 +366,69 @@ int32_t cam_csiphy_get_instance_offset(struct csiphy_device *csiphy_dev, int32_t
 	}
 
 	return i;
+}
+
+static int cam_csiphy_get_settle_count(
+	struct csiphy_device *csiphy_dev,
+	int32_t index,
+	uint16_t *settle_cnt)
+{
+	struct cam_hw_soc_info *soc_info = &csiphy_dev->soc_info;
+	uint64_t intermediate_var = 0;
+
+	uint32_t t3_prepare = csiphy_dev->csiphy_info[index].t3_prepare;
+	uint32_t t3_preamble = csiphy_dev->csiphy_info[index].t3_preamble;
+
+	enum cam_vote_level vote_level =
+		csiphy_dev->ctrl_reg->getclockvoting(csiphy_dev, index);
+	int64_t timer_clk_rate =
+		soc_info->clk_rate[vote_level][csiphy_dev->timer_clk_src_idx];
+
+	intermediate_var = csiphy_dev->csiphy_info[index].settle_time;
+	do_div(intermediate_var, 200000000);
+	*settle_cnt = intermediate_var;
+
+	if (*settle_cnt == 0) {
+		if (csiphy_dev->csiphy_info[index].csiphy_3phase) {
+			CAM_DBG(CAM_CSIPHY,
+				"PHY:%d cphy:%d, timer_clk_rate:%lld, t3_prepare:%u, t3_preamble:%u",
+				soc_info->index,
+				csiphy_dev->csiphy_info[index].csiphy_3phase,
+				timer_clk_rate, t3_prepare, t3_preamble);
+
+			/* T-timer: 1 / Timer Clock */
+			/* CPHY Ideal SC: (T-prepare + T-preamble / 3) / T-timer - 10 */
+			intermediate_var = ((t3_prepare + t3_preamble / 3) * timer_clk_rate);
+			intermediate_var /= NSEC_PER_SEC;
+		} else {
+			CAM_DBG(CAM_CSIPHY, "PHY:%d cphy:%d, timer_clk_rate:%lld, data_rate:%llu",
+				soc_info->index,
+				csiphy_dev->csiphy_info[index].csiphy_3phase,
+				timer_clk_rate,
+				csiphy_dev->csiphy_info[index].data_rate);
+
+			/* UI: 1 / Datarate */
+			/* T-timer: 1 / Timer Clock */
+			/* DPHY Min SC: (85 + 6UI) / T-timer – 10 */
+			intermediate_var = (85 + (6 * (int64_t)NSEC_PER_SEC) /
+				csiphy_dev->csiphy_info[index].data_rate) * timer_clk_rate;
+			intermediate_var /= NSEC_PER_SEC;
+		}
+
+		if (intermediate_var > SETTLE_CNT_ADJUSTMENT_OFFSET) {
+			intermediate_var -= SETTLE_CNT_ADJUSTMENT_OFFSET;
+		} else {
+			CAM_WARN(CAM_CSIPHY,
+				"PHY:%d Invalid calculated settle count:%d, setting to 0",
+				soc_info->index, (intermediate_var - SETTLE_CNT_ADJUSTMENT_OFFSET));
+			intermediate_var = 0;
+		}
+		*settle_cnt = intermediate_var;
+		CAM_INFO(CAM_CSIPHY, "PHY:%d Calculated settle count:%u",
+			soc_info->index, *settle_cnt);
+	}
+
+	return 0;
 }
 
 static int cam_csiphy_cpas_ops(
@@ -278,6 +488,8 @@ static void cam_csiphy_reset_phyconfig_param(struct csiphy_device *csiphy_dev,
 	csiphy_dev->csiphy_info[index].conn_csid_idx = -1;
 	csiphy_dev->csiphy_info[index].use_hw_client_voting = false;
 	csiphy_dev->csiphy_info[index].is_drv_config_en = false;
+	csiphy_dev->csiphy_info[index].t3_prepare = 0;
+	csiphy_dev->csiphy_info[index].t3_preamble = 0;
 }
 
 static inline void cam_csiphy_apply_onthego_reg_values(void __iomem *csiphybase, uint8_t csiphy_idx)
@@ -301,11 +513,9 @@ static inline void cam_csiphy_apply_onthego_reg_values(void __iomem *csiphybase,
 			cam_io_r_mb(csiphybase + csiphy_onthego_regvals[csiphy_idx][i]),
 			csiphy_onthego_regvals[csiphy_idx][i+2]);
 	}
-
-	csiphy_onthego_reg_count[csiphy_idx] = 0;
 }
 
-static inline int cam_csiphy_release_from_reset_state(struct csiphy_device *csiphy_dev,
+int cam_csiphy_release_from_reset_state(struct csiphy_device *csiphy_dev,
 	void __iomem *csiphybase, int32_t instance)
 {
 	int                                                  i;
@@ -829,6 +1039,19 @@ static int __cam_csiphy_parse_lane_info_cmd_buf(
 			(cam_cmd_csiphy_info_v2->mipi_flags & SKEW_CAL_MASK);
 		csiphy_dev->csiphy_info[index].channel_type =
 			cam_cmd_csiphy_info_v2->channel_type;
+
+		csiphy_dev->csiphy_info[index].t3_prepare = 0;
+		csiphy_dev->csiphy_info[index].t3_preamble = 0;
+
+		if (cam_cmd_csiphy_info_v2->num_valid_params > 0) {
+			if (cam_cmd_csiphy_info_v2->param_mask & CAM_CSIPHY_T3_PREPARE_NS_MASK)
+				csiphy_dev->csiphy_info[index].t3_prepare =
+					cam_cmd_csiphy_info_v2->params[0];
+
+			if (cam_cmd_csiphy_info_v2->param_mask & CAM_CSIPHY_T3_PREAMBLE_NS_MASK)
+				csiphy_dev->csiphy_info[index].t3_preamble =
+					cam_cmd_csiphy_info_v2->params[1];
+		}
 	} else if (cmd_desc->meta_data == CAM_CSIPHY_PACKET_META_LANE_INFO) {
 		struct cam_csiphy_info *cam_cmd_csiphy_info = NULL;
 
@@ -1051,9 +1274,11 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 	int                      rc = 0, i;
 	uintptr_t                generic_pkt_ptr;
 	struct cam_packet       *csl_packet = NULL;
+	struct cam_packet       *csl_packet_u = NULL;
 	struct cam_cmd_buf_desc *cmd_desc = NULL;
 	size_t                   len, remain_len;
 	uint32_t                 cmd_buf_type;
+	size_t                   packet_size = 0;
 
 
 	if (!cfg_dev || !csiphy_dev) {
@@ -1076,19 +1301,33 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 			 sizeof(struct cam_packet), len);
 		cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 		rc = -EINVAL;
-		return rc;
+		goto put_buf;
 	}
 
 	remain_len -= (size_t)cfg_dev->offset;
-	csl_packet = (struct cam_packet *)
+	csl_packet_u = (struct cam_packet *)
 		(generic_pkt_ptr + (uint32_t)cfg_dev->offset);
+	packet_size = csl_packet_u->header.size;
+	if (packet_size <= remain_len) {
+		rc = cam_common_mem_kdup((void **)&csl_packet,
+			csl_packet_u, packet_size);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "Alloc and copy request: %lld packet fail",
+				csl_packet_u->header.request_id);
+			goto put_buf;
+		}
+	} else {
+		CAM_ERR(CAM_CSIPHY, "Invalid packet header size %u",
+			packet_size);
+		rc = -EINVAL;
+		goto put_buf;
+	}
 
 	if (cam_packet_util_validate_packet(csl_packet,
 		remain_len)) {
 		CAM_ERR(CAM_CSIPHY, "Invalid packet params");
-		cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 		rc = -EINVAL;
-		return rc;
+		goto end;
 	}
 
 	if (csl_packet->num_cmd_buf)
@@ -1097,9 +1336,8 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 			csl_packet->cmd_buf_offset / 4);
 	else {
 		CAM_ERR(CAM_CSIPHY, "num_cmd_buffer = %d", csl_packet->num_cmd_buf);
-		cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 		rc = -EINVAL;
-		return rc;
+		goto end;
 	}
 
 	CAM_DBG(CAM_CSIPHY, "CSIPHY:%u num cmd buffers received: %u",
@@ -1107,10 +1345,8 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 
 	for (i = 0; i < csl_packet->num_cmd_buf; i++) {
 		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
-		if (rc) {
-			cam_mem_put_cpu_buf(cfg_dev->packet_handle);
-			return rc;
-		}
+		if (rc)
+			goto end;
 
 		cmd_buf_type = cmd_desc[i].meta_data;
 
@@ -1139,6 +1375,10 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 		if (rc)
 			break;
 	}
+
+end:
+	cam_common_mem_free(csl_packet);
+put_buf:
 	cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 	return rc;
 }
@@ -1215,20 +1455,76 @@ static inline void __cam_csiphy_compute_cdr_value(
 		*cdr_val -= csiphy_device->cdr_params.cdr_tolerance;
 }
 
+// XIAOMI ADD: FeatureAutoEQ
+static void XM_MIPI_KMD_GET_CTRL_FLAG_VAL(int ctl_no, u8 *flag, u8 *val)
+{
+	u8 *p1;
+	u8 *p2;
+
+	p1 = flag;
+	p2 = val;
+
+	*p1 = XM_MIPI_KMD_GET_CTRL_FLAG(ctl_no);
+	*p2 = XM_MIPI_KMD_GET_CTRL_VAL(ctl_no);
+
+	return ;
+}
+static int cam_csiphy_cphy_reconfig_work(struct csiphy_device *csiphy_device, struct data_rate_reg_info_t *
+drate_settings)
+{
+	const char *p = NULL;
+	u8 phy_index = 0;
+	u8 phy_flag = 0;
+	u8 phy_val = 0;
+	int ret = 0;
+	int skip_current_setting = 0;
+
+	if ((!csiphy_device) || (!drate_settings)) {
+		skip_current_setting = 0;
+		return skip_current_setting;
+	}
+	if (drate_settings->this_setting_max_choice != 0) {
+		p = csiphy_device->device_name;
+		p += strlen(csiphy_device->device_name) - 1;
+		ret = kstrtou8(p, 0, &phy_index);
+		XM_MIPI_KMD_GET_CTRL_FLAG_VAL(phy_index, &phy_flag, &phy_val);
+		CAM_INFO(CAM_ISP, "phy_index[%d], flag=[%d], val=[%d], max_choice[%d], ret %d",\
+			phy_index, phy_flag, phy_val,drate_settings->this_setting_max_choice, ret);
+
+		if (phy_flag) {
+			if ((xm_mipi_para_index[phy_index] + 1) == drate_settings->this_setting_max_choice) { // the max choice
+				xm_mipi_para_index[phy_index] = 0;
+				skip_current_setting = 0;// we keep using the 1st choisce, when we tried all backup paras
+			}
+
+			if (xm_mipi_para_index[phy_index] >= drate_settings->this_setting_current_choice) {
+				skip_current_setting = 1;// continue...
+			} else {
+				XM_MIPI_KMD_SET_CTRL_FLAG_VAL(phy_index, 0);
+				xm_mipi_para_index[phy_index]++;
+				xm_mipi_para_index[phy_index] %= drate_settings->this_setting_max_choice;
+				skip_current_setting = 0;// find the backup ones
+			}
+		}
+	}
+
+	return skip_current_setting;
+}
+// END: FeatureAutoEQ
+
 static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device, int32_t idx,
 	uint8_t datarate_variant_idx)
 {
-	int i;
+	int i, j = 0, rc = 0;
 	unsigned int data_rate_idx;
 	uint64_t required_phy_data_rate;
 	void __iomem *csiphybase;
 	ssize_t num_data_rates;
 	struct data_rate_settings_t *settings_table;
-	uint64_t intermediate_var = 0;
 	uint16_t settle_cnt = 0;
 	uint32_t reg_addr, reg_data, reg_param_type;
 	int32_t  delay;
-	struct csiphy_reg_t *config_params;
+	struct csiphy_reg_t *config_params, *cdr_regs;
 	uint8_t csiphy_index = 0;
 	uint32_t channel_type;
 
@@ -1254,9 +1550,10 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 	settings_table = csiphy_device->ctrl_reg->data_rates_settings_table;
 	num_data_rates = settings_table->num_data_rate_settings;
 
-	intermediate_var = csiphy_device->csiphy_info[idx].settle_time;
-	do_div(intermediate_var, 200000000);
-	settle_cnt = intermediate_var;
+	rc = cam_csiphy_get_settle_count(csiphy_device, idx, &settle_cnt);
+	if (rc)
+		return rc;
+
 	csiphy_index = csiphy_device->soc_info.index;
 	channel_type = csiphy_device->csiphy_info[idx].channel_type;
 
@@ -1276,8 +1573,28 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 			continue;
 		}
 
+		// XIAOMI ADD: FeatureAutoEQ
+		if (cam_csiphy_xm_data.auto_eq_enable == XM_CSIPHY_ENABLE_AUTO_EQ_ENABLE) {
+			CAM_INFO(CAM_CSIPHY, "auto eq enable");
+			if (cam_csiphy_cphy_reconfig_work(csiphy_device, &drate_settings[data_rate_idx]) == 1) {
+				CAM_INFO(CAM_CSIPHY,
+					"double Skipping table [%d] with BW: %llu, Required data_rate: %llu",
+					data_rate_idx, supported_phy_bw, required_phy_data_rate);
+				continue;
+			}
+			CAM_INFO(CAM_CSIPHY,
+					"table [%d] with BW: %llu, Required data_rate: %llu, max.using[%d.%d]",
+					data_rate_idx, supported_phy_bw, required_phy_data_rate,
+					drate_settings[data_rate_idx].this_setting_max_choice, drate_settings[data_rate_idx].this_setting_current_choice);
+		}
+		// END: FeatureAutoEQ
+
 		CAM_DBG(CAM_CSIPHY, "table[%d] BW : %llu Selected",
 			data_rate_idx, supported_phy_bw);
+
+		if (strstr(csiphy_qmargin, CSIPHY_QMARGIN_DEFAULT_STR))
+			g_phy_data[csiphy_device->soc_info.index].qmargin_data.bw =
+				supported_phy_bw;
 
 		if (datarate_variant_idx >= CAM_CSIPHY_MAX_DATARATE_VARIANTS) {
 			CAM_ERR(CAM_CSIPHY, "Datarate variant Idx: %u can not exceed %u",
@@ -1376,6 +1693,16 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 					CAM_BOOL_TO_YESNO(cdr_params->cdr_sweep_enabled));
 			}
 
+			if (strstr(csiphy_qmargin, CSIPHY_QMARGIN_DEFAULT_STR) &&
+				reg_param_type == CSIPHY_CDR_LN_SETTINGS) {
+				cdr_regs = &g_phy_data[
+					csiphy_device->soc_info.index].qmargin_data.cdr_regs[0];
+				cdr_regs[j].reg_addr = reg_addr;
+				cdr_regs[j].reg_data = reg_data;
+				cdr_regs[j].delay = delay;
+				j++;
+			}
+
 			if (delay > 0)
 				usleep_range(delay, delay + 5);
 		}
@@ -1463,7 +1790,6 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 	uint16_t     i = 0, cfg_size = 0;
 	uint16_t     settle_cnt = 0;
 	uint8_t      skew_cal_enable = 0;
-	uint64_t     intermediate_var;
 	int          index;
 	void __iomem *csiphybase;
 	struct csiphy_reg_t *reg_array;
@@ -1515,7 +1841,6 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 				reg_array = csiphy_dev->ctrl_reg->csiphy_2ph_reg;
 				cfg_size = csiphy_reg->csiphy_2ph_config_array_size;
 			}
-
 		}
 	} else if (csiphy_dev->cphy_dphy_combo_mode) {
 		/* for CPHY and DPHY combo mode selection */
@@ -1545,7 +1870,6 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 
 	lane_enable = csiphy_dev->csiphy_info[index].lane_enable;
 
-
 	if (csiphy_dev->csiphy_info[index].csiphy_3phase) {
 		rc = cam_csiphy_cphy_data_rate_config(csiphy_dev, index, datarate_variant_idx);
 		if (rc) {
@@ -1556,10 +1880,21 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 		}
 	}
 
-	intermediate_var = csiphy_dev->csiphy_info[index].settle_time;
-	do_div(intermediate_var, 200000000);
-	settle_cnt = intermediate_var;
+	rc = cam_csiphy_get_settle_count(csiphy_dev, index, &settle_cnt);
+	if (rc)
+		return rc;
 	skew_cal_enable = csiphy_dev->csiphy_info[index].mipi_flags;
+
+	/* xiaomi add DPHY log - begin */
+	if (!csiphy_dev->csiphy_info[index].csiphy_3phase) {
+		for (i = 0; i < cfg_size; i++) {
+			CAM_DBG(MI_DEBUG,
+				"register index: %d/%d, param_type: %d, writing reg: %x, val: %x, delay: %dus",
+				i, cfg_size, reg_array[i].csiphy_param_type, reg_array[i].reg_addr,
+				reg_array[i].reg_data, reg_array[i].delay);
+		}
+	}
+	/* xiaomi add DPHY log - end */
 
 	for (i = 0; i < cfg_size; i++) {
 		switch (reg_array[i].csiphy_param_type) {
@@ -2346,6 +2681,8 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 				"g_csiphy data is updated for index: %d is_3phase: %u",
 				soc_info->index,
 				g_phy_data[soc_info->index].is_3phase);
+			memset(&(g_phy_data[soc_info->index].qmargin_data), 0,
+				sizeof(struct csiphy_qmargin_sweep_data));
 		}
 
 		if (g_phy_data[soc_info->index].aon_cam_id != NOT_AON_CAM) {
@@ -2388,6 +2725,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		int32_t offset, rc = 0;
 		struct cam_start_stop_dev_cmd config;
 		struct cam_csiphy_param *param;
+		uint16_t settle_cnt = 0;
 
 		rc = copy_from_user(&config, (void __user *)cmd->handle,
 					sizeof(config));
@@ -2411,6 +2749,13 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		}
 
 		param = &csiphy_dev->csiphy_info[offset];
+
+		cam_csiphy_get_settle_count(csiphy_dev, offset, &settle_cnt);
+
+		if (strlen(csiphy_qmargin))
+			cam_csiphy_get_common_status_for_qmargin(csiphy_dev,
+				&csiphy_qmargin_output_regs[soc_info->index][0],
+				CSIPHY_QMARGIN_CMN_STATUS_REG_COUNT);
 
 		if (--csiphy_dev->start_dev_count) {
 			if (param->secure_mode)
@@ -2441,11 +2786,11 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			}
 
 			CAM_INFO(CAM_CSIPHY,
-				"CAM_STOP_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, Datarate: %llu, Settletime: %llu",
+				"CAM_STOP_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, Datarate: %llu, Settlecount: %u",
 				soc_info->index, param->conn_csid_idx,
 				g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
 				csiphy_dev->start_dev_count, offset, param->data_rate,
-				param->settle_time);
+				settle_cnt);
 
 			goto release_mutex;
 		}
@@ -2488,10 +2833,10 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		csiphy_dev->csiphy_state = CAM_CSIPHY_ACQUIRE;
 
 		CAM_INFO(CAM_CSIPHY,
-			"CAM_STOP_PHYDEV: %u, CSID:%d, Type: %s, slot: %d, Datarate: %llu, Settletime: %llu",
+			"CAM_STOP_PHYDEV: %u, CSID:%d, Type: %s, slot: %d, Datarate: %llu, Settlecount: %u",
 			soc_info->index, param->conn_csid_idx,
 			g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
-			offset, param->data_rate, param->settle_time);
+			offset, param->data_rate, settle_cnt);
 	}
 		break;
 	case CAM_RELEASE_DEV: {
@@ -2605,6 +2950,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		int clk_vote_level_high = -1;
 		int clk_vote_level_low = -1;
 		uint8_t data_rate_variant_idx = 0;
+		uint16_t settle_cnt = 0;
 
 		CAM_DBG(CAM_CSIPHY, "START_DEV Called");
 		rc = copy_from_user(&config, (void __user *)cmd->handle,
@@ -2640,6 +2986,8 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			CAM_ERR(CAM_CSIPHY, "Failed to query DRV enable rc: %d", rc);
 			goto release_mutex;
 		}
+
+		cam_csiphy_get_settle_count(csiphy_dev, offset, &settle_cnt);
 
 		if (csiphy_dev->start_dev_count) {
 			clk_vote_level_high =
@@ -2737,7 +3085,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->start_dev_count++;
 
 			CAM_INFO(CAM_CSIPHY,
-				"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, skew_en: %d, sec_mode: %d, Datarate: %llu, Settletime: %llu",
+				"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, skew_en: %d, sec_mode: %d, Datarate: %llu, Settlecount: %u",
 				soc_info->index,
 				csiphy_dev->csiphy_info[offset].conn_csid_idx,
 				g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
@@ -2748,7 +3096,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 				csiphy_dev->csiphy_info[offset].mipi_flags,
 				csiphy_dev->csiphy_info[offset].secure_mode,
 				csiphy_dev->csiphy_info[offset].data_rate,
-				csiphy_dev->csiphy_info[offset].settle_time);
+				settle_cnt);
 
 			goto release_mutex;
 		}
@@ -2860,7 +3208,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		csiphy_dev->csiphy_state = CAM_CSIPHY_START;
 
 		CAM_INFO(CAM_CSIPHY,
-			"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, skew_en: %d, sec_mode: %d, Datarate: %llu, Settletime: %llu",
+			"CAM_START_PHYDEV: %d, CSID:%d, Type: %s, dev_cnt: %u, slot: %d, combo: %u, cphy+dphy: %u, skew_en: %d, sec_mode: %d, Datarate: %llu, Settlecount: %u",
 			soc_info->index,
 			csiphy_dev->csiphy_info[offset].conn_csid_idx,
 			g_phy_data[soc_info->index].is_3phase ? "CPHY" : "DPHY",
@@ -2871,7 +3219,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->csiphy_info[offset].mipi_flags,
 			csiphy_dev->csiphy_info[offset].secure_mode,
 			csiphy_dev->csiphy_info[offset].data_rate,
-			csiphy_dev->csiphy_info[offset].settle_time);
+			settle_cnt);
 	}
 		break;
 	case CAM_CONFIG_DEV_EXTERNAL: {

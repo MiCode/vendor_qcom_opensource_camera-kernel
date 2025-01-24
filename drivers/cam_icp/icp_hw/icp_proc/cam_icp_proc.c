@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_debug_util.h"
 #include "cam_icp_proc.h"
+#include "cam_mem_mgr_api.h"
 
 uint32_t icp_request_cnt[CAM_ICP_MAX_ICP_HW_TYPE];
 
@@ -75,7 +76,7 @@ int cam_icp_alloc_processor_devs(struct device_node *np, enum cam_icp_hw_type *i
 		return -EINVAL;
 	}
 
-	*devices = kcalloc(num_icp_listed, sizeof(**devices), GFP_KERNEL);
+	*devices = CAM_MEM_ZALLOC_ARRAY(num_icp_listed, sizeof(**devices), GFP_KERNEL);
 	if (!(*devices)) {
 		CAM_ERR(CAM_ICP,
 			"ICP device memory allocation failed. Num devices: %u",

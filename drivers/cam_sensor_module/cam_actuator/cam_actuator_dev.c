@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_actuator_dev.h"
@@ -11,6 +11,10 @@
 #include "cam_trace.h"
 #include "camera_main.h"
 #include "cam_compat.h"
+#include "cam_mem_mgr_api.h"
+/* xiaomi add for cci debug start */
+#include "cam_cci_debug_util.h"
+/* xiaomi add for cci debug end */
 
 static struct cam_i3c_actuator_data {
 	struct cam_actuator_ctrl_t                  *a_ctrl;
@@ -66,7 +70,7 @@ static long cam_actuator_subdev_ioctl(struct v4l2_subdev *sd,
 		rc = cam_actuator_driver_cmd(a_ctrl, arg);
 		if (rc) {
 			if (rc == -EBADR)
-				CAM_INFO(CAM_ACTUATOR,
+				CAM_DBG(CAM_ACTUATOR,
 					"Failed for driver_cmd: %d, it has been flushed",
 					rc);
 			else
@@ -158,7 +162,7 @@ static int cam_actuator_init_subdev(struct cam_actuator_ctrl_t *a_ctrl)
 		&cam_actuator_internal_ops;
 	a_ctrl->v4l2_dev_str.ops =
 		&cam_actuator_subdev_ops;
-	strlcpy(a_ctrl->device_name, CAMX_ACTUATOR_DEV_NAME,
+	strscpy(a_ctrl->device_name, CAMX_ACTUATOR_DEV_NAME,
 		sizeof(a_ctrl->device_name));
 	a_ctrl->v4l2_dev_str.name =
 		a_ctrl->device_name;
@@ -187,6 +191,12 @@ static int cam_actuator_i2c_component_bind(struct device *dev,
 	struct cam_actuator_ctrl_t      *a_ctrl;
 	struct cam_hw_soc_info          *soc_info = NULL;
 	struct cam_actuator_soc_private *soc_private = NULL;
+	struct timespec64                ts_start, ts_end;
+	long                             microsec = 0;
+	struct device_node              *np = NULL;
+	const char                      *drv_name;
+
+	CAM_GET_TIMESTAMP(ts_start);
 
 	client = container_of(dev, struct i2c_client, dev);
 	if (!client) {
@@ -196,25 +206,35 @@ static int cam_actuator_i2c_component_bind(struct device *dev,
 	}
 
 	/* Create sensor control structure */
-	a_ctrl = kzalloc(sizeof(*a_ctrl), GFP_KERNEL);
+	a_ctrl = CAM_MEM_ZALLOC(sizeof(*a_ctrl), GFP_KERNEL);
 	if (!a_ctrl)
 		return -ENOMEM;
 
-	i2c_set_clientdata(client, a_ctrl);
-
-	soc_private = kzalloc(sizeof(struct cam_actuator_soc_private),
-		GFP_KERNEL);
-	if (!soc_private) {
+	a_ctrl->io_master_info.qup_client = CAM_MEM_ZALLOC(sizeof(
+		struct cam_sensor_qup_client), GFP_KERNEL);
+	if (!(a_ctrl->io_master_info.qup_client)) {
 		rc = -ENOMEM;
 		goto free_ctrl;
 	}
+
+	i2c_set_clientdata(client, a_ctrl);
+
+	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_actuator_soc_private),
+		GFP_KERNEL);
+	if (!soc_private) {
+		rc = -ENOMEM;
+		goto free_qup;
+	}
 	a_ctrl->soc_info.soc_private = soc_private;
 
-	a_ctrl->io_master_info.client = client;
+	a_ctrl->io_master_info.qup_client->i2c_client = client;
 	soc_info = &a_ctrl->soc_info;
 	soc_info->dev = &client->dev;
 	soc_info->dev_name = client->name;
 	a_ctrl->io_master_info.master_type = I2C_MASTER;
+
+	np = of_node_get(client->dev.of_node);
+	drv_name = of_node_full_name(np);
 
 	rc = cam_actuator_parse_dt(a_ctrl, &client->dev);
 	if (rc < 0) {
@@ -227,11 +247,11 @@ static int cam_actuator_i2c_component_bind(struct device *dev,
 		goto free_soc;
 
 	if (soc_private->i2c_info.slave_addr != 0)
-		a_ctrl->io_master_info.client->addr =
+		a_ctrl->io_master_info.qup_client->i2c_client->addr =
 			soc_private->i2c_info.slave_addr;
 
 	a_ctrl->i2c_data.per_frame =
-		kzalloc(sizeof(struct i2c_settings_array) *
+		CAM_MEM_ZALLOC(sizeof(struct i2c_settings_array) *
 		MAX_PER_FRAME_ARRAY, GFP_KERNEL);
 	if (a_ctrl->i2c_data.per_frame == NULL) {
 		rc = -ENOMEM;
@@ -255,15 +275,32 @@ static int cam_actuator_i2c_component_bind(struct device *dev,
 		cam_actuator_apply_request;
 	a_ctrl->last_flush_req = 0;
 	a_ctrl->cam_act_state = CAM_ACTUATOR_INIT;
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(drv_name, microsec);
+	of_node_put(np);
+
+	/* xiaomi add begin */
+	INIT_LIST_HEAD(&(a_ctrl->i2c_data.parklens_settings.list_head)); //xiaomi add
+	parklens_atomic_set(&(a_ctrl->parklens_ctrl.parklens_opcode),
+		ENTER_PARKLENS_WITH_POWERDOWN);
+	parklens_atomic_set(&(a_ctrl->parklens_ctrl.exit_result),
+		PARKLENS_ENTER);
+	parklens_atomic_set(&(a_ctrl->parklens_ctrl.parklens_state),
+		PARKLENS_INVALID);
+	a_ctrl->parklens_ctrl.parklens_thread = NULL;
+	/* xiaomi add end */
 
 	return rc;
 
 unreg_subdev:
 	cam_unregister_subdev(&(a_ctrl->v4l2_dev_str));
 free_soc:
-	kfree(soc_private);
+	CAM_MEM_FREE(soc_private);
+free_qup:
+	CAM_MEM_FREE(a_ctrl->io_master_info.qup_client);
 free_ctrl:
-	kfree(a_ctrl);
+	CAM_MEM_FREE(a_ctrl);
 	return rc;
 }
 
@@ -294,11 +331,12 @@ static void cam_actuator_i2c_component_unbind(struct device *dev,
 	cam_unregister_subdev(&(a_ctrl->v4l2_dev_str));
 
 	/*Free Allocated Mem */
-	kfree(a_ctrl->i2c_data.per_frame);
+	CAM_MEM_FREE(a_ctrl->i2c_data.per_frame);
 	a_ctrl->i2c_data.per_frame = NULL;
 	a_ctrl->soc_info.soc_private = NULL;
 	v4l2_set_subdevdata(&a_ctrl->v4l2_dev_str.sd, NULL);
-	kfree(a_ctrl);
+	CAM_MEM_FREE(a_ctrl->io_master_info.qup_client);
+	CAM_MEM_FREE(a_ctrl);
 }
 
 const static struct component_ops cam_actuator_i2c_component_ops = {
@@ -375,12 +413,16 @@ static int32_t cam_actuator_driver_i2c_remove(
 static int cam_actuator_platform_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
 {
-	int32_t                          rc = 0;
-	int32_t                          i = 0;
-	bool                             i3c_i2c_target;
+	int32_t                           rc = 0;
+	int32_t                           i = 0;
+	bool                              i3c_i2c_target;
 	struct cam_actuator_ctrl_t       *a_ctrl = NULL;
 	struct cam_actuator_soc_private  *soc_private = NULL;
-	struct platform_device *pdev = to_platform_device(dev);
+	struct platform_device           *pdev = to_platform_device(dev);
+	struct timespec64                 ts_start, ts_end;
+	long                              microsec = 0;
+
+	CAM_GET_TIMESTAMP(ts_start);
 
 	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
 	if (i3c_i2c_target)
@@ -399,14 +441,14 @@ static int cam_actuator_platform_component_bind(struct device *dev,
 	a_ctrl->soc_info.dev_name = pdev->name;
 	a_ctrl->io_master_info.master_type = CCI_MASTER;
 
-	a_ctrl->io_master_info.cci_client = kzalloc(sizeof(
+	a_ctrl->io_master_info.cci_client = CAM_MEM_ZALLOC(sizeof(
 		struct cam_sensor_cci_client), GFP_KERNEL);
 	if (!(a_ctrl->io_master_info.cci_client)) {
 		rc = -ENOMEM;
 		goto free_ctrl;
 	}
 
-	soc_private = kzalloc(sizeof(struct cam_actuator_soc_private),
+	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_actuator_soc_private),
 		GFP_KERNEL);
 	if (!soc_private) {
 		rc = -ENOMEM;
@@ -416,7 +458,7 @@ static int cam_actuator_platform_component_bind(struct device *dev,
 	soc_private->power_info.dev = &pdev->dev;
 
 	a_ctrl->i2c_data.per_frame =
-		kzalloc(sizeof(struct i2c_settings_array) *
+		CAM_MEM_ZALLOC(sizeof(struct i2c_settings_array) *
 		MAX_PER_FRAME_ARRAY, GFP_KERNEL);
 	if (a_ctrl->i2c_data.per_frame == NULL) {
 		rc = -ENOMEM;
@@ -460,17 +502,42 @@ static int cam_actuator_platform_component_bind(struct device *dev,
 	CAM_DBG(CAM_ACTUATOR, "Component bound successfully %d",
 		a_ctrl->soc_info.index);
 
+	/* xiaomi add begin */
+	INIT_LIST_HEAD(&(a_ctrl->i2c_data.parklens_settings.list_head));
+	parklens_atomic_set(&(a_ctrl->parklens_ctrl.parklens_opcode),
+		ENTER_PARKLENS_WITH_POWERDOWN);
+	parklens_atomic_set(&(a_ctrl->parklens_ctrl.exit_result),
+		PARKLENS_ENTER);
+	parklens_atomic_set(&(a_ctrl->parklens_ctrl.parklens_state),
+		PARKLENS_INVALID);
+	a_ctrl->parklens_ctrl.parklens_thread = NULL;
+	/* xiaomi add end */
+
 	g_i3c_actuator_data[a_ctrl->soc_info.index].a_ctrl = a_ctrl;
 	init_completion(&g_i3c_actuator_data[a_ctrl->soc_info.index].probe_complete);
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
+
+	/* xiaomi add for cci debug start */
+	rc = cam_cci_dev_create_debugfs_entry(a_ctrl->device_name,
+		a_ctrl->soc_info.index, CAM_ACTUATOR_NAME,
+		&a_ctrl->io_master_info, a_ctrl->cci_i2c_master,
+		&a_ctrl->cci_debug);
+	if (rc) {
+		CAM_WARN(CAM_ACTUATOR, "debugfs creation failed");
+		rc = 0;
+	}
+	/* xiaomi add for cci debug end */
 
 	return rc;
 
 free_mem:
-	kfree(a_ctrl->i2c_data.per_frame);
+	CAM_MEM_FREE(a_ctrl->i2c_data.per_frame);
 free_soc:
-	kfree(soc_private);
+	CAM_MEM_FREE(soc_private);
 free_cci_client:
-	kfree(a_ctrl->io_master_info.cci_client);
+	CAM_MEM_FREE(a_ctrl->io_master_info.cci_client);
 free_ctrl:
 	devm_kfree(&pdev->dev, a_ctrl);
 	return rc;
@@ -497,12 +564,15 @@ static void cam_actuator_platform_component_unbind(struct device *dev,
 	cam_actuator_shutdown(a_ctrl);
 	mutex_unlock(&(a_ctrl->actuator_mutex));
 	cam_unregister_subdev(&(a_ctrl->v4l2_dev_str));
+	/* xiaomi add for cci debug start */
+	cam_cci_dev_remove_debugfs_entry((void *)a_ctrl->cci_debug);
+	/* xiaomi add for cci debug end */
 
-	kfree(a_ctrl->io_master_info.cci_client);
+	CAM_MEM_FREE(a_ctrl->io_master_info.cci_client);
 	a_ctrl->io_master_info.cci_client = NULL;
-	kfree(a_ctrl->soc_info.soc_private);
+	CAM_MEM_FREE(a_ctrl->soc_info.soc_private);
 	a_ctrl->soc_info.soc_private = NULL;
-	kfree(a_ctrl->i2c_data.per_frame);
+	CAM_MEM_FREE(a_ctrl->i2c_data.per_frame);
 	a_ctrl->i2c_data.per_frame = NULL;
 	v4l2_set_subdevdata(&a_ctrl->v4l2_dev_str.sd, NULL);
 	platform_set_drvdata(pdev, NULL);
@@ -580,7 +650,7 @@ static struct i3c_device_id actuator_i3c_id[MAX_I3C_DEVICE_ID_ENTRIES + 1];
 
 static int cam_actuator_i3c_driver_probe(struct i3c_device *client)
 {
-	int32_t rc = 0;
+	int32_t                          rc = 0;
 	struct cam_actuator_ctrl_t       *a_ctrl = NULL;
 	uint32_t                          index;
 	struct device                    *dev;
@@ -612,14 +682,104 @@ static int cam_actuator_i3c_driver_probe(struct i3c_device *client)
 			dev_name(dev));
 		return -EINVAL;
 	}
+	cam_sensor_utils_parse_pm_ctrl_flag(dev->of_node, &(a_ctrl->io_master_info));
 
-	a_ctrl->io_master_info.i3c_client = client;
+	CAM_INFO(CAM_SENSOR,
+		"master: %d (1-CCI, 2-I2C, 3-SPI, 4-I3C) pm_ctrl_client_enable: %d",
+		a_ctrl->io_master_info.master_type,
+		a_ctrl->io_master_info.qup_client->pm_ctrl_client_enable);
+
+	a_ctrl->io_master_info.qup_client->i3c_client = client;
+	a_ctrl->io_master_info.qup_client->i3c_wait_for_hotjoin = false;
 
 	complete_all(&g_i3c_actuator_data[index].probe_complete);
 
 	CAM_DBG(CAM_ACTUATOR, "I3C Probe Finished for %s", dev_name(dev));
 	return rc;
 }
+
+#if (KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE)
+static void cam_i3c_driver_remove(struct i3c_device *client)
+{
+	int32_t                        rc = 0;
+	struct cam_actuator_ctrl_t     *a_ctrl = NULL;
+	struct device                  *dev;
+	uint32_t                       index;
+
+	if (!client) {
+		CAM_ERR(CAM_SENSOR, "I3C Driver Remove: Invalid input args");
+		return;
+	}
+
+	dev = &client->dev;
+
+	CAM_DBG(CAM_SENSOR, "driver remove for I3C Slave %s", dev_name(dev));
+
+	rc = of_property_read_u32(dev->of_node, "cell-index", &index);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "device %s failed to read cell-index", dev_name(dev));
+		return;
+	}
+
+	if (index >= MAX_CAMERAS) {
+		CAM_ERR(CAM_SENSOR, "Invalid Cell-Index: %u for %s", index, dev_name(dev));
+		return;
+	}
+
+	a_ctrl = g_i3c_actuator_data[index].a_ctrl;
+	if (!a_ctrl) {
+		CAM_ERR(CAM_SENSOR, "a_ctrl is null. I3C Probe before platfom driver probe for %s",
+			dev_name(dev));
+		return;
+	}
+
+	CAM_DBG(CAM_SENSOR, "I3C remove invoked for %s",
+		(client ? dev_name(&client->dev) : "none"));
+	CAM_MEM_FREE(a_ctrl->io_master_info.qup_client);
+	a_ctrl->io_master_info.qup_client = NULL;
+}
+
+#else
+static int cam_i3c_driver_remove(struct i3c_device *client)
+{
+	struct cam_actuator_ctrl_t     *a_ctrl = NULL;
+	struct device                  *dev;
+	uint32_t                       index;
+
+	if (!client) {
+		CAM_ERR(CAM_SENSOR, "I3C Driver Remove: Invalid input args");
+		return -EINVAL;
+	}
+
+	dev = &client->dev;
+
+	CAM_DBG(CAM_SENSOR, "driver remove for I3C Slave %s", dev_name(dev));
+
+	rc = of_property_read_u32(dev->of_node, "cell-index", &index);
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "device %s failed to read cell-index", dev_name(dev));
+		return -EINVAL;
+	}
+
+	if (index >= MAX_CAMERAS) {
+		CAM_ERR(CAM_SENSOR, "Invalid Cell-Index: %u for %s", index, dev_name(dev));
+		return -EINVAL;
+	}
+
+	a_ctrl = g_i3c_actuator_data[index].a_ctrl;
+	if (!a_ctrl) {
+		CAM_ERR(CAM_SENSOR, "a_ctrl is null. I3C Probe before platfom driver probe for %s",
+			dev_name(dev));
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_SENSOR, "I3C remove invoked for %s",
+		(client ? dev_name(&client->dev) : "none"));
+	CAM_MEM_FREE(a_ctrl->io_master_info.qup_client);
+	a_ctrl->io_master_info.qup_client = NULL;
+	return 0;
+}
+#endif
 
 static struct i3c_driver cam_actuator_i3c_driver = {
 	.id_table = actuator_i3c_id,

@@ -58,6 +58,10 @@
 #define CCI_ENABLE_THRESHOLD_IRQ 1
 #define CCI_I2C_MAX_BYTE_COUNT 65535
 
+/* xiaomi add for cci cmds dump start */
+#define CCI_I2C_CMDS_SNAPSHOT_MAX_COUNT 128
+/* xiaomi add for cci cmds dump end */
+
 #define CAMX_CCI_DEV_NAME "cam-cci-driver"
 
 #define CAM_CCI_WORKQUEUE_NAME "cam_cci_wq"
@@ -151,6 +155,12 @@ struct cam_cci_master_info {
 	uint32_t num_words_in_data_queue[NUM_QUEUES];
 	int32_t data_queue_start_index[NUM_QUEUES];
 	int32_t half_queue_mark[NUM_QUEUES];
+	/* xiaomi add for cci cmds dump start */
+	uint32_t cci_write_cmds_pos_start;
+	uint32_t cci_write_cmds_pos_current;
+	uint32_t *cci_write_cmds;
+	struct mutex master_mutex;
+	/* xiaomi add for cci cmds dump end */
 };
 
 struct cam_cci_clk_params_t {

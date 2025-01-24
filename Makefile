@@ -3,6 +3,13 @@
 KBUILD_OPTIONS += CAMERA_KERNEL_ROOT=$(shell pwd)
 KBUILD_OPTIONS += KERNEL_ROOT=$(ROOT_DIR)/$(KERNEL_DIR)
 KBUILD_OPTIONS += MODNAME=camera
+# MIUI ADD: Camera_CameraSkyNet
+KBUILD_OPTIONS += MODNAME=cameralog
+# END Camera_CameraSkyNet
+
+# MIUI ADD: Camera_CameraOpt
+KBUILD_OPTIONS += MODNAME=cameramsger
+# END Camera_CameraOpt
 
 all: modules
 

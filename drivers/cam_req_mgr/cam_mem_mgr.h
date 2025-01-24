@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_MEM_MGR_H_
@@ -101,11 +101,13 @@ enum cam_dma_heap_type {
  * @is_internal:       Flag indicating kernel allocated buffer
  * @timestamp:         Timestamp at which this entry in tbl was made
  * @krefcount:         Reference counter to track whether the buffer is
- *                     mapped and in use
+ *                     mapped and in use by kmd
  * @smmu_mapping_client: Client buffer (User or kernel)
  * @buf_name:            Name associated with buffer.
  * @presil_params:       Parameters specific to presil environment
  * @dma_heap_type:       Indicating memory heap type
+ * @urefcount:           Reference counter to track whether the buffer is
+ *                       mapped and in use by umd
  */
 struct cam_mem_buf_queue {
 	struct dma_buf *dma_buf;
@@ -131,6 +133,7 @@ struct cam_mem_buf_queue {
 	struct cam_presil_dmabuf_params presil_params;
 #endif
 	enum cam_dma_heap_type dma_heap_type;
+	struct kref urefcount;
 };
 
 /**

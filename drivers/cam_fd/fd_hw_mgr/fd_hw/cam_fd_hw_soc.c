@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -14,6 +14,7 @@
 
 #include "cam_fd_hw_core.h"
 #include "cam_fd_hw_soc.h"
+#include "cam_mem_mgr_api.h"
 
 static bool cam_fd_hw_util_cpas_callback(uint32_t handle, void *userdata,
 	struct cam_cpas_irq_data *irq_data)
@@ -199,7 +200,7 @@ int cam_fd_soc_init_resources(struct cam_hw_soc_info *soc_info,
 		return rc;
 	}
 
-	soc_private = kzalloc(sizeof(struct cam_fd_soc_private), GFP_KERNEL);
+	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_fd_soc_private), GFP_KERNEL);
 	if (!soc_private) {
 		rc = -ENOMEM;
 		goto release_res;
@@ -213,7 +214,7 @@ int cam_fd_soc_init_resources(struct cam_hw_soc_info *soc_info,
 	}
 
 	memset(&cpas_register_param, 0, sizeof(cpas_register_param));
-	strlcpy(cpas_register_param.identifier, "fd", CAM_HW_IDENTIFIER_LENGTH);
+	strscpy(cpas_register_param.identifier, "fd", CAM_HW_IDENTIFIER_LENGTH);
 	cpas_register_param.cell_index = soc_info->index;
 	cpas_register_param.dev = &soc_info->pdev->dev;
 	cpas_register_param.userdata = private_data;
@@ -230,7 +231,7 @@ int cam_fd_soc_init_resources(struct cam_hw_soc_info *soc_info,
 	return rc;
 
 free_soc_private:
-	kfree(soc_info->soc_private);
+	CAM_MEM_FREE(soc_info->soc_private);
 	soc_info->soc_private = NULL;
 release_res:
 	cam_soc_util_release_platform_resource(soc_info);
@@ -253,7 +254,7 @@ int cam_fd_soc_deinit_resources(struct cam_hw_soc_info *soc_info)
 	if (rc)
 		CAM_ERR(CAM_FD, "release platform failed, rc=%d", rc);
 
-	kfree(soc_info->soc_private);
+	CAM_MEM_FREE(soc_info->soc_private);
 	soc_info->soc_private = NULL;
 
 	return rc;

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sync_dma_fence.h"
 #include "cam_sync_util.h"
+#include "cam_mem_mgr_api.h"
 
 extern unsigned long cam_sync_monitor_mask;
 
@@ -56,8 +57,8 @@ void __cam_dma_fence_free(struct dma_fence *fence)
 	CAM_DBG(CAM_DMA_FENCE,
 		"Free memory for dma fence context: %llu seqno: %llu",
 		fence->context, fence->seqno);
-	kfree(fence->lock);
-	kfree(fence);
+	CAM_MEM_FREE(fence->lock);
+	CAM_MEM_FREE(fence);
 }
 
 static struct dma_fence_ops cam_sync_dma_fence_ops = {
@@ -338,6 +339,7 @@ struct dma_fence *cam_dma_fence_get_fence_from_fd(
 	int32_t fd, int32_t *dma_fence_row_idx)
 {
 	struct dma_fence *dma_fence = NULL;
+	struct cam_dma_fence_row *row;
 
 	dma_fence = __cam_dma_fence_find_fence_in_table(fd, dma_fence_row_idx);
 	if (IS_ERR_OR_NULL(dma_fence)) {
@@ -347,7 +349,19 @@ struct dma_fence *cam_dma_fence_get_fence_from_fd(
 		return cam_dma_fence_get_fence_from_sync_file(fd, dma_fence_row_idx);
 	}
 
+	spin_lock_bh(&g_cam_dma_fence_dev->row_spinlocks[*dma_fence_row_idx]);
+	row = &g_cam_dma_fence_dev->rows[*dma_fence_row_idx];
+
+	if (row->state == CAM_DMA_FENCE_STATE_INVALID) {
+		CAM_ERR(CAM_DMA_FENCE,
+			"dma fence at idx: %d is in invalid state: %d",
+			dma_fence_row_idx, row->state);
+		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[*dma_fence_row_idx]);
+		return ERR_PTR(-EINVAL);
+	}
+
 	dma_fence_get(dma_fence);
+	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[*dma_fence_row_idx]);
 
 	CAM_DBG(CAM_DMA_FENCE, "dma fence found for fd: %d with seqno: %llu ref_cnt: %u",
 		fd, dma_fence->seqno, kref_read(&dma_fence->refcount));
@@ -573,13 +587,13 @@ static int __cam_dma_fence_get_fd(int32_t *row_idx,
 	if (__cam_dma_fence_find_free_idx(&idx))
 		goto end;
 
-	dma_fence_lock = kzalloc(sizeof(spinlock_t), GFP_KERNEL);
+	dma_fence_lock = CAM_MEM_ZALLOC(sizeof(spinlock_t), GFP_KERNEL);
 	if (!dma_fence_lock)
 		goto free_idx;
 
-	dma_fence = kzalloc(sizeof(struct dma_fence), GFP_KERNEL);
+	dma_fence = CAM_MEM_ZALLOC(sizeof(struct dma_fence), GFP_KERNEL);
 	if (!dma_fence) {
-		kfree(dma_fence_lock);
+		CAM_MEM_FREE(dma_fence_lock);
 		goto free_idx;
 	}
 
@@ -787,7 +801,7 @@ void cam_dma_fence_close(void)
 				if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
 					&cam_sync_monitor_mask))
 					cam_generic_fence_update_monitor_array(i,
-						&g_cam_dma_fence_dev->dev_lock,
+						NULL,
 						g_cam_dma_fence_dev->monitor_data,
 						CAM_FENCE_OP_UNREGISTER_CB);
 				dma_fence_remove_callback(row->fence, &row->fence_cb);
@@ -798,7 +812,7 @@ void cam_dma_fence_close(void)
 				if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
 					&cam_sync_monitor_mask))
 					cam_generic_fence_update_monitor_array(i,
-						&g_cam_dma_fence_dev->dev_lock,
+						NULL,
 						g_cam_dma_fence_dev->monitor_data,
 						CAM_FENCE_OP_SIGNAL);
 				__cam_dma_fence_signal_fence(row->fence, -EADV);
@@ -812,11 +826,11 @@ void cam_dma_fence_close(void)
 
 	if (g_cam_dma_fence_dev->monitor_data) {
 		for (i = 0; i < CAM_DMA_FENCE_TABLE_SZ; i++) {
-			kfree(g_cam_dma_fence_dev->monitor_data[i]);
+			CAM_MEM_FREE(g_cam_dma_fence_dev->monitor_data[i]);
 			g_cam_dma_fence_dev->monitor_data[i] = NULL;
 		}
 	}
-	kfree(g_cam_dma_fence_dev->monitor_data);
+	CAM_MEM_FREE(g_cam_dma_fence_dev->monitor_data);
 	g_cam_dma_fence_dev->monitor_data = NULL;
 
 	mutex_unlock(&g_cam_dma_fence_dev->dev_lock);
@@ -828,7 +842,7 @@ void cam_dma_fence_open(void)
 	mutex_lock(&g_cam_dma_fence_dev->dev_lock);
 
 	if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE, &cam_sync_monitor_mask)) {
-		g_cam_dma_fence_dev->monitor_data = kzalloc(
+		g_cam_dma_fence_dev->monitor_data = CAM_MEM_ZALLOC(
 			sizeof(struct cam_generic_fence_monitor_data *) *
 			CAM_DMA_FENCE_TABLE_SZ, GFP_KERNEL);
 		if (!g_cam_dma_fence_dev->monitor_data) {
@@ -848,7 +862,7 @@ int cam_dma_fence_driver_init(void)
 {
 	int i;
 
-	g_cam_dma_fence_dev = kzalloc(sizeof(struct cam_dma_fence_device), GFP_KERNEL);
+	g_cam_dma_fence_dev = CAM_MEM_ZALLOC(sizeof(struct cam_dma_fence_device), GFP_KERNEL);
 	if (!g_cam_dma_fence_dev)
 		return -ENOMEM;
 
@@ -869,7 +883,7 @@ int cam_dma_fence_driver_init(void)
 
 void cam_dma_fence_driver_deinit(void)
 {
-	kfree(g_cam_dma_fence_dev);
+	CAM_MEM_FREE(g_cam_dma_fence_dev);
 	g_cam_dma_fence_dev = NULL;
 	CAM_DBG(CAM_DMA_FENCE, "Camera DMA fence driver deinitialized");
 }

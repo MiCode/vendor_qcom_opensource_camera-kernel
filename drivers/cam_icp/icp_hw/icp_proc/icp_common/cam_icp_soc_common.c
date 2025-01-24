@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interrupt.h>
@@ -11,6 +11,7 @@
 #include "cam_soc_util.h"
 #include "hfi_intf.h"
 #include "cam_icp_soc_common.h"
+#include "cam_mem_mgr_api.h"
 
 static int __ubwc_config_get(struct device_node *np, char *name, uint32_t *cfg, bool *ubwc_listed)
 {
@@ -174,11 +175,12 @@ static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
 {
 	struct cam_icp_soc_info *icp_soc_info;
 	struct device_node *np;
-	int rc;
+	int rc, num_pid, i;
 
 	if (!soc_info->soc_private) {
 		CAM_ERR(CAM_ICP, "soc private is NULL");
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
 	icp_soc_info = (struct cam_icp_soc_info *)soc_info->soc_private;
@@ -187,13 +189,13 @@ static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "failed to get DT properties rc=%d", rc);
-		return rc;
+		goto end;
 	}
 
 	rc = cam_icp_soc_ubwc_config_get(np, icp_soc_info);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "failed to get UBWC config props rc=%d", rc);
-		return rc;
+		goto end;
 	}
 
 	cam_icp_soc_qos_get(np, icp_soc_info);
@@ -203,9 +205,27 @@ static int cam_icp_soc_dt_properties_get(struct cam_hw_soc_info *soc_info)
 	rc = cam_icp_soc_get_hw_version(np, icp_soc_info);
 	if (rc) {
 		CAM_ERR(CAM_ICP, "Get ICP HW version failed");
+		goto end;
+	}
+
+	num_pid = of_property_count_u32_elems(np, "cam_hw_pid");
+	CAM_DBG(CAM_ICP, "ICP pid count: %d", num_pid);
+
+	if (num_pid <= 0)
+		goto end;
+
+	icp_soc_info->pid = CAM_MEM_ZALLOC_ARRAY(num_pid, sizeof(uint32_t), GFP_KERNEL);
+	if (!icp_soc_info->pid) {
+		CAM_ERR(CAM_ICP, "Failed at allocating memory for OFE hw pids");
+		rc = -ENOMEM;
 		return rc;
 	}
 
+	for (i = 0; i < num_pid; i++)
+		of_property_read_u32_index(np, "cam_hw_pid", i, &icp_soc_info->pid[i]);
+	icp_soc_info->num_pid = num_pid;
+
+end:
 	return 0;
 }
 

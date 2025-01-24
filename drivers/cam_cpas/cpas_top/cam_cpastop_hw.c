@@ -38,9 +38,11 @@
 #include "cpastop_v640_200.h"
 #include "cpastop_v880_100.h"
 #include "cpastop_v980_100.h"
+#include "cpastop_v1080_100.h"
 #include "cam_req_mgr_workq.h"
 #include "cam_common_util.h"
 #include "cam_vmrm_interface.h"
+#include "cam_mem_mgr_api.h"
 
 struct cam_camnoc_info *camnoc_info[CAM_CAMNOC_HW_TYPE_MAX];
 struct cam_cpas_info *cpas_info;
@@ -201,6 +203,15 @@ static const uint32_t cam_cpas_hw_version_map
 		0,
 		0,
 	},
+	/* for camera_1080 */
+	{
+		CAM_CPAS_TITAN_1080_V100,
+		0,
+		0,
+		0,
+		0,
+		0,
+	},
 };
 
 static char *cam_cpastop_get_camnoc_name(enum cam_camnoc_hw_type type)
@@ -281,6 +292,9 @@ static int cam_cpas_translate_camera_cpas_version_id(
 		break;
 	case CAM_CPAS_CAMERA_VERSION_980:
 		*cam_version_id = CAM_CPAS_CAMERA_VERSION_ID_980;
+		break;
+	case CAM_CPAS_CAMERA_VERSION_1080:
+		*cam_version_id = CAM_CPAS_CAMERA_VERSION_ID_1080;
 		break;
 	default:
 		CAM_ERR(CAM_CPAS, "Invalid cam version %u",
@@ -883,6 +897,7 @@ static void cam_cpastop_work(struct work_struct *work)
 				break;
 			case CAM_CAMNOC_HW_IRQ_IPE1_BPS_UBWC_DECODE_ERROR:
 			case CAM_CAMNOC_HW_IRQ_IPE0_UBWC_DECODE_ERROR:
+			case CAM_CAMNOC_HW_IRQ_IPE1_UBWC_DECODE_ERROR:
 			case CAM_CAMNOC_HW_IRQ_IPE_BPS_UBWC_DECODE_ERROR:
 			case CAM_CAMNOC_HW_IRQ_OFE_UBWC_READ_DECODE_ERROR:
 				cam_cpastop_handle_ubwc_dec_err(camnoc_idx,
@@ -916,7 +931,7 @@ static void cam_cpastop_work(struct work_struct *work)
 		CAM_ERR(CAM_CPAS, "%s IRQ not handled irq_status=0x%x",
 			camnoc_info[camnoc_idx]->camnoc_name, payload->irq_status);
 
-	kfree(payload);
+	CAM_MEM_FREE(payload);
 }
 
 static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
@@ -947,7 +962,7 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 		goto done;
 	}
 
-	payload = kzalloc(sizeof(struct cam_cpas_work_payload), GFP_ATOMIC);
+	payload = CAM_MEM_ZALLOC(sizeof(struct cam_cpas_work_payload), GFP_ATOMIC);
 	if (!payload)
 		goto done;
 
@@ -995,7 +1010,7 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 			payload->irq_status &=
 				~camnoc_info[camnoc_idx]->irq_err[slave_err_irq_idx].sbm_port;
 			if (!payload->irq_status) {
-				kfree(payload);
+				CAM_MEM_FREE(payload);
 				goto done;
 			}
 		}
@@ -1061,10 +1076,12 @@ static int cam_cpastop_print_poweron_settings(struct cam_hw_info *cpas_hw)
 
 static int cam_cpastop_poweron(struct cam_hw_info *cpas_hw)
 {
-	int i, j;
+	int i, j, rc = 0;
 	struct cam_cpas_hw_errata_wa_list *errata_wa_list;
 	struct cam_cpas_hw_errata_wa *errata_wa;
 	struct cam_cpas *cpas_core = cpas_hw->core_info;
+	struct cam_cpas_private_soc *soc_private =
+		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	bool errata_enabled = false;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 	int index;
@@ -1072,50 +1089,61 @@ static int cam_cpastop_poweron(struct cam_hw_info *cpas_hw)
 	for (i = 0; i < cpas_core->num_valid_camnoc; i++)
 		cam_cpastop_reset_irq(0x0, cpas_hw, i);
 
-	for (i = 0; i < cpas_core->num_valid_camnoc; i++) {
-		CAM_DBG(CAM_CPAS, "QOS settings for %s :",
-			camnoc_info[i]->camnoc_name);
-		for (j = 0; j < camnoc_info[i]->specific_size; j++) {
-			if (camnoc_info[i]->specific[j].enable) {
-				CAM_DBG(CAM_CPAS,
-					"Updating QoS settings port: %d prot name: %s",
-					camnoc_info[i]->specific[j].port_type,
-					camnoc_info[i]->specific[j].port_name);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].priority_lut_low);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].priority_lut_high);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].urgency);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].danger_lut);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].safe_lut);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].ubwc_ctl);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].flag_out_set0_low);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].dynattr_mainctl);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].qosgen_mainctl);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].qosgen_shaping_low);
-				cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
-					&camnoc_info[i]->specific[j].qosgen_shaping_high);
-			}
-		}
+	if (!soc_private->enable_secure_qos_update) {
+		for (i = 0; i < cpas_core->num_valid_camnoc; i++) {
+			CAM_DBG(CAM_CPAS, "QOS settings for %s :",
+				camnoc_info[i]->camnoc_name);
+			for (j = 0; j < camnoc_info[i]->specific_size; j++) {
+				if (camnoc_info[i]->specific[j].enable) {
+					CAM_DBG(CAM_CPAS,
+						"Updating QoS settings port: %d prot name: %s",
+						camnoc_info[i]->specific[j].port_type,
+						camnoc_info[i]->specific[j].port_name);
 
-		if (!errata_enabled) {
-			errata_wa_list = camnoc_info[i]->errata_wa_list;
-			if (errata_wa_list) {
-				errata_wa = &errata_wa_list->tcsr_camera_hf_sf_ares_glitch;
-				if (errata_wa->enable) {
-					cam_cpastop_scm_write(errata_wa);
-					errata_enabled = true;
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].priority_lut_low);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].priority_lut_high);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].urgency);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].danger_lut);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].safe_lut);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].ubwc_ctl);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].flag_out_set0_low);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].dynattr_mainctl);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].qosgen_mainctl);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].qosgen_shaping_low);
+					cam_cpas_util_reg_update(cpas_hw, camnoc_info[i]->reg_base,
+						&camnoc_info[i]->specific[j].qosgen_shaping_high);
+				}
+			}
+
+			if (!errata_enabled) {
+				errata_wa_list = camnoc_info[i]->errata_wa_list;
+				if (errata_wa_list) {
+					errata_wa = &errata_wa_list->tcsr_camera_hf_sf_ares_glitch;
+					if (errata_wa->enable) {
+						cam_cpastop_scm_write(errata_wa);
+						errata_enabled = true;
+					}
 				}
 			}
 		}
+	} else {
+		CAM_DBG(CAM_CPAS, "Updating secure camera static QoS settings");
+		rc = cam_update_camnoc_qos_settings(CAM_QOS_UPDATE_TYPE_STATIC, 0, NULL);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "Secure camera static OoS update failed: %d", rc);
+			return rc;
+		}
+		CAM_DBG(CAM_CPAS, "Updated secure camera static QoS settings");
 	}
 
 	/*
@@ -1179,19 +1207,20 @@ static int cam_cpastop_poweroff(struct cam_hw_info *cpas_hw)
 }
 
 static int cam_cpastop_qchannel_handshake(struct cam_hw_info *cpas_hw,
-	bool power_on, bool force_on)
+	bool power_on, bool force)
 {
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 	int32_t reg_indx = cpas_core->regbase_index[CAM_CPAS_REG_CPASTOP];
 	uint32_t mask = 0;
-	uint32_t wait_data, qchannel_status, qdeny;
+	uint32_t wait_data, qchannel_status, qbusy;
 	int rc = 0, ret = 0, i;
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) cpas_hw->soc_info.soc_private;
 	struct cam_cpas_hw_errata_wa_list *errata_wa_list;
 	bool icp_clk_enabled = false;
 	struct cam_cpas_camnoc_qchannel *qchannel_info;
+	uint32_t busy_mask;
 
 	if (reg_indx == -1)
 		return -EINVAL;
@@ -1221,7 +1250,7 @@ static int cam_cpastop_qchannel_handshake(struct cam_hw_info *cpas_hw,
 		}
 
 		if (power_on) {
-			if (force_on) {
+			if (force) {
 				cam_io_w_mb(0x1,
 					soc_info->reg_map[reg_indx].mem_base +
 					qchannel_info->qchannel_ctrl);
@@ -1232,40 +1261,49 @@ static int cam_cpastop_qchannel_handshake(struct cam_hw_info *cpas_hw,
 			mask = BIT(0);
 			wait_data = 1;
 		} else {
-
+			if (force) {
+				cam_io_w_mb(0x1,
+					soc_info->reg_map[reg_indx].mem_base +
+					qchannel_info->qchannel_ctrl);
+				CAM_DBG(CAM_CPAS, "Force qchannel on for %s now sleep for 1us",
+						camnoc_info[i]->camnoc_name);
+				usleep_range(1, 2);
+			}
 			/* Clear the quiecience request in QCHANNEL ctrl*/
 			cam_io_w_mb(0, soc_info->reg_map[reg_indx].mem_base +
 				qchannel_info->qchannel_ctrl);
-			/* wait for QACCEPTN and QDENY in QCHANNEL status*/
-			mask = BIT(1) | BIT(0);
+			mask = BIT(0);
 			wait_data = 0;
 		}
 
+		busy_mask = BIT(0);
 		rc = cam_io_poll_value_wmask(
-			soc_info->reg_map[reg_indx].mem_base +
-			qchannel_info->qchannel_status,
-			wait_data, mask, CAM_CPAS_POLL_QH_RETRY_CNT,
-			CAM_CPAS_POLL_MIN_USECS, CAM_CPAS_POLL_MAX_USECS);
+				soc_info->reg_map[reg_indx].mem_base +
+				qchannel_info->qchannel_status,
+				wait_data, mask, CAM_CPAS_POLL_QH_RETRY_CNT,
+				CAM_CPAS_POLL_MIN_USECS, CAM_CPAS_POLL_MAX_USECS);
 		if (rc) {
 			CAM_ERR(CAM_CPAS,
-				"CPAS_%s %s idle sequence failed, qstat 0x%x",
-				power_on ? "START" : "STOP", camnoc_info[i]->camnoc_name,
+			"CPAS_%s %s idle sequence failed, qstat 0x%x",
+			power_on ? "START" : "STOP", camnoc_info[i]->camnoc_name,
 			cam_io_r(soc_info->reg_map[reg_indx].mem_base +
 				qchannel_info->qchannel_status));
 			ret = rc;
 			/* Do not return error, passthrough */
 		}
 
-		/* check if deny bit is set */
+		/* check if accept bit is set */
 		qchannel_status = cam_io_r_mb(soc_info->reg_map[reg_indx].mem_base +
 			qchannel_info->qchannel_status);
 		CAM_DBG(CAM_CPAS,
 			"CPAS_%s %s : qchannel status 0x%x", power_on ? "START" : "STOP",
 			camnoc_info[i]->camnoc_name, qchannel_status);
 
-		qdeny = (qchannel_status & BIT(1));
-		if (!power_on && qdeny)
+		qbusy = (qchannel_status & busy_mask);
+		if (!power_on && qbusy)
 			ret = -EBUSY;
+		else if (power_on && !qbusy)
+			ret = -EAGAIN;
 	}
 
 	if (icp_clk_enabled) {
@@ -1547,6 +1585,12 @@ static int cam_cpastop_init_hw_version(struct cam_hw_info *cpas_hw,
 		alloc_camnoc_info[CAM_CAMNOC_HW_NRT] = &cam980_cpas100_camnoc_info_nrt;
 		cpas_info = &cam980_cpas100_cpas_info;
 		cesta_info = &cam_v980_cesta_info;
+		break;
+	case CAM_CPAS_TITAN_1080_V100:
+		alloc_camnoc_info[CAM_CAMNOC_HW_RT] = &cam1080_cpas100_camnoc_info_rt;
+		alloc_camnoc_info[CAM_CAMNOC_HW_NRT] = &cam1080_cpas100_camnoc_info_nrt;
+		cpas_info = &cam1080_cpas100_cpas_info;
+		cesta_info = &cam_v1080_cesta_info;
 		break;
 	default:
 		CAM_ERR(CAM_CPAS, "Camera Version not supported %d.%d.%d",

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_DEBUG_UTIL_H_
@@ -16,6 +16,7 @@ extern unsigned long long debug_mdl;
 extern unsigned int debug_type;
 extern unsigned int debug_priority;
 extern unsigned int debug_drv;
+extern unsigned int debug_disable_rt_clk_bw_limit;
 extern unsigned int debug_bypass_drivers;
 
 #define CAM_IS_NULL_TO_STR(ptr) ((ptr) ? "Non-NULL" : "NULL")
@@ -64,6 +65,11 @@ enum cam_debug_module_id {
 	CAM_SENSOR_UTIL,         /* bit 35 */
 	CAM_SYNX,                /* bit 36 */
 	CAM_VMRM,                /* bit 37 */
+	CAM_IO_DUMP,             /* bit 38 */
+
+	MI_PARKLENS = 61,        /* xiaomi add, bit 61 */
+	MI_DEBUG = 62,           /* xiaomi add, bit 62 */
+	MI_PERF  = 63,           /* xiaomi add, bit 63 */
 	CAM_DBG_MOD_MAX
 };
 
@@ -125,6 +131,10 @@ static const char *cam_debug_mod_name[CAM_DBG_MOD_MAX] = {
 	[CAM_SENSOR_UTIL] = "CAM-SENSOR-UTIL",
 	[CAM_SYNX]        = "CAM_SYNX",
 	[CAM_VMRM]        = "CAM-VMRM",
+	[CAM_IO_DUMP]     = "CAM-IO-DUMP",
+	[MI_PARKLENS]     = "MI-CAM-PARKLENS",
+	[MI_DEBUG]        = "MI-CAM-DEBUG",
+	[MI_PERF]         = "MI-CAM-PERF",
 };
 
 #define ___CAM_DBG_MOD_NAME(module_id)                                      \
@@ -166,7 +176,11 @@ __builtin_choose_expr(((module_id) == CAM_DMA_FENCE), "CAM-DMA-FENCE",      \
 __builtin_choose_expr(((module_id) == CAM_SENSOR_UTIL), "CAM-SENSOR-UTIL",      \
 __builtin_choose_expr(((module_id) == CAM_SYNX), "CAM-SYNX",                \
 __builtin_choose_expr(((module_id) == CAM_VMRM), "CAM-VMRM",                \
-"CAMERA"))))))))))))))))))))))))))))))))))))))
+__builtin_choose_expr(((module_id) == CAM_IO_DUMP), "CAM-IO-DUMP",          \
+__builtin_choose_expr(((module_id) == MI_PARKLENS), "MI-CAM-PARKLENS",      \
+__builtin_choose_expr(((module_id) == MI_DEBUG), "MI-DEBUG",                \
+__builtin_choose_expr(((module_id) == MI_PERF), "MI-PERF",                  \
+"CAMERA"))))))))))))))))))))))))))))))))))))))))))
 
 #define CAM_DBG_MOD_NAME(module_id) \
 ((module_id < CAM_DBG_MOD_MAX) ? cam_debug_mod_name[module_id] : "CAMERA")
@@ -309,6 +323,25 @@ __CAM_LOG(CAM_PRINT_TRACE, CAM_TYPE_TRACE, __module, fmt, ##args)
 #define CAM_DBG_PR1(__module, fmt, args...) __CAM_DBG(__module, CAM_DBG_PRIORITY_1, fmt, ##args)
 #define CAM_DBG_PR2(__module, fmt, args...) __CAM_DBG(__module, CAM_DBG_PRIORITY_2, fmt, ##args)
 
+
+/* xiaomi add hw trigger - begin */
+/*
+ * CAM_DEBUG_HW_TRIGGER
+ * @brief    :  This macro is used to set the value of GPIO and print the corresponding
+ *              log when the status meets the conditions.
+ *
+ * @__module :  Respective module id which is been calling this Macro
+ * @fmt      :  Formatted string which needs to be print in log
+ * @args     :  Arguments which needs to be print in log
+ */
+#define CAM_DEBUG_HW_TRIGGER(status, __module, fmt, args...)                  \
+	({if (unlikely(status)) {                                             \
+		cam_debug_hw_trigger(__module, status);                       \
+		CAM_ERR(__module, fmt, ##args);                               \
+	}})
+/* xiaomi add hw trigger - end */
+
+
 /**
  * cam_print_to_buffer
  * @brief:         Function to print to camera logs to a buffer. Don't use directly. Use macros
@@ -392,6 +425,22 @@ struct camera_debug_settings {
  * @return const struct camera_debug_settings pointer.
  */
 const struct camera_debug_settings *cam_debug_get_settings(void);
+
+/* xiaomi add hw trigger - begin */
+/*
+ *  cam_debug_hw_trigger()
+ *
+ * @brief     :  Debug for hw question.set up this as a hw trigger
+ *               cam_hw_trigger_override[0]= (offset) + value(in schematic diagram)
+ *
+ * @module_id :  Respective Module ID which is calling this function
+ * @status    :  The state value used to determine whether to trigger
+ *
+ * @return    :  If there is no error, it will return 0
+ */
+int cam_debug_hw_trigger(unsigned int module_id, bool status);
+/* xiaomi add hw trigger - end */
+
 
 /**
  * @brief : API to parse and store input from sysfs debug node

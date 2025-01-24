@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSIPHY_DEV_H_
@@ -38,8 +38,9 @@
 #define MAX_DATA_RATES              25
 #define MAX_DATA_RATE_REGS          30
 
-#define CAMX_CSIPHY_DEV_NAME "cam-csiphy-driver"
-#define CAM_CSIPHY_RX_CLK_SRC "cphy_rx_src_clk"
+#define CAMX_CSIPHY_DEV_NAME        "cam-csiphy-driver"
+#define CAM_CSIPHY_RX_CLK_SRC       "cphy_rx_src_clk"
+#define CAM_CSIPHY_TIMER_CLK_SRC    "phytimer_clk_src"
 
 #define CSIPHY_DEFAULT_PARAMS            BIT(0)
 #define CSIPHY_LANE_ENABLE               BIT(1)
@@ -235,6 +236,10 @@ struct csiphy_device;
  * @data_rate_reg_array       : array of data rate specific reg value pairs
  */
 struct data_rate_reg_info_t {
+	// XIAOMI ADD: FeatureAutoEQ
+	uint8_t this_setting_max_choice;
+	uint8_t this_setting_current_choice;
+	// END: FeatureAutoEQ
 	uint64_t bandwidth;
 	ssize_t  data_rate_reg_array_size;
 	struct csiphy_reg_t *data_rate_reg_array[MAX_CSIPHY][CAM_CSIPHY_MAX_DATARATE_VARIANTS];
@@ -323,10 +328,12 @@ struct csiphy_ctrl_t {
  *                                format for mink call
  * @secure_info_updated        :  If all information in the secure_info struct above
  *                                is passed and formatted properly from CSID driver
- * @conn_csid_idx              : Connected CSID core idx (Primary csid in case of dual ife)
- * @use_hw_client_voting       : Whether to use hw client voting for clk on chipsets with cesta
- * @is_drv_config_en           : If drv is configured in CSID
- * @channel_type              : Channel type for different channel settings
+ * @conn_csid_idx              :  Connected CSID core idx (Primary csid in case of dual ife)
+ * @use_hw_client_voting       :  Whether to use hw client voting for clk on chipsets with cesta
+ * @is_drv_config_en           :  If drv is configured in CSID
+ * @channel_type               :  Channel type for different channel settings
+ * @t3_prepare                 :  T3-Prepare in ns
+ * @t3_preamble                :  T3-Preamble in ns
  */
 struct cam_csiphy_param {
 	uint16_t                         lane_assign;
@@ -346,6 +353,8 @@ struct cam_csiphy_param {
 	bool                             use_hw_client_voting;
 	bool                             is_drv_config_en;
 	uint32_t                         channel_type;
+	uint32_t                         t3_prepare;
+	uint32_t                         t3_preamble;
 };
 
 struct csiphy_work_queue {
@@ -392,18 +401,16 @@ struct cam_csiphy_dev_aux_setting_params {
  * @clk_lane                   : Clock lane
  * @acquire_count              : Acquire device count
  * @start_dev_count            : Start count
- * @csiphy_max_clk             : Max timer clock rate
  * @cpas_handle                : CPAS handle
  * @session_max_device_support : Max number of devices supported in a session
  * @combo_mode                 : Info regarding combo_mode is enable / disable
  * @cphy_dphy_combo_mode       : Info regarding 2ph/3ph combo modes
- * @rx_clk_src_idx             : Phy src clk index
+ * @rx_clk_src_idx             : Phy rx clk index
+ * @timer_clk_src_idx          : Phy timer clk index
  * @is_divisor_32_comp         : 32 bit hw compatibility
  * @curr_data_rate_idx         : Index of the datarate array which is being used currently by phy
  * @csiphy_state               : CSIPhy state
  * @ctrl_reg                   : CSIPhy control registers
- * @csiphy_3p_clk_info         : 3Phase clock information
- * @csiphy_3p_clk              : 3Phase clocks structure
  * @ref_count                  : Reference count
  * @v4l2_dev_str               : V4L2 related data
  * @csiphy_info                : Sensor specific csiphy info
@@ -429,18 +436,16 @@ struct csiphy_device {
 	uint32_t                                 clk_lane;
 	uint32_t                                 acquire_count;
 	uint32_t                                 start_dev_count;
-	uint32_t                                 csiphy_max_clk;
 	uint32_t                                 cpas_handle;
 	uint8_t                                  session_max_device_support;
 	uint8_t                                  combo_mode;
 	uint8_t                                  cphy_dphy_combo_mode;
 	uint8_t                                  rx_clk_src_idx;
+	uint8_t                                  timer_clk_src_idx;
 	uint8_t                                  is_divisor_32_comp;
 	uint8_t                                  curr_data_rate_idx;
 	enum cam_csiphy_state                    csiphy_state;
 	struct csiphy_ctrl_t                    *ctrl_reg;
-	struct msm_cam_clk_info                  csiphy_3p_clk_info[2];
-	struct clk                              *csiphy_3p_clk[2];
 	int32_t                                  ref_count;
 	struct cam_subdev                        v4l2_dev_str;
 	struct cam_csiphy_param                  csiphy_info[
@@ -460,6 +465,10 @@ struct csiphy_device {
 	bool                                     skip_aux_settings;
 	bool                                     domain_id_security;
 	uint16_t                                 preamble_enable;
+	// XIAOMI ADD: FeatureAutoEQ
+	char                           phy_dts_name[CAM_PHY_DTS_NAME];
+	uint8_t                        device_has_customized;
+	// END: FeatureAutoEQ
 };
 
 /**

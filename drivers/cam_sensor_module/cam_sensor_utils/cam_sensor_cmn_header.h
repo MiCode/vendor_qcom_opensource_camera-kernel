@@ -46,6 +46,9 @@ enum camera_flash_opcode {
 	CAMERA_SENSOR_FLASH_OP_FIRELOW,
 	CAMERA_SENSOR_FLASH_OP_FIREHIGH,
 	CAMERA_SENSOR_FLASH_OP_FIREDURATION,
+	// MIUI ADD: Camera_HWCapabilityLimit
+	CAMERA_SENSOR_FLASH_OP_LOW_FIREDURATION,
+	// END Camera_HWCapabilityLimit
 	CAMERA_SENSOR_FLASH_OP_MAX,
 };
 
@@ -111,6 +114,10 @@ enum msm_camera_power_seq_type {
 	SENSOR_CUSTOM_GPIO1,
 	SENSOR_CUSTOM_GPIO2,
 	SENSOR_VANA1,
+/* xiaomi add begin*/
+	SENSOR_BOB,
+	SENSOR_BOB2,
+/* xiaomi add end*/
 	SENSOR_SEQ_TYPE_MAX,
 };
 
@@ -254,10 +261,12 @@ struct i2c_data_settings {
 	struct i2c_settings_array streamoff_settings;
 	struct i2c_settings_array read_settings;
 	struct i2c_settings_array *per_frame;
+	struct i2c_settings_array *deferred_frame_update;
 	struct i2c_settings_array *frame_skip;
 	struct i2c_settings_array *bubble_update;
 	struct i2c_settings_array reg_bank_unlock_settings;
 	struct i2c_settings_array reg_bank_lock_settings;
+	struct i2c_settings_array parklens_settings; //xiaomi add
 };
 
 struct cam_sensor_power_ctrl_t {
@@ -269,6 +278,9 @@ struct cam_sensor_power_ctrl_t {
 	struct msm_camera_gpio_num_info *gpio_num_info;
 	struct msm_pinctrl_info pinctrl_info;
 	uint8_t cam_pinctrl_status;
+//add by xiaomi
+	enum msm_camera_power_seq_type fail_type;
+//end
 };
 
 struct cam_camera_slave_info {
@@ -345,6 +357,11 @@ enum msm_camera_vreg_name_t {
 	CAM_VAF,
 	CAM_V_CUSTOM1,
 	CAM_V_CUSTOM2,
+/* xiaomi add begin*/
+	CAM_VANA1,
+	CAM_BOB,
+	CAM_BOB2,
+/* xiaomi add end*/
 	CAM_VREG_MAX,
 };
 

@@ -10,7 +10,8 @@
 #include "cam_vfe_bus_ver3.h"
 #include "cam_irq_controller.h"
 
-#define CAM_TFE_980_NUM_DBG_REG              35
+#define CAM_TFE_980_NUM_TOP_DBG_REG          17
+#define CAM_TFE_980_NUM_BAYER_DBG_REG        10
 #define CAM_TFE_BUS_VER3_980_MAX_CLIENTS     28
 
 static struct cam_vfe_top_ver4_module_desc tfe980_ipp_mod_desc[] = {
@@ -144,7 +145,7 @@ static struct cam_vfe_top_ver4_module_desc tfe980_ipp_mod_desc[] = {
 	},
 };
 
-struct cam_vfe_bayer_ver4_module_desc tfe980_bayer_mod_desc[] = {
+struct cam_vfe_top_ver4_module_desc tfe980_bayer_mod_desc[] = {
 	{
 		.id = 0,
 		.desc = "CLC_DEMUX",
@@ -306,27 +307,29 @@ static struct cam_vfe_top_ver4_top_err_irq_desc tfe980_top_irq_err_desc[] = {
 	{
 		.bitmask = BIT(2),
 		.err_name = "BAYER_HM violation",
-		.desc = "",
+		.desc = "CLC CCIF Violation",
 	},
 	{
 		.bitmask = BIT(24),
 		.err_name = "DYNAMIC PDAF SWITCH VIOLATION",
-		.desc = "PD exposure changes dynamically and the sensor gap is not large enough",
+		.desc =
+			"HAF RDI exposure select changes dynamically, the common vbi is insufficient",
 	},
 	{
 		.bitmask = BIT(25),
 		.err_name  = "HAF violation",
-		.desc = "",
+		.desc = "CLC_HAF Violation",
 	},
 	{
 		.bitmask = BIT(26),
 		.err_name = "PP VIOLATION",
-		.desc = "",
+		.desc = "CCIF protocol violation",
 	},
 	{
 		.bitmask  = BIT(27),
 		.err_name = "DIAG VIOLATION",
-		.desc = "HBI is less than the minimum required HBI",
+		.desc = "Sensor: The HBI at TFE input is less than the spec (64 cycles)",
+		.debug = "Check sensor config",
 	},
 };
 
@@ -408,13 +411,10 @@ static uint32_t tfe980_top_debug_reg[] = {
 	0x000001C8,
 	0x000001CC,
 	0x000001D0,
-	0x000001D4,
-	0x000001D8,
-	0x000001DC,
-	0x000001E0,
-	0x000001E4,
-	0x000001E8,
-	0x0000C1BC, /*  Bayer debug registers from here onwards */
+};
+
+static uint32_t tfe980_bayer_debug_reg[] = {
+	0x0000C1BC,
 	0x0000C1C0,
 	0x0000C1C4,
 	0x0000C1C8,
@@ -424,8 +424,6 @@ static uint32_t tfe980_top_debug_reg[] = {
 	0x0000C1D8,
 	0x0000C1DC,
 	0x0000C1E0,
-	0x0000C1E4,
-	0x0000C1E8,
 };
 
 static struct cam_vfe_top_ver4_reg_offset_common tfe980_top_common_reg = {
@@ -457,13 +455,10 @@ static struct cam_vfe_top_ver4_reg_offset_common tfe980_top_common_reg = {
 	.full_out_throttle_cfg    = 0x00000068,
 	.diag_config              = 0x00000094,
 	.global_reset_cmd         = 0x0000007C,
-	.diag_sensor_status_0     = 0x00000098,
-	.diag_sensor_status_1     = 0x0000009C,
-	.diag_frm_cnt_status_0    = 0x000000A0,
-	.diag_frm_cnt_status_1    = 0x000000A4,
-	.diag_frm_cnt_status_2    = 0x000000A8,
+	.diag_sensor_status       = {0x00000098, 0x0000009C},
+	.diag_frm_cnt_status      = {0x000000A0, 0x000000A4, 0x000000A8},
 	.ipp_violation_status     = 0x00000090,
-	.bayer_violation_status   = 0x0000DA24,
+	.bayer_violation_status   = 0x0000C024,
 	.pdaf_violation_status    = 0x00009304,
 	.dsp_status               = 0x0000006C,
 	.bus_violation_status     = 0x00000864,
@@ -546,8 +541,10 @@ static struct cam_vfe_top_ver4_reg_offset_common tfe980_top_common_reg = {
 	},
 	.top_debug_cfg            = 0x000001EC,
 	.bayer_debug_cfg          = 0x0000C1EC,
-	.num_top_debug_reg        = 35,
+	.num_top_debug_reg        = CAM_TFE_980_NUM_TOP_DBG_REG,
 	.top_debug = tfe980_top_debug_reg,
+	.num_bayer_debug_reg = CAM_TFE_980_NUM_BAYER_DBG_REG,
+	.bayer_debug = tfe980_bayer_debug_reg,
 	.frame_timing_irq_reg_idx = CAM_IFE_IRQ_CAMIF_REG_STATUS0,
 	.capabilities = CAM_VFE_COMMON_CAP_SKIP_CORE_CFG |
 			CAM_VFE_COMMON_CAP_CORE_MUX_CFG,
@@ -556,10 +553,13 @@ static struct cam_vfe_top_ver4_reg_offset_common tfe980_top_common_reg = {
 static struct cam_vfe_ver4_path_reg_data tfe980_ipp_common_reg_data = {
 	.sof_irq_mask                    = 0x150,
 	.eof_irq_mask                    = 0x2A0,
-	.error_irq_mask                  = 0xF000005,
+	.error_irq_mask                  = 0xF000004,
 	.ipp_violation_mask              = 0x4000000,
 	.bayer_violation_mask            = 0x4,
 	.pdaf_violation_mask             = 0x2000000,
+	.diag_violation_mask             = 0x8000000,
+	.diag_sensor_sel_mask            = 0x6,
+	.diag_frm_count_mask_0           = 0xF000,
 	.enable_diagnostic_hw            = 0x1,
 	.top_debug_cfg_en                = 3,
 	.is_mc_path                      = true,
@@ -574,7 +574,9 @@ static struct cam_vfe_ver4_path_reg_data tfe980_ipp_common_reg_data = {
 static struct cam_vfe_ver4_path_reg_data tfe980_pdlib_reg_data = {
 	.sof_irq_mask                    = 0x400,
 	.eof_irq_mask                    = 0x800,
-	.enable_diagnostic_hw            = 0x1,
+	.diag_sensor_sel_mask            = 0x8,
+	.diag_frm_count_mask_0           = 0x40,
+	.enable_diagnostic_hw            = 0x40,
 	.top_debug_cfg_en                = 3,
 };
 
@@ -583,6 +585,8 @@ static struct cam_vfe_ver4_path_reg_data tfe980_vfe_full_rdi_reg_data[5] = {
 		.sof_irq_mask                    = 0x1000,
 		.eof_irq_mask                    = 0x2000,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0xA,
+		.diag_frm_count_mask_0           = 0x80,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 3,
 	},
@@ -590,6 +594,8 @@ static struct cam_vfe_ver4_path_reg_data tfe980_vfe_full_rdi_reg_data[5] = {
 		.sof_irq_mask                    = 0x4000,
 		.eof_irq_mask                    = 0x8000,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0xC,
+		.diag_frm_count_mask_0           = 0x100,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 3,
 	},
@@ -597,6 +603,8 @@ static struct cam_vfe_ver4_path_reg_data tfe980_vfe_full_rdi_reg_data[5] = {
 		.sof_irq_mask                    = 0x10000,
 		.eof_irq_mask                    = 0x20000,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0xE,
+		.diag_frm_count_mask_0           = 0x200,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 3,
 	},
@@ -604,6 +612,8 @@ static struct cam_vfe_ver4_path_reg_data tfe980_vfe_full_rdi_reg_data[5] = {
 		.sof_irq_mask                    = 0x40000,
 		.eof_irq_mask                    = 0x80000,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0x10,
+		.diag_frm_count_mask_0           = 0x400,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 3,
 	},
@@ -611,6 +621,8 @@ static struct cam_vfe_ver4_path_reg_data tfe980_vfe_full_rdi_reg_data[5] = {
 		.sof_irq_mask                    = 0x100000,
 		.eof_irq_mask                    = 0x200000,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0x12,
+		.diag_frm_count_mask_0           = 0x800,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 3,
 	},
@@ -640,7 +652,8 @@ struct cam_vfe_ver4_path_hw_info
 	},
 };
 
-static struct cam_vfe_top_ver4_debug_reg_info tfe980_dbg_reg_info[CAM_TFE_980_NUM_DBG_REG][8] = {
+static struct cam_vfe_top_ver4_debug_reg_info tfe980_top_dbg_reg_info[
+	CAM_TFE_980_NUM_TOP_DBG_REG][8] = {
 	VFE_DBG_INFO_ARRAY_4bit("test_bus_reserved",
 		"test_bus_reserved",
 		"test_bus_reserved",
@@ -650,106 +663,165 @@ static struct cam_vfe_top_ver4_debug_reg_info tfe980_dbg_reg_info[CAM_TFE_980_NU
 		"test_bus_reserved",
 		"test_bus_reserved"
 	),
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "STATS_AWB_BG_TINTLESS",
+			0x000001D4, (BIT(0) | BIT(1) | BIT(2))),
+		VFE_DBG_INFO_WITH_IDLE(4, "STATS_AWB_BG_AE",
+			0x000001D4, (BIT(3) | BIT(4) | BIT(5))),
+		VFE_DBG_INFO_WITH_IDLE(8, "STATS_BHIST_AEC",
+			0x000001D4, (BIT(6) | BIT(7) | BIT(8))),
+		VFE_DBG_INFO_WITH_IDLE(12, "STATS_RS",
+			0x000001D4, (BIT(9) | BIT(10) | BIT(11))),
+		VFE_DBG_INFO_WITH_IDLE(16, "STATS_BFW_AWB",
+			0x000001D4, (BIT(12) | BIT(13) | BIT(14))),
+		VFE_DBG_INFO_WITH_IDLE(20, "STATS_AWB_BG_AWB",
+			0x000001D4, (BIT(15) | BIT(16) | BIT(17))),
+		VFE_DBG_INFO_WITH_IDLE(24, "STATS_BHIST_AF",
+			0x000001D4, (BIT(18) | BIT(19) | BIT(20))),
+		VFE_DBG_INFO_WITH_IDLE(28, "STATS_AWB_BG_ALSC",
+			0x000001D4, (BIT(21) | BIT(22) | BIT(23))),
+	},
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "STATS_BHIST_TMC",
+			0x000001D4, (BIT(24) | BIT(25) | BIT(26))),
+		VFE_DBG_INFO_WITH_IDLE(4, "compdecomp_fd",
+			0x000001D4, BIT(27)),
+		VFE_DBG_INFO_WITH_IDLE(8, "color_correct",
+			0x000001D4, BIT(28)),
+		VFE_DBG_INFO_WITH_IDLE(12, "gtm",
+			0x000001D4, BIT(29)),
+		VFE_DBG_INFO_WITH_IDLE(16, "glut",
+			0x000001D4, BIT(30)),
+		VFE_DBG_INFO_WITH_IDLE(20, "color_xform",
+			0x000001D4, BIT(31)),
+		VFE_DBG_INFO_WITH_IDLE(24, "downscale_mn_y",
+			0x000001D8, BIT(0)),
+		VFE_DBG_INFO_WITH_IDLE(28, "downscale_mn_c",
+			0x000001D8, BIT(1)),
+	},
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "crop_rnd_clamp_fd_y",
+			0x000001D8, BIT(2)),
+		VFE_DBG_INFO_WITH_IDLE(4, "crop_rnd_clamp_fd_c",
+			0x000001D8, BIT(3)),
+		VFE_DBG_INFO_WITH_IDLE(8, "bds2_demo",
+			0x000001D8, (BIT(4) | BIT(5) | BIT(6))),
+		VFE_DBG_INFO_WITH_IDLE(12, "punch_bds2",
+			0x000001D8, (BIT(7) | BIT(8) | BIT(9))),
+		VFE_DBG_INFO_WITH_IDLE(16, "punch_ds4_mux",
+			0x000001D8, (BIT(10) | BIT(11) | BIT(12))),
+		VFE_DBG_INFO_WITH_IDLE(20, "bayer_ds_4_ds4",
+			0x000001D8, (BIT(13) | BIT(14) | BIT(15))),
+		VFE_DBG_INFO_WITH_IDLE(24, "crop_rnd_clamp_ds4",
+			0x000001D8, (BIT(16) | BIT(17) | BIT(18))),
+		VFE_DBG_INFO_WITH_IDLE(28, "punch_ds16",
+			0x000001D8, (BIT(19) | BIT(20) | BIT(21))),
+	},
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "bayer_ds_4_ds16",
+			0x000001D8, (BIT(22) | BIT(23) | BIT(24))),
+		VFE_DBG_INFO_WITH_IDLE(4, "crop_rnd_clamp_ds16",
+			0x000001D8, (BIT(25) | BIT(26) | BIT(27))),
+		VFE_DBG_INFO_WITH_IDLE(8, "crop_rnd_clamp_ds2",
+			0x000001D8, (BIT(28) | BIT(29) | BIT(30))),
+		VFE_DBG_INFO_WITH_IDLE(12, "clc_haf",
+			0x000001D8, BIT(31)),
+		VFE_DBG_INFO_WITH_IDLE(16, "clc_rcs_ds2",
+			0x000001DC, (BIT(0) | BIT(1) | BIT(2))),
+		VFE_DBG_INFO_WITH_IDLE(20, "clc_crop_rnd_clamp_full_out",
+			0x000001DC, (BIT(3) | BIT(4) | BIT(5))),
+		VFE_DBG_INFO_WITH_IDLE(24, "clc_compdecomp_bypass",
+			0x000001DC, (BIT(6) | BIT(7) | BIT(8))),
+		VFE_DBG_INFO_WITH_IDLE(28, "clc_crop_rnd_clamp_bypass",
+			0x000001DC, (BIT(9) | BIT(10) | BIT(11))),
+	},
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "clc_rcs_full_out",
+			0x000001DC, (BIT(12) | BIT(13) | BIT(14))),
+		VFE_DBG_INFO_WITH_IDLE(4, "clc_haf",
+			0x000001DC, BIT(15)),
+		VFE_DBG_INFO_WITH_IDLE(8, "csid_tfe_ipp",
+			0x000001DC, (BIT(16) | BIT(17) | BIT(18))),
+		VFE_DBG_INFO_WITH_IDLE(12, "ppp_repeater",
+			0x000001DC, BIT(19)),
+		VFE_DBG_INFO_WITH_IDLE(16, "stats_awb_bg_tintless_throttle",
+			0x000001DC, (BIT(20) | BIT(21) | BIT(22))),
+		VFE_DBG_INFO_WITH_IDLE(20, "stats_awb_bg_ae_throttle",
+			0x000001DC, (BIT(23) | BIT(24) | BIT(25))),
+		VFE_DBG_INFO_WITH_IDLE(24, "stats_ae_bhist_throttle",
+			0x000001DC, (BIT(26) | BIT(27) | BIT(28))),
+		VFE_DBG_INFO_WITH_IDLE(28, "stats_bayer_rs_throttle",
+			0x000001DC, (BIT(29) | BIT(30) | BIT(31))),
+	},
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "stats_bayer_bfw_throttle",
+			0x000001E0, (BIT(0) | BIT(1) | BIT(2))),
+		VFE_DBG_INFO_WITH_IDLE(4, "stats_awb_bg_awb_throttle",
+			0x000001E0, (BIT(3) | BIT(4) | BIT(5))),
+		VFE_DBG_INFO_WITH_IDLE(8, "stats_bhist_af_throttle",
+			0x000001E0, (BIT(6) | BIT(7) | BIT(8))),
+		VFE_DBG_INFO_WITH_IDLE(12, "full_out_throttle",
+			0x000001E0, (BIT(9) | BIT(10) | BIT(11))),
+		VFE_DBG_INFO_WITH_IDLE(16, "ds4_out_y_throttle",
+			0x000001E0, (BIT(12) | BIT(13) | BIT(14))),
+		VFE_DBG_INFO_WITH_IDLE(20, "ds4_out_c_throttle",
+			0x000001E0, (BIT(15) | BIT(16) | BIT(17))),
+		VFE_DBG_INFO_WITH_IDLE(24, "ds16_out_y_throttle",
+			0x000001E0, (BIT(18) | BIT(19) | BIT(20))),
+		VFE_DBG_INFO_WITH_IDLE(28, "ds16_out_c_throttle",
+			0x000001E0, (BIT(21) | BIT(22) | BIT(23))),
+	},
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "ds2_out_y_throttle",
+			0x000001E0, (BIT(24) | BIT(25) | BIT(26))),
+		VFE_DBG_INFO_WITH_IDLE(4, "ds2_out_c_throttle",
+			0x000001E0, (BIT(27) | BIT(28) | BIT(29))),
+		VFE_DBG_INFO_WITH_IDLE(8, "tfe_w_ir_throttle",
+			0x000001E4, (BIT(0) | BIT(1) | BIT(2))),
+		VFE_DBG_INFO_WITH_IDLE(12, "fd_out_y_throttle",
+			0x000001E4, (BIT(3) | BIT(4) | BIT(5))),
+		VFE_DBG_INFO_WITH_IDLE(16, "fd_out_c_throttle",
+			0x000001E4, (BIT(6) | BIT(7) | BIT(8))),
+		VFE_DBG_INFO_WITH_IDLE(20, "haf_sad_stats_throttle",
+			0x000001E0, BIT(30)),
+		VFE_DBG_INFO_WITH_IDLE(24, "haf_caf_stats_throttle",
+			0x000001E0, BIT(31)),
+		VFE_DBG_INFO_WITH_IDLE(28, "haf_parsed_throttle",
+			0x000001E4, BIT(9)),
+	},
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "haf_pre_processed",
+			0x000001E4, BIT(10)),
+		VFE_DBG_INFO(4, "full_out"),
+		VFE_DBG_INFO(8, "ubwc_stats"),
+		VFE_DBG_INFO(12, "ds4_out_y"),
+		VFE_DBG_INFO(16, "ds4_out_c"),
+		VFE_DBG_INFO(20, "ds16_out_y"),
+		VFE_DBG_INFO(24, "ds16_out_c"),
+		VFE_DBG_INFO(28, "ds2_out_y"),
+	},
 	VFE_DBG_INFO_ARRAY_4bit(
-		"STATS_AWB_BG_TINTLESS",
-		"STATS_AWB_BG_AE",
-		"STATS_BHIST_AEC",
-		"STATS_RS",
-		"STATS_BFW_AWB",
-		"STATS_AWB_BG_AWB",
-		"STATS_BHIST_AF",
-		"STATS_AWB_BG_ALSC"
-	),
-	VFE_DBG_INFO_ARRAY_4bit(
-		"STATS_BHIST_TMC",
-		"compdecomp_fd",
-		"color_correct",
-		"gtm",
-		"glut",
-		"color_xform",
-		"downscale_mn_y",
-		"downscale_mn_c"
-	),
-	VFE_DBG_INFO_ARRAY_4bit(
-		"crop_rnd_clamp_fd_y",
-		"crop_rnd_clamp_fd_c",
-		"bds2_demo",
-		"punch_bds2",
-		"punch_ds4_mux",
-		"bayer_ds_4_ds4",
-		"crop_rnd_clamp_ds4",
-		"punch_ds16"
-	),
-	VFE_DBG_INFO_ARRAY_4bit(
-		"bayer_ds_4_ds16",
-		"crop_rnd_clamp_ds16",
-		"crop_rnd_clamp_ds2",
-		"clc_haf",
-		"clc_rcs_ds2",
-		"clc_crop_rnd_clamp_full_out",
-		"clc_compdecomp_bypass",
-		"clc_crop_rnd_clamp_bypass"
-	),
-	VFE_DBG_INFO_ARRAY_4bit(
-		"clc_rcs_full_out",
-		"clc_haf",
-		"csid_tfe_ipp",
-		"ppp_repeater",
-		"stats_awb_bg_tintless",
-		"stats_awb_bg_ae",
-		"stats_ae_bhist",
-		"stats_bayer_rs"
-	),
-	VFE_DBG_INFO_ARRAY_4bit(
-		"stats_bayer_bfw",
-		"stats_awb_bg_awb",
-		"stats_bhist_af",
-		"full_out",
-		"ds4_out_y",
-		"ds4_out_c",
-		"ds16_out_y",
-		"ds16_out_c"
-	),
-	VFE_DBG_INFO_ARRAY_4bit(
-		"ds2_out_y",
+		"ubwc_stats",
 		"ds2_out_c",
-		"w_ir",
 		"fd_out_y",
 		"fd_out_c",
-		"haf_sad_stats",
-		"haf_caf_stats",
-		"haf_parsed"
-	),
-	VFE_DBG_INFO_ARRAY_4bit(
-		"haf_pre_processed",
-		"full_out",
-		"ubwc_stats",
-		"ds4_out_y",
-		"ds4_out_c",
-		"ds16_out_y",
-		"ds16_out_c",
-		"ds2_out_y"
-	),
-	VFE_DBG_INFO_ARRAY_4bit(
-		"ubwc_stats",
-		"ds2_out_c",
-		"fd_out_y",
-		"fd_out_c",
-		"w_ir",
+		"raw_out",
 		"stats_awb_bg_ae",
 		"stats_ae_bhist",
 		"stats_awb_bg_tintless"
 	),
-	VFE_DBG_INFO_ARRAY_4bit(
-		"stats_awb_bg_alsc",
-		"stats_throttle_to_bus_awb_bg_awb",
-		"stats_throttle_to_bus_bayer_bfw",
-		"stats_throttle_to_bus_bhist_af",
-		"stats_throttle_to_bus_awb_bg_alsc",
-		"stats_throttle_to_bus_bayer_rs",
-		"stats_throttle_to_bus_bhist_tmc",
-		"stats_throttle_to_bus_sad"
-	),
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "stats_awb_bg_alsc",
+			0x000001E4, (BIT(20) | BIT(21) | BIT(22))),
+		VFE_DBG_INFO(4, "stats_throttle_to_bus_awb_bg_awb"),
+		VFE_DBG_INFO(8, "stats_throttle_to_bus_bayer_bfw"),
+		VFE_DBG_INFO(12, "stats_throttle_to_bus_bhist_af"),
+		VFE_DBG_INFO(16, "stats_throttle_to_bus_awb_bg_alsc"),
+		VFE_DBG_INFO(20, "stats_throttle_to_bus_bayer_rs"),
+		VFE_DBG_INFO(24, "stats_throttle_to_bus_bhist_tmc"),
+		VFE_DBG_INFO(28, "stats_throttle_to_bus_sad"),
+
+	},
 	VFE_DBG_INFO_ARRAY_4bit(
 		"tfe_haf_processed_to_bus",
 		"tfe_haf_parsed_to_bus",
@@ -760,8 +832,126 @@ static struct cam_vfe_top_ver4_debug_reg_info tfe980_dbg_reg_info[CAM_TFE_980_NU
 		"rdi3_splitter_to_bus_wr",
 		"rdi4_splitter_to_bus_wr"
 	),
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "stats_bhist_tmc_throttle",
+			0x000001E4, (BIT(23) | BIT(24) | BIT(25))),
+		VFE_DBG_INFO(4, "reserved"),
+		VFE_DBG_INFO(8, "reserved"),
+		VFE_DBG_INFO(12, "reserved"),
+		VFE_DBG_INFO(16, "reserved"),
+		VFE_DBG_INFO(20, "reserved"),
+		VFE_DBG_INFO(24, "reserved"),
+		VFE_DBG_INFO(28, "reserved"),
+	},
+	{
+		/* needs to be parsed separately, doesn't conform to I, V, R */
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+	},
+	{
+		/* needs to be parsed separately, doesn't conform to I, V, R */
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+	},
+	{
+		/* needs to be parsed separately, doesn't conform to I, V, R */
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+	},
+	{
+		/* needs to be parsed separately, doesn't conform to I, V, R */
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+	},
+};
+
+static struct cam_vfe_top_ver4_debug_reg_info tfe980_bayer_dbg_reg_info[
+	CAM_TFE_980_NUM_BAYER_DBG_REG][8] = {
+	VFE_DBG_INFO_ARRAY_4bit("test_bus_reserved",
+		"test_bus_reserved",
+		"test_bus_reserved",
+		"test_bus_reserved",
+		"test_bus_reserved",
+		"test_bus_reserved",
+		"test_bus_reserved",
+		"test_bus_reserved"
+	),
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "clc_demux_w0",
+			0x0000C1E4, (BIT(0) | BIT(1) | BIT(2))),
+		VFE_DBG_INFO_WITH_IDLE(4, "clc_bpc_pdpc_gic_w0",
+			0x0000C1E4, (BIT(3) | BIT(4) | BIT(5))),
+		VFE_DBG_INFO_WITH_IDLE(8, "clc_pdpc_bpc_1d_w0",
+			0x0000C1E4, (BIT(6) | BIT(7) | BIT(8))),
+		VFE_DBG_INFO_WITH_IDLE(12, "clc_abf_binc_w0",
+			0x0000C1E4, (BIT(9) | BIT(10) | BIT(11))),
+		VFE_DBG_INFO_WITH_IDLE(16, "clc_channel_gains_w0",
+			0x0000C1E4, (BIT(12) | BIT(13) | BIT(14))),
+		VFE_DBG_INFO_WITH_IDLE(20, "clc_lsc_w3",
+			0x0000C1E4, (BIT(15) | BIT(16) | BIT(17))),
+		VFE_DBG_INFO_WITH_IDLE(24, "clc_fcg_w2",
+			0x0000C1E4, (BIT(18) | BIT(19) | BIT(20))),
+		VFE_DBG_INFO_WITH_IDLE(28, "clc_wb_gain_w6",
+			0x0000C1E4, (BIT(21) | BIT(22) | BIT(23))),
+	},
+	{
+		VFE_DBG_INFO_WITH_IDLE(0, "clc_compdecomp_bayer_w0",
+			0x0000C1E4, (BIT(24) | BIT(25) | BIT(26))),
+		VFE_DBG_INFO_WITH_IDLE(4, "clc_crop_rnd_clamp_wirc_w10",
+			0x0000C1E4, BIT(27)),
+		VFE_DBG_INFO(8, "reserved"),
+		VFE_DBG_INFO(12, "reserved"),
+		VFE_DBG_INFO(16, "reserved"),
+		VFE_DBG_INFO(20, "reserved"),
+		VFE_DBG_INFO(24, "reserved"),
+		VFE_DBG_INFO(28, "reserved"),
+	},
 	VFE_DBG_INFO_ARRAY_4bit(
-		"stats_bhist_tmc_to_bus_wr",
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved"
+	),
+	VFE_DBG_INFO_ARRAY_4bit(
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved",
+		"reserved"
+	),
+	VFE_DBG_INFO_ARRAY_4bit(
+		"reserved",
 		"reserved",
 		"reserved",
 		"reserved",
@@ -772,25 +962,132 @@ static struct cam_vfe_top_ver4_debug_reg_info tfe980_dbg_reg_info[CAM_TFE_980_NU
 	),
 	{
 		/* needs to be parsed separately, doesn't conform to I, V, R */
-		VFE_DBG_INFO(32, "lcr_pd_monitor"),
-		VFE_DBG_INFO(32, "lcr_pd_monitor"),
-		VFE_DBG_INFO(32, "lcr_pd_monitor"),
-		VFE_DBG_INFO(32, "lcr_pd_monitor"),
-		VFE_DBG_INFO(32, "lcr_pd_monitor"),
-		VFE_DBG_INFO(32, "lcr_pd_monitor"),
-		VFE_DBG_INFO(32, "lcr_pd_monitor"),
-		VFE_DBG_INFO(32, "lcr_pd_monitor"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
+		VFE_DBG_INFO(32, "non_ccif_0"),
 	},
 	{
 		/* needs to be parsed separately, doesn't conform to I, V, R */
-		VFE_DBG_INFO(32, "bus_wr_src_idle"),
-		VFE_DBG_INFO(32, "bus_wr_src_idle"),
-		VFE_DBG_INFO(32, "bus_wr_src_idle"),
-		VFE_DBG_INFO(32, "bus_wr_src_idle"),
-		VFE_DBG_INFO(32, "bus_wr_src_idle"),
-		VFE_DBG_INFO(32, "bus_wr_src_idle"),
-		VFE_DBG_INFO(32, "bus_wr_src_idle"),
-		VFE_DBG_INFO(32, "bus_wr_src_idle"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+		VFE_DBG_INFO(32, "non_ccif_1"),
+	},
+	{
+		/* needs to be parsed separately, doesn't conform to I, V, R */
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+		VFE_DBG_INFO(32, "non_ccif_2"),
+	},
+	{
+		/* needs to be parsed separately, doesn't conform to I, V, R */
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+		VFE_DBG_INFO(32, "non_ccif_3"),
+	},
+};
+
+static struct cam_vfe_top_ver4_diag_reg_info tfe980_diag_reg_info[] = {
+	{
+		.bitmask = 0x3FFF,
+		.name    = "SENSOR_HBI",
+	},
+	{
+		.bitmask = 0x4000,
+		.name    = "SENSOR_NEQ_HBI",
+	},
+	{
+		.bitmask = 0x8000,
+		.name    = "SENSOR_HBI_MIN_ERROR",
+	},
+	{
+		.bitmask = 0xFFFFFF,
+		.name    = "SENSOR_VBI",
+	},
+	{
+		.bitmask = 0xFF,
+		.name    = "FRAME_CNT_PPP_PIPE",
+	},
+	{
+		.bitmask = 0xFF00,
+		.name    = "FRAME_CNT_RDI_0_PIPE",
+	},
+	{
+		.bitmask = 0xFF0000,
+		.name    = "FRAME_CNT_RDI_1_PIPE",
+	},
+	{
+		.bitmask = 0xFF000000,
+		.name    = "FRAME_CNT_RDI_2_PIPE",
+	},
+	{
+		.bitmask = 0xFF,
+		.name    = "FRAME_CNT_RDI_3_PIPE",
+	},
+	{
+		.bitmask = 0xFF00,
+		.name    = "FRAME_CNT_RDI_4_PIPE",
+	},
+	{
+		.bitmask = 0xFF,
+		.name    = "FRAME_CNT_IPP_CONTEXT0_PIPE",
+	},
+	{
+		.bitmask = 0xFF00,
+		.name    = "FRAME_CNT_IPP_CONTEXT1_PIPE",
+	},
+	{
+		.bitmask = 0xFF0000,
+		.name    = "FRAME_CNT_IPP_CONTEXT2_PIPE",
+	},
+	{
+		.bitmask = 0xFF000000,
+		.name    = "FRAME_CNT_IPP_ALL_CONTEXT_PIPE",
+	},
+};
+
+static struct cam_vfe_top_ver4_diag_reg_fields tfe980_diag_sensor_field[] = {
+	{
+		.num_fields = 3,
+		.field      = &tfe980_diag_reg_info[0],
+	},
+	{
+		.num_fields = 1,
+		.field      = &tfe980_diag_reg_info[3],
+	},
+};
+
+static struct cam_vfe_top_ver4_diag_reg_fields tfe980_diag_frame_field[] = {
+	{
+		.num_fields = 4,
+		.field      = &tfe980_diag_reg_info[4],
+	},
+	{
+		.num_fields = 2,
+		.field      = &tfe980_diag_reg_info[8],
+	},
+	{
+		.num_fields = 4,
+		.field      = &tfe980_diag_reg_info[10],
 	},
 };
 
@@ -842,11 +1139,14 @@ static struct cam_vfe_top_ver4_hw_info tfe980_top_hw_info = {
 	.top_err_desc                    = tfe980_top_irq_err_desc,
 	.num_pdaf_violation_errors       = ARRAY_SIZE(tfe980_haf_violation_desc),
 	.pdaf_violation_desc             = tfe980_haf_violation_desc,
-	.debug_reg_info                  = &tfe980_dbg_reg_info,
+	.top_debug_reg_info              = &tfe980_top_dbg_reg_info,
+	.bayer_debug_reg_info            = &tfe980_bayer_dbg_reg_info,
 	.pdaf_lcr_res_mask               = tfe980_pdaf_haf_res_mask,
 	.num_pdaf_lcr_res                = ARRAY_SIZE(tfe980_pdaf_haf_res_mask),
 	.fcg_module_info                 = &tfe980_fcg_module_info,
 	.fcg_mc_supported                = true,
+	.diag_sensor_info                = tfe980_diag_sensor_field,
+	.diag_frame_info                 = tfe980_diag_frame_field,
 };
 
 static struct cam_irq_register_set tfe980_bus_irq_reg[2] = {
@@ -2384,6 +2684,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.mid           = tfe980_out_port_mid[20],
 			.num_mid       = 1,
 			.num_wm        = 1,
+			.early_done_mask = BIT(28),
 			.wm_idx        = {
 				19,
 			},
@@ -2431,6 +2732,7 @@ static struct cam_vfe_bus_ver3_hw_info tfe980_bus_hw_info = {
 			.mid           = tfe980_out_port_mid[23],
 			.num_mid       = 1,
 			.num_wm        = 1,
+			.early_done_mask = BIT(29),
 			.mc_based      = false,
 			.mc_grp_shift  = 4,
 			.wm_idx        = {

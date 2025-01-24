@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -407,6 +407,7 @@ int cam_eeprom_parse_dt(struct cam_eeprom_ctrl_t *e_ctrl)
 		CAM_DBG(CAM_EEPROM, "get for regulator %s",
 			soc_info->rgltr_name[i]);
 	}
+	cam_sensor_utils_parse_pm_ctrl_flag(of_node, &(e_ctrl->io_master_info));
 
 	return rc;
 }

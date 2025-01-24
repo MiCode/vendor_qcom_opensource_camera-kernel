@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -19,6 +19,7 @@
 #include "cam_debug_util.h"
 #include "cam_cdm_util.h"
 #include "cam_cpas_api.h"
+#include "cam_mem_mgr_api.h"
 
 #define CAM_VFE_CAMIF_IRQ_SOF_DEBUG_CNT_MAX 2
 
@@ -95,6 +96,7 @@ static int cam_vfe_camif_put_evt_payload(
 		return -EINVAL;
 	}
 
+	CAM_COMMON_SANITIZE_LIST_ENTRY((*evt_payload), struct cam_vfe_top_irq_evt_payload);
 	spin_lock_irqsave(&camif_priv->spin_lock, flags);
 	list_add_tail(&(*evt_payload)->list, &camif_priv->free_payload_list);
 	*evt_payload = NULL;
@@ -931,7 +933,7 @@ int cam_vfe_camif_ver2_init(
 	struct cam_vfe_camif_ver2_hw_info *camif_info = camif_hw_info;
 	int                                i = 0;
 
-	camif_priv = kzalloc(sizeof(struct cam_vfe_mux_camif_data),
+	camif_priv = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_mux_camif_data),
 		GFP_KERNEL);
 	if (!camif_priv) {
 		CAM_DBG(CAM_ISP, "Error! Failed to alloc for camif_priv");
@@ -973,6 +975,11 @@ int cam_vfe_camif_ver2_deinit(
 	struct cam_vfe_mux_camif_data *camif_priv = camif_node->res_priv;
 	int                            i = 0;
 
+	if (!camif_priv) {
+		CAM_ERR(CAM_ISP, "Error! camif_priv is NULL");
+		return -ENODEV;
+	}
+
 	INIT_LIST_HEAD(&camif_priv->free_payload_list);
 	for (i = 0; i < CAM_VFE_CAMIF_EVT_MAX; i++)
 		INIT_LIST_HEAD(&camif_priv->evt_payload[i].list);
@@ -985,12 +992,8 @@ int cam_vfe_camif_ver2_deinit(
 
 	camif_node->res_priv = NULL;
 
-	if (!camif_priv) {
-		CAM_ERR(CAM_ISP, "Error! camif_priv is NULL");
-		return -ENODEV;
-	}
 
-	kfree(camif_priv);
+	CAM_MEM_FREE(camif_priv);
 
 	return 0;
 }

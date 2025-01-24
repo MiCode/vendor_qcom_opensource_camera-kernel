@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_qrtr_comms.h"
+#include "cam_mem_mgr_api.h"
 
 static int cam_qrtr_handle_ctrl_message_locked(struct cam_inter_vm_comms_handle *handle,
 	struct qrtr_ctrl_pkt *pkt)
@@ -145,7 +146,7 @@ static void cam_qrtr_handle_incoming_message(struct work_struct *work)
 				if (cam_qrtr_send_response_locked(handle, response.res_msg,
 					response.msg_size))
 					CAM_ERR(CAM_VMRM, "Sending the response failed");
-				kfree(response.res_msg);
+				CAM_MEM_FREE(response.res_msg);
 			}
 		}
 	}
@@ -181,7 +182,7 @@ int cam_qrtr_initialize_connection(void **hdl, size_t msg_size,
 		return -EINVAL;
 	}
 
-	handle = kzalloc(sizeof(struct cam_inter_vm_comms_handle), GFP_KERNEL);
+	handle = CAM_MEM_ZALLOC(sizeof(struct cam_inter_vm_comms_handle), GFP_KERNEL);
 	if (unlikely(!handle)) {
 		CAM_ERR(CAM_VMRM, "Failed allocating comms handle");
 		return -ENOMEM;
@@ -192,18 +193,18 @@ int cam_qrtr_initialize_connection(void **hdl, size_t msg_size,
 		msg_size = sizeof(struct qrtr_ctrl_pkt);
 
 	handle->msg_size = msg_size;
-	handle->msg_buffer = kzalloc(msg_size, GFP_KERNEL);
+	handle->msg_buffer = CAM_MEM_ZALLOC(msg_size, GFP_KERNEL);
 	if (!handle->msg_buffer) {
 		CAM_ERR(CAM_VMRM, "Failed to allocate the memory for comms data");
-		kfree(handle);
+		CAM_MEM_FREE(handle);
 		return -ENOMEM;
 	}
 
-	qrtr_data = kzalloc(sizeof(struct cam_qrtr_comms_data), GFP_KERNEL);
+	qrtr_data = CAM_MEM_ZALLOC(sizeof(struct cam_qrtr_comms_data), GFP_KERNEL);
 	if (!qrtr_data) {
 		CAM_ERR(CAM_VMRM, "Failed to allocate the memory for comms data");
-		kfree(handle->msg_buffer);
-		kfree(handle);
+		CAM_MEM_FREE(handle->msg_buffer);
+		CAM_MEM_FREE(handle);
 		return -ENOMEM;
 	}
 	handle->comms_protocol_data = (void *) qrtr_data;
@@ -290,9 +291,9 @@ late_init_failed:
 early_init_failed:
 	destroy_workqueue(handle->msg_recv_wq);
 wq_alloc_failed:
-	kfree(handle->msg_buffer);
-	kfree(handle->comms_protocol_data);
-	kfree(handle);
+	CAM_MEM_FREE(handle->msg_buffer);
+	CAM_MEM_FREE(handle->comms_protocol_data);
+	CAM_MEM_FREE(handle);
 	return ret;
 }
 
@@ -360,10 +361,10 @@ int cam_qrtr_terminate_connection(void *hdl)
 
 	flush_workqueue(handle->msg_recv_wq);
 	destroy_workqueue(handle->msg_recv_wq);
-	kfree(handle->msg_buffer);
-	kfree(handle->comms_protocol_data);
+	CAM_MEM_FREE(handle->msg_buffer);
+	CAM_MEM_FREE(handle->comms_protocol_data);
 	mutex_unlock(&handle->comms_lock);
-	kfree(handle);
+	CAM_MEM_FREE(handle);
 
 	return 0;
 }

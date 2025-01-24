@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_debug_util.h"
@@ -33,13 +34,13 @@ int cam_presil_register_write(void *addr, uint32_t value, uint32_t flags)
 }
 
 int cam_presil_send_buffer(uint64_t dma_buf_uint, int mmu_hdl, uint32_t offset,
-	uint32_t size, uint32_t addr32)
+	uint32_t size, uint32_t addr32, uintptr_t cpu_vaddr, bool hfi_skip)
 {
 	return CAM_PRESIL_SUCCESS;
 }
 
 int cam_presil_retrieve_buffer(uint64_t dma_buf_uint, int mmu_hdl,
-	uint32_t offset, uint32_t size, uint32_t addr32)
+	uint32_t offset, uint32_t size, uint32_t addr32, uintptr_t cpu_vaddr, bool hfi_skip)
 {
 	return CAM_PRESIL_SUCCESS;
 }
@@ -66,3 +67,9 @@ int cam_presil_send_event(uint32_t event_id, uint32_t value)
 	return CAM_PRESIL_SUCCESS;
 }
 
+int cam_presil_enqueue_presil_irq_tasklet(CAM_PRESIL_IRQ_HANDLER_BOTTOM_HALF bh_handler,
+	void *handler_priv,
+	void *payload)
+{
+	return CAM_PRESIL_SUCCESS;
+}

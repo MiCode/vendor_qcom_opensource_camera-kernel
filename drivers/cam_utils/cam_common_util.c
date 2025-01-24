@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/string.h>
@@ -16,6 +16,7 @@
 #include "cam_debug_util.h"
 #include "cam_presil_hw_access.h"
 #include "cam_hw.h"
+#include "cam_mem_mgr_api.h"
 #if IS_REACHABLE(CONFIG_QCOM_VA_MINIDUMP)
 #include <soc/qcom/minidump.h>
 static struct cam_common_mini_dump_dev_info g_minidump_dev_info;
@@ -38,7 +39,7 @@ int cam_common_util_get_string_index(const char **strings,
 
 	for (i = 0; i < num_strings; i++) {
 		if (strnstr(strings[i], matching_string, strlen(strings[i]))) {
-			CAM_DBG(CAM_UTIL, "matched %s : %d\n",
+			CAM_DBG(CAM_OIS, "matched %s : %d\n",
 				matching_string, i);
 			*index = i;
 			return 0;
@@ -118,7 +119,7 @@ int cam_common_read_poll_timeout(
 			wait_time_us);
 	} else {
 		rc = cam_presil_readl_poll_timeout(addr, mask,
-			wait_time_us/(CAM_PRESIL_POLL_DELAY * 1000), CAM_PRESIL_POLL_DELAY);
+			wait_time_us/(CAM_PRESIL_POLL_DELAY * 600), CAM_PRESIL_POLL_DELAY);
 	}
 
 	return rc;
@@ -156,7 +157,7 @@ void cam_common_util_thread_switch_delay_detect(char *wq_name, const char *state
 	if (diff > threshold) {
 		scheduled_ts  = ktime_to_timespec64(scheduled_time);
 		cur_ts = ktime_to_timespec64(cur_time);
-		CAM_WARN_RATE_LIMIT_CUSTOM(CAM_UTIL, 1, 1,
+		CAM_WARN_RATE_LIMIT_CUSTOM(CAM_UTIL, 5, 1,
 			"%s cb: %ps delay in %s detected %ld:%06ld cur %ld:%06ld\n"
 			"diff %ld: threshold %d",
 			wq_name, cb, state, scheduled_ts.tv_sec,
@@ -216,7 +217,7 @@ static int cam_common_md_notify_handler(struct notifier_block *this,
 	int rc = 0;
 
 	cbentry.vaddr = 0x0;
-	strlcpy(cbentry.owner, "Camera", sizeof(cbentry.owner));
+	strscpy(cbentry.owner, "Camera", sizeof(cbentry.owner));
 	cbentry.size = CAM_COMMON_MINI_DUMP_SIZE;
 	cbentry.cb = cam_common_mini_dump_handler;
 	rc = qcom_va_md_add_region(&cbentry);
@@ -389,7 +390,7 @@ void cam_common_release_evt_params(int32_t dev_hdl)
 		if (inject_params->dev_hdl == dev_hdl) {
 			CAM_INFO(CAM_UTIL, "entry deleted for %d dev hdl", dev_hdl);
 			list_del(pos);
-			kfree(inject_params);
+			CAM_MEM_FREE(inject_params);
 		}
 	}
 }
@@ -626,7 +627,7 @@ static int cam_common_evt_inject_set(const char *kmessage,
 	char    *msg                                          = NULL;
 	uint32_t param_output                                 = 0;
 
-	inject_params = kzalloc(sizeof(struct cam_common_inject_evt_param), GFP_KERNEL);
+	inject_params = CAM_MEM_ZALLOC(sizeof(struct cam_common_inject_evt_param), GFP_KERNEL);
 	if (!inject_params) {
 		CAM_ERR(CAM_UTIL, "no free memory");
 		return -ENOMEM;
@@ -684,6 +685,9 @@ static int cam_common_evt_inject_set(const char *kmessage,
 		CAM_ERR(CAM_UTIL, "Invalid Injection id: %u", hw_evt_params->inject_id);
 	}
 
+	if (!parse_handler)
+		goto free;
+
 	rc = cam_common_evt_inject_generic_command_parser(inject_params, &msg,
 		param_output, parse_handler);
 	if (rc) {
@@ -711,7 +715,7 @@ static int cam_common_evt_inject_set(const char *kmessage,
 	return rc;
 
 free:
-	kfree(inject_params);
+	CAM_MEM_FREE(inject_params);
 	return rc;
 }
 
@@ -828,3 +832,36 @@ static const struct kernel_param_ops cam_common_evt_inject = {
 };
 
 module_param_cb(cam_event_inject, &cam_common_evt_inject, NULL, 0644);
+
+int cam_common_mem_kdup(void **dst,
+	void *src, size_t size)
+{
+	gfp_t flag = GFP_KERNEL;
+
+	if (!src || !dst || !size) {
+		CAM_ERR(CAM_UTIL, "Invalid params src: %pK dst: %pK size: %u",
+			src, dst, size);
+		return -EINVAL;
+	}
+
+	if (!in_task())
+		flag = GFP_ATOMIC;
+
+	*dst = kvzalloc(size, flag);
+	if (!*dst) {
+		CAM_ERR(CAM_UTIL, "Failed to allocate memory with size: %u", size);
+		return -ENOMEM;
+	}
+
+	memcpy(*dst, src, size);
+	CAM_DBG(CAM_UTIL, "Allocate and copy memory with size: %u", size);
+
+	return 0;
+}
+EXPORT_SYMBOL(cam_common_mem_kdup);
+
+void cam_common_mem_free(void *memory)
+{
+	kvfree(memory);
+}
+EXPORT_SYMBOL(cam_common_mem_free);

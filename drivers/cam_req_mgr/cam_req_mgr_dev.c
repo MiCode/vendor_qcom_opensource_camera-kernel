@@ -30,8 +30,13 @@
 #include "cam_compat.h"
 #include "camera_main.h"
 #include "cam_vmrm_interface.h"
+#include "cam_mem_mgr_api.h"
+#include "cam_req_mgr_debug.h"
+#include "cam_dump_util.h" //xiaomi add
 
-#define CAM_REQ_MGR_EVENT_MAX 30
+/* Xiaomi: enlarge from 30 to 200 */
+#define CAM_REQ_MGR_EVENT_MAX 200
+/* Xiaomi: enlarge from 30 to 200 */
 #define CAM_I3C_MASTER_COMPAT "qcom,geni-i3c"
 
 static struct cam_req_mgr_device g_dev;
@@ -56,7 +61,7 @@ static int cam_media_device_setup(struct device *dev)
 {
 	int rc;
 
-	g_dev.v4l2_dev->mdev = kzalloc(sizeof(*g_dev.v4l2_dev->mdev),
+	g_dev.v4l2_dev->mdev = CAM_MEM_ZALLOC(sizeof(*g_dev.v4l2_dev->mdev),
 		GFP_KERNEL);
 	if (!g_dev.v4l2_dev->mdev) {
 		rc = -ENOMEM;
@@ -65,7 +70,7 @@ static int cam_media_device_setup(struct device *dev)
 
 	media_device_init(g_dev.v4l2_dev->mdev);
 	g_dev.v4l2_dev->mdev->dev = dev;
-	strlcpy(g_dev.v4l2_dev->mdev->model, CAM_REQ_MGR_VNODE_NAME,
+	strscpy(g_dev.v4l2_dev->mdev->model, CAM_REQ_MGR_VNODE_NAME,
 		sizeof(g_dev.v4l2_dev->mdev->model));
 
 	rc = media_device_register(g_dev.v4l2_dev->mdev);
@@ -75,7 +80,7 @@ static int cam_media_device_setup(struct device *dev)
 	return rc;
 
 media_fail:
-	kfree(g_dev.v4l2_dev->mdev);
+	CAM_MEM_FREE(g_dev.v4l2_dev->mdev);
 	g_dev.v4l2_dev->mdev = NULL;
 mdev_fail:
 	return rc;
@@ -85,7 +90,7 @@ static void cam_media_device_cleanup(void)
 {
 	media_device_unregister(g_dev.v4l2_dev->mdev);
 	media_device_cleanup(g_dev.v4l2_dev->mdev);
-	kfree(g_dev.v4l2_dev->mdev);
+	CAM_MEM_FREE(g_dev.v4l2_dev->mdev);
 	g_dev.v4l2_dev->mdev = NULL;
 }
 
@@ -93,7 +98,7 @@ static int cam_v4l2_device_setup(struct device *dev)
 {
 	int rc;
 
-	g_dev.v4l2_dev = kzalloc(sizeof(*g_dev.v4l2_dev),
+	g_dev.v4l2_dev = CAM_MEM_ZALLOC(sizeof(*g_dev.v4l2_dev),
 		GFP_KERNEL);
 	if (!g_dev.v4l2_dev)
 		return -ENOMEM;
@@ -105,7 +110,7 @@ static int cam_v4l2_device_setup(struct device *dev)
 	return rc;
 
 reg_fail:
-	kfree(g_dev.v4l2_dev);
+	CAM_MEM_FREE(g_dev.v4l2_dev);
 	g_dev.v4l2_dev = NULL;
 	return rc;
 }
@@ -113,9 +118,15 @@ reg_fail:
 static void cam_v4l2_device_cleanup(void)
 {
 	v4l2_device_unregister(g_dev.v4l2_dev);
-	kfree(g_dev.v4l2_dev);
+	CAM_MEM_FREE(g_dev.v4l2_dev);
 	g_dev.v4l2_dev = NULL;
 }
+
+void cam_record_bind_latency(const char *driver_name, unsigned long time_in_usec)
+{
+	cam_req_mgr_debug_record_bind_latency(driver_name, time_in_usec);
+}
+EXPORT_SYMBOL(cam_record_bind_latency);
 
 void cam_req_mgr_rwsem_read_op(enum cam_subdev_rwsem lock)
 {
@@ -486,6 +497,45 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		}
 		break;
 
+	case CAM_REQ_MGR_SCHED_REQ_V3: {
+		struct cam_req_mgr_sched_request_v3 *sched_req;
+		struct cam_req_mgr_sched_request_v3 crm_sched_req;
+		int sched_req_size;
+
+		if (k_ioctl->size < 0)
+			return -EINVAL;
+
+		if (copy_from_user(&crm_sched_req,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_req_mgr_sched_request_v3))) {
+			return -EFAULT;
+		}
+
+		if (crm_sched_req.num_links > MAXIMUM_LINKS_PER_SESSION)
+			return -EINVAL;
+
+		sched_req_size = sizeof(struct cam_req_mgr_sched_request_v3) +
+			((crm_sched_req.num_links) * sizeof(__signed__ int));
+
+		if (k_ioctl->size != sched_req_size)
+			return -EINVAL;
+
+		sched_req = CAM_MEM_ZALLOC(sched_req_size, GFP_KERNEL);
+		if (!sched_req) {
+			return -ENOMEM;
+		}
+
+		if (copy_from_user(sched_req, u64_to_user_ptr(k_ioctl->handle), sched_req_size)) {
+			CAM_MEM_FREE(sched_req);
+			sched_req = NULL;
+			return -EFAULT;
+		}
+
+		rc = cam_req_mgr_schedule_request_v3(sched_req);
+		CAM_MEM_FREE(sched_req);
+		}
+		break;
+
 	case CAM_REQ_MGR_FLUSH_REQ: {
 		struct cam_req_mgr_flush_info flush_info;
 
@@ -764,6 +814,64 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			rc = -EFAULT;
 		}
 		break;
+//xiaomi add
+	case CAM_REQ_MGR_QUERY_DUMP_MSG:{
+		struct cam_debug_record_key_message_buffer *cam_key_buffer;
+		struct cam_io_data_record *cam_io_record_buffer;
+		struct cam_power_info_record *cam_power_record_buffer;
+		if(k_ioctl->size == sizeof(struct cam_debug_record_key_message_buffer))
+		{
+			cam_key_buffer = cam_get_key_msg_buffer();
+			if(cam_key_buffer == NULL)
+			{
+				rc = -EFAULT;
+			}
+			else if(copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				cam_key_buffer,
+				sizeof(struct cam_debug_record_key_message_buffer))){
+				rc = -EFAULT;
+				}
+		}
+		else if(k_ioctl->size == sizeof(struct cam_power_info_record))
+		{
+			cam_power_record_buffer = cam_get_power_msg_buffer();
+			if(cam_power_record_buffer == NULL)
+			{
+				rc = -EFAULT;
+			}
+			else if(copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				cam_power_record_buffer,
+				sizeof(struct cam_power_info_record))){
+				rc = -EFAULT;
+			}
+		}
+		else if(k_ioctl->size == sizeof(struct cam_io_data_record))
+		{
+			cam_io_record_buffer = cam_get_io_msg_buffer();
+			if(cam_io_record_buffer == NULL)
+			{
+				rc = -EFAULT;
+			}
+			else if(copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				cam_io_record_buffer,
+				sizeof(struct cam_io_data_record))){
+					rc = -EFAULT;
+				}
+		}
+		else
+		{
+			return -EINVAL;
+		}
+	}
+		break;
+	case CAM_TRIGGER_DUMP_SENSOR_SETTING:{
+		dump_sensor_setting();
+	}
+		break;
+//end
 	default:
 		CAM_ERR(CAM_CRM, "Invalid Opcode %d", k_ioctl->op_code);
 		rc = -ENOIOCTLCMD;
@@ -790,7 +898,7 @@ static int cam_video_device_setup(void)
 
 	g_dev.video->v4l2_dev = g_dev.v4l2_dev;
 
-	strlcpy(g_dev.video->name, "cam-req-mgr",
+	strscpy(g_dev.video->name, "cam-req-mgr",
 		sizeof(g_dev.video->name));
 	g_dev.video->release = video_device_release_empty;
 	g_dev.video->fops = &g_cam_fops;
@@ -833,6 +941,13 @@ int cam_req_mgr_notify_message(struct cam_req_mgr_message *msg,
 
 	if (!msg)
 		return -EINVAL;
+
+	/* Print all connected devices if components meet error or specifically pf error */
+	if (id == V4L_EVENT_CAM_REQ_MGR_ERROR)
+		cam_req_mgr_dump_linked_devices_on_err(msg->u.err_msg.link_hdl);
+
+	if (id == V4L_EVENT_CAM_REQ_MGR_PF_ERROR)
+		cam_req_mgr_dump_linked_devices_on_err(msg->u.pf_err_msg.link_hdl);
 
 	event.id = id;
 	event.type = type;
@@ -908,7 +1023,7 @@ int cam_register_subdev(struct cam_subdev *csd)
 	sd = &csd->sd;
 	v4l2_subdev_init(sd, csd->ops);
 	sd->internal_ops = csd->internal_ops;
-	snprintf(sd->name, V4L2_SUBDEV_NAME_SIZE, "%s", csd->name);
+	snprintf(sd->name, CAM_SUBDEV_NAME_SIZE, "%s", csd->name);
 	v4l2_set_subdevdata(sd, csd->token);
 
 	sd->flags = csd->sd_flags;
@@ -971,6 +1086,10 @@ static inline void cam_req_mgr_destroy_timer_slab(void)
 static int cam_req_mgr_component_master_bind(struct device *dev)
 {
 	int rc = 0;
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
+
+	CAM_GET_TIMESTAMP(ts_start);
 
 	CAM_DBG(CAM_CRM, "Master bind called");
 	rc = cam_v4l2_device_setup(dev);
@@ -1024,8 +1143,14 @@ static int cam_req_mgr_component_master_bind(struct device *dev)
 		goto req_mgr_device_deinit;
 	}
 
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	/* Record time taken by Overall camera modules bind completion.*/
+	cam_req_mgr_debug_record_bind_time(microsec);
+
 	CAM_INFO(CAM_CRM,
-		"All components bound successfully, Spectra camera driver initialized");
+		"All components bound successfully, Spectra camera driver initialized, Time taken(usec): %lu",
+		microsec);
 
 	rc = cam_vmrm_populate_io_resource_info();
 	if (rc) {
@@ -1094,6 +1219,7 @@ static void cam_req_mgr_component_master_unbind(struct device *dev)
 	cam_v4l2_device_cleanup();
 	cam_req_mgr_destroy_timer_slab();
 	mutex_destroy(&g_dev.dev_lock);
+	cam_req_mgr_debug_bind_latency_cleanup();
 	g_dev.state = false;
 }
 

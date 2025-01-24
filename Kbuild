@@ -97,6 +97,7 @@ camera-y := \
 	drivers/cam_utils/cam_soc_util.o \
 	drivers/cam_utils/cam_packet_util.o \
 	drivers/cam_utils/cam_debug_util.o \
+	drivers/cam_utils/cam_dump_util.o \
 	drivers/cam_utils/cam_trace.o \
 	drivers/cam_utils/cam_common_util.o \
 	drivers/cam_utils/cam_compat.o \
@@ -231,6 +232,7 @@ camera-$(CONFIG_SPECTRA_SENSOR) += \
 	drivers/cam_sensor_module/cam_actuator/cam_actuator_dev.o \
 	drivers/cam_sensor_module/cam_actuator/cam_actuator_core.o \
 	drivers/cam_sensor_module/cam_actuator/cam_actuator_soc.o \
+	drivers/cam_sensor_module/cam_cci/cam_cci_debug_util.o \
 	drivers/cam_sensor_module/cam_cci/cam_cci_dev.o \
 	drivers/cam_sensor_module/cam_cci/cam_cci_core.o \
 	drivers/cam_sensor_module/cam_cci/cam_cci_soc.o \
@@ -260,6 +262,7 @@ camera-$(CONFIG_SPECTRA_SENSOR) += \
 	drivers/cam_sensor_module/cam_sensor_io/cam_sensor_qup_i3c.o \
 	drivers/cam_sensor_module/cam_sensor_io/cam_sensor_spi.o \
 	drivers/cam_sensor_module/cam_sensor_utils/cam_sensor_util.o \
+	drivers/cam_sensor_module/cam_sensor_utils/cam_parklens_thread.o \
 	drivers/cam_sensor_module/cam_res_mgr/cam_res_mgr.o \
 	drivers/cam_sensor_module/cam_flash/cam_flash_dev.o \
 	drivers/cam_sensor_module/cam_flash/cam_flash_core.o \
@@ -317,7 +320,29 @@ camera-$(CONFIG_SPECTRA_VMRM) += \
 	drivers/cam_vmrm/cam_vmrm.o \
 	drivers/cam_vmrm/cam_vmrm_gh_wrapper.o
 
+# Xiaomi add
+camera-$(CONFIG_SPECTRA_SENSOR) += \
+	drivers/cam_sensor_module/cam_ois/sem1217s.o
+
 camera-y += drivers/camera_main.o
 
 obj-m += camera.o
 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/camera.ko
+
+# MIUI ADD: Camera_CameraSkyNet
+cameralog-y := drivers/cam_log/cam_log.o
+obj-m+= cameralog.o
+BOARD_VENDOR_KERNEL_MODULES +=  $(KERNEL_MODULES_OUT)/cameralog.ko
+# END Camera_CameraSkyNet
+
+# MIUI ADD: Camera_CameraOpt
+cameramsger-y := \
+        drivers/cam_msger/cam_msger.o \
+        drivers/cam_msger/cam_sched.o \
+        drivers/cam_msger/cam_pid.o   \
+        drivers/cam_msger/cam_binder.o \
+        drivers/cam_msger/cam_msger_common.o
+        
+obj-m+= cameramsger.o
+BOARD_VENDOR_KERNEL_MODULES +=  $(KERNEL_MODULES_OUT)/cameramsger.ko
+# END Camera_CameraOpt

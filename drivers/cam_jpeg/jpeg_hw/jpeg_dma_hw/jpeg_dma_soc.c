@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -13,6 +13,7 @@
 #include "jpeg_dma_soc.h"
 #include "cam_soc_util.h"
 #include "cam_debug_util.h"
+#include "cam_mem_mgr_api.h"
 
 int cam_jpeg_dma_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	irq_handler_t jpeg_dma_irq_handler, void *data)
@@ -23,7 +24,7 @@ int cam_jpeg_dma_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	int rc;
 	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 
-	soc_private = kzalloc(sizeof(struct cam_jpeg_dma_soc_private),
+	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_jpeg_dma_soc_private),
 		GFP_KERNEL);
 	if (!soc_private) {
 		CAM_DBG(CAM_JPEG, "Error! soc_private Alloc Failed");

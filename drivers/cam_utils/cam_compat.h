@@ -73,17 +73,35 @@ MODULE_IMPORT_NS(DMA_BUF);
 #endif
 #endif
 
+#if (KERNEL_VERSION(6, 7, 0) <= LINUX_VERSION_CODE)
+#define CAM_SUBDEV_NAME_SIZE 32
+#else
+#define CAM_SUBDEV_NAME_SIZE V4L2_SUBDEV_NAME_SIZE
+#endif
+
 #define IS_CSF25(x, y) ((((x) == 2) && ((y) == 5)) ? 1 : 0)
+
+/* Unblock compilation if target does not support camnoc reg update through HYP */
+#ifndef CONFIG_SPECTRA_SECURE_CAMNOC_REG_UPDATE
+#define QCOM_SCM_CAMERA_MAX_QOS_CNT 20
+struct qcom_scm_camera_qos {
+	u32 offset;
+	u32 val;
+};
+#endif
 
 struct cam_fw_alloc_info {
 	struct device *fw_dev;
 	void          *fw_kva;
+	uint32_t       fw_id;
 	uint64_t       fw_hdl;
 };
 
 int cam_reserve_icp_fw(struct cam_fw_alloc_info *icp_fw, size_t fw_length);
 void cam_unreserve_icp_fw(struct cam_fw_alloc_info *icp_fw, size_t fw_length);
 void cam_cpastop_scm_write(struct cam_cpas_hw_errata_wa *errata_wa);
+int cam_update_camnoc_qos_settings(uint32_t use_case_id,
+	uint32_t num_arg, struct qcom_scm_camera_qos *scm_buf);
 int cam_ife_notify_safe_lut_scm(bool safe_trigger);
 int camera_component_match_add_drivers(struct device *master_dev,
 	struct component_match **match_list);
@@ -114,11 +132,9 @@ int cam_cpas_drv_channel_switch_for_dev(const struct device *dev);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 int cam_req_mgr_ordered_list_cmp(void *priv,
 	const struct list_head *head_1, const struct list_head *head_2);
-void cam_i3c_driver_remove(struct i3c_device *client);
 #else
 int cam_req_mgr_ordered_list_cmp(void *priv,
 	struct list_head *head_1, struct list_head *head_2);
-int cam_i3c_driver_remove(struct i3c_device *client);
 #endif
 
 long cam_dma_buf_set_name(struct dma_buf *dmabuf, const char *name);

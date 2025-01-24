@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IRQ_CONTROLLER_H_
@@ -50,6 +50,7 @@ enum cam_irq_event_group {
  * @set_reg_offset:         Offset of IRQ SET register
  * @test_set_val:           Value to write to IRQ SET register to trigger IRQ
  * @test_sub_val:           Value to write to IRQ MASK register to receive test IRQ
+ * @force_rd_mask:          Mask value for bits to be read in hw errata cases
  */
 struct cam_irq_register_set {
 	uint32_t                       mask_reg_offset;
@@ -58,6 +59,7 @@ struct cam_irq_register_set {
 	uint32_t                       set_reg_offset;
 	uint32_t                       test_set_val;
 	uint32_t                       test_sub_val;
+	uint32_t                       force_rd_mask;
 };
 
 /*
@@ -98,12 +100,15 @@ struct cam_irq_controller_reg_info {
  *                          Length of array = num_registers
  * @evt_payload_priv:       Private payload pointer which can be set by Top
  *                          Half handler for use in Bottom Half.
+ * @is_comp_irq:            Indicates if the interrupt is originating from a
+ *                          composite IRQ bit.
  */
 struct cam_irq_th_payload {
 	void       *handler_priv;
 	uint32_t    num_registers;
 	uint32_t   *evt_status_arr;
 	void       *evt_payload_priv;
+	bool        is_comp_irq;
 };
 
 /*
@@ -119,6 +124,7 @@ static inline void cam_irq_th_payload_init(
 	struct cam_irq_th_payload *th_payload) {
 	th_payload->handler_priv = NULL;
 	th_payload->evt_payload_priv = NULL;
+	th_payload->is_comp_irq = false;
 }
 
 typedef int (*CAM_IRQ_HANDLER_TOP_HALF)(uint32_t evt_id,

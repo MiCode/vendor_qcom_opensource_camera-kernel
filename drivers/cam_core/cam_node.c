@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -11,6 +11,7 @@
 #include "cam_node.h"
 #include "cam_trace.h"
 #include "cam_debug_util.h"
+#include "cam_mem_mgr_api.h"
 
 static void cam_node_print_ctx_state(
 	struct cam_node *node)
@@ -105,7 +106,7 @@ static int __cam_node_handle_query_cap(uint32_t version,
 }
 
 static int __cam_node_handle_acquire_dev(struct cam_node *node,
-	struct cam_acquire_dev_cmd *acquire)
+	struct cam_acquire_dev_cmd_unified *acquire)
 {
 	int rc = 0;
 	struct cam_context *ctx = NULL;
@@ -232,6 +233,12 @@ static int __cam_node_handle_acquire_hw_v2(struct cam_node *node,
 	if (!ctx) {
 		CAM_ERR(CAM_CORE, "Can not get context for handle %d",
 			acquire->dev_handle);
+		return -EINVAL;
+	}
+
+	if (strcmp(node->name, ctx->dev_name)) {
+		CAM_ERR(CAM_CORE, "node name %s dev name:%s not matching",
+			node->name, ctx->dev_name);
 		return -EINVAL;
 	}
 
@@ -729,6 +736,11 @@ int cam_node_shutdown(struct cam_node *node)
 		}
 	}
 
+	if (cam_presil_mode_enabled()) {
+		CAM_INFO(CAM_ICP, "PRESIL-ICP-B2B-HFI-INIT No Shutdown No Deinit No HFIfreeMem");
+		return 0;
+	}
+
 	if (node->hw_mgr_intf.hw_close)
 		node->hw_mgr_intf.hw_close(node->hw_mgr_intf.hw_mgr_priv,
 			NULL);
@@ -767,7 +779,7 @@ int cam_node_init(struct cam_node *node, struct cam_hw_mgr_intf *hw_mgr_intf,
 		return -EINVAL;
 	}
 
-	strlcpy(node->name, name, sizeof(node->name));
+	strscpy(node->name, name, sizeof(node->name));
 
 	memcpy(&node->hw_mgr_intf, hw_mgr_intf, sizeof(node->hw_mgr_intf));
 	node->crm_node_intf.apply_req = __cam_node_crm_apply_req;
@@ -800,6 +812,60 @@ err:
 	CAM_DBG(CAM_CORE, "Exit. (rc = %d)", rc);
 	return rc;
 }
+
+static int cam_node_translate_acquire_dev_from_v1 (
+	struct cam_acquire_dev_cmd *acquire,
+	struct cam_acquire_dev_cmd_unified *acquire_unified) {
+
+	acquire_unified->struct_version = CAM_ACQUIRE_DEV_STRUCT_VERSION_1;
+	acquire_unified->session_handle = acquire->session_handle;
+	acquire_unified->dev_handle = acquire->dev_handle;
+	acquire_unified->handle_type = acquire->handle_type;
+	acquire_unified->num_resources = acquire->num_resources;
+	acquire_unified->resource_hdl = acquire->resource_hdl;
+
+	return 0;
+}
+static int cam_node_translate_acquire_dev_from_v2 (
+	struct cam_acquire_dev_cmd_v2 *acquire,
+	struct cam_acquire_dev_cmd_unified *acquire_unified) {
+
+	acquire_unified->struct_version = acquire->struct_version;
+	acquire_unified->session_handle = acquire->session_handle;
+	acquire_unified->dev_handle = acquire->dev_handle;
+	acquire_unified->handle_type = acquire->handle_type;
+	acquire_unified->num_resources = acquire->num_resources;
+	acquire_unified->resource_hdl = acquire->resource_hdl;
+
+	return 0;
+}
+
+static int cam_node_translate_acquire_dev_to_v1 (
+	struct cam_acquire_dev_cmd *acquire,
+	struct cam_acquire_dev_cmd_unified *acquire_unified) {
+
+	acquire->session_handle = acquire_unified->session_handle;
+	acquire->dev_handle = acquire_unified->dev_handle;
+	acquire->handle_type = acquire_unified->handle_type;
+	acquire->num_resources = acquire_unified->num_resources;
+	acquire->resource_hdl = acquire_unified->resource_hdl;
+
+	return 0;
+}
+static int cam_node_translate_acquire_dev_to_v2 (
+	struct cam_acquire_dev_cmd_v2 *acquire,
+	struct cam_acquire_dev_cmd_unified *acquire_unified) {
+
+	acquire->struct_version = acquire_unified->struct_version;
+	acquire->session_handle = acquire_unified->session_handle;
+	acquire->dev_handle = acquire_unified->dev_handle;
+	acquire->handle_type = acquire_unified->handle_type;
+	acquire->num_resources = acquire_unified->num_resources;
+	acquire->resource_hdl = acquire_unified->resource_hdl;
+
+	return 0;
+}
+
 
 int cam_node_handle_ioctl(struct cam_node *node, struct cam_control *cmd)
 {
@@ -836,21 +902,104 @@ int cam_node_handle_ioctl(struct cam_node *node, struct cam_control *cmd)
 	}
 	case CAM_ACQUIRE_DEV: {
 		struct cam_acquire_dev_cmd acquire;
+		struct cam_acquire_dev_cmd_unified acquire_unified;
 
 		if (copy_from_user(&acquire, u64_to_user_ptr(cmd->handle),
 			sizeof(acquire))) {
 			rc = -EFAULT;
 			break;
 		}
-		rc = __cam_node_handle_acquire_dev(node, &acquire);
+
+		rc = cam_node_translate_acquire_dev_from_v1(&acquire, &acquire_unified);
 		if (rc) {
 			CAM_ERR(CAM_CORE, "acquire device failed(rc = %d)",
 				rc);
 			break;
 		}
+
+		rc = __cam_node_handle_acquire_dev(node, &acquire_unified);
+		if (rc) {
+			CAM_ERR(CAM_CORE, "acquire device failed(rc = %d)",
+				rc);
+			break;
+		}
+
+		rc = cam_node_translate_acquire_dev_to_v1(&acquire, &acquire_unified);
+		if (rc) {
+			CAM_ERR(CAM_CORE, "acquire device failed(rc = %d)",
+				rc);
+			break;
+		}
+
 		if (copy_to_user(u64_to_user_ptr(cmd->handle), &acquire,
 			sizeof(acquire)))
 			rc = -EFAULT;
+		break;
+	}
+	case CAM_ACQUIRE_DEV_V2: {
+		uint32_t api_version;
+		void *acquire_ptr = NULL;
+		size_t acquire_size;
+		struct cam_acquire_dev_cmd_unified acquire_unified;
+
+		if (copy_from_user(&api_version, (void __user *)cmd->handle,
+			sizeof(api_version))) {
+			rc = -EFAULT;
+			break;
+		}
+
+		if (api_version == 2) {
+			acquire_size = sizeof(struct cam_acquire_dev_cmd_v2);
+		} else {
+			CAM_ERR(CAM_CORE, "Unsupported api version %d",
+				api_version);
+			rc = -EINVAL;
+			break;
+		}
+
+		acquire_ptr = CAM_MEM_ZALLOC(acquire_size, GFP_KERNEL);
+		if (!acquire_ptr) {
+			CAM_ERR(CAM_CORE, "No memory for acquire HW");
+			rc = -ENOMEM;
+			break;
+		}
+
+		if (copy_from_user(acquire_ptr, (void __user *)cmd->handle,
+			acquire_size)) {
+			rc = -EFAULT;
+			goto acquire_dev_free;
+		}
+
+		rc = cam_node_translate_acquire_dev_from_v2(acquire_ptr,
+			&acquire_unified);
+		if (rc) {
+			CAM_ERR(CAM_CORE, "acquire device failed(rc = %d)",
+				rc);
+			goto acquire_dev_free;
+		}
+
+		/* Calling into the core acquire_dev with the API version skipped */
+		rc = __cam_node_handle_acquire_dev(node, &acquire_unified);
+		if (rc) {
+			CAM_ERR(CAM_CORE,
+				"acquire hw failed(rc = %d)", rc);
+			goto acquire_dev_free;
+		}
+
+		rc = cam_node_translate_acquire_dev_to_v2(acquire_ptr,
+			&acquire_unified);
+		if (rc) {
+			CAM_ERR(CAM_CORE, "acquire device failed(rc = %d)",
+				rc);
+			goto acquire_dev_free;;
+		}
+
+		if (copy_to_user((void __user *)cmd->handle, acquire_ptr,
+			acquire_size))
+			rc = -EFAULT;
+
+acquire_dev_free:
+		CAM_MEM_FREE(acquire_ptr);
 		break;
 	}
 	case CAM_ACQUIRE_HW: {
@@ -875,7 +1024,7 @@ int cam_node_handle_ioctl(struct cam_node *node, struct cam_control *cmd)
 			break;
 		}
 
-		acquire_ptr = kzalloc(acquire_size, GFP_KERNEL);
+		acquire_ptr = CAM_MEM_ZALLOC(acquire_size, GFP_KERNEL);
 		if (!acquire_ptr) {
 			CAM_ERR(CAM_CORE, "No memory for acquire HW");
 			rc = -ENOMEM;
@@ -885,7 +1034,7 @@ int cam_node_handle_ioctl(struct cam_node *node, struct cam_control *cmd)
 		if (copy_from_user(acquire_ptr, (void __user *)cmd->handle,
 			acquire_size)) {
 			rc = -EFAULT;
-			goto acquire_kfree;
+			goto acquire_free;
 		}
 
 		if (api_version == 1) {
@@ -893,14 +1042,14 @@ int cam_node_handle_ioctl(struct cam_node *node, struct cam_control *cmd)
 			if (rc) {
 				CAM_ERR(CAM_CORE,
 					"acquire hw failed(rc = %d)", rc);
-				goto acquire_kfree;
+				goto acquire_free;
 			}
 		} else if (api_version == 2) {
 			rc = __cam_node_handle_acquire_hw_v2(node, acquire_ptr);
 			if (rc) {
 				CAM_ERR(CAM_CORE,
 					"acquire hw failed(rc = %d)", rc);
-				goto acquire_kfree;
+				goto acquire_free;
 			}
 		}
 
@@ -908,8 +1057,8 @@ int cam_node_handle_ioctl(struct cam_node *node, struct cam_control *cmd)
 			acquire_size))
 			rc = -EFAULT;
 
-acquire_kfree:
-		kfree(acquire_ptr);
+acquire_free:
+		CAM_MEM_FREE(acquire_ptr);
 		break;
 	}
 	case CAM_START_DEV: {
@@ -988,7 +1137,7 @@ acquire_kfree:
 			break;
 		}
 
-		release_ptr = kzalloc(release_size, GFP_KERNEL);
+		release_ptr = CAM_MEM_ZALLOC(release_size, GFP_KERNEL);
 		if (!release_ptr) {
 			CAM_ERR(CAM_CORE, "No memory for release HW");
 			rc = -ENOMEM;
@@ -998,7 +1147,7 @@ acquire_kfree:
 		if (copy_from_user(release_ptr, (void __user *)cmd->handle,
 			release_size)) {
 			rc = -EFAULT;
-			goto release_kfree;
+			goto release_free;
 		}
 
 		if (api_version == 1) {
@@ -1008,8 +1157,8 @@ acquire_kfree:
 					"release device failed(rc = %d)", rc);
 		}
 
-release_kfree:
-		kfree(release_ptr);
+release_free:
+		CAM_MEM_FREE(release_ptr);
 		break;
 	}
 	case CAM_FLUSH_REQ: {

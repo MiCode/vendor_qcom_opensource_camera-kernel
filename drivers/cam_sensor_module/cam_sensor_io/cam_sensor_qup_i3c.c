@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_i3c.h"
 #include "cam_sensor_io.h"
+#include "cam_mem_mgr_api.h"
 
 #define I3C_REG_MAX_BUF_SIZE   8
 
@@ -69,11 +70,17 @@ static int cam_qup_i3c_txdata(struct camera_io_master *dev_client, unsigned char
 		.data.out = txdata,
 	};
 
-	rc = i3c_device_do_priv_xfers(dev_client->i3c_client, &write_buf, 1);
+	if (!dev_client->qup_client) {
+		CAM_ERR(CAM_SENSOR, "qup_client is NULL");
+		return -EINVAL;
+	}
+
+	rc = i3c_device_do_priv_xfers(dev_client->qup_client->i3c_client, &write_buf, 1);
 	if (rc == -ENOTCONN) {
 		while (us < CAM_I3C_DEV_PROBE_TIMEOUT_US) {
 			usleep_range(1000, 1005);
-			rc = i3c_device_do_priv_xfers(dev_client->i3c_client, &write_buf, 1);
+			rc = i3c_device_do_priv_xfers(
+				dev_client->qup_client->i3c_client, &write_buf, 1);
 			if (rc != -ENOTCONN)
 				break;
 			us += 1000;
@@ -392,10 +399,10 @@ int cam_qup_i3c_write_table(struct camera_io_master *client,
 	unsigned char *buf = NULL;
 	int i3c_msg_size = 0;
 
-	if (!client || !write_setting)
+	if (!client || !write_setting || !client->qup_client)
 		return -EINVAL;
 
-	msgs = kcalloc(write_setting->size, sizeof(struct i3c_priv_xfer), GFP_KERNEL);
+	msgs = CAM_MEM_ZALLOC_ARRAY(write_setting->size, sizeof(struct i3c_priv_xfer), GFP_KERNEL);
 	if (!msgs) {
 		CAM_ERR(CAM_SENSOR, "Message Buffer memory allocation failed");
 		return -ENOMEM;
@@ -404,7 +411,7 @@ int cam_qup_i3c_write_table(struct camera_io_master *client,
 	buf = kzalloc(write_setting->size*I3C_REG_MAX_BUF_SIZE, GFP_KERNEL|GFP_DMA);
 	if (!buf) {
 		CAM_ERR(CAM_SENSOR, "Buffer memory allocation failed");
-		kfree(msgs);
+		CAM_MEM_FREE(msgs);
 		return -ENOMEM;
 	}
 
@@ -422,11 +429,11 @@ int cam_qup_i3c_write_table(struct camera_io_master *client,
 		goto deallocate_buffer;
 	}
 
-	rc = i3c_device_do_priv_xfers(client->i3c_client, msgs, i3c_msg_size);
+	rc = i3c_device_do_priv_xfers(client->qup_client->i3c_client, msgs, i3c_msg_size);
 	if (rc == -ENOTCONN) {
 		while (us < CAM_I3C_DEV_PROBE_TIMEOUT_US) {
 			usleep_range(1000, 1005);
-			rc = i3c_device_do_priv_xfers(client->i3c_client,
+			rc = i3c_device_do_priv_xfers(client->qup_client->i3c_client,
 				msgs, write_setting->size);
 			if (rc != -ENOTCONN)
 				break;
@@ -446,7 +453,7 @@ int cam_qup_i3c_write_table(struct camera_io_master *client,
 
 deallocate_buffer:
 	kfree(buf);
-	kfree(msgs);
+	CAM_MEM_FREE(msgs);
 
 	return rc;
 }

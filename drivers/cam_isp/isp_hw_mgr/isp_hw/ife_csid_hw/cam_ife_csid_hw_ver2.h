@@ -83,10 +83,11 @@ struct cam_ife_csid_ver2_debug_info {
 	uint32_t                              rx_mask[CAM_IFE_CSID_RX_IRQ_STATUS_REG_MAX];
 	uint32_t                              path_mask;
 	uint32_t                              test_bus_val;
+	uint32_t                              domain_id_value;
 	bool                                  rx_capture_debug_set;
 	bool                                  test_bus_enabled;
 	bool                                  set_domain_id_enabled;
-	uint32_t                              domain_id_value;
+	bool                                  cdr_sweep_debug_enabled;
 };
 
 struct cam_ife_csid_ver2_top_cfg {
@@ -283,6 +284,7 @@ struct cam_ife_csid_ver2_rup_aup_mask {
  * @lcr_en:                 Flag to indicate if path is part can be input to LCR
  * @ts_comb_vcdt_en:        Indicates if Timestamp combined vcdt flag is enabled
  * @is_aeb_en:              Flag to indicate if aeb mode is enabled
+ * @allow_epoch_cb:         Flag to indicate if epoch callback is allowed for last exposure
  *
  */
 struct cam_ife_csid_ver2_path_cfg {
@@ -330,6 +332,7 @@ struct cam_ife_csid_ver2_path_cfg {
 	bool                                 handle_camif_irq;
 	bool                                 ts_comb_vcdt_en;
 	bool                                 is_aeb_en;
+	bool                                 allow_epoch_cb;
 };
 
 struct cam_ife_csid_ver2_top_reg_info {
@@ -378,6 +381,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t ctrl_addr;
 	uint32_t debug_clr_cmd_addr;
 	uint32_t multi_vcdt_cfg0_addr;
+	uint32_t multi_vcdt_cfg1_addr;
 	uint32_t cfg1_addr;
 	uint32_t bin_cfg0_addr;
 	uint32_t pix_store_cfg0_addr;
@@ -552,6 +556,12 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t debug_sensor_hbi_irq_vcdt_addr;
 	uint32_t debug_violation_addr;
 	uint32_t debug_cfg_addr;
+	uint32_t debug_err_vec_irq[CAM_IFE_CSID_DEBUG_VEC_ERR_REGS];
+	uint32_t debug_err_vec_cfg;
+	uint32_t debug_err_vec_ts_lb;
+	uint32_t debug_err_vec_ts_mb;
+	uint32_t rx_mode_id_cfg1_addr;
+
 	/*Shift Bit Configurations*/
 	uint32_t rst_done_shift_val;
 	uint32_t rst_location_shift_val;
@@ -561,6 +571,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t vfr_en_shift_val;
 	uint32_t decode_format_shift_val;
 	uint32_t decode_format1_shift_val;
+	uint32_t decode_format2_shift_val;
+	uint32_t decode_format3_shift_val;
 	bool     decode_format1_supported;
 	uint32_t decode_format_mask;
 	uint32_t start_mode_shift_val;
@@ -601,6 +613,8 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t stream_id_y_offset_shift_val;
 	uint32_t multi_vcdt_vc1_shift_val;
 	uint32_t multi_vcdt_dt1_shift_val;
+	uint32_t multi_vcdt_dt2_shift_val;
+	uint32_t multi_vcdt_dt3_shift_val;
 	uint32_t multi_vcdt_ts_combo_en_shift_val;
 	uint32_t multi_vcdt_en_shift_val;
 	uint32_t mup_shift_val;
@@ -640,9 +654,11 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t only_master_rup;
 	uint32_t sfe_ipp_input_rdi_res;
 	uint32_t phy_sel_base_idx;
+	uint32_t num_dt_supported;
 	bool     timestamp_enabled_in_cfg0;
 	bool     camif_irq_support;
 	bool     ts_comb_vcdt_en;
+	bool     direct_cid_config;
 	uint32_t drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_MAX];
 	uint32_t drv_path_idle_en_val_map[CAM_ISP_MAX_PATHS];
 	uint32_t path_domain_id_cfg0;
@@ -729,6 +745,7 @@ struct cam_ife_csid_ver2_reg_info {
 		    CAM_IFE_CSID_HW_NUM_MAX][CAM_IFE_CSID_INPUT_CORE_SEL_MAX];
 	const struct cam_ife_csid_top_irq_desc           (*top_irq_desc)[][32];
 	const struct cam_ife_csid_irq_desc               (*rx_irq_desc)[][32];
+	const char*                                      (*debug_vec_desc)[][32];
 	const struct cam_ife_csid_irq_desc               *path_irq_desc;
 	const uint32_t                                   *num_top_err_irqs;
 	const uint32_t                                   *num_rx_err_irqs;
@@ -738,6 +755,7 @@ struct cam_ife_csid_ver2_reg_info {
 	const uint32_t                                    num_top_regs;
 	const uint32_t                                    num_rx_regs;
 	bool                                              is_ife_sfe_mapped;
+	bool                                              dynamic_drv_supported;
 };
 
 /*
@@ -780,6 +798,7 @@ struct cam_ife_csid_ver2_reg_info {
  * @discard_frame_per_path:   Count of paths dropping initial frames
  * @drv_init_done:            Indicates if drv init config is done
  * @is_drv_config_en:         If drv config is enabled
+ * @standby_asserted:         Standby was asserted at stream off
  * @crc_error_threshold:      CRC error threshold to be treated as fatal error
  *
  */
@@ -832,6 +851,7 @@ struct cam_ife_csid_ver2_hw {
 	atomic_t                               discard_frame_per_path;
 	bool                                   drv_init_done;
 	bool                                   is_drv_config_en;
+	bool                                   standby_asserted;
 	uint32_t                               crc_error_threshold;
 };
 

@@ -1,14 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_req_mgr_debug.h"
+#include "cam_mem_mgr_api.h"
 
 #define MAX_SESS_INFO_LINE_BUFF_LEN 256
+#define MAX_RAW_BUFF_LEN  8192
+#define MAX_LINE_BUFF_LEN 100
 
 static char sess_info_buffer[MAX_SESS_INFO_LINE_BUFF_LEN];
 static int cam_debug_mgr_delay_detect;
+static char boot_stats_info[MAX_RAW_BUFF_LEN];
+static unsigned long cam_driver_bind_latency_in_usec;
+static LIST_HEAD(cam_bind_latency_list);
 
 static int cam_req_mgr_debug_set_bubble_recovery(void *data, u64 val)
 {
@@ -111,6 +118,38 @@ static const struct file_operations session_info = {
 	.write = session_info_write,
 };
 
+static ssize_t cam_boot_info_read(struct file *t_file, char *t_char,
+	size_t t_size_t, loff_t *t_loff_t)
+{
+	char *out_buffer = boot_stats_info;
+	struct camera_submodule_bind_time_node *node;
+	int write_len = 0;
+
+	memset(out_buffer, 0, MAX_RAW_BUFF_LEN);
+
+	write_len = scnprintf(out_buffer, MAX_RAW_BUFF_LEN,
+		"\nOverall Camera Driver Bind Latency: %lu usec\n\n"
+		"---Individual Driver Bind Latency Break-up---\n",
+		cam_driver_bind_latency_in_usec);
+	if (!list_empty(&cam_bind_latency_list)) {
+		list_for_each_entry(node,
+			&cam_bind_latency_list, list) {
+			write_len += scnprintf((out_buffer + write_len),
+				MAX_RAW_BUFF_LEN - write_len,
+				"driver_instance = %s \t"
+				"bind latency = %lu usec\n",
+				node->name, node->bind_time_usec);
+		}
+	}
+
+	return simple_read_from_buffer(t_char, t_size_t,
+		t_loff_t, out_buffer, strlen(out_buffer));
+}
+
+static const struct file_operations cam_boot_debug_info = {
+	.read = cam_boot_info_read,
+};
+
 static struct dentry *debugfs_root;
 int cam_req_mgr_debug_register(struct cam_req_mgr_core_device *core_dev)
 {
@@ -135,8 +174,12 @@ int cam_req_mgr_debug_register(struct cam_req_mgr_core_device *core_dev)
 		debugfs_root, core_dev, &bubble_recovery);
 	debugfs_create_bool("recovery_on_apply_fail", 0644,
 		debugfs_root, &core_dev->recovery_on_apply_fail);
+	debugfs_create_bool("disable_sensor_standby", 0644,
+		debugfs_root, &core_dev->disable_sensor_standby);
 	debugfs_create_u32("delay_detect_count", 0644, debugfs_root,
 		&cam_debug_mgr_delay_detect);
+	debugfs_create_file("cam_print_boot_stats", 0644, debugfs_root,
+		NULL, &cam_boot_debug_info);
 end:
 	return rc;
 }
@@ -151,3 +194,42 @@ void cam_req_mgr_debug_delay_detect(void)
 {
 	cam_debug_mgr_delay_detect += 1;
 }
+
+void cam_req_mgr_debug_record_bind_time(unsigned long time_in_usec)
+{
+	cam_driver_bind_latency_in_usec = time_in_usec;
+}
+
+void cam_req_mgr_debug_bind_latency_cleanup(void)
+{
+	struct camera_submodule_bind_time_node *node, *tmp;
+
+	list_for_each_entry_safe(node, tmp, &cam_bind_latency_list, list) {
+		list_del(&node->list);
+		kfree(node->name);
+		CAM_MEM_FREE(node);
+	}
+}
+
+void cam_req_mgr_debug_record_bind_latency(const char *driver_name, unsigned long time_in_usec)
+{
+	struct camera_submodule_bind_time_node  *new_node =
+		CAM_MEM_ZALLOC(sizeof(struct camera_submodule_bind_time_node), GFP_KERNEL);
+
+	if (!new_node) {
+		CAM_WARN(CAM_REQ, "%s: %u usec: Failed to allocate Bind Time node",
+			driver_name, time_in_usec);
+		return;
+	}
+	CAM_DBG(CAM_REQ, "%s: bind latency: %u", driver_name, time_in_usec);
+	new_node->name = kstrdup(driver_name, GFP_KERNEL);
+	if (!new_node->name) {
+		CAM_WARN(CAM_REQ, "%s: %u usec: Failed to create driver_name",
+			driver_name, time_in_usec);
+		CAM_MEM_FREE(new_node);
+		return;
+	}
+	new_node->bind_time_usec = time_in_usec;
+	list_add_tail(&new_node->list, &cam_bind_latency_list);
+}
+

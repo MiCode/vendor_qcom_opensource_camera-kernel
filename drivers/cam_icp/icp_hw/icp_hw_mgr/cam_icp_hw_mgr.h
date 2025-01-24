@@ -44,7 +44,7 @@
 
 /* size of buffer to drain from msg/dbq queue */
 #define ICP_MSG_BUF_SIZE_IN_WORDS 512
-#define ICP_DBG_BUF_SIZE_IN_WORDS 25600
+#define ICP_DBG_BUF_SIZE_IN_WORDS 10240
 
 #define ICP_OVER_CLK_THRESHOLD  5
 #define ICP_TWO_DEV_BW_SHARE_RATIO 2
@@ -59,7 +59,6 @@
 /* Used for targets >= 480 and its variants */
 #define CPAS_TITAN_IPE0_CAP_BIT 0x800
 
-#define CAM_ICP_CTX_STATE_FREE      0x0
 #define CAM_ICP_CTX_STATE_IN_USE    0x1
 #define CAM_ICP_CTX_STATE_ACQUIRED  0x2
 #define CAM_ICP_CTX_STATE_RELEASE   0x3
@@ -73,6 +72,8 @@
 
 #define CAM_ICP_HW_MGR_NAME_SIZE  32
 
+#define CAM_ICP_RECOVERY_TIMEOUT_MS 500
+
 #define CAM_ICP_IS_DEV_HW_EXIST(hw_cap_mask, hw_dev_type)  \
 ({                                                         \
 	(hw_cap_mask) & BIT((hw_dev_type));                \
@@ -84,6 +85,9 @@
 })
 
 #define CAM_ICP_MAX_ICP_PROC_PER_DEV 1
+
+/* The value used for invalid port IDs in the kernel */
+#define CAM_ICP_INVALID_IN_OUT_PORT_ID            0xFFFFFFFF;
 
 struct hfi_mini_dump_info;
 
@@ -230,11 +234,9 @@ struct cam_icp_ctx_perf_stats {
  *        Info of ICP devices (IPE/BPS/OFE) that can be attached to a context
  *
  * @dev_ctxt_cnt : device context count
- * @dev_clk_state: device clock state
  */
 struct cam_icp_hw_ctx_dev_info {
 	uint32_t dev_ctxt_cnt;
-	bool dev_clk_state;
 };
 
 /**
@@ -390,14 +392,29 @@ struct cam_icp_hw_device_info {
 };
 
 /**
+ * struct cam_icp_hw_ctx_info
+ * @need_lock: Indicate whether it's needed to acquire ctx mutex
+ * @ctx_id: Index of ctx data in active ctx list
+ * @hw_mgr: HW MGR of the context
+ * @ctx_data: Point to the exact ctx data
+ */
+struct cam_icp_hw_ctx_info {
+	bool need_lock;
+	uint32_t ctx_id;
+	struct cam_icp_hw_mgr *hw_mgr;
+	struct cam_icp_hw_ctx_data *ctx_data;
+};
+
+/**
  * struct cam_icp_hw_ctx_data
+ * @list: List member used to append this node to a linked list
  * @context_priv: Context private data
  * @hw_mgr_priv: HW MGR of the context
  * @device_info: device info associated with this ctx
- * @ctx_mutex: Mutex for context
  * @fw_handle: Firmware handle
  * @scratch_mem_size: Scratch memory size
  * @icp_dev_acquire_info: Acquire device info
+ * @acquire_dev_api_version: API version of this acquire
  * @ctxt_event_cb: Context callback function
  * @state: context state
  * @role: Role of a context in case of chaining
@@ -415,15 +432,18 @@ struct cam_icp_hw_device_info {
  * @evt_inject_params: Event injection data for hw_mgr_ctx
  * @abort_timed_out: Indicates if abort timed out
  * @sys_cache_cfg: sys cache config information
+ * @port_security_map: security status per port in a secure usecase
  */
 struct cam_icp_hw_ctx_data {
+	struct list_head list;
 	void *context_priv;
 	void *hw_mgr_priv;
 	struct cam_icp_hw_device_info *device_info;
 	struct mutex ctx_mutex;
 	uint32_t fw_handle;
 	uint32_t scratch_mem_size;
-	struct cam_icp_acquire_dev_info *icp_dev_acquire_info;
+	struct cam_icp_acquire_dev_info_unified *icp_dev_acquire_info;
+	uint32_t acquire_dev_api_version;
 	cam_hw_event_cb_func ctxt_event_cb;
 	uint32_t state;
 	uint32_t role;
@@ -441,6 +461,17 @@ struct cam_icp_hw_ctx_data {
 	struct cam_hw_inject_evt_param evt_inject_params;
 	bool abort_timed_out;
 	struct cam_icp_sys_cache_cfg sys_cache_cfg;
+	bool port_security_map[CAM_MAX_OUTPUT_PORTS_PER_DEVICE];
+};
+
+/**
+ * struct cam_icp_hw_active_ctx_info
+ * @active_ctx_list: Linked list for allocated active ctx
+ * @active_ctx_bitmap: Indicate which ctx data is available
+ */
+struct cam_icp_hw_active_ctx_info {
+	struct list_head active_ctx_list;
+	DECLARE_BITMAP(active_ctx_bitmap, CAM_ICP_CTX_MAX);
 };
 
 /**
@@ -452,7 +483,8 @@ struct cam_icp_hw_ctx_data {
  * @num_dev_info: number of device info for available device for the hw mgr
  * @dev_info_idx: map hw dev type to index for device info array indexing
  * @icp_dev_intf: ICP device interface
- * @ctx_data: Context data
+ * @ctx_mutex: Mutex for all possbile ctx data
+ * @active_ctx_info: Active context info
  * @mini_dump_cb: Mini dump cb
  * @hw_mgr_name: name of the hw mgr
  * @hw_mgr_id: ID of the hw mgr, equivalent to hw mgr index
@@ -481,13 +513,18 @@ struct cam_icp_hw_ctx_data {
  * @icp_dbg_lvl : debug level set to FW.
  * @icp_fw_dump_lvl : level set for dumping the FW data
  * @icp_fw_ramdump_lvl : level set for FW ram dumps
+ *                 and ICP was reinitialized
  * @recovery: Flag to validate if in previous session FW
  *            reported a fatal error or wdt. If set FW is
- *            re-downloaded for new camera session.
+ *            re-downloaded for new camera session. This
+ *            would be set only if SSR also failed to reload ICP.
+ * @load_in_process: To indicate if FW is being loaded (cold boot)
  * @frame_in_process: Counter for frames in process
  * @frame_in_process_ctx_id: Contxt id processing frame
  * @hw_cap_mask: device capability mask to indicate which devices type
  *               are available in this hw mgr
+ * @num_pid: Number of cam hw pids linked to this icp hw mgr
+ * @pid: Exact pid values linked to this icp hw mgr
  * @icp_booted: Processor is booted i.e. firmware loaded
  * @icp_resumed: Processor is powered on
  * @icp_pc_flag: Flag to enable/disable power collapse
@@ -500,16 +537,18 @@ struct cam_icp_hw_ctx_data {
  *                     using synx
  * @fw_based_sys_caching: to check llcc cache feature is enabled or not
  * @hfi_init_done: hfi initialisation is done
+ * @num_secure_contexts: Number of the existing secure contexts
+ * @recovery_complete: Indicator for recovery complete
  */
 struct cam_icp_hw_mgr {
 	struct mutex hw_mgr_mutex;
 	spinlock_t hw_mgr_lock;
-
 	struct cam_icp_hw_device_info *dev_info;
 	uint32_t num_dev_info;
 	int8_t dev_info_idx[CAM_ICP_HW_MAX];
 	struct cam_hw_intf *icp_dev_intf;
-	struct cam_icp_hw_ctx_data ctx_data[CAM_ICP_CTX_MAX];
+	struct mutex *ctx_mutex;
+	struct cam_icp_hw_active_ctx_info active_ctx_info;
 	cam_icp_mini_dump_cb mini_dump_cb;
 	char hw_mgr_name[CAM_ICP_HW_MGR_NAME_SIZE];
 	uint32_t hw_mgr_id;
@@ -538,10 +577,13 @@ struct cam_icp_hw_mgr {
 	u64 icp_fw_dump_lvl;
 	u32 icp_fw_ramdump_lvl;
 	atomic_t recovery;
+	atomic_t load_in_process;
 	uint64_t icp_svs_clk;
 	atomic_t frame_in_process;
 	int frame_in_process_ctx_id;
 	uint32_t hw_cap_mask;
+	uint32_t num_pid;
+	uint32_t pid[CAM_ICP_PID_NUM_MAX];
 	bool icp_booted;
 	bool icp_resumed;
 	bool icp_pc_flag;
@@ -552,23 +594,27 @@ struct cam_icp_hw_mgr {
 	bool synx_signaling_en;
 	bool fw_based_sys_caching;
 	bool hfi_init_done;
+	uint32_t num_secure_contexts[CAM_ICP_MAX_NUM_OF_DEV_TYPES];
+	struct completion recovery_complete;
 };
 
 /**
  * struct cam_icp_mini_dump_acquire_info - ICP mini dump device info
  *
- * @in_res: resource info used for clock and bandwidth calculation
- * @out_res: output resource
+ * @in_res: intput resource info
+ * @out_res: output resource info
  * @num_out_res: number of output resources
  * @dev_type: device type (IPE_RT/IPE_NON_RT/BPS)
  * @secure_mode: camera mode (secure/non secure)
+ * @acquire_dev_api_version: API version of this acquire
  */
 struct cam_icp_mini_dump_acquire_info {
-	struct cam_icp_res_info out_res[ICP_MAX_OUTPUT_SUPPORTED];
-	struct cam_icp_res_info in_res;
+	struct cam_icp_res_info_unified in_res;
+	struct cam_icp_res_info_unified out_res[ICP_MAX_OUTPUT_SUPPORTED];
 	uint16_t                num_out_res;
 	uint8_t                 dev_type;
 	uint8_t                 secure_mode;
+	uint32_t                acquire_dev_api_version;
 };
 
 /**
@@ -653,11 +699,14 @@ struct cam_icp_hw_mini_dump_info {
  *             set true if hfi init needs to be done or was done.
  * @use_proxy_boot_up: Indicate if proxy fw loading is needed,
  *                     set true if proxy firmware loading is needed.
+ *
+ * @skip_icp_init: Indicates if the icp init needs to be done.
  */
 struct cam_icp_mgr_hw_args {
 	bool icp_pc;
 	bool hfi_setup;
 	bool use_proxy_boot_up;
+	bool skip_icp_init;
 };
 
 static int cam_icp_mgr_hw_close(void *hw_priv, void *hw_close_args);

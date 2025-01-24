@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_MEM_MGR_API_H_
@@ -9,6 +9,66 @@
 
 #include <media/cam_req_mgr.h>
 #include "cam_smmu_api.h"
+
+/**
+ * CAM_MEM_ALLOC : Allocates memory without initializing it to zero.
+ *
+ * @size    : size of memory requested for allocation
+ * @flags   : GFP flags (GFP_KERNEL, GFP_DMA, GFP_ATOMIC etc)
+ *
+ * NOTE: GFP_ATOMIC is not supported by vmalloc, so if allocation
+ * fails with kmalloc for GFP_ATOMIC, then fallback option won't
+ * be present.
+ */
+#define CAM_MEM_ALLOC(size, flags) \
+	kvmalloc(size, flags)
+
+/**
+ * CAM_MEM_ZALLOC : Allocates memory and zero initialize it.
+ *
+ * @size    : size of memory requested for allocation
+ * @flags   : GFP flags (GPF_KERNEL,  GFP_DMA, GPF_ATOMIC etc)
+ *
+ * NOTE: GFP_ATOMIC is not supported by vmalloc, so if allocation
+ * fails with kmalloc for GFP_ATOMIC, then fallback option won't
+ * be present.
+ */
+#define CAM_MEM_ZALLOC(size, flags) \
+	kvzalloc(size, flags)
+
+/**
+ * CAM_MEM_ZALLOC_ARRAY : Allocates memory for array and zero initialises it.
+ *
+ * @count   : count of number of elements in array
+ * @size    : size of each element
+ * @flags   : GFP flags (GFP_KERNEL, GFP_DMA, GFP_ATOMIC etc)
+ *
+ * NOTE: GFP_ATOMIC is not supported by vmalloc, so if allocation
+ * fails with kmalloc for GFP_ATOMIC, then fallback option won't
+ * be present.
+ */
+#define CAM_MEM_ZALLOC_ARRAY(count, size, flags) \
+	kvcalloc(count, size, flags)
+
+/**
+ * CAM_MEM_FREE : Frees memory without initializing it to zero.
+ *
+ * @addr    : address of data object to be freed
+ */
+#define CAM_MEM_FREE(addr) \
+	kvfree(addr)
+
+/**
+ * CAM_MEM_ZFREE : Frees memory and zero initialize it.
+ *
+ * @addr   : address of data object to be freed
+ * @size   : size of the data object
+ */
+#define CAM_MEM_ZFREE(addr, size) \
+	if (likely(!ZERO_OR_NULL_PTR(addr))) { \
+		memset((void *)addr, 0x0,  size); \
+		kvfree(addr); \
+	}
 
 /**
  * struct cam_mem_mgr_request_desc

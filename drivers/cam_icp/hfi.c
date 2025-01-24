@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -23,6 +23,7 @@
 #include "cam_debug_util.h"
 #include "cam_compat.h"
 #include "cam_soc_util.h"
+#include "cam_mem_mgr_api.h"
 
 #define HFI_VERSION_INFO_MAJOR_VAL  1
 #define HFI_VERSION_INFO_MINOR_VAL  1
@@ -310,7 +311,6 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	struct hfi_q_hdr *q;
 	uint32_t new_read_idx, size_in_words, word_diff, temp;
 	uint32_t *read_q, *read_ptr, *write_ptr;
-	uint32_t size_upper_bound = 0;
 	struct mutex *q_lock;
 	int rc = 0;
 
@@ -352,15 +352,6 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	q_tbl_ptr = (struct hfi_qtbl *)hfi->map.qtbl.kva;
 	q = &q_tbl_ptr->q_hdr[q_id];
 
-	if (q->qhdr_read_idx == q->qhdr_write_idx) {
-		CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d Q not ready, state:%u, r idx:%u, w idx:%u",
-			hfi->client_name, client_handle, hfi->hfi_state,
-			q->qhdr_read_idx, q->qhdr_write_idx);
-		rc = -EIO;
-		goto err;
-	}
-
-	size_upper_bound = q->qhdr_q_size;
 	if (q_id == Q_MSG)
 		read_q = (uint32_t *)hfi->map.msg_q.kva;
 	else
@@ -369,15 +360,20 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 	read_ptr = (uint32_t *)(read_q + q->qhdr_read_idx);
 	write_ptr = (uint32_t *)(read_q + q->qhdr_write_idx);
 
-	if (write_ptr > read_ptr)
+	if (write_ptr >= read_ptr)
 		size_in_words = write_ptr - read_ptr;
 	else {
 		word_diff = read_ptr - write_ptr;
 		size_in_words =  q->qhdr_q_size -  word_diff;
 	}
 
-	if ((size_in_words == 0) ||
-		(size_in_words > size_upper_bound)) {
+	if (size_in_words == 0) {
+		CAM_DBG(CAM_HFI, "[%s] hfi hdl: %d Q is empty, state:%u, r idx:%u, w idx:%u",
+			hfi->client_name, client_handle, hfi->hfi_state,
+			q->qhdr_read_idx, q->qhdr_write_idx);
+		rc = -ENOMSG;
+		goto err;
+	} else if (size_in_words > q->qhdr_q_size) {
 		CAM_ERR(CAM_HFI, "[%s] Invalid HFI message packet size - 0x%08x hfi hdl:%d",
 			hfi->client_name, size_in_words << BYTE_WORD_SHIFT,
 			client_handle);
@@ -386,13 +382,9 @@ int hfi_read_message(int client_handle, uint32_t *pmsg, uint8_t q_id,
 		goto err;
 	}
 
-	if (size_in_words > buf_words_size) {
-		CAM_ERR(CAM_HFI,
-			"[%s] hdl: %d Size of buffer: %u is smaller than size to read from queue: %u",
-			hfi->client_name, client_handle, buf_words_size, size_in_words);
-		rc = -EIO;
-		goto err;
-	}
+	/* size to read from q is bounded by size of buffer */
+	if (size_in_words > buf_words_size)
+		size_in_words = buf_words_size;
 
 	new_read_idx = q->qhdr_read_idx + size_in_words;
 
@@ -442,7 +434,7 @@ int hfi_cmd_ubwc_config(int client_handle, uint32_t *ubwc_cfg)
 		"[%s] hfi hdl: %d size of ubwc %u, ubwc_cfg [rd-0x%x,wr-0x%x]",
 		hfi->client_name, client_handle, size, ubwc_cfg[0], ubwc_cfg[1]);
 
-	prop = kzalloc(size, GFP_KERNEL);
+	prop = CAM_MEM_ZALLOC(size, GFP_KERNEL);
 	if (!prop)
 		return -ENOMEM;
 
@@ -450,13 +442,13 @@ int hfi_cmd_ubwc_config(int client_handle, uint32_t *ubwc_cfg)
 	dbg_prop->size = size;
 	dbg_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	dbg_prop->num_prop = 1;
-	prop_ref_data = &dbg_prop->prop_data[0];
+	prop_ref_data = &dbg_prop->prop_data_flex[0];
 	prop_ref_data[0] = HFI_PROP_SYS_UBWC_CFG;
 	prop_ref_data[1] = ubwc_cfg[0];
 	prop_ref_data[2] = ubwc_cfg[1];
 
 	hfi_write_cmd(client_handle, prop);
-	kfree(prop);
+	CAM_MEM_FREE(prop);
 
 	return 0;
 }
@@ -487,7 +479,7 @@ int hfi_cmd_ubwc_config_ext(int client_handle, uint32_t *ubwc_ipe_cfg,
 		ubwc_ipe_cfg[0], ubwc_ipe_cfg[1], ubwc_bps_cfg[0],
 		ubwc_bps_cfg[1], ubwc_ofe_cfg[0], ubwc_ofe_cfg[1]);
 
-	prop = kzalloc(size, GFP_KERNEL);
+	prop = CAM_MEM_ZALLOC(size, GFP_KERNEL);
 	if (!prop)
 		return -ENOMEM;
 
@@ -495,7 +487,7 @@ int hfi_cmd_ubwc_config_ext(int client_handle, uint32_t *ubwc_ipe_cfg,
 	dbg_prop->size = size;
 	dbg_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	dbg_prop->num_prop = 1;
-	prop_ref_data = &dbg_prop->prop_data[0];
+	prop_ref_data = &dbg_prop->prop_data_flex[0];
 	prop_ref_data[0] = HFI_PROP_SYS_UBWC_CONFIG_EX;
 	prop_ref_data[1] = ubwc_bps_cfg[0];
 	prop_ref_data[2] = ubwc_bps_cfg[1];
@@ -504,7 +496,7 @@ int hfi_cmd_ubwc_config_ext(int client_handle, uint32_t *ubwc_ipe_cfg,
 	prop_ref_data[5] = ubwc_ofe_cfg[0];
 	prop_ref_data[6] = ubwc_ofe_cfg[1];
 	hfi_write_cmd(client_handle, prop);
-	kfree(prop);
+	CAM_MEM_FREE(prop);
 
 	return 0;
 }
@@ -543,7 +535,7 @@ int hfi_set_debug_level(int client_handle, u64 icp_dbg_type, uint32_t lvl)
 	size = sizeof(struct hfi_cmd_prop) +
 		sizeof(struct hfi_debug);
 
-	prop = kzalloc(size, GFP_KERNEL);
+	prop = CAM_MEM_ZALLOC(size, GFP_KERNEL);
 	if (!prop)
 		return -ENOMEM;
 
@@ -551,13 +543,13 @@ int hfi_set_debug_level(int client_handle, u64 icp_dbg_type, uint32_t lvl)
 	dbg_prop->size = size;
 	dbg_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	dbg_prop->num_prop = 1;
-	prop_ref_data = &dbg_prop->prop_data[0];
+	prop_ref_data = &dbg_prop->prop_data_flex[0];
 	prop_ref_data[0] = HFI_PROP_SYS_DEBUG_CFG;
 	prop_ref_data[1] = lvl;
 	prop_ref_data[2] = icp_dbg_type;
 	hfi_write_cmd(client_handle, prop);
 
-	kfree(prop);
+	CAM_MEM_FREE(prop);
 
 	return 0;
 }
@@ -583,7 +575,7 @@ int hfi_set_fw_dump_levels(int client_handle, uint32_t hang_dump_lvl,
 		hfi->client_name, client_handle);
 
 	size = sizeof(struct hfi_cmd_prop) + sizeof(uint32_t);
-	prop = kzalloc(size, GFP_KERNEL);
+	prop = CAM_MEM_ZALLOC(size, GFP_KERNEL);
 	if (!prop)
 		return -ENOMEM;
 
@@ -591,7 +583,7 @@ int hfi_set_fw_dump_levels(int client_handle, uint32_t hang_dump_lvl,
 	fw_dump_level_switch_prop->size = size;
 	fw_dump_level_switch_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	fw_dump_level_switch_prop->num_prop = 1;
-	prop_ref_data = &fw_dump_level_switch_prop->prop_data[0];
+	prop_ref_data = &fw_dump_level_switch_prop->prop_data_flex[0];
 	prop_ref_data[0] = HFI_PROP_SYS_FW_DUMP_CFG;
 	prop_ref_data[1] = hang_dump_lvl;
 
@@ -609,7 +601,7 @@ int hfi_set_fw_dump_levels(int client_handle, uint32_t hang_dump_lvl,
 		fw_dump_level_switch_prop->pkt_type, fw_dump_level_switch_prop->num_prop,
 		hang_dump_lvl, ram_dump_lvl);
 
-	kfree(prop);
+	CAM_MEM_FREE(prop);
 	return 0;
 }
 
@@ -633,7 +625,7 @@ int hfi_send_freq_info(int client_handle, int32_t freq)
 		return -EINVAL;
 
 	size = sizeof(struct hfi_cmd_prop) + sizeof(freq);
-	prop = kzalloc(size, GFP_KERNEL);
+	prop = CAM_MEM_ZALLOC(size, GFP_KERNEL);
 	if (!prop)
 		return -ENOMEM;
 
@@ -641,7 +633,7 @@ int hfi_send_freq_info(int client_handle, int32_t freq)
 	dbg_prop->size = size;
 	dbg_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	dbg_prop->num_prop = 1;
-	prof_ref_data = &dbg_prop->prop_data[0];
+	prof_ref_data = &dbg_prop->prop_data_flex[0];
 	prof_ref_data[0] = HFI_PROP_SYS_ICP_HW_FREQUENCY;
 	prof_ref_data[1] = freq;
 
@@ -663,7 +655,7 @@ int hfi_send_freq_info(int client_handle, int32_t freq)
 			 hfi->dbg_lvl);
 
 	hfi_write_cmd(client_handle, prop);
-	kfree(prop);
+	CAM_MEM_FREE(prop);
 	return 0;
 }
 
@@ -703,7 +695,7 @@ int hfi_send_system_cmd(int client_handle, uint32_t type, uint64_t data, uint32_
 			prop.size = sizeof(struct hfi_cmd_prop);
 			prop.pkt_type = type;
 			prop.num_prop = 1;
-			prop.prop_data[0] = HFI_PROP_SYS_DEBUG_CFG;
+			prop.prop_data_flex[0] = HFI_PROP_SYS_DEBUG_CFG;
 			rc = hfi_write_cmd(client_handle, &prop);
 		}
 	}
@@ -1246,7 +1238,7 @@ int cam_hfi_register(int *client_handle, const char *client_name)
 		goto failed_hfi_register;
 	}
 
-	hfi = kzalloc(sizeof(struct hfi_info), GFP_KERNEL);
+	hfi = CAM_MEM_ZALLOC(sizeof(struct hfi_info), GFP_KERNEL);
 	if (!hfi) {
 		rc = -ENOMEM;
 		goto failed_hfi_register;
@@ -1272,7 +1264,7 @@ int cam_hfi_register(int *client_handle, const char *client_name)
 	return rc;
 
 hfi_failed_state:
-	kfree(hfi);
+	CAM_MEM_FREE(hfi);
 failed_hfi_register:
 	mutex_unlock(&g_hfi_lock);
 	return rc;
@@ -1295,7 +1287,7 @@ int cam_hfi_unregister(int *client_handle)
 	mutex_destroy(&hfi->dbg_q_lock);
 	mutex_destroy(&hfi->msg_q_lock);
 	mutex_destroy(&hfi->cmd_q_lock);
-	cam_free_clear((void *)hfi);
+	CAM_MEM_ZFREE((void *)hfi, sizeof(struct hfi_info));
 	idx = HFI_GET_INDEX(*client_handle);
 	g_hfi.hfi[idx] = NULL;
 	g_hfi.num_hfi--;

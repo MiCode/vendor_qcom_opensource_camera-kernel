@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -12,15 +12,39 @@
 #include "bps_soc.h"
 #include "cam_soc_util.h"
 #include "cam_debug_util.h"
+#include "cam_mem_mgr_api.h"
 
 static int cam_bps_get_dt_properties(struct cam_hw_soc_info *soc_info)
 {
-	int rc = 0;
+	int rc = 0, num_pid, i;
+	struct platform_device *pdev = soc_info->pdev;
+	struct device_node *of_node = pdev->dev.of_node;
+	struct cam_bps_soc_private *bps_soc_private = soc_info->soc_private;
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
-	if (rc < 0)
+	if (rc < 0) {
 		CAM_ERR(CAM_ICP, "get bps dt prop is failed");
+		goto end;
+	}
 
+	num_pid = of_property_count_u32_elems(of_node, "cam_hw_pid");
+	CAM_DBG(CAM_ICP, "BPS pid count: %d", num_pid);
+
+	if (num_pid <= 0)
+		goto end;
+
+	bps_soc_private->pid = CAM_MEM_ZALLOC_ARRAY(num_pid, sizeof(uint32_t), GFP_KERNEL);
+	if (!bps_soc_private->pid) {
+		CAM_ERR(CAM_ICP, "Failed at allocating memory for BPS hw pids");
+		rc = -ENOMEM;
+		goto end;
+	}
+
+	for (i = 0; i < num_pid; i++)
+		of_property_read_u32_index(of_node, "cam_hw_pid", i, &bps_soc_private->pid[i]);
+	bps_soc_private->num_pid = num_pid;
+
+end:
 	return rc;
 }
 
@@ -42,7 +66,15 @@ static int cam_bps_request_platform_resource(
 int cam_bps_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	irq_handler_t bps_irq_handler, void *irq_data)
 {
+	struct cam_bps_soc_private *soc_private;
 	int rc = 0;
+
+	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_bps_soc_private), GFP_KERNEL);
+	if (!soc_private) {
+		CAM_DBG(CAM_ICP, "Failed at allocating BPS soc_private");
+		return -ENOMEM;
+	}
+	soc_info->soc_private = soc_private;
 
 	rc = cam_bps_get_dt_properties(soc_info);
 	if (rc < 0)
@@ -59,6 +91,18 @@ int cam_bps_init_soc_resources(struct cam_hw_soc_info *soc_info,
 void cam_bps_deinit_soc_resources(struct cam_hw_soc_info *soc_info)
 {
 	int rc = 0;
+	struct cam_bps_soc_private *soc_private;
+
+	soc_private = soc_info->soc_private;
+	if (soc_private) {
+		if (soc_private->pid) {
+			CAM_MEM_FREE(soc_private->pid);
+			soc_private->pid = NULL;
+		}
+
+		CAM_MEM_FREE(soc_private);
+		soc_private = NULL;
+	}
 
 	rc = cam_soc_util_release_platform_resource(soc_info);
 	if (rc)

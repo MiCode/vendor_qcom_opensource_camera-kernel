@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -12,6 +12,7 @@
 #include <cam_req_mgr_util.h>
 #include "cam_sensor_soc.h"
 #include "cam_soc_util.h"
+#include "cam_mem_mgr_api.h"
 
 int32_t cam_sensor_get_sub_module_index(struct device_node *of_node,
 	struct cam_sensor_board_info *s_info)
@@ -108,14 +109,14 @@ static int32_t cam_sensor_init_bus_params(struct cam_sensor_ctrl_t *s_ctrl)
 		"master_type: %d", s_ctrl->io_master_info.master_type);
 	/* Initialize cci_client */
 	if (s_ctrl->io_master_info.master_type == CCI_MASTER) {
-		s_ctrl->io_master_info.cci_client = kzalloc(sizeof(
+		s_ctrl->io_master_info.cci_client = CAM_MEM_ZALLOC(sizeof(
 			struct cam_sensor_cci_client), GFP_KERNEL);
 		if (!(s_ctrl->io_master_info.cci_client)) {
 			CAM_ERR(CAM_SENSOR, "Memory allocation failed");
 			return -ENOMEM;
 		}
 	} else if (s_ctrl->io_master_info.master_type == I2C_MASTER) {
-		if (!(s_ctrl->io_master_info.client))
+		if (!(s_ctrl->io_master_info.qup_client))
 			return -EINVAL;
 	} else if (s_ctrl->io_master_info.master_type == I3C_MASTER) {
 		CAM_DBG(CAM_SENSOR, "I3C Master Type");
@@ -138,7 +139,7 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 	struct device_node *of_parent = NULL;
 	struct cam_hw_soc_info *soc_info = &s_ctrl->soc_info;
 
-	s_ctrl->sensordata = kzalloc(sizeof(*sensordata), GFP_KERNEL);
+	s_ctrl->sensordata = CAM_MEM_ZALLOC(sizeof(*sensordata), GFP_KERNEL);
 	if (!s_ctrl->sensordata)
 		return -ENOMEM;
 
@@ -258,7 +259,8 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_DBG(CAM_SENSOR, "cell_idx: %d is not used for AON usecase", soc_info->index);
 		s_ctrl->aon_camera_id = NOT_AON_CAM;
 	} else {
-		CAM_INFO(CAM_SENSOR,
+		// xiaomi modify
+		CAM_DBG(CAM_SENSOR,
 			"AON Sensor detected in cell_idx: %d aon_camera_id: %d phy_index: %d",
 			soc_info->index, s_ctrl->aon_camera_id,
 			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
@@ -284,10 +286,22 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		goto FREE_SENSOR_DATA;
 	}
 
+	if (!of_property_read_bool(of_node, "hw-no-ops"))
+		s_ctrl->hw_no_ops = false;
+	else
+		s_ctrl->hw_no_ops = true;
+
+	cam_sensor_utils_parse_pm_ctrl_flag(of_node, &(s_ctrl->io_master_info));
+	CAM_INFO(CAM_SENSOR,
+		"master: %d (1-CCI, 2-I2C, 3-SPI, 4-I3C) pm_ctrl_client_enable: %d",
+		s_ctrl->io_master_info.master_type,
+		(!s_ctrl->io_master_info.qup_client) ? 0 :
+			s_ctrl->io_master_info.qup_client->pm_ctrl_client_enable);
+
 	return rc;
 
 FREE_SENSOR_DATA:
-	kfree(sensordata);
+	CAM_MEM_FREE(sensordata);
 	s_ctrl->sensordata = NULL;
 
 	return rc;
@@ -307,6 +321,7 @@ int32_t cam_sensor_parse_dt(struct cam_sensor_ctrl_t *s_ctrl)
 
 	/* Initialize mutex */
 	mutex_init(&(s_ctrl->cam_sensor_mutex));
+	init_power_sync_mutex(s_ctrl->io_master_info.cci_client, s_ctrl->cci_i2c_master);//xiaomi add
 
 	/* Initialize default parameters */
 	for (i = 0; i < soc_info->num_clk; i++) {

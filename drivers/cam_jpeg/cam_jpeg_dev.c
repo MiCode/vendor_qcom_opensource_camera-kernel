@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -19,6 +19,7 @@
 #include "camera_main.h"
 #include "cam_common_util.h"
 #include "cam_context_utils.h"
+#include "cam_req_mgr_dev.h"
 
 #define CAM_JPEG_DEV_NAME "cam-jpeg"
 
@@ -161,7 +162,10 @@ static int cam_jpeg_dev_component_bind(struct device *dev,
 	struct cam_node *node;
 	int iommu_hdl = -1;
 	struct platform_device *pdev = to_platform_device(dev);
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	g_jpeg_dev.sd.internal_ops = &cam_jpeg_subdev_internal_ops;
 	g_jpeg_dev.sd.close_seq_prior = CAM_SD_CLOSE_MEDIUM_PRIORITY;
 	rc = cam_subdev_probe(&g_jpeg_dev.sd, pdev, CAM_JPEG_DEV_NAME,
@@ -209,6 +213,9 @@ static int cam_jpeg_dev_component_bind(struct device *dev,
 	mutex_init(&g_jpeg_dev.jpeg_mutex);
 
 	CAM_DBG(CAM_JPEG, "Component bound successfully");
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 
 	return rc;
 

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/slab.h>
 #include "cam_ife_csid_soc.h"
 #include "cam_debug_util.h"
+#include "cam_mem_mgr_api.h"
 
 static int cam_ife_csid_get_dt_properties(struct cam_hw_soc_info *soc_info)
 {
@@ -73,7 +74,7 @@ int cam_ife_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	struct cam_cpas_register_params   cpas_register_param;
 	struct cam_csid_soc_private      *soc_private;
 
-	soc_private = kzalloc(sizeof(struct cam_csid_soc_private), GFP_KERNEL);
+	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_csid_soc_private), GFP_KERNEL);
 	if (!soc_private)
 		return -ENOMEM;
 
@@ -104,10 +105,10 @@ int cam_ife_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 	}
 
 	if (is_custom)
-		strlcpy(cpas_register_param.identifier, "csid-custom",
+		strscpy(cpas_register_param.identifier, "csid-custom",
 			CAM_HW_IDENTIFIER_LENGTH);
 	else
-		strlcpy(cpas_register_param.identifier, "csid",
+		strscpy(cpas_register_param.identifier, "csid",
 			CAM_HW_IDENTIFIER_LENGTH);
 
 	cpas_register_param.cell_index = soc_info->index;
@@ -127,7 +128,7 @@ int cam_ife_csid_init_soc_resources(struct cam_hw_soc_info *soc_info,
 release_soc:
 	cam_soc_util_release_platform_resource(soc_info);
 free_soc_private:
-	kfree(soc_private);
+	CAM_MEM_FREE(soc_private);
 
 	return rc;
 }

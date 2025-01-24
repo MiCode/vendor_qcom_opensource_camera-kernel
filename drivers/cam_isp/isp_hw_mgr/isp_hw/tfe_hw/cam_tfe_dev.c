@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -11,6 +12,7 @@
 #include "cam_tfe_soc.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
+#include "cam_mem_mgr_api.h"
 
 static struct cam_isp_hw_intf_data  cam_tfe_hw_list[CAM_TFE_HW_NUM_MAX];
 
@@ -27,7 +29,7 @@ static int cam_tfe_component_bind(struct device *dev,
 	struct platform_device *pdev = to_platform_device(dev);
 	uint32_t  i;
 
-	tfe_hw_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
+	tfe_hw_intf = CAM_MEM_ZALLOC(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!tfe_hw_intf) {
 		rc = -ENOMEM;
 		goto end;
@@ -36,7 +38,7 @@ static int cam_tfe_component_bind(struct device *dev,
 	of_property_read_u32(pdev->dev.of_node,
 		"cell-index", &tfe_hw_intf->hw_idx);
 
-	tfe_hw = kzalloc(sizeof(struct cam_hw_info), GFP_KERNEL);
+	tfe_hw = CAM_MEM_ZALLOC(sizeof(struct cam_hw_info), GFP_KERNEL);
 	if (!tfe_hw) {
 		rc = -ENOMEM;
 		goto free_tfe_hw_intf;
@@ -64,7 +66,7 @@ static int cam_tfe_component_bind(struct device *dev,
 
 	platform_set_drvdata(pdev, tfe_hw_intf);
 
-	tfe_hw->core_info = kzalloc(sizeof(struct cam_tfe_hw_core_info),
+	tfe_hw->core_info = CAM_MEM_ZALLOC(sizeof(struct cam_tfe_hw_core_info),
 		GFP_KERNEL);
 	if (!tfe_hw->core_info) {
 		CAM_DBG(CAM_ISP, "Failed to alloc for core");
@@ -128,11 +130,11 @@ deinit_soc:
 	if (cam_tfe_deinit_soc_resources(&tfe_hw->soc_info))
 		CAM_ERR(CAM_ISP, "Failed to deinit soc");
 free_core_info:
-	kfree(tfe_hw->core_info);
+	CAM_MEM_FREE(tfe_hw->core_info);
 free_tfe_hw:
-	kfree(tfe_hw);
+	CAM_MEM_FREE(tfe_hw);
 free_tfe_hw_intf:
-	kfree(tfe_hw_intf);
+	CAM_MEM_FREE(tfe_hw_intf);
 end:
 	return rc;
 }
@@ -174,7 +176,7 @@ static void cam_tfe_component_unbind(struct device *dev,
 	if (rc < 0)
 		CAM_ERR(CAM_ISP, "Failed to deinit core rc=%d", rc);
 
-	kfree(tfe_hw->core_info);
+	CAM_MEM_FREE(tfe_hw->core_info);
 
 deinit_soc:
 	rc = cam_tfe_deinit_soc_resources(&tfe_hw->soc_info);
@@ -182,12 +184,12 @@ deinit_soc:
 		CAM_ERR(CAM_ISP, "Failed to deinit soc rc=%d", rc);
 
 	mutex_destroy(&tfe_hw->hw_mutex);
-	kfree(tfe_hw);
+	CAM_MEM_FREE(tfe_hw);
 
 	CAM_DBG(CAM_ISP, "TFE%d component unbound", tfe_hw_intf->hw_idx);
 
 free_tfe_hw_intf:
-	kfree(tfe_hw_intf);
+	CAM_MEM_FREE(tfe_hw_intf);
 }
 
 const static struct component_ops cam_tfe_component_ops = {

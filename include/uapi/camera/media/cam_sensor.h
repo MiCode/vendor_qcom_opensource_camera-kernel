@@ -13,7 +13,7 @@
 
 #define CAM_SENSOR_PROBE_CMD      (CAM_COMMON_OPCODE_MAX + 1)
 #define CAM_FLASH_MAX_LED_TRIGGERS 2
-#define MAX_OIS_NAME_SIZE 32
+#define MAX_OIS_NAME_SIZE 64 //xiaomi changed from 32 to 64
 #define MAX_OIS_FW_COUNT  2
 #define CAM_CSIPHY_SECURE_MODE_ENABLED 1
 #define CAM_SENSOR_NAME_MAX_SIZE 32
@@ -35,11 +35,18 @@
 #define CAM_CSIPHY_CDR_SUB_TOLERANCE               2
 
 /* SENSOR driver cmd buffer meta types */
-#define CAM_SENSOR_PACKET_I2C_COMMANDS             0
-#define CAM_SENSOR_PACKET_GENERIC_BLOB             1
+#define CAM_SENSOR_PACKET_I2C_COMMANDS                  0
+#define CAM_SENSOR_PACKET_GENERIC_BLOB                  1
+/* Contains I2C config to be applied on the frame post the regular update */
+#define CAM_SENSOR_PACKET_DEFERRED_I2C_COMMANDS_META    2
+/* Contains I2C config to be applied on frame skips */
+#define CAM_SENSOR_PACKET_FRAME_SKIP_I2C_COMMANDS_META  3
+/* Contains I2C config to be applied on bubble */
+#define CAM_SENSOR_PACKET_BUBBLE_UPD_I2C_COMMANDS_META  4
 
 /* SENSOR blob types */
 #define CAM_SENSOR_GENERIC_BLOB_RES_INFO           0
+#define CAM_SENSOR_GENERIC_BLOB_FRAME_INFO         1
 
 enum camera_sensor_cmd_type {
 	CAMERA_SENSOR_CMD_TYPE_INVALID,
@@ -68,6 +75,7 @@ enum cam_actuator_packet_opcodes {
 	CAM_ACTUATOR_PACKET_AUTO_MOVE_LENS,
 	CAM_ACTUATOR_PACKET_MANUAL_MOVE_LENS,
 	CAM_ACTUATOR_PACKET_OPCODE_READ,
+	CAM_ACTUATOR_PACKET_OPCODE_PARKLENS, // xiaomi add
 	CAM_ACTUATOR_PACKET_NOP_OPCODE = 127
 };
 
@@ -80,7 +88,8 @@ enum cam_ois_packet_opcodes {
 	CAM_OIS_PACKET_OPCODE_INIT,
 	CAM_OIS_PACKET_OPCODE_OIS_CONTROL,
 	CAM_OIS_PACKET_OPCODE_READ,
-	CAM_OIS_PACKET_OPCODE_WRITE_TIME
+	CAM_OIS_PACKET_OPCODE_WRITE_TIME,
+	CAM_OIS_PACKET_OPCODE_OIS_PARKLENS // xiaomi add
 };
 
 enum camera_sensor_i2c_op_code {
@@ -125,6 +134,7 @@ enum cam_sensor_packet_opcodes {
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_UNLOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_LOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_BUBBLE_UPDATE,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_DEFERRED_META,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_NOP = 127,
 };
 
@@ -358,6 +368,9 @@ struct cam_cmd_i2c_info {
 #define CAM_SENSOR_FEATURE_INSENSOR_HDR_3EXP_ON    BIT(3)
 #define CAM_SENSOR_FEATURE_INSENSOR_HDR_3EXP_OFF   BIT(4)
 
+#define CAM_CSIPHY_T3_PREPARE_NS_MASK              BIT(0)
+#define CAM_CSIPHY_T3_PREAMBLE_NS_MASK             BIT(1)
+
 /**
  * struct cam_cmd_sensor_res_info - Contains sensor res info
  *
@@ -389,18 +402,57 @@ struct cam_sensor_res_info {
 } __attribute__((packed));
 
 /**
+ * struct cam_sensor_frame_info - Contains sensor frame related info
+ *
+ * @frame_sync_shift  : Indicates how far the frame synchronization
+ *                      reference point from SOF, this is used to
+ *                      align with userland and kernel frame sync offset.
+ * @frame_duration    : Frame duration
+ * @blanking_duration : Vertical blanking duration for a request, and it
+ *                      is representing the blanking durations before the
+ *                      frame for this request.
+ * @num_valid_params  : Number of valid params
+ * @valid_param_mask  : Valid param mask
+ * @params            : params
+ */
+struct cam_sensor_frame_info {
+	__u64 frame_sync_shift;
+	__u64 frame_duration;
+	__u64 blanking_duration;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u64 params[4];
+} __attribute__((packed));
+
+/**
  * struct cam_ois_opcode - Contains OIS opcode
  *
- * @prog            :    OIS FW prog register address
- * @coeff           :    OIS FW coeff register address
- * @pheripheral     :    OIS pheripheral
- * @memory          :    OIS memory
+ * @prog                  :    OIS FW prog register address
+ * @coeff                 :    OIS FW coeff register address
+ * @pheripheral           :    OIS pheripheral
+ * @memory                :    OIS memory
+ * @fw_version            :    OIS firmware version
+ * @fw_addr_type          :    OIS fw Addr Type
+ * @is_addr_increase      :    OIS addr Increase
+ * @customized_ois_flag   :    customized ois flag
+ * @is_littleendian_op    :    is littleendianop
+ * @fw_addr               :    fw addr
+ * @fw_mem_store          :    is fw mem store
  */
 struct cam_ois_opcode {
 	__u32 prog;
 	__u32 coeff;
 	__u32 pheripheral;
 	__u32 memory;
+	//xiaomi add begain
+	__u32 fw_version;
+	__u8  fw_addr_type;
+	__u8  is_addr_increase;
+	__u8  customized_ois_flag;
+	__u8  is_littleendian_op;
+	__u32 fw_addr;
+	bool  fw_mem_store;
+	//xiaomi add end
 } __attribute__((packed));
 
 /**
@@ -797,7 +849,7 @@ struct cam_csiphy_info_v2 {
 	__u64    settle_time;
 	__u64    data_rate;
 	__u32    channel_type;
-	__u32    num_vaild_params;
+	__u32    num_valid_params;
 	__u32    param_mask;
 	__u32    params[5];
 } __attribute__((packed));

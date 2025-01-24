@@ -1267,9 +1267,9 @@ static struct cam_ife_csid_top_debug_mask cam_ife_csid_880_top_debug_mask = {
 			BIT_ULL(CAM_IFE_CSID_TOP_ERR_NO_VOTE_DN),
 	},
 
-	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_UP] = 0,
-	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_DN] = 1,
-	.bit_pos[CAM_IFE_CSID_TOP_ERR_NO_VOTE_DN] = 2,
+	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_UP] = 16,
+	.bit_pos[CAM_IFE_CSID_TOP_INFO_VOTE_DN] = 17,
+	.bit_pos[CAM_IFE_CSID_TOP_ERR_NO_VOTE_DN] = 18,
 };
 
 static struct cam_ife_csid_ver2_csi2_rx_reg_info

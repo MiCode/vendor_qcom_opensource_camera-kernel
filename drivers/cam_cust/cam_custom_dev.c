@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -116,7 +116,10 @@ static int cam_custom_component_bind(struct device *dev,
 	struct cam_node                *node;
 	int iommu_hdl = -1;
 	struct platform_device *pdev = to_platform_device(dev);
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	g_custom_dev.sd.internal_ops = &cam_custom_subdev_internal_ops;
 	g_custom_dev.sd.close_seq_prior = CAM_SD_CLOSE_HIGH_PRIORITY;
 
@@ -167,6 +170,9 @@ static int cam_custom_component_bind(struct device *dev,
 	mutex_init(&g_custom_dev.custom_dev_mutex);
 
 	CAM_DBG(CAM_CUSTOM, "%s component bound successfully", pdev->name);
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 
 	return 0;
 unregister:

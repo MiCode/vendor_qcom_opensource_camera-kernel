@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -15,6 +15,7 @@
 #include "cam_cdm_util.h"
 #include "cam_irq_controller.h"
 #include "cam_tasklet_util.h"
+#include "cam_mem_mgr_api.h"
 
 struct cam_vfe_mux_rdi_data {
 	void __iomem                                *mem_base;
@@ -77,6 +78,7 @@ static int cam_vfe_rdi_put_evt_payload(
 		return -EINVAL;
 	}
 
+	CAM_COMMON_SANITIZE_LIST_ENTRY((*evt_payload), struct cam_vfe_top_irq_evt_payload);
 	spin_lock_irqsave(&rdi_priv->spin_lock, flags);
 	list_add_tail(&(*evt_payload)->list, &rdi_priv->free_payload_list);
 	*evt_payload = NULL;
@@ -525,7 +527,7 @@ int cam_vfe_rdi_ver2_init(
 	struct cam_vfe_rdi_ver2_hw_info *rdi_info = rdi_hw_info;
 	int                              i = 0;
 
-	rdi_priv = kzalloc(sizeof(struct cam_vfe_mux_rdi_data),
+	rdi_priv = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_mux_rdi_data),
 			GFP_KERNEL);
 	if (!rdi_priv) {
 		CAM_DBG(CAM_ISP, "Error! Failed to alloc for rdi_priv");
@@ -582,7 +584,7 @@ int cam_vfe_rdi_ver2_init(
 
 	return 0;
 err_init:
-	kfree(rdi_priv);
+	CAM_MEM_FREE(rdi_priv);
 	return -EINVAL;
 }
 
@@ -591,6 +593,11 @@ int cam_vfe_rdi_ver2_deinit(
 {
 	struct cam_vfe_mux_rdi_data *rdi_priv = rdi_node->res_priv;
 	int                          i = 0;
+
+	if (!rdi_priv) {
+		CAM_ERR(CAM_ISP, "Error! rdi_priv NULL");
+		return -ENODEV;
+	}
 
 	INIT_LIST_HEAD(&rdi_priv->free_payload_list);
 	for (i = 0; i < CAM_VFE_RDI_EVT_MAX; i++)
@@ -604,11 +611,7 @@ int cam_vfe_rdi_ver2_deinit(
 
 	rdi_node->res_priv = NULL;
 
-	if (!rdi_priv) {
-		CAM_ERR(CAM_ISP, "Error! rdi_priv NULL");
-		return -ENODEV;
-	}
-	kfree(rdi_priv);
+	CAM_MEM_FREE(rdi_priv);
 
 	return 0;
 }

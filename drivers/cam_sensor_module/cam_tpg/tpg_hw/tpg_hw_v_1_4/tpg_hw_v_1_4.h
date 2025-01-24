@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_V_1_4_H__
@@ -270,6 +270,8 @@ struct cam_tpg_ver_1_4_reg_offset {
 	int test_bus_en_shift;
 	int test_bus_sel_shift;
 	int spare_shift;
+	int async_mode_min_hbi;
+	int async_mode_min_hbi_shift;
 	/* Custome Variables below */
 };
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #if !defined(_CAM_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
@@ -429,6 +429,92 @@ TRACE_EVENT(cam_cci_burst,
 		__entry->index, __entry->master, __entry->queue, __get_str(msg), __entry->value
 	)
 );
+
+TRACE_EVENT(cam_perf,
+	TP_PROTO(const char *entity,
+	const char *msg, unsigned long val),
+	TP_ARGS(entity, msg, val),
+	TP_STRUCT__entry(
+		__string(entity, entity)
+		__string(msg, msg)
+		__field(unsigned long, value)
+	),
+	TP_fast_assign(
+		__assign_str(entity, entity);
+		__assign_str(msg, msg);
+		__entry->value = val;
+	),
+	TP_printk(
+		"%s: %s: %lu (usec)",
+		__get_str(entity), __get_str(msg), __entry->value
+	)
+);
+
+/* xiaomi add I2C trace begin */
+TRACE_EVENT(cam_i2c_write_log_event,
+	TP_PROTO(const char *flag_name, const char *device_name, uint64_t req_id, int32_t j,
+			const char *w_r_status, uint32_t reg_addr, uint32_t reg_data),
+	TP_ARGS(flag_name, device_name, req_id, j, w_r_status, reg_addr, reg_data),
+	TP_STRUCT__entry(
+		__string(flag_name, flag_name)
+		__string(device_name, device_name)
+		__string(w_r_status, w_r_status)
+		__field(uint64_t, req_id)
+		__field(int32_t, j)
+		__field(uint32_t, reg_addr)
+		__field(uint32_t, reg_data)
+	),
+	TP_fast_assign(
+		__assign_str(flag_name, flag_name);
+		__assign_str(device_name, device_name);
+		__assign_str(w_r_status, w_r_status);
+		__entry->req_id = req_id;
+		__entry->j = j;
+		__entry->reg_addr = reg_addr;
+		__entry->reg_data = reg_data;
+	),
+	TP_printk(
+		"%s %s req_id %llu-%04d %s addr 0x%04X data 0x%04X",
+		__get_str(flag_name), __get_str(device_name),
+		__entry->req_id, __entry->j, __get_str(w_r_status),
+		__entry->reg_addr, __entry->reg_data
+	)
+);
+
+TRACE_EVENT(poll_i2c_compare,
+	TP_PROTO(uint32_t data, uint32_t reg_data),
+	TP_ARGS(data, reg_data),
+	TP_STRUCT__entry(
+		__field(uint32_t, data)
+		__field(uint32_t, reg_data)
+	),
+	TP_fast_assign(
+		__entry->data = data;
+		__entry->reg_data = reg_data;
+	),
+	TP_printk(
+		"[POLL_I2C_COMPARE] data 0x%04X reg_data 0x%04X",
+		__entry->data, __entry->reg_data
+	)
+);
+
+TRACE_EVENT(opcode_name,
+	TP_PROTO(int32_t opcode_value, const char *opcode_name),
+	TP_ARGS(opcode_value, opcode_name),
+	TP_STRUCT__entry(
+		__field(int32_t, opcode_value)
+		__string(opcode_name, opcode_name)
+	),
+	TP_fast_assign(
+		__entry->opcode_value = opcode_value;
+		__assign_str(opcode_name, opcode_name);
+	),
+	TP_printk(
+		"sensor request_id = 0 opcode value = %d opcode_name %s start",
+		__entry->opcode_value, __get_str(opcode_name)
+	)
+);
+/* xiaomi add I2C trace end */
 
 #endif /* _CAM_TRACE_H */
 

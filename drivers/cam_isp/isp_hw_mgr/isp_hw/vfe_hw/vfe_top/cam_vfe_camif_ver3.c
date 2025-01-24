@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -20,6 +20,7 @@
 #include "cam_cdm_util.h"
 #include "cam_cpas_api.h"
 #include "cam_trace.h"
+#include "cam_mem_mgr_api.h"
 
 #define CAM_VFE_CAMIF_IRQ_SOF_DEBUG_CNT_MAX 2
 
@@ -102,6 +103,7 @@ static int cam_vfe_camif_ver3_put_evt_payload(
 		return -EINVAL;
 	}
 
+	CAM_COMMON_SANITIZE_LIST_ENTRY((*evt_payload), struct cam_vfe_top_irq_evt_payload);
 	spin_lock_irqsave(&camif_priv->spin_lock, flags);
 	list_add_tail(&(*evt_payload)->list, &camif_priv->free_payload_list);
 	*evt_payload = NULL;
@@ -1536,7 +1538,7 @@ int cam_vfe_camif_ver3_init(
 	struct cam_vfe_camif_ver3_hw_info *camif_info = camif_hw_info;
 	int i = 0;
 
-	camif_priv = kzalloc(sizeof(struct cam_vfe_mux_camif_ver3_data),
+	camif_priv = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_mux_camif_ver3_data),
 		GFP_KERNEL);
 	if (!camif_priv)
 		return -ENOMEM;
@@ -1601,7 +1603,7 @@ int cam_vfe_camif_ver3_deinit(
 		return -ENODEV;
 	}
 
-	kfree(camif_priv);
+	CAM_MEM_FREE(camif_priv);
 
 	return 0;
 }

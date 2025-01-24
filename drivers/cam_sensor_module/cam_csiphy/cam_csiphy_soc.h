@@ -83,4 +83,12 @@ int cam_csiphy_reg_dump(struct cam_hw_soc_info *soc_info);
  * This API dumps memory for the entire status region
  */
 int32_t cam_csiphy_common_status_reg_dump(struct csiphy_device *csiphy_dev);
+
+/**
+ * @csiphy_dev: CSIPhy device structure
+ * @buffer:     Ptr to buffer to cache common status regs
+ * @buf_size:   Size of buffer
+ */
+int32_t cam_csiphy_get_common_status_for_qmargin(
+	struct csiphy_device *csiphy_dev, int *buffer, int buf_size);
 #endif /* _CAM_CSIPHY_SOC_H_ */

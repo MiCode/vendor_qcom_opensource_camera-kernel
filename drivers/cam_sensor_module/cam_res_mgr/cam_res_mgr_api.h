@@ -88,6 +88,18 @@ void cam_res_mgr_gpio_free_arry(struct device *dev,
 	const struct gpio *array, size_t num);
 
 /**
+ * @brief: Get GPIO power level
+ *
+ *  Add ref count support for shared GPIOs.
+ *
+ * @gpio   : The GPIO number
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
+ * -EINVAL will be returned if the gpio can't be found in gpio_res_list.
+ */
+int cam_res_mgr_gpio_get_value(unsigned int gpio);
+
+/**
  * @brief: Set GPIO power level
  *
  *  Add ref count support for shared GPIOs.

@@ -15,6 +15,7 @@
 #include "cam_ife_csid_lite780.h"
 #include "cam_ife_csid_lite880.h"
 #include "cam_ife_csid_lite980.h"
+#include "cam_ife_csid_lite1080.h"
 
 #define CAM_CSID_LITE_DRV_NAME                    "csid_lite"
 
@@ -45,6 +46,11 @@ static struct cam_ife_csid_core_info cam_ife_csid_lite_880_hw_info = {
 
 static struct cam_ife_csid_core_info cam_ife_csid_lite_980_hw_info = {
 	.csid_reg = &cam_ife_csid_lite_980_reg_info,
+	.sw_version  = CAM_IFE_CSID_VER_2_0,
+};
+
+static struct cam_ife_csid_core_info cam_ife_csid_lite_1080_hw_info = {
+	.csid_reg = &cam_ife_csid_lite_1080_reg_info,
 	.sw_version  = CAM_IFE_CSID_VER_2_0,
 };
 
@@ -92,6 +98,10 @@ static const struct of_device_id cam_ife_csid_lite_dt_match[] = {
 	{
 		.compatible = "qcom,csid-lite980",
 		.data = &cam_ife_csid_lite_980_hw_info,
+	},
+	{
+		.compatible = "qcom,csid-lite1080",
+		.data = &cam_ife_csid_lite_1080_hw_info,
 	},
 	{}
 };

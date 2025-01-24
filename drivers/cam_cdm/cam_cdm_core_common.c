@@ -19,6 +19,7 @@
 #include "cam_cdm_soc.h"
 #include "cam_cdm_core_common.h"
 #include "cam_vmrm_interface.h"
+#include "cam_mem_mgr_api.h"
 
 int cam_cdm_util_cpas_start(struct cam_hw_info *cdm_hw)
 {
@@ -668,7 +669,7 @@ int cam_cdm_process_cmd(void *hw_priv,
 			data->identifier, core->index);
 			break;
 		}
-		core->clients[idx] = kzalloc(sizeof(struct cam_cdm_client),
+		core->clients[idx] = CAM_MEM_ZALLOC(sizeof(struct cam_cdm_client),
 			GFP_KERNEL);
 		if (!core->clients[idx]) {
 			mutex_unlock(&cdm_hw->hw_mutex);
@@ -682,7 +683,7 @@ int cam_cdm_process_cmd(void *hw_priv,
 			if (rc) {
 				CAM_ERR(CAM_ISP, "CDM[%u] acquire ownership failed",
 					cdm_hw->soc_info.index);
-				kfree(core->clients[idx]);
+				CAM_MEM_FREE(core->clients[idx]);
 				mutex_unlock(&cdm_hw->hw_mutex);
 				break;
 			}
@@ -704,7 +705,7 @@ int cam_cdm_process_cmd(void *hw_priv,
 			if (!data->ops) {
 				mutex_destroy(&client->lock);
 				mutex_lock(&cdm_hw->hw_mutex);
-				kfree(core->clients[idx]);
+				CAM_MEM_FREE(core->clients[idx]);
 				core->clients[idx] = NULL;
 				core->num_active_clients--;
 				mutex_unlock(
@@ -766,7 +767,7 @@ int cam_cdm_process_cmd(void *hw_priv,
 		core->clients[idx] = NULL;
 		mutex_unlock(&client->lock);
 		mutex_destroy(&client->lock);
-		kfree(client);
+		CAM_MEM_FREE(client);
 		if (core->num_active_clients)
 			core->num_active_clients--;
 		else

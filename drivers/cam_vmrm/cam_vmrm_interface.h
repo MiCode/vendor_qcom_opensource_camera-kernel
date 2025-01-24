@@ -258,4 +258,26 @@ int cam_vmrm_sensor_power_up(uint32_t hw_id);
  *
  */
 int cam_vmrm_sensor_power_down(uint32_t hw_id);
+
+/**
+ * cam_vmrm_icp_send_msg()
+ *
+ * @brief:  VMRM ICP commands
+ *
+ * dest_vm: cam vmid of the destination vm
+ *
+ * hw_mgr_id:  hw_mgr_id of the icp
+ *
+ * need_ack: If we need_ack for this message
+ *
+ * msg: icp intervm message
+ *
+ * msg_size: size of the intervm message
+ *
+ * timeout: timeout value for this message
+ *
+ */
+int cam_vmrm_icp_send_msg(uint32_t dest_vm, uint32_t hw_mgr_id, uint32_t vmrm_msg_type,
+	bool need_ack, void *msg, uint32_t msg_size, uint32_t timeout);
+
 #endif /* _CAM_VMRM_INTERFACE_H_ */

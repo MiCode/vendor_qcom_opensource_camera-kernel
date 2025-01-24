@@ -38,7 +38,7 @@ int cam_tpg_publish_dev_info(
 	}
 
 	info->dev_id = CAM_REQ_MGR_DEVICE_TPG;
-	strlcpy(info->name, CAM_TPG_NAME, sizeof(info->name));
+	strscpy(info->name, CAM_TPG_NAME, sizeof(info->name));
 	/* Hard code for now */
 	info->p_delay = 1;
 	info->trigger = CAM_TRIGGER_POINT_SOF;
@@ -125,10 +125,44 @@ static int cam_tpg_apply_req(
 }
 
 static int cam_tpg_flush_req(
-	struct cam_req_mgr_flush_request *flush)
+	struct cam_req_mgr_flush_request *flush_req)
 {
-	CAM_DBG(CAM_TPG, "Got Flush request from crm");
-	return 0;
+	int rc = 0;
+	struct cam_tpg_device *tpg_dev = NULL;
+
+	if (!flush_req) {
+		CAM_ERR(CAM_TPG, "Invalid flush request handle encountered");
+		return -EINVAL;
+	}
+
+	tpg_dev = (struct cam_tpg_device *)
+		cam_get_device_priv(flush_req->dev_hdl);
+	if (!tpg_dev) {
+		CAM_ERR(CAM_TPG, "Invalid TPG handle encountered during flush req");
+		return -EINVAL;
+	}
+	CAM_DBG(CAM_TPG, "Got flush request from crm. Flush Type: %d Req: %lld",
+		flush_req->type, flush_req->req_id);
+
+	mutex_lock(&tpg_dev->mutex);
+	switch (flush_req->type) {
+	case CAM_REQ_MGR_FLUSH_TYPE_ALL:
+		rc = tpg_hw_flush_requests(&tpg_dev->tpg_hw, flush_req->req_id, true);
+		break;
+
+	case CAM_REQ_MGR_FLUSH_TYPE_CANCEL_REQ:
+		rc = tpg_hw_flush_requests(&tpg_dev->tpg_hw, flush_req->req_id, false);
+		break;
+
+	default:
+		CAM_ERR(CAM_TPG, "Invalid TPG flush type [%d] rcvd", flush_req->type);
+		rc = -EINVAL;
+	}
+	if (rc != 0)
+		CAM_ERR(CAM_TPG, "Flushing active/waiting queue failed");
+
+	mutex_unlock(&tpg_dev->mutex);
+	return rc;
 }
 
 static int cam_tpg_process_crm_evt(
@@ -359,17 +393,20 @@ static int __cam_tpg_handle_stop_dev(
 		return -EINVAL;
 	}
 	if (tpg_dev->state != CAM_TPG_STATE_START) {
-		CAM_WARN(CAM_TPG, "TPG[%d] not in right state[%d] to stop",
+		CAM_ERR(CAM_TPG, "TPG[%d] not in right state[%d] to stop",
 				tpg_dev->soc_info.index, tpg_dev->state);
+		rc = -EINVAL;
 	}
-	rc = tpg_hw_stop(&tpg_dev->tpg_hw);
+
+	if (!rc)
+		rc = tpg_hw_stop(&tpg_dev->tpg_hw);
+
 	if (rc) {
 		CAM_ERR(CAM_TPG, "TPG[%d] STOP_DEV failed", tpg_dev->soc_info.index);
 	} else {
 		tpg_dev->state = CAM_TPG_STATE_ACQUIRE;
 		CAM_INFO(CAM_TPG, "TPG[%d] STOP_DEV done.", tpg_dev->soc_info.index);
 	}
-
 	return rc;
 }
 
@@ -524,7 +561,7 @@ static int cam_tpg_cmd_buf_parse(
 		rc = cam_tpg_validate_cmd_descriptor(cmd_desc,
 				&cmd_type, &cmd_addr);
 		if (rc < 0) {
-			kfree(req);
+			CAM_MEM_FREE(req);
 			goto end;
 		}
 
@@ -581,7 +618,7 @@ end:
 free_request:
 	/* free the request and return the failure */
 	tpg_hw_free_request(&tpg_dev->tpg_hw, req);
-	kfree(req);
+	CAM_MEM_FREE(req);
 	return rc;
 }
 
@@ -592,7 +629,9 @@ static int cam_tpg_packet_parse(
 	int rc = 0;
 	uintptr_t generic_ptr;
 	size_t len_of_buff = 0, remain_len = 0;
+	struct cam_packet *csl_packet_u = NULL;
 	struct cam_packet *csl_packet = NULL;
+	size_t packet_size;
 
 	rc = cam_mem_get_cpu_buf(config->packet_handle,
 		&generic_ptr, &len_of_buff);
@@ -612,14 +651,29 @@ static int cam_tpg_packet_parse(
 	}
 	remain_len = len_of_buff;
 	remain_len -= (size_t)config->offset;
-	csl_packet = (struct cam_packet *)(generic_ptr +
+	csl_packet_u = (struct cam_packet *)(generic_ptr +
 		(uint32_t)config->offset);
+	packet_size = csl_packet_u->header.size;
+	if (packet_size <= remain_len) {
+		rc = cam_common_mem_kdup((void **)&csl_packet,
+			csl_packet_u, packet_size);
+		if (rc) {
+			CAM_ERR(CAM_TPG, "Alloc and copy request: %lld packet fail",
+				csl_packet_u->header.request_id);
+			goto end;
+		}
+	} else {
+		CAM_ERR(CAM_TPG, "Invalid packet header size %u",
+			packet_size);
+		rc = -EINVAL;
+		goto end;
+	}
 
 	if (cam_packet_util_validate_packet(csl_packet,
 		remain_len)) {
 		CAM_ERR(CAM_TPG, "Invalid packet params");
 		rc = -EINVAL;
-		goto end;
+		goto free_kdup;
 	}
 
 	CAM_DBG(CAM_TPG, "TPG[%d] "
@@ -634,12 +688,12 @@ static int cam_tpg_packet_parse(
 		if (csl_packet->num_cmd_buf <= 0) {
 			CAM_ERR(CAM_TPG, "Expecting atleast one command in Init packet");
 			rc = -EINVAL;
-			goto end;
+			goto free_kdup;
 		}
 		rc = cam_tpg_cmd_buf_parse(tpg_dev, csl_packet);
 		if (rc < 0) {
 			CAM_ERR(CAM_TPG, "CMD buffer parse failed");
-			goto end;
+			goto free_kdup;
 		}
 		tpg_hw_config(&tpg_dev->tpg_hw, TPG_HW_CMD_INIT_CONFIG, NULL);
 		break;
@@ -651,7 +705,7 @@ static int cam_tpg_packet_parse(
 		rc = cam_tpg_cmd_buf_parse(tpg_dev, csl_packet);
 		if (rc < 0) {
 			CAM_ERR(CAM_TPG, "CMD buffer parse failed");
-			goto end;
+			goto free_kdup;
 		}
 
 		CAM_DBG(CAM_TPG, "TPG[%d] packet request id : %llu",
@@ -678,6 +732,9 @@ static int cam_tpg_packet_parse(
 		rc = -EINVAL;
 		break;
 	}
+
+free_kdup:
+	cam_common_mem_free(csl_packet);
 end:
 	cam_mem_put_cpu_buf(config->packet_handle);
 	return rc;

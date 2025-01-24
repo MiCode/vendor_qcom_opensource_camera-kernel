@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_LINUX_CAM_REQ_MGR_H
@@ -65,6 +65,41 @@
 #define V4L_EVENT_CAM_REQ_MGR_SOF_UNIFIED_TS                            5
 #define V4L_EVENT_CAM_REQ_MGR_PF_ERROR                                  6
 
+/* Add by xiaomi V4L event type for Hw event*/
+#define V4L_EVENT_HW_ISSUE_EVENT       		(V4L2_EVENT_PRIVATE_START + 1)
+
+/* Specific event ids to get notified in user space */
+#define V4L_EVENT_HW_ISSUE_CCI_ERROR					0
+#define V4L_EVENT_HW_ISSUE_POWER_ERROR					1
+
+/**
+ * HW ISSUE : error message err type
+ * @HW_ISSUE_ERROR_TYPE_SENSOR_POWER: Sensor Power error
+ * @HW_ISSUE_ERROR_TYPE_SENSOR_CCI: Sensor CCI error
+ * @HW_ISSUE_ERROR_TYPE_ACTUATOR_POWER: Actuator Power error
+ * @HW_ISSUE_ERROR_TYPE_ACTUATOR_CCI: Actuator CCI error
+ * @HW_ISSUE_ERROR_TYPE_EEPROM_POWER: EEprom Power error
+ * @HW_ISSUE_ERROR_TYPE_EEPROM_CCI: EEprom CCI error
+ */
+#define HW_ISSUE_ERROR_TYPE_SENSOR_POWER				0
+#define HW_ISSUE_ERROR_TYPE_SENSOR_CCI					1
+#define HW_ISSUE_ERROR_TYPE_ACTUATOR_POWER				3
+#define HW_ISSUE_ERROR_TYPE_ACTUATOR_CCI				4
+#define HW_ISSUE_ERROR_TYPE_EEPROM_POWER				5
+#define HW_ISSUE_ERROR_TYPE_EEPROM_CCI					6
+
+/**
+ * HW ISSUE : error message err code
+ * @HW_ISSUE_HW_CCI_READ_ERROR					: CCI_READ_ERROR
+ * @HW_ISSUE_HW_CCI_WRITE_ERROR					: CCI_WRITE_ERROR
+ * @HW_ISSUE_HW_CCI_POLL_ERROR					: CCI_POLL_ERROR
+ */
+#define HW_ISSUE_HW_CCI_READ_ERROR                   	 0
+#define HW_ISSUE_HW_CCI_WRITE_ERROR                  	 1
+#define HW_ISSUE_HW_CCI_POLL_ERROR                   	 2
+/*end xiaomi*/
+
+
 /* SOF Event status */
 #define CAM_REQ_MGR_SOF_EVENT_SUCCESS           0
 #define CAM_REQ_MGR_SOF_EVENT_ERROR             1
@@ -98,6 +133,13 @@
  */
 #define CAM_REQ_MGR_SYNC_MODE_NO_SYNC   0
 #define CAM_REQ_MGR_SYNC_MODE_SYNC      1
+
+/**
+ * Functional capabilities for flush
+ * "reserved" field in struct cam_req_mgr_flush_info to be set
+ * to enable/disable these functionalities
+ */
+#define CAM_REQ_MGR_ENABLE_SENSOR_STANDBY BIT(0)
 
 /**
  * struct cam_req_mgr_event_data
@@ -250,6 +292,39 @@ struct cam_req_mgr_sched_request_v2 {
 	__s32 params[5];
 };
 
+/** struct cam_req_mgr_sched_request_v3
+ * @version: Version number
+ * @session_hdl: Input param - Identifier for CSL session
+ * @link_hdl: Input Param -Identifier for link including itself.
+ * @bubble_enable: Input Param - Cam req mgr will do bubble recovery if this
+ * flag is set.
+ * @sync_mode: Type of Sync mode for this request
+ * @additional_timeout: Additional timeout value (in ms) associated with
+ * this request. This value needs to be 0 in cases where long exposure is
+ * not configured for the sensor.The max timeout that will be supported
+ * is 50000 ms
+ * @num_links: Input Param - Num of links for sync
+ * @num_valid_params: Number of valid params
+ * @req_id: Input Param - Request Id from which all requests will be flushed
+ * @param_mask: mask to indicate what the parameters are
+ * @params: parameters passed from user space
+ * @link_hdls: Input Param - Array of link handles to be for sync
+ */
+struct cam_req_mgr_sched_request_v3 {
+	__s32 version;
+	__s32 session_hdl;
+	__s32 link_hdl;
+	__s32 bubble_enable;
+	__s32 sync_mode;
+	__s32 additional_timeout;
+	__s32 num_links;
+	__s32 num_valid_params;
+	__s64 req_id;
+	__s32 param_mask;
+	__s32 params[5];
+	__s32 link_hdls[];
+};
+
 /**
  * struct cam_req_mgr_sync_mode
  * @session_hdl:         Input param - Identifier for CSL session
@@ -350,6 +425,12 @@ struct cam_req_mgr_link_properties {
 #define CAM_REQ_MGR_MAP_BUF_V2                  (CAM_COMMON_OPCODE_MAX + 19)
 #define CAM_REQ_MGR_MEM_CPU_ACCESS_OP           (CAM_COMMON_OPCODE_MAX + 20)
 #define CAM_REQ_MGR_QUERY_CAP                   (CAM_COMMON_OPCODE_MAX + 21)
+#define CAM_REQ_MGR_SCHED_REQ_V3                (CAM_COMMON_OPCODE_MAX + 22)
+
+//xiao mi add
+#define CAM_REQ_MGR_QUERY_DUMP_MSG              (CAM_COMMON_OPCODE_MAX + 23)
+#define CAM_TRIGGER_DUMP_SENSOR_SETTING         (CAM_COMMON_OPCODE_MAX + 24)
+//end
 
 /* end of cam_req_mgr opcodes */
 
@@ -670,6 +751,7 @@ struct cam_mem_cpu_access_op {
  * @CAM_REQ_MGR_SENSOR_STREAM_OFF_FAILED       : Failed to stream off sensor
  * @CAM_REQ_MGR_VALID_SHUTTER_DROPPED          : Valid shutter dropped
  * @CAM_REQ_MGR_ISP_ERR_HWPD_VIOLATION         : HWPD image size violation
+ * @CAM_REQ_MGR_ISP_ERR_SETTING_MISMATCHED     : Setting mismatched between sensor and isp
  */
 #define CAM_REQ_MGR_ISP_UNREPORTED_ERROR                 0
 #define CAM_REQ_MGR_LINK_STALLED_ERROR                   BIT(0)
@@ -693,6 +775,8 @@ struct cam_mem_cpu_access_op {
 #define CAM_REQ_MGR_ISP_ERR_P2I                          BIT(18)
 #define CAM_REQ_MGR_ISP_ERR_VIOLATION                    BIT(19)
 #define CAM_REQ_MGR_ISP_ERR_BUSIF_OVERFLOW               BIT(20)
+#define CAM_REQ_MGR_ISP_ERR_SETTING_MISMATCHED           BIT(21)
+#define CAM_REQ_MGR_ISP_ERR_ILLEGAL_DT_SWITCH            BIT(22)
 
 /**
  * struct cam_req_mgr_error_msg
@@ -911,4 +995,164 @@ struct cam_req_mgr_message {
 		struct cam_req_mgr_pf_err_msg pf_err_msg;
 	} u;
 };
+
+//xiaomi add
+#define POWER_SEQ_TYPE_MAX             16
+#define MAX_RECORD_REQ                 50
+#define APPLY_SETTING_REQ              10
+#define MAX_RECORD_SENSOR_SETTING      600
+#define MAX_RECORD_OTHER_SETTING       50
+#define MAX_RECORD_POWER               50
+#define EVENT_IO_MAX                   2
+#define EVENT_POWER_MAX                2
+#define CAM_SENSOR_NAME_MAX_LENGTH     40
+//event type for record info
+enum event_type_id
+{
+	EVENT_ISP_SOF,
+	EVENT_ISP_EOF,
+	EVENT_ISP_EPOCH,
+	EVENT_ADD_REQ,
+	EVENT_APPLY_REQ,
+	EVENT_MAX,
+};
+enum event_io_type
+{
+	EVENT_IO = 6,
+	EVENT_IO_END
+};
+enum event_power_type
+{
+	EVENT_POWER_UP = 9,
+	EVENT_POWER_DOWN
+};
+
+struct addr_data
+{
+	uint32_t address;
+	uint32_t data;
+};
+
+struct apply_sensor_setting_data
+{
+	uint32_t            module_id;
+	int16_t             subdev_id;
+	uint16_t            opcode;
+	int32_t             apply_record_size;
+	struct addr_data    ad[MAX_RECORD_SENSOR_SETTING];
+	int16_t             regAddrType;
+	int16_t             regDataType;
+	uint64_t            req_id;
+	uint64_t            ts_h;
+	uint64_t            ts_m;
+	uint64_t            ts_s;
+	uint64_t            ts_ms;
+	uint64_t            end_ts_h;
+	uint64_t            end_ts_m;
+	uint64_t            end_ts_s;
+	uint64_t            end_ts_ms;
+};
+
+struct apply_other_setting_data
+{
+	uint32_t            module_id;
+	int16_t             subdev_id;
+	uint16_t            opcode;
+	int32_t             apply_record_size;
+	struct addr_data    ad[MAX_RECORD_OTHER_SETTING];
+	uint64_t            req_id;
+	uint64_t            ts_h;
+	uint64_t            ts_m;
+	uint64_t            ts_s;
+	uint64_t            ts_ms;
+	uint64_t            end_ts_h;
+	uint64_t            end_ts_m;
+	uint64_t            end_ts_s;
+	uint64_t            end_ts_ms;
+};
+
+struct power_sequence_info
+{
+	uint64_t req_id;
+	uint64_t ts_h;
+	uint64_t ts_m;
+	uint64_t ts_s;
+	uint64_t ts_ms;
+	uint32_t module_id;
+	int16_t  subdev_id;
+	int16_t  power_seq_msg;
+	uint16_t gpio_val;
+	uint32_t voltage[2];
+	uint32_t clk_rate;
+};
+
+struct isp_frame_info
+{
+	char      dev_name[CAM_SENSOR_NAME_MAX_LENGTH];
+	uint64_t  frame_id;
+};
+
+struct add_req_msg
+{
+	uint32_t module_id;
+	int16_t  subdev_id;
+	int32_t  link_hdl;
+	int32_t  dev_hdl;
+};
+
+struct apply_req_msg
+{
+	uint32_t module_id;
+	int16_t  subdev_id;
+	int32_t  link_hdl;
+};
+
+struct event_record
+{
+	uint64_t              req_id;
+	uint64_t              ts_h;
+	uint64_t              ts_m;
+	uint64_t              ts_s;
+	uint64_t              ts_ms;
+	int16_t               opcode;
+	union
+	{
+		struct isp_frame_info frame_info;
+		struct add_req_msg    add_req;
+		struct apply_req_msg  app_req;
+	}u;
+};
+
+
+
+struct cam_debug_record_key_message_buffer
+{
+	uint64_t                        event_record_head[EVENT_MAX];
+	struct event_record             event_id[EVENT_MAX][MAX_RECORD_REQ];
+};
+
+struct cam_io_data_record
+{
+	uint64_t                                event_record_head[EVENT_IO_MAX];
+	struct apply_sensor_setting_data        sensor_setting_data[APPLY_SETTING_REQ];
+	struct apply_other_setting_data         ois_setting[APPLY_SETTING_REQ];
+	struct apply_other_setting_data         af_setting[APPLY_SETTING_REQ];
+	struct apply_other_setting_data         ap_setting[APPLY_SETTING_REQ];
+};
+
+struct cam_power_info_record
+{
+	uint64_t                            event_record_head[EVENT_POWER_MAX];
+	struct power_sequence_info          power_seq[EVENT_POWER_MAX][MAX_RECORD_POWER];
+};
+
+//xiaomi add end
+
 #endif /* __UAPI_LINUX_CAM_REQ_MGR_H */
+
+
+/* xiaomi add IMMUNE_SYSTEM */
+#define V4L_EVENT_IMMUNE_SYSTEM_EVENT           (V4L2_EVENT_PRIVATE_START + 7)
+#define V4L_EVENT_IMMUNE_SYSTEM_ISP             1
+#define V4L_EVENT_IMMUNE_SYSTEM_BUBBLE          (V4L_EVENT_IMMUNE_SYSTEM_ISP << 16) + 1
+/* xiaomi add IMMUNE_SYSTEM */

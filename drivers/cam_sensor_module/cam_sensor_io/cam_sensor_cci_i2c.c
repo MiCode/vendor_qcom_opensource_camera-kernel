@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2018, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_cmn_header.h"
@@ -75,7 +75,7 @@ int32_t cam_camera_cci_i2c_read_seq(struct cam_sensor_cci_client *cci_client,
 		return rc;
 	}
 
-	buf = kzalloc(num_byte, GFP_KERNEL);
+	buf = CAM_MEM_ZALLOC(num_byte, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
 
@@ -101,7 +101,7 @@ int32_t cam_camera_cci_i2c_read_seq(struct cam_sensor_cci_client *cci_client,
 	}
 
 end:
-	kfree(buf);
+	CAM_MEM_FREE(buf);
 	return rc;
 }
 
@@ -185,6 +185,9 @@ static int32_t cam_cci_i2c_compare(struct cam_sensor_cci_client *client,
 		return rc;
 
 	reg_data = reg_data & 0xFFFF;
+	/* xiaomi add I2C trace begin */
+	trace_poll_i2c_compare(data, (reg_data & ~data_mask));
+	/* xiaomi add I2C trace end */
 	if (data == (reg_data & ~data_mask))
 		return I2C_COMPARE_MATCH;
 	else {

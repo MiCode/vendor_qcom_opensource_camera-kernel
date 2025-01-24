@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -381,7 +381,7 @@ int cam_context_handle_message(struct cam_context *ctx,
 }
 
 int cam_context_handle_acquire_dev(struct cam_context *ctx,
-	struct cam_acquire_dev_cmd *cmd)
+	struct cam_acquire_dev_cmd_unified *cmd)
 {
 	int rc;
 	int i;
@@ -402,7 +402,7 @@ int cam_context_handle_acquire_dev(struct cam_context *ctx,
 			ctx, cmd);
 	} else {
 		CAM_ERR(CAM_CORE, "No acquire device in dev %d, state %d",
-			cmd->dev_handle, ctx->state);
+				cmd->dev_handle, ctx->state);
 		rc = -EPROTO;
 	}
 
@@ -740,7 +740,7 @@ int cam_context_init(struct cam_context *ctx,
 	mutex_init(&ctx->sync_mutex);
 	spin_lock_init(&ctx->lock);
 
-	strlcpy(ctx->dev_name, dev_name, CAM_CTX_DEV_NAME_MAX_LENGTH);
+	strscpy(ctx->dev_name, dev_name, CAM_CTX_DEV_NAME_MAX_LENGTH);
 	ctx->dev_id = dev_id;
 	ctx->ctx_id = ctx_id;
 	ctx->last_flush_req = 0;
@@ -765,6 +765,13 @@ int cam_context_init(struct cam_context *ctx,
 	ctx->state_machine = NULL;
 	ctx->ctx_priv = NULL;
 	ctx->img_iommu_hdl = img_iommu_hdl;
+
+	/*xiaomi added detect framerate begin*/
+	ctx->dbg_timestamp = 0;
+	ctx->dbg_frame     = 0;
+	ctx->exlink        = -1;
+	ctx->batchsize     = 1;
+	/*xiaomi added detect framerate end*/
 
 	return 0;
 }

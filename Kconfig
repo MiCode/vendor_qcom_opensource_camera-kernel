@@ -101,3 +101,19 @@ config SECURE_CAMERA_25
 		feature that allows the usage of non contiguous
 		buffers for the secure camera images by
 		lending the buffers to a trusted virtual machine.
+
+config SPECTRA_SECURE_DYN_PORT_CFG
+	bool "enable dynamic port config feature"
+	help
+		This config enables dynamic port config
+		feature that allows the userspace to configure
+		the output port(s) of a device to secure or
+		non-secure based the usecase requirements.
+
+config SPECTRA_SECURE_CAMNOC_REG_UPDATE
+	bool "enable secure camnoc reg update feature"
+	help
+		This config enables secure reg update
+		feature that allows the HLOS to configure
+		camnoc registers through HYP to avoid
+		potential security issues.

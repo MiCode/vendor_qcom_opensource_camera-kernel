@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -517,6 +517,7 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_RDI_LCR_CFG:
 	case CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR:
 	case CAM_ISP_HW_CMD_FCG_CONFIG:
+	case CAM_ISP_HW_CMD_SOF_IRQ_DEBUG:
 		rc = core_info->vfe_top->hw_ops.process_cmd(
 			core_info->vfe_top->top_priv, cmd_type, cmd_args,
 			arg_size);

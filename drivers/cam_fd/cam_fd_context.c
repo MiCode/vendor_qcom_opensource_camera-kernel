@@ -15,11 +15,11 @@ static const char fd_dev_name[] = "cam-fd";
 
 /* Functions in Available state */
 static int __cam_fd_ctx_acquire_dev_in_available(struct cam_context *ctx,
-	struct cam_acquire_dev_cmd *cmd)
+	struct cam_acquire_dev_cmd_unified *args)
 {
 	int rc;
 
-	rc = cam_context_acquire_dev_to_hw(ctx, cmd);
+	rc = cam_context_acquire_dev_to_hw(ctx, args);
 	if (rc) {
 		CAM_ERR(CAM_FD, "Failed in Acquire dev, rc=%d", rc);
 		return rc;

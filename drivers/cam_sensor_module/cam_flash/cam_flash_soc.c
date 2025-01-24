@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include "cam_flash_soc.h"
 #include "cam_res_mgr_api.h"
+#include "cam_mem_mgr_api.h"
 
 void cam_flash_put_source_node_data(struct cam_flash_ctrl *fctrl)
 {
@@ -282,7 +283,7 @@ int cam_flash_get_dt_data(struct cam_flash_ctrl *fctrl,
 	}
 
 	soc_info->soc_private =
-		kzalloc(sizeof(struct cam_flash_private_soc), GFP_KERNEL);
+		CAM_MEM_ZALLOC(sizeof(struct cam_flash_private_soc), GFP_KERNEL);
 	if (!soc_info->soc_private) {
 		rc = -ENOMEM;
 		goto release_soc_res;
@@ -314,7 +315,7 @@ int cam_flash_get_dt_data(struct cam_flash_ctrl *fctrl,
 	return rc;
 
 free_soc_private:
-	kfree(soc_info->soc_private);
+	CAM_MEM_FREE(soc_info->soc_private);
 	soc_info->soc_private = NULL;
 release_soc_res:
 	cam_soc_util_release_platform_resource(soc_info);

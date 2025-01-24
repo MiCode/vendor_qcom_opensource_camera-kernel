@@ -14,6 +14,8 @@
 #include "cam_vmrm.h"
 #include "cam_vmrm_interface.h"
 #include "cam_cpas_api.h"
+#include "cam_req_mgr_dev.h"
+#include "cam_mem_mgr_api.h"
 
 #ifdef CONFIG_SPECTRA_VMRM
 extern struct cam_vmrm_intf_dev *g_vmrm_intf_dev;
@@ -75,7 +77,10 @@ bool cam_vmrm_proxy_icc_voting_enable(void)
 bool cam_vmrm_no_register_read_on_bind(void)
 {
 	struct cam_vmrm_intf_dev *vmrm_intf_dev;
+	struct timespec64         ts_start, ts_end;
+	long                      microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	vmrm_intf_dev = cam_vmrm_get_intf_dev();
 	if (!vmrm_intf_dev) {
 		CAM_ERR(CAM_VMRM, "vmrm dev is not ready");
@@ -87,6 +92,9 @@ bool cam_vmrm_no_register_read_on_bind(void)
 		return false;
 	}
 
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 	return vmrm_intf_dev->no_register_read_on_bind;
 }
 
@@ -114,7 +122,7 @@ int cam_vmvm_populate_hw_instance_info(struct cam_hw_soc_info *soc_info,
 		return -EINVAL;
 	}
 
-	hw_instance_temp = kzalloc(sizeof(*hw_instance_temp), GFP_KERNEL);
+	hw_instance_temp = CAM_MEM_ZALLOC(sizeof(*hw_instance_temp), GFP_KERNEL);
 	if (!hw_instance_temp) {
 		CAM_ERR(CAM_VMRM, " hw instance allocate memory failed");
 		return -EINVAL;
@@ -357,7 +365,7 @@ int cam_vmrm_send_msg(uint32_t source_vmid, uint32_t des_vmid, uint32_t msg_dst_
 	unsigned long rem_jiffies = 0;
 
 	msg_size = offsetof(struct cam_vmrm_msg, data[data_size]);
-	vm_msg = kzalloc((msg_size), GFP_KERNEL);
+	vm_msg = CAM_MEM_ZALLOC((msg_size), GFP_KERNEL);
 	if (!vm_msg) {
 		CAM_ERR(CAM_VMRM, "msg mem allocate failed");
 		return -ENOMEM;
@@ -400,10 +408,10 @@ int cam_vmrm_send_msg(uint32_t source_vmid, uint32_t des_vmid, uint32_t msg_dst_
 		} else {
 			CAM_ERR(CAM_VMRM, "msg send failed");
 		}
-		kfree(vm_msg);
+		CAM_MEM_FREE(vm_msg);
 		return rc;
 	}
-	kfree(vm_msg);
+	CAM_MEM_FREE(vm_msg);
 
 	CAM_DBG(CAM_VMRM, "msg send succeed");
 
@@ -845,6 +853,24 @@ int cam_vmrm_sensor_power_down(uint32_t hw_id)
 
 	return rc;
 }
+
+int cam_vmrm_icp_send_msg(uint32_t dest_vm, uint32_t hw_mgr_id, uint32_t msg_type, bool need_ack,
+	void *msg, uint32_t msg_size, uint32_t timeout)
+{
+	int rc = 0;
+
+	rc = cam_vmrm_send_driver_msg_wrapper(dest_vm, CAM_DRIVER_ID_ICP + hw_mgr_id,
+		msg_type, false, need_ack, msg, msg_size, timeout);
+	if (rc) {
+		CAM_ERR(CAM_VMRM, "ICP%d Failed in sending msg dest_driver:%d  rc %d",
+			hw_mgr_id, CAM_DRIVER_ID_ICP + hw_mgr_id, rc);
+		return rc;
+	}
+
+
+	return rc;
+}
+
 #else
 bool cam_vmrm_is_supported(void)
 {

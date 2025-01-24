@@ -14,7 +14,9 @@
 #include "camera_main.h"
 #include "cam_cpas_api.h"
 #include "cam_vmrm_interface.h"
+#include "cam_mem_mgr_api.h"
 #include <dt-bindings/msm-camera.h>
+#include "cam_req_mgr_dev.h"
 
 static struct cam_hw_intf *cam_ife_csid_hw_list[CAM_IFE_CSID_HW_NUM_MAX] = {
 	0, 0, 0, 0};
@@ -28,8 +30,11 @@ static int cam_ife_csid_component_bind(struct device *dev,
 	struct cam_ife_csid_core_info  *csid_core_info = NULL;
 	uint32_t                        csid_dev_idx;
 	int                             rc = 0;
-	struct platform_device *pdev = to_platform_device(dev);
+	struct platform_device         *pdev = to_platform_device(dev);
+	struct timespec64               ts_start, ts_end;
+	long                            microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	CAM_DBG(CAM_ISP, "Binding IFE CSID component");
 
 	/* get ife csid hw index */
@@ -46,13 +51,13 @@ static int cam_ife_csid_component_bind(struct device *dev,
 		goto err;
 	}
 
-	hw_intf = kzalloc(sizeof(*hw_intf), GFP_KERNEL);
+	hw_intf = CAM_MEM_ZALLOC(sizeof(*hw_intf), GFP_KERNEL);
 	if (!hw_intf) {
 		rc = -ENOMEM;
 		goto err;
 	}
 
-	hw_info = kzalloc(sizeof(struct cam_hw_info), GFP_KERNEL);
+	hw_info = CAM_MEM_ZALLOC(sizeof(struct cam_hw_info), GFP_KERNEL);
 	if (!hw_info) {
 		rc = -ENOMEM;
 		goto free_hw_intf;
@@ -98,7 +103,9 @@ static int cam_ife_csid_component_bind(struct device *dev,
 
 	CAM_DBG(CAM_ISP, "CSID:%d component bound successfully",
 		hw_intf->hw_idx);
-
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 
 	if (hw_intf->hw_idx < CAM_IFE_CSID_HW_NUM_MAX)
 		cam_ife_csid_hw_list[hw_intf->hw_idx] = hw_intf;
@@ -108,9 +115,9 @@ static int cam_ife_csid_component_bind(struct device *dev,
 	return 0;
 
 free_hw_info:
-	kfree(hw_info);
+	CAM_MEM_FREE(hw_info);
 free_hw_intf:
-	kfree(hw_intf);
+	CAM_MEM_FREE(hw_intf);
 err:
 	return rc;
 }
@@ -149,8 +156,8 @@ static void cam_ife_csid_component_unbind(struct device *dev,
 
 free_mem:
 	/*release the csid device memory */
-	kfree(hw_info);
-	kfree(hw_intf);
+	CAM_MEM_FREE(hw_info);
+	CAM_MEM_FREE(hw_intf);
 }
 
 const static struct component_ops cam_ife_csid_component_ops = {

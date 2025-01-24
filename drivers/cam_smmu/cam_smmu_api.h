@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SMMU_API_H_
@@ -25,6 +25,7 @@
 #define MULTI_CLIENT_REGION_SHIFT 28
 #define CAM_SMMU_HDL_MASK ((BIT(MULTI_CLIENT_REGION_SHIFT)) - 1)
 #define GET_SMMU_TABLE_IDX(x) ((((x) & CAM_SMMU_HDL_MASK) >> COOKIE_SIZE) & COOKIE_MASK)
+#define CAM_SMMU_GET_BASE_HDL(x) ((x) & CAM_SMMU_HDL_MASK)
 
 #define CAM_SMMU_GET_IOVA_DELTA(val1, val2)                                \
 ({                                                                         \

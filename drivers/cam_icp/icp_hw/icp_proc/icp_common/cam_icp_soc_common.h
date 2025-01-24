@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_ICP_SOC_COMMON_H
@@ -48,6 +48,8 @@ struct cam_icp_ubwc_cfg {
  *           be used in icp_v1 for older chipsets. icp_v2 only
  *           uses ubwc_cfg_ext.
  * @is_ubwc_cfg: indicate if ubwc_cfg is used.
+ * @num_pid: Number of PID
+ * @pid:     Exact PID values
  */
 struct cam_icp_soc_info {
 	enum cam_icp_hw_type dev_type;
@@ -59,6 +61,8 @@ struct cam_icp_soc_info {
 		struct cam_icp_ubwc_cfg ubwc_cfg_ext;
 	} uconfig;
 	bool is_ubwc_cfg;
+	uint32_t num_pid;
+	uint32_t *pid;
 };
 
 int cam_icp_soc_resources_init(struct cam_hw_soc_info *soc_info,

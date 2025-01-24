@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -12,6 +12,7 @@
 #include "cam_vfe_top_ver3.h"
 #include "cam_debug_util.h"
 #include "cam_vfe_soc.h"
+#include "cam_mem_mgr_api.h"
 
 #define CAM_VFE_HW_RESET_HW_AND_REG_VAL       0x00000001
 #define CAM_VFE_HW_RESET_HW_VAL               0x00010000
@@ -735,14 +736,14 @@ int cam_vfe_top_ver3_init(
 	struct cam_vfe_top_ver3_hw_info        *ver3_hw_info = top_hw_info;
 	struct cam_vfe_top                     *vfe_top;
 
-	vfe_top = kzalloc(sizeof(struct cam_vfe_top), GFP_KERNEL);
+	vfe_top = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_top), GFP_KERNEL);
 	if (!vfe_top) {
 		CAM_DBG(CAM_ISP, "Error, Failed to alloc for vfe_top");
 		rc = -ENOMEM;
 		goto end;
 	}
 
-	top_priv = kzalloc(sizeof(struct cam_vfe_top_ver3_priv),
+	top_priv = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_top_ver3_priv),
 		GFP_KERNEL);
 	if (!top_priv) {
 		CAM_DBG(CAM_ISP, "Error, Failed to alloc for vfe_top_priv");
@@ -887,9 +888,9 @@ deinit_resources:
 	}
 
 free_top_priv:
-	kfree(vfe_top->top_priv);
+	CAM_MEM_FREE(vfe_top->top_priv);
 free_vfe_top:
-	kfree(vfe_top);
+	CAM_MEM_FREE(vfe_top);
 end:
 	return rc;
 }
@@ -946,10 +947,10 @@ int cam_vfe_top_ver3_deinit(struct cam_vfe_top  **vfe_top_ptr)
 		}
 	}
 
-	kfree(vfe_top->top_priv);
+	CAM_MEM_FREE(vfe_top->top_priv);
 
 free_vfe_top:
-	kfree(vfe_top);
+	CAM_MEM_FREE(vfe_top);
 	*vfe_top_ptr = NULL;
 
 	return rc;

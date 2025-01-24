@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE_HW_INTF_H_
@@ -29,6 +29,7 @@
 /* Common capabilities for VFE */
 #define CAM_VFE_COMMON_CAP_SKIP_CORE_CFG BIT(0)
 #define CAM_VFE_COMMON_CAP_CORE_MUX_CFG  BIT(1)
+#define CAM_VFE_COMMON_CAP_DEBUG_ERR_VEC BIT(2)
 
 enum cam_isp_hw_vfe_in_mux {
 	CAM_ISP_HW_VFE_IN_CAMIF       = 0,
@@ -333,6 +334,7 @@ struct cam_vfe_top_irq_evt_payload {
  * @ts:                      Timestamp
  * @last_consumed_addr:      Last consumed addr for resource
  * @is_hw_ctxt_comp_done:    Indicates if the buf done is hw context composited
+ * @is_hw_ctxt_comp_done:    Indicates if the irq is for an early done
  */
 struct cam_vfe_bus_irq_evt_payload {
 	struct list_head            list;
@@ -346,6 +348,7 @@ struct cam_vfe_bus_irq_evt_payload {
 	struct cam_isp_timestamp    ts;
 	uint32_t                    last_consumed_addr;
 	bool                        is_hw_ctxt_comp_done;
+	bool                        is_early_done;
 };
 
 /**
@@ -406,16 +409,29 @@ struct cam_vfe_generic_ubwc_config {
 /*
  * struct cam_vfe_generic_debug_config:
  *
+ * @diag_config             : VFE diag cfg register configuration
  * @num_counters            : Number of perf counters configured
  * @vfe_perf_counter_val    : VFE perf counter values
  * @disable_ife_mmu_prefetch: Disable IFE mmu prefetch
  * @enable_ife_frame_irqs:    Enable IFE frame timing IRQs
  */
 struct cam_vfe_generic_debug_config {
+	uint64_t  diag_config;
 	uint32_t  num_counters;
 	uint32_t  vfe_perf_counter_val[CAM_VFE_PERF_CNT_MAX];
 	bool      disable_ife_mmu_prefetch;
 	bool      enable_ife_frame_irqs;
+};
+
+/*
+ * struct cam_vfe_enable_sof_irq_args:
+ *
+ * @enable_sof_irq_debug: Enable IFE/TFE SOF IRQ debug
+ * @res                 : Resource node
+ */
+struct cam_vfe_enable_sof_irq_args {
+	struct cam_isp_resource_node *res;
+	bool                          enable_sof_irq_debug;
 };
 
 /*

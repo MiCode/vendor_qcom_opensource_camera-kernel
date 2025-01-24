@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sensor_cmn_header.h"
 #include "cam_sensor_i2c.h"
 #include "cam_sensor_io.h"
+#include "cam_mem_mgr_api.h"
 
 #define I2C_REG_MAX_BUF_SIZE   8
 
@@ -58,7 +59,7 @@ static inline void  cam_qup_i2c_txdata_fill(
 	struct camera_io_master *dev_client, unsigned char *txdata,
 	uint16_t length, struct i2c_msg *msgs, int curr_mindx)
 {
-	msgs[curr_mindx].addr =  dev_client->client->addr >> 1;
+	msgs[curr_mindx].addr =  dev_client->qup_client->i2c_client->addr >> 1;
 	msgs[curr_mindx].flags = 0;
 	msgs[curr_mindx].len = length;
 	msgs[curr_mindx].buf = txdata;
@@ -69,7 +70,7 @@ static int32_t cam_qup_i2c_txdata(
 	uint16_t length)
 {
 	int32_t rc = 0;
-	uint16_t saddr = dev_client->client->addr >> 1;
+	uint16_t saddr = dev_client->qup_client->i2c_client->addr >> 1;
 	int i2c_msg_size = 1;
 	struct i2c_msg msg[] = {
 		{
@@ -79,7 +80,8 @@ static int32_t cam_qup_i2c_txdata(
 			.buf = txdata,
 		 },
 	};
-	rc = i2c_transfer(dev_client->client->adapter, msg, i2c_msg_size);
+
+	rc = i2c_transfer(dev_client->qup_client->i2c_client->adapter, msg, i2c_msg_size);
 	if (rc == i2c_msg_size)
 		rc = 0;
 	else {
@@ -130,7 +132,11 @@ int32_t cam_qup_i2c_read(struct i2c_client *client,
 
 	rc = cam_qup_i2c_rxdata(client, buf, addr_type, data_type);
 	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "failed rc: %d", rc);
+		// xiaomi modify begin
+		CAM_ERR(CAM_SENSOR,
+			"failed read! saddr:0x%x reg addr:0x%x size:%d rc: %d",
+			client->addr>>1, addr, data_type, rc);
+		// xiaomi modify end
 		goto read_fail;
 	}
 
@@ -194,7 +200,11 @@ int32_t cam_qup_i2c_read_seq(struct i2c_client *client,
 
 	rc = cam_qup_i2c_rxdata(client, buf, addr_type, num_byte);
 	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "failed rc: %d", rc);
+		// xiaomi modify begin
+		CAM_ERR(CAM_SENSOR,
+			"failed read! saddr:0x%x reg addr:0x%x num_byte:%d rc: %d",
+			client->addr>>1, addr, num_byte, rc);
+		// xiaomi modify end
 		goto read_seq_fail;
 	}
 
@@ -281,7 +291,7 @@ static inline int32_t cam_qup_i2c_write_optimized(struct camera_io_master *clien
 	int curr_mindx = 0;
 	int i = 0;
 
-	if (!client || !write_setting)
+	if (!client || !write_setting || !client->qup_client)
 		return -EINVAL;
 
 	reg_setting = write_setting->reg_setting;
@@ -324,8 +334,11 @@ static inline int32_t cam_qup_i2c_write_optimized(struct camera_io_master *clien
 		}
 
 		do {
-			CAM_DBG(CAM_SENSOR, "reg addr: 0x%x Data: 0x%x",
-				reg_setting->reg_addr, reg_setting->reg_data);
+			// xiaomi modify begin
+			CAM_DBG(CAM_SENSOR, "[saddr 0x%x] reg addr: 0x%x Data: 0x%x(bits: %d)",
+				client->qup_client->i2c_client->addr>>1,reg_setting->reg_addr,
+				reg_setting->reg_data, data_type);
+			// xiaomi modify end
 			if (data_type == CAMERA_SENSOR_I2C_TYPE_BYTE) {
 				buf[offset] = reg_setting->reg_data;
 				CAM_DBG(CAM_SENSOR, "Byte %d: 0x%x", len, buf[offset]);
@@ -399,11 +412,14 @@ int32_t cam_qup_i2c_write_table(struct camera_io_master *client,
 	struct i2c_msg *msgs = NULL;
 	unsigned char *buf = NULL;
 	int i2c_msg_size = 0;
+	// xiaomi add begin
+	int i= 0;
+	// xiaomi add end
 
-	if (!client || !write_setting)
+	if (!client || !write_setting || !client->qup_client)
 		return rc;
 
-	msgs = kcalloc(write_setting->size, sizeof(struct i2c_msg), GFP_KERNEL);
+	msgs = CAM_MEM_ZALLOC_ARRAY(write_setting->size, sizeof(struct i2c_msg), GFP_KERNEL);
 	if (!msgs) {
 		CAM_ERR(CAM_SENSOR, "Message Buffer memory allocation failed");
 		return -ENOMEM;
@@ -412,7 +428,7 @@ int32_t cam_qup_i2c_write_table(struct camera_io_master *client,
 	buf = kzalloc(write_setting->size*I2C_REG_MAX_BUF_SIZE, GFP_KERNEL|GFP_DMA);
 	if (!buf) {
 		CAM_ERR(CAM_SENSOR, "Buffer memory allocation failed");
-		kfree(msgs);
+		CAM_MEM_FREE(msgs);
 		return -ENOMEM;
 	}
 
@@ -430,7 +446,7 @@ int32_t cam_qup_i2c_write_table(struct camera_io_master *client,
 		goto deallocate_buffer;
 	}
 
-	rc = i2c_transfer(client->client->adapter, msgs, i2c_msg_size);
+	rc = i2c_transfer(client->qup_client->i2c_client->adapter, msgs, i2c_msg_size);
 	if (write_setting->delay > 20)
 		msleep(write_setting->delay);
 	else if (write_setting->delay)
@@ -442,12 +458,24 @@ int32_t cam_qup_i2c_write_table(struct camera_io_master *client,
 	else {
 		CAM_ERR(CAM_SENSOR, "i2c transfer failed, i2c_msg_size:%d rc:%d",
 			i2c_msg_size, rc);
+		// xiaomi add begin
+		CAM_DEBUG_HW_TRIGGER(false, CAM_SENSOR, "qup rc: %d", rc);
+
+		// dump error setting list
+		CAM_ERR(CAM_SENSOR, "i2c(saddr:0x%x) transfer failed list:",
+			client->qup_client->i2c_client->addr>>1);
+		for (i=0; (i<write_setting->size && i<10);i++){
+			CAM_ERR(CAM_SENSOR, "index:%d reg addr:0x%x data:0x%x",
+				i, write_setting->reg_setting[i].reg_addr,
+				write_setting->reg_setting[i].reg_data);
+		}
+		// xiaomi add end
 		rc = -EIO;
 	}
 
 deallocate_buffer:
 	kfree(buf);
-	kfree(msgs);
+	CAM_MEM_FREE(msgs);
 
 	return rc;
 }
@@ -462,6 +490,11 @@ static int32_t cam_qup_i2c_write_burst(struct camera_io_master *client,
 	struct cam_sensor_i2c_reg_array *reg_setting;
 	enum camera_sensor_i2c_type addr_type;
 	enum camera_sensor_i2c_type data_type;
+
+	if (!client->qup_client) {
+		CAM_ERR(CAM_SENSOR, "qup_client is NULL");
+		return -EINVAL;
+	}
 
 	buf = kzalloc((write_setting->addr_type +
 			(write_setting->size * write_setting->data_type)),

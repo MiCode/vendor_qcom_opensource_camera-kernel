@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -18,6 +19,7 @@
 #include "cam_context_utils.h"
 #include "cam_custom_context.h"
 #include "cam_common_util.h"
+#include "cam_mem_mgr_api.h"
 
 static const char custom_dev_name[] = "cam-custom";
 
@@ -545,7 +547,7 @@ static int __cam_custom_ctx_get_dev_info_in_acquired(struct cam_context *ctx,
 	struct cam_req_mgr_device_info *dev_info)
 {
 	dev_info->dev_hdl = ctx->dev_hdl;
-	strlcpy(dev_info->name, CAM_CUSTOM_DEV_NAME, sizeof(dev_info->name));
+	strscpy(dev_info->name, CAM_CUSTOM_DEV_NAME, sizeof(dev_info->name));
 	dev_info->dev_id = CAM_REQ_MGR_DEVICE_CUSTOM_HW;
 	dev_info->p_delay = 1;
 	dev_info->trigger = CAM_TRIGGER_POINT_SOF;
@@ -980,7 +982,7 @@ static int __cam_custom_ctx_acquire_hw_v1(
 		goto end;
 	}
 
-	acquire_hw_info = kzalloc(cmd->data_size, GFP_KERNEL);
+	acquire_hw_info = CAM_MEM_ZALLOC(cmd->data_size, GFP_KERNEL);
 	if (!acquire_hw_info) {
 		rc = -ENOMEM;
 		goto end;
@@ -1020,11 +1022,11 @@ static int __cam_custom_ctx_acquire_hw_v1(
 		"Acquire HW success on session_hdl 0x%xs for ctx_id %u",
 		ctx->session_hdl, ctx->ctx_id);
 
-	kfree(acquire_hw_info);
+	CAM_MEM_FREE(acquire_hw_info);
 	return rc;
 
 free_res:
-	kfree(acquire_hw_info);
+	CAM_MEM_FREE(acquire_hw_info);
 end:
 	return rc;
 }

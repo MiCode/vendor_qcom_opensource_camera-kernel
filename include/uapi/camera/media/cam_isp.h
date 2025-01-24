@@ -142,8 +142,10 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_VFE_OUT_CONFIG_V2         32
 #define CAM_ISP_GENERIC_BLOB_TYPE_IFE_FCG_CFG               33
 #define CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG_V3            34
+#define CAM_ISP_GENERIC_BLOB_TYPE_EXP_ORDER_UPDATE          35
 
-#define CAM_ISP_VC_DT_CFG    4
+#define CAM_ISP_VC_DT_CFG                4
+#define CAM_ISP_INVALID_VC_VALUE         0xFFFF
 
 #define CAM_ISP_IFE0_HW          0x1
 #define CAM_ISP_IFE1_HW          0x2
@@ -251,6 +253,14 @@
  */
 #define CAM_IFE_WM_RCS_EN                    BIT(1)
 
+
+/*
+ * Indicates exposure orders within a frame time
+ */
+#define CAM_ISP_EXP_ORDER_LAST                1
+#define CAM_ISP_EXP_ORDER_LAST_1              2
+#define CAM_ISP_EXP_ORDER_LAST_2              3
+
 /**
  * struct cam_isp_irq_comp_cfg - CSID composite config for MC-based TFE
  *        Contains information regarding active contexts in CSID CAMIF
@@ -269,6 +279,18 @@ struct cam_isp_irq_comp_cfg {
 	__u32   valid_param_mask;
 	__u32   params[4];
 } __attribute__((packed));
+
+/**
+ * Below macro definition is the param mask for
+ * cam_isp_drv_config.
+ *
+ * CAM_IFE_DRV_BLANKING_THRESHOLD : DRV decision logic uses this value to check
+ *                                  if current request can enable DRV, if the
+ *                                  vertical blanking is greater than this value,
+ *                                  then DRV can be enabled, otherwises, DRV will
+ *                                  be disabled. The unit of this value is millisecond.
+ */
+#define CAM_IFE_DRV_BLANKING_THRESHOLD       BIT(0)
 
 /**
  * struct cam_isp_drv_config - CSID config for DRV
@@ -1460,6 +1482,72 @@ struct cam_isp_init_config {
 struct cam_isp_lcr_rdi_config {
 	__u32                                   res_id;
 	__u32                                   reserved[5];
+};
+
+/**
+ * struct cam_isp_per_path_exp_info - ISP per path exp order info
+ *
+ * This config will contain a map of input/output resource id
+ * to the exposure order. Additionally, hw context id is mapped
+ * for multi-context paths.
+ *
+ * @hw_type           : hw type for exp info
+ *                      Valid values are:
+ *                      CAM_ISP_HW_CSID,
+ *                      CAM_ISP_HW_VFE,
+ *                      CAM_ISP_HW_IFE,
+ *                      CAM_ISP_HW_ISPIF,
+ *                      CAM_ISP_HW_IFE_LITE,
+ *                      CAM_ISP_HW_CSID_LITE,
+ *                      CAM_ISP_HW_SFE,
+ *                      CAM_ISP_HW_MC_TFE
+ * @res_id            : Path or resource id
+ * @hw_ctxt_id        : HW context id if applicable
+ * @exp_order         : Exposure order for this path and hw context
+ *                      combination.
+ *                      Valid values are:
+ *                      CAM_ISP_EXP_ORDER_LAST,
+ *                      CAM_ISP_EXP_ORDER_LAST_1,
+ *                      or CAM_ISP_EXP_ORDER_LAST_2
+ * @num_valid_params  : Number of valid params being used
+ * @valid_param_mask  : Indicate the exact params being used
+ * @params            : Params for future change
+ */
+struct cam_isp_per_path_exp_info {
+	__u32         hw_type;
+	__u32         res_id;
+	__u32         hw_ctxt_id;
+	__u32         exp_order;
+	__u32         num_valid_params;
+	__u32         valid_params_mask;
+	__u32         params[6];
+};
+
+/**
+ * struct cam_isp_path_exp_order_update - ISP exp order update
+ *
+ * This config will contain number of processed and sensor out exposures
+ * applicable until updated. Also, this config contains an array
+ * of path to exposure order info map.
+ *
+ * @version           : Version info
+ * @num_process_exp   : Number of processed exposures
+ * @num_out_exp       : Number of sensor output exposures
+ * @num_path_exp_info : Number of per path exp info
+ * @num_valid_params  : Number of valid params being used
+ * @valid_param_mask  : Indicate the exact params being used
+ * @params            : Params for future change
+ * @exp_info          : Exposure info for each path
+ */
+struct cam_isp_path_exp_order_update {
+	__u32                                   version;
+	__u32                                   num_process_exp;
+	__u32                                   num_sensor_out_exp;
+	__u32                                   num_path_exp_info;
+	__u32                                   num_valid_params;
+	__u32                                   valid_params_mask;
+	__u32                                   params[4];
+	struct cam_isp_per_path_exp_info        exp_info[];
 };
 
 #define CAM_ISP_ACQUIRE_COMMON_VER0         0x1000

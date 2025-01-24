@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SENSOR_UTIL_H_
@@ -20,6 +20,11 @@
 #include "cam_debug_util.h"
 #include "cam_sensor_io.h"
 #include "cam_csiphy_core.h"
+
+// xiaomi add begin
+#define MAX_CCI_DEV         4
+#define MAX_MASTER_DEV      3
+// xiaomi add end
 
 #define INVALID_VREG 100
 #define RES_MGR_GPIO_NEED_HOLD   1
@@ -104,6 +109,18 @@ int32_t cam_sensor_i2c_read_data(
 	struct i2c_settings_array *i2c_settings,
 	struct camera_io_master *io_master_info);
 
+//xiaomi add begain
+int32_t cam_sensor_i2c_read_write_ois_data(
+	struct i2c_settings_array *i2c_settings,
+	struct camera_io_master *io_master_info);
+
+void init_power_sync_mutex(struct cam_sensor_cci_client *cci_client, int master);
+
+void lock_power_sync_mutex(struct cam_sensor_cci_client *cci_client, int master);
+
+void unlock_power_sync_mutex(struct cam_sensor_cci_client *cci_client, int master);
+//xiaomi add end
+
 int32_t delete_request(struct i2c_settings_array *i2c_array);
 int cam_sensor_util_request_gpio_table(
 	struct cam_hw_soc_info *soc_info, int gpio_en);
@@ -142,4 +159,13 @@ static inline int cam_sensor_util_aon_registration(uint32_t phy_idx, uint32_t ao
 	return cam_csiphy_util_update_aon_registration(phy_idx, aon_camera_id);
 }
 
+void cam_sensor_utils_parse_pm_ctrl_flag(struct device_node *of_node,
+	struct camera_io_master *io_master_info);
+
+//add by xiaomi
+int cam_hw_notify_v4l2_error_event( char *name, void *ctrl, uint32_t id,
+	uint32_t error_type, uint32_t error_code);
+
+uint32_t cam_hw_get_cci_ops(struct i2c_settings_list *i2c_list);
+//end
 #endif /* _CAM_SENSOR_UTIL_H_ */

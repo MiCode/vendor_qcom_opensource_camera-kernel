@@ -12,6 +12,8 @@
 #include "cam_common_util.h"
 #include "cam_vmrm_interface.h"
 #include "cam_soc_util.h"
+#include "cam_req_mgr_dev.h"
+#include "cam_mem_mgr_api.h"
 
 struct cam_vmrm_intf_dev *g_vmrm_intf_dev;
 
@@ -176,7 +178,7 @@ static struct gh_acl_desc *cam_populate_acl(enum gh_vm_names vm_name)
 
 	cam_vmrm_ghd_rm_get_vmid(vm_name, &vmid);
 
-	acl_desc = kzalloc(offsetof(struct gh_acl_desc, acl_entries[1]), GFP_KERNEL);
+	acl_desc = CAM_MEM_ZALLOC(offsetof(struct gh_acl_desc, acl_entries[1]), GFP_KERNEL);
 	if (!acl_desc) {
 		CAM_ERR(CAM_VMRM, "Could not reserve memory for ACL entries");
 		return ERR_PTR(-ENOMEM);
@@ -196,7 +198,8 @@ static struct gh_notify_vmid_desc *cam_populate_vmid_desc(enum gh_vm_names vm_na
 
 	cam_vmrm_ghd_rm_get_vmid(vm_name, &vmid);
 
-	vmid_desc = kzalloc(offsetof(struct gh_notify_vmid_desc, vmid_entries[1]), GFP_KERNEL);
+	vmid_desc = CAM_MEM_ZALLOC(offsetof(struct gh_notify_vmid_desc,
+			vmid_entries[1]), GFP_KERNEL);
 	if (!vmid_desc) {
 		CAM_ERR(CAM_VMRM, "Could not reserve memory for vmid entries");
 		return ERR_PTR(-ENOMEM);
@@ -538,20 +541,20 @@ static void cam_mem_notification_svm_handler(
 	hw = cam_hw_instance_lookup(0, cam_mem_tag, 0, 0);
 	if (!hw) {
 		CAM_ERR(CAM_VMRM, "Look up hw mem tag failed %d", cam_mem_tag);
-		kfree(acl_desc);
+		CAM_MEM_FREE(acl_desc);
 		return;
 	}
 	rc = cam_vmrm_gh_mem_accept(mem_hdl_gh, GH_RM_MEM_TYPE_IO,
 		trans_type, flags_accept, label, acl_desc, NULL, NULL, 0);
 	if (rc) {
 		CAM_ERR(CAM_VMRM, "Mem accept failed for tag: %d, rc: %d", cam_mem_tag, rc);
-		kfree(acl_desc);
+		CAM_MEM_FREE(acl_desc);
 		return;
 	}
 
 	CAM_DBG(CAM_VMRM, "Mem accept succeed for tag: %d handle: %d hw id 0x%x",
 		cam_mem_tag, mem_hdl_gh, hw->hw_id);
-	kfree(acl_desc);
+	CAM_MEM_FREE(acl_desc);
 
 	spin_lock(&hw->spin_lock);
 	hw->resources.ready_mask |= BIT(0);
@@ -895,9 +898,9 @@ static int cam_vmrm_mem_lend_and_notify(u8 mem_type, u8 flags, uint32_t label,
 	CAM_DBG(CAM_VMRM, "Mem lend and notify label: %d succeed", label);
 
 free_vmid_desc:
-	kfree(vmid_desc);
+	CAM_MEM_FREE(vmid_desc);
 free_acl_desc:
-	kfree(acl_desc);
+	CAM_MEM_FREE(acl_desc);
 	return rc;
 }
 
@@ -954,7 +957,7 @@ static void cam_clean_io_mem(struct list_head *mem_list)
 	if (!list_empty(mem_list)) {
 		list_for_each_entry_safe(pos, tmp, mem_list, list) {
 			list_del(&pos->list);
-			kfree(pos);
+			CAM_MEM_FREE(pos);
 		}
 	}
 }
@@ -966,7 +969,7 @@ static void cam_clean_io_irq(struct list_head *irq_list)
 	if (!list_empty(irq_list)) {
 		list_for_each_entry_safe(pos, tmp, irq_list, list) {
 			list_del(&pos->list);
-			kfree(pos);
+			CAM_MEM_FREE(pos);
 		}
 	}
 }
@@ -978,7 +981,7 @@ static void cam_clean_hw_instance(struct list_head *hw_list)
 	if (!list_empty(hw_list)) {
 		list_for_each_entry_safe(pos, tmp, hw_list, list) {
 			list_del(&pos->list);
-			kfree(pos);
+			CAM_MEM_FREE(pos);
 		}
 	}
 }
@@ -1005,7 +1008,7 @@ int cam_populate_irq_resource_info(struct cam_hw_instance *hw_pos)
 	vmrm_intf_dev = cam_vmrm_get_intf_dev();
 
 	for (i = 0; i < hw_pos->resources.irq_count; i++) {
-		irq_entry = kzalloc(sizeof(*irq_entry), GFP_KERNEL);
+		irq_entry = CAM_MEM_ZALLOC(sizeof(*irq_entry), GFP_KERNEL);
 		if (!irq_entry) {
 			CAM_ERR(CAM_VMRM, "irq entry allocate memory failed");
 			return -ENOMEM;
@@ -1062,7 +1065,7 @@ int cam_populate_mem_resource_info(struct cam_hw_instance *hw_pos)
 				hw_pos->resources.mem_block_addr[i]);
 		}
 
-		mem_entry = kzalloc(sizeof(*mem_entry), GFP_KERNEL);
+		mem_entry = CAM_MEM_ZALLOC(sizeof(*mem_entry), GFP_KERNEL);
 		if (!mem_entry) {
 			CAM_ERR(CAM_VMRM, "io mem entry allocate memory failed");
 			mutex_unlock(&vmrm_intf_dev->lock);
@@ -1120,7 +1123,7 @@ int cam_populate_gpio_resource_info(struct cam_hw_instance *hw_pos)
 					hw_pos->hw_id, hw_pos->resources.gpio_num[i]);
 			}
 
-			mem_entry = kzalloc(sizeof(*mem_entry), GFP_KERNEL);
+			mem_entry = CAM_MEM_ZALLOC(sizeof(*mem_entry), GFP_KERNEL);
 			if (!mem_entry) {
 				rc = -ENOMEM;
 				CAM_ERR(CAM_VMRM, "gpio mem allocate memory failed");
@@ -1198,7 +1201,7 @@ static int cam_vmrm_lend_mem_resources(struct cam_hw_instance *hw_pos, uint32_t 
 	struct gh_sgl_desc *sgl_desc = NULL;
 	struct cam_io_mem_entry *mem, *mem_temp;
 
-	sgl_desc = kzalloc(offsetof(struct gh_sgl_desc,
+	sgl_desc = CAM_MEM_ZALLOC(offsetof(struct gh_sgl_desc,
 		sgl_entries[hw_pos->resources.num_mem_block + hw_pos->resources.gpio_count]),
 		GFP_KERNEL);
 	if (!sgl_desc) {
@@ -1259,7 +1262,7 @@ static int cam_vmrm_lend_mem_resources(struct cam_hw_instance *hw_pos, uint32_t 
 
 	if (!sgl_desc->n_sgl_entries) {
 		CAM_DBG(CAM_VMRM, "Not mem need to lend hw id 0x%x", hw_pos->hw_id);
-		kfree(sgl_desc);
+		CAM_MEM_FREE(sgl_desc);
 		return 0;
 	}
 
@@ -1270,7 +1273,7 @@ static int cam_vmrm_lend_mem_resources(struct cam_hw_instance *hw_pos, uint32_t 
 			"hw_id 0x%x mem lend and notify mem label %d rc: %d",
 			hw_pos->hw_id, hw_pos->resources.mem_label, rc);
 
-	kfree(sgl_desc);
+	CAM_MEM_FREE(sgl_desc);
 end:
 	return rc;
 }
@@ -1611,7 +1614,7 @@ void cam_vmrm_msg_handle(void *msg, size_t size, struct cam_intervm_response *re
 		/* this memory is freed inside qrtr layer */
 		if (need_response) {
 			msg_size = offsetof(struct cam_vmrm_msg, data[1]);
-			res_msg_local = kzalloc((msg_size), GFP_KERNEL);
+			res_msg_local = CAM_MEM_ZALLOC((msg_size), GFP_KERNEL);
 			if (!res_msg_local) {
 				CAM_ERR(CAM_VMRM, "res msg mem allocate failed");
 				goto free_recv_msg;
@@ -1784,7 +1787,7 @@ int cam_vmrm_resource_req(struct cam_hw_instance *hw_pos, bool is_req)
 	enum gh_vm_names vmname;
 
 	resource_cnt = hw_pos->resources.resource_cnt;
-	resource = kcalloc(resource_cnt, sizeof(*resource), GFP_KERNEL);
+	resource = CAM_ZALLOC_ARRAY(resource_cnt, sizeof(*resource), GFP_KERNEL);
 	if (!resource) {
 		CAM_ERR(CAM_VMRM, "no memory for hw id 0x%x", hw_pos->hw_id);
 		return -ENOMEM;
@@ -1839,7 +1842,7 @@ int cam_vmrm_resource_req(struct cam_hw_instance *hw_pos, bool is_req)
 	}
 
 free_res:
-	kfree(resource);
+	CAM_MEM_FREE(resource);
 
 	return rc;
 }
@@ -1849,7 +1852,7 @@ int cam_register_gh_res_callback(void)
 	int rc = 0;
 	struct gh_resource_client *client;
 
-	client = kzalloc(sizeof(*client), GFP_KERNEL);
+	client = CAM_MEM_ZALLOC(sizeof(*client), GFP_KERNEL);
 	if (!client) {
 		CAM_ERR(CAM_VMRM, " gh resource client allocate memory failed");
 		return -ENOMEM;
@@ -1863,7 +1866,7 @@ int cam_register_gh_res_callback(void)
 		rc = cam_vmrm_gh_resource_register_req_client(client);
 		if (rc) {
 			CAM_ERR(CAM_VMRM, "PVM resource register req cb failed rc: %d", rc);
-			kfree(client);
+			CAM_MEM_FREE(client);
 			goto end;
 		}
 		CAM_DBG(CAM_VMRM, "PVM resource register req cb succeed");
@@ -1871,7 +1874,7 @@ int cam_register_gh_res_callback(void)
 		rc = cam_vmrm_gh_resource_register_release_client(client);
 		if (rc) {
 			CAM_ERR(CAM_VMRM, "SVM resource register release cb failed rc: %d", rc);
-			kfree(client);
+			CAM_MEM_FREE(client);
 			goto end;
 		}
 		CAM_DBG(CAM_VMRM, "SVM resource register release cb succeed");
@@ -1911,7 +1914,7 @@ int cam_unregister_gh_res_callback(void)
 	}
 
 end:
-	kfree(client);
+	CAM_MEM_FREE(client);
 	return rc;
 }
 #else
@@ -2667,13 +2670,16 @@ static int cam_vmrm_debugfs_init(struct cam_vmrm_intf_dev *vmrm_dev)
 static int cam_vmrm_intf_bind(struct device *dev,
 	struct device *parent_dev, void *data)
 {
-	int rc = 0;
-	struct platform_device *pdev;
-	bool is_server_vm = false;
+	int                       rc = 0;
+	struct platform_device   *pdev;
+	bool                      is_server_vm = false;
+	struct timespec64         ts_start, ts_end;
+	long                      microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	pdev = to_platform_device(dev);
 
-	g_vmrm_intf_dev = kzalloc(sizeof(struct cam_vmrm_intf_dev), GFP_KERNEL);
+	g_vmrm_intf_dev = CAM_MEM_ZALLOC(sizeof(struct cam_vmrm_intf_dev), GFP_KERNEL);
 	if (!g_vmrm_intf_dev) {
 		CAM_ERR(CAM_VMRM, "VM resource manager device allocate failed");
 		rc = -ENOMEM;
@@ -2692,7 +2698,8 @@ static int cam_vmrm_intf_bind(struct device *dev,
 	INIT_LIST_HEAD(&g_vmrm_intf_dev->io_res.irq);
 	INIT_LIST_HEAD(&g_vmrm_intf_dev->io_res.mem);
 
-	g_vmrm_intf_dev->ops_table = kzalloc(sizeof(struct cam_inter_vm_comms_ops), GFP_KERNEL);
+	g_vmrm_intf_dev->ops_table = CAM_MEM_ZALLOC(sizeof(struct cam_inter_vm_comms_ops),
+							GFP_KERNEL);
 	if (!g_vmrm_intf_dev->ops_table) {
 		CAM_ERR(CAM_VMRM, "allocate qrtr function table mem failed");
 		rc = -ENOMEM;
@@ -2718,12 +2725,15 @@ static int cam_vmrm_intf_bind(struct device *dev,
 
 	CAM_DBG(CAM_VMRM, "VMRM %d name %s driver bind succeed", g_vmrm_intf_dev->cam_vmid,
 		CAM_GET_VM_NAME());
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 
 	return rc;
 free_ops_table:
-	kfree(g_vmrm_intf_dev->ops_table);
+	CAM_MEM_FREE(g_vmrm_intf_dev->ops_table);
 free_vmrm_intf_dev:
-	kfree(g_vmrm_intf_dev);
+	CAM_MEM_FREE(g_vmrm_intf_dev);
 	return rc;
 }
 
@@ -2748,8 +2758,8 @@ static void cam_vmrm_intf_unbind(struct device *dev,
 		CAM_ERR(CAM_VMRM, "deinit internal vm communication failed");
 
 	mutex_destroy(&g_vmrm_intf_dev->lock);
-	kfree(g_vmrm_intf_dev->ops_table);
-	kfree(g_vmrm_intf_dev);
+	CAM_MEM_FREE(g_vmrm_intf_dev->ops_table);
+	CAM_MEM_FREE(g_vmrm_intf_dev);
 }
 
 static const struct component_ops cam_vmrm_intf_ops = {

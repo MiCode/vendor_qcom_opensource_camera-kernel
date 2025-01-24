@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -16,6 +16,7 @@
 #include "cam_fd_hw_mgr.h"
 #include "cam_fd_hw_mgr_intf.h"
 #include "camera_main.h"
+#include "cam_req_mgr_dev.h"
 
 #define CAM_FD_DEV_NAME "cam-fd"
 
@@ -120,7 +121,10 @@ static int cam_fd_dev_component_bind(struct device *dev,
 	struct cam_hw_mgr_intf hw_mgr_intf;
 	struct cam_node *node;
 	struct platform_device *pdev = to_platform_device(dev);
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	g_fd_dev.sd.internal_ops = &cam_fd_subdev_internal_ops;
 	g_fd_dev.sd.close_seq_prior = CAM_SD_CLOSE_MEDIUM_PRIORITY;
 
@@ -161,6 +165,9 @@ static int cam_fd_dev_component_bind(struct device *dev,
 	mutex_init(&g_fd_dev.lock);
 	g_fd_dev.probe_done = true;
 	CAM_DBG(CAM_FD, "Component bound successfully");
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 
 	return 0;
 

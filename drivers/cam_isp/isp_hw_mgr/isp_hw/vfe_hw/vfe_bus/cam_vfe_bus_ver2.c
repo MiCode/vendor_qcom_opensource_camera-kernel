@@ -20,6 +20,7 @@
 #include "cam_vfe_core.h"
 #include "cam_debug_util.h"
 #include "cam_cpas_api.h"
+#include "cam_mem_mgr_api.h"
 
 static const char drv_name[] = "vfe_bus";
 
@@ -301,10 +302,11 @@ static int cam_vfe_bus_put_evt_payload(
 		return -EINVAL;
 	}
 
+	CAM_COMMON_SANITIZE_LIST_ENTRY((*evt_payload), struct cam_vfe_bus_irq_evt_payload);
 	spin_lock_irqsave(&common_data->spin_lock, flags);
 	if (common_data->hw_init)
-		list_add_tail(&(*evt_payload)->list,
-			&common_data->free_payload_list);
+		list_add_tail(&(*evt_payload)->list, &common_data->free_payload_list);
+
 	spin_unlock_irqrestore(&common_data->spin_lock, flags);
 
 	*evt_payload = NULL;
@@ -1488,7 +1490,7 @@ static int cam_vfe_bus_init_wm_resource(uint32_t index,
 {
 	struct cam_vfe_bus_ver2_wm_resource_data *rsrc_data;
 
-	rsrc_data = kzalloc(sizeof(struct cam_vfe_bus_ver2_wm_resource_data),
+	rsrc_data = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_bus_ver2_wm_resource_data),
 		GFP_KERNEL);
 	if (!rsrc_data) {
 		CAM_DBG(CAM_ISP, "Failed to alloc for WM res priv");
@@ -1530,7 +1532,7 @@ static int cam_vfe_bus_deinit_wm_resource(
 	wm_res->res_priv = NULL;
 	if (!rsrc_data)
 		return -ENOMEM;
-	kfree(rsrc_data);
+	CAM_MEM_FREE(rsrc_data);
 
 	return 0;
 }
@@ -1982,7 +1984,7 @@ static int cam_vfe_bus_init_comp_grp(uint32_t index,
 {
 	struct cam_vfe_bus_ver2_comp_grp_data *rsrc_data = NULL;
 
-	rsrc_data = kzalloc(sizeof(struct cam_vfe_bus_ver2_comp_grp_data),
+	rsrc_data = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_bus_ver2_comp_grp_data),
 		GFP_KERNEL);
 	if (!rsrc_data)
 		return -ENOMEM;
@@ -2035,7 +2037,7 @@ static int cam_vfe_bus_deinit_comp_grp(
 		CAM_ERR(CAM_ISP, "comp_grp_priv is NULL");
 		return -ENODEV;
 	}
-	kfree(rsrc_data);
+	CAM_MEM_FREE(rsrc_data);
 
 	return 0;
 }
@@ -2491,7 +2493,7 @@ static int cam_vfe_bus_init_vfe_out_resource(uint32_t  index,
 		return -EFAULT;
 	}
 
-	rsrc_data = kzalloc(sizeof(struct cam_vfe_bus_ver2_vfe_out_data),
+	rsrc_data = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_bus_ver2_vfe_out_data),
 		GFP_KERNEL);
 	if (!rsrc_data) {
 		rc = -ENOMEM;
@@ -2555,7 +2557,7 @@ static int cam_vfe_bus_deinit_vfe_out_resource(
 
 	if (!rsrc_data)
 		return -ENOMEM;
-	kfree(rsrc_data);
+	CAM_MEM_FREE(rsrc_data);
 
 	return 0;
 }
@@ -3841,14 +3843,14 @@ int cam_vfe_bus_ver2_init(
 		goto end;
 	}
 
-	vfe_bus_local = kzalloc(sizeof(struct cam_vfe_bus), GFP_KERNEL);
+	vfe_bus_local = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_bus), GFP_KERNEL);
 	if (!vfe_bus_local) {
 		CAM_DBG(CAM_ISP, "Failed to alloc for vfe_bus");
 		rc = -ENOMEM;
 		goto end;
 	}
 
-	bus_priv = kzalloc(sizeof(struct cam_vfe_bus_ver2_priv),
+	bus_priv = CAM_MEM_ZALLOC(sizeof(struct cam_vfe_bus_ver2_priv),
 		GFP_KERNEL);
 	if (!bus_priv) {
 		CAM_DBG(CAM_ISP, "Failed to alloc for vfe_bus_priv");
@@ -3957,10 +3959,10 @@ deinit_wm:
 		cam_vfe_bus_deinit_wm_resource(&bus_priv->bus_client[i]);
 
 free_bus_priv:
-	kfree(vfe_bus_local->bus_priv);
+	CAM_MEM_FREE(vfe_bus_local->bus_priv);
 
 free_bus_local:
-	kfree(vfe_bus_local);
+	CAM_MEM_FREE(vfe_bus_local);
 
 end:
 	return rc;
@@ -4026,10 +4028,10 @@ int cam_vfe_bus_ver2_deinit(
 			"Deinit IRQ Controller failed rc=%d", rc);
 
 	mutex_destroy(&bus_priv->common_data.bus_mutex);
-	kfree(vfe_bus_local->bus_priv);
+	CAM_MEM_FREE(vfe_bus_local->bus_priv);
 
 free_bus_local:
-	kfree(vfe_bus_local);
+	CAM_MEM_FREE(vfe_bus_local);
 
 	*vfe_bus = NULL;
 

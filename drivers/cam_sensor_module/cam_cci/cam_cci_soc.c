@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_cci_dev.h"
@@ -125,12 +125,21 @@ int cam_cci_init(struct v4l2_subdev *sd,
 
 	master = c_ctrl->cci_info->cci_i2c_master;
 	soc_info = &cci_dev->soc_info;
+
+	if (!soc_info) {
+		CAM_ERR(CAM_CCI,
+			"CCI%d_I2C_M%d failed: invalid params soc_info:%pK",
+			cci_dev->soc_info.index, master, soc_info);
+		rc = -EINVAL;
+		return rc;
+	}
+
 	base = soc_info->reg_map[0].mem_base;
 
-	if (!soc_info || !base) {
+	if (!base) {
 		CAM_ERR(CAM_CCI,
-			"CCI%d_I2C_M%d failed: invalid params soc_info:%pK, base:%pK",
-			cci_dev->soc_info.index, master, soc_info, base);
+			"CCI%d_I2C_M%d failed: invalid params base:%pK",
+			cci_dev->soc_info.index, master, base);
 		rc = -EINVAL;
 		return rc;
 	}
@@ -250,6 +259,7 @@ static void cam_cci_init_cci_params(struct cci_device *new_cci_dev)
 		mutex_init(&new_cci_dev->cci_master_info[i].mutex);
 		sema_init(&new_cci_dev->cci_master_info[i].master_sem, 1);
 		mutex_init(&new_cci_dev->cci_master_info[i].freq_cnt_lock);
+		mutex_init(&new_cci_dev->cci_master_info[i].master_mutex);
 		init_completion(
 			&new_cci_dev->cci_master_info[i].reset_complete);
 		init_completion(

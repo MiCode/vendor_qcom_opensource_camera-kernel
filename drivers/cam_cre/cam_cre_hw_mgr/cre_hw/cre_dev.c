@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/of_device.h>
@@ -21,6 +21,7 @@
 #include "cre_dev_intf.h"
 #include "cam_smmu_api.h"
 #include "camera_main.h"
+#include "cam_mem_mgr_api.h"
 
 static struct cam_cre_hw_intf_data cam_cre_dev_list[CRE_DEV_MAX];
 static struct cam_cre_device_hw_info cre_hw_info;
@@ -111,17 +112,20 @@ static int cam_cre_component_bind(struct device *dev,
 	int rc = 0;
 
 	struct platform_device *pdev = to_platform_device(dev);
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	of_property_read_u32(pdev->dev.of_node,
 		"cell-index", &hw_idx);
 
-	cre_dev_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
+	cre_dev_intf = CAM_MEM_ZALLOC(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!cre_dev_intf)
 		return -ENOMEM;
 
 	cre_dev_intf->hw_idx = hw_idx;
 	cre_dev_intf->hw_type = CRE_DEV_CRE;
-	cre_dev = kzalloc(sizeof(struct cam_hw_info), GFP_KERNEL);
+	cre_dev = CAM_MEM_ZALLOC(sizeof(struct cam_hw_info), GFP_KERNEL);
 	if (!cre_dev) {
 		rc = -ENOMEM;
 		goto cre_dev_alloc_failed;
@@ -151,7 +155,7 @@ static int cam_cre_component_bind(struct device *dev,
 	platform_set_drvdata(pdev, cre_dev_intf);
 
 
-	cre_dev->core_info = kzalloc(sizeof(struct cam_cre_device_core_info),
+	cre_dev->core_info = CAM_MEM_ZALLOC(sizeof(struct cam_cre_device_core_info),
 		GFP_KERNEL);
 	if (!cre_dev->core_info) {
 		rc = -ENOMEM;
@@ -232,6 +236,9 @@ static int cam_cre_component_bind(struct device *dev,
 		cam_cre_dev_list[cre_dev_intf->hw_idx].hw_pid[i] =
 			soc_private->pid[i];
 
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 	return rc;
 
 init_hw_failure:
@@ -239,11 +246,11 @@ enable_soc_failed:
 register_cpas_failed:
 init_soc_failed:
 cre_match_dev_failed:
-	kfree(cre_dev->core_info);
+	CAM_MEM_FREE(cre_dev->core_info);
 cre_core_alloc_failed:
-	kfree(cre_dev);
+	CAM_MEM_FREE(cre_dev);
 cre_dev_alloc_failed:
-	kfree(cre_dev_intf);
+	CAM_MEM_FREE(cre_dev_intf);
 	return rc;
 }
 

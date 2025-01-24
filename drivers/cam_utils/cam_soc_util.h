@@ -29,6 +29,10 @@
 #include <linux/soc/qcom/msm_mmrm.h>
 #endif
 
+// XIAOMI ADD: FeatureAutoEQ
+#include "cam_context.h"
+// END: FeatureAutoEQ
+
 #define NO_SET_RATE  -1
 #define INIT_RATE    -2
 
@@ -258,6 +262,7 @@ struct cam_soc_gpio_data {
  * @applied_src_clk_rates:  Applied src clock rates for SW and HW client
  * @clk_level_valid:        Indicates whether corresponding level is valid
  * @lowest_clk_level:       Lowest clock level that has valid freq info
+ * @highest_clk_level:      Highest clock level that has valid freq info
  * @scl_clk_count:          Number of scalable clocks present
  * @scl_clk_idx:            Index of scalable clocks
  * @optional_clk_name:      Array of clock names
@@ -270,6 +275,7 @@ struct cam_soc_gpio_data {
  * @gpio_data:              Pointer to gpio info
  * @mmrm_handle:            MMRM Client handle for src clock
  * @is_clk_drv_en:          If clock drv is enabled in hw
+ * @is_crmb_clk:            If clock supports CRMB passthrough when voting
  * @pinctrl_info:           Pointer to pinctrl info
  * @dentry:                 Debugfs entry
  * @clk_level_override_high:Clk level set from debugfs. When cesta is enabled, used to override
@@ -332,6 +338,7 @@ struct cam_hw_soc_info {
 	struct cam_soc_util_clk_rates   applied_src_clk_rates;
 	bool                            clk_level_valid[CAM_MAX_VOTE];
 	uint32_t                        lowest_clk_level;
+	uint32_t                        highest_clk_level;
 	int32_t                         scl_clk_count;
 	int32_t                         scl_clk_idx[CAM_SOC_MAX_CLK];
 	const char                     *optional_clk_name[CAM_SOC_MAX_OPT_CLK];
@@ -343,6 +350,7 @@ struct cam_hw_soc_info {
 	void                           *mmrm_handle;
 
 	bool                            is_clk_drv_en;
+	bool                            is_crmb_clk;
 
 	struct cam_soc_gpio_data       *gpio_data;
 	struct cam_soc_pinctrl_info     pinctrl_info;
@@ -360,6 +368,10 @@ struct cam_hw_soc_info {
 	uint32_t                        num_vmrm_resource_ids;
 	uint32_t                        vmrm_resource_ids[CAM_VMRM_MAX_RESOURCE_IDS];
 #endif
+
+	// XIAOMI ADD: FeatureAutoEQ
+	uint8_t                         phy_cfg_current_index[CAM_PHY_MAX_CTRL_NO];
+	// END: FeatureAutoEQ
 };
 
 /**
@@ -689,6 +701,16 @@ int cam_soc_util_irq_enable(struct cam_hw_soc_info *soc_info);
 int cam_soc_util_irq_disable(struct cam_hw_soc_info *soc_info);
 
 /**
+ * cam_soc_util_get_regulator_enable()
+ *
+ * @brief:              Enable single regulator
+ *
+ * @rgltr               Regulator that needs to be turned ON
+ * @return:             Success or failure
+ */
+int cam_soc_util_get_regulator_enable(struct regulator *rgltr, const char *name);
+
+/**
  * cam_soc_util_regulator_enable()
  *
  * @brief:              Enable single regulator
@@ -868,6 +890,8 @@ typedef int (*cam_soc_util_regspace_data_cb)(uint32_t reg_base_type,
  * @soc_dump_args:         Dump buffer args to dump the soc information.
  * @user_triggered_dump:   Flag to indicate if the dump request is issued by
  *                         user.
+ * @cpu_addr:              cpu address of buffer
+ * @size:                  size of buffer
  * @return:                Success or Failure
  */
 int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
@@ -875,7 +899,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 	cam_soc_util_regspace_data_cb reg_data_cb,
 	struct cam_hw_soc_dump_args *soc_dump_args,
 	struct cam_hw_soc_skip_dump_args *soc_skip_dump_args,
-	bool user_triggered_dump);
+	bool user_triggered_dump, uintptr_t cpu_addr, size_t buf_size);
 
 /**
  * cam_soc_util_print_clk_freq()

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -18,6 +18,7 @@
 #include "cam_smmu_api.h"
 #include "camera_main.h"
 #include "cam_context_utils.h"
+#include "cam_mem_mgr_api.h"
 
 #define CAM_CRE_DEV_NAME "cam-cre"
 
@@ -132,7 +133,10 @@ static int cam_cre_subdev_component_bind(struct device *dev,
 	struct cam_node *node;
 	int iommu_hdl = -1;
 	struct platform_device *pdev = to_platform_device(dev);
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	g_cre_dev.sd.pdev = pdev;
 	g_cre_dev.sd.internal_ops = &cam_cre_subdev_internal_ops;
 	rc = cam_subdev_probe(&g_cre_dev.sd, pdev, CAM_CRE_DEV_NAME,
@@ -143,7 +147,7 @@ static int cam_cre_subdev_component_bind(struct device *dev,
 	}
 	node = (struct cam_node *)g_cre_dev.sd.token;
 
-	hw_mgr_intf = kzalloc(sizeof(*hw_mgr_intf), GFP_KERNEL);
+	hw_mgr_intf = CAM_MEM_ZALLOC(sizeof(*hw_mgr_intf), GFP_KERNEL);
 	if (!hw_mgr_intf) {
 		CAM_ERR(CAM_CRE, "Error allocating memory");
 		rc = -ENOMEM;
@@ -182,6 +186,9 @@ static int cam_cre_subdev_component_bind(struct device *dev,
 
 	g_cre_dev.open_cnt = 0;
 	mutex_init(&g_cre_dev.cre_lock);
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 
 	CAM_DBG(CAM_CRE, "Component bound successfully");
 
@@ -192,7 +199,7 @@ ctx_init_fail:
 		if (cam_cre_context_deinit(&g_cre_dev.ctx_cre[i]))
 			CAM_ERR(CAM_CRE, "deinit fail %d %d", i, rc);
 hw_init_fail:
-	kfree(hw_mgr_intf);
+	CAM_MEM_FREE(hw_mgr_intf);
 hw_alloc_fail:
 	if (cam_subdev_remove(&g_cre_dev.sd))
 		CAM_ERR(CAM_CRE, "remove fail %d", rc);

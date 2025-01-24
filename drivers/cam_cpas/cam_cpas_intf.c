@@ -28,12 +28,14 @@
 #include <linux/soc/qcom/llcc-qcom.h>
 #include "cam_req_mgr_interface.h"
 #include "cam_vmrm_interface.h"
+#include "cam_mem_mgr_api.h"
+#include "cam_req_mgr_dev.h"
 
-#ifdef CONFIG_DYNAMIC_FD_PORT_CONFIG
+#if defined(CONFIG_DYNAMIC_FD_PORT_CONFIG) || defined(CONFIG_SPECTRA_SECURE_DYN_PORT_CFG)
 #include <linux/IClientEnv.h>
 #include <linux/ITrustedCameraDriver.h>
 #include <linux/CTrustedCameraDriver.h>
-#define CAM_CPAS_ERROR_NOT_ALLOWED 10
+#define CAM_CPAS_MIN_DPC_LEN 1
 #endif
 
 #define CAM_CPAS_DEV_NAME    "cam-cpas"
@@ -524,6 +526,42 @@ static inline enum cam_cpas_reg_base __cam_cpas_get_internal_reg_base(
 		return CAM_CPAS_REG_MAX;
 	}
 }
+
+int cam_cpas_set_addr_trans(uint32_t client_handle,
+	struct cam_cpas_addr_trans_data *addr_trans_data)
+{
+	int rc;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+
+	if (!addr_trans_data) {
+		CAM_ERR(CAM_CPAS, "Invalid addr_trans_data");
+		return -EINVAL;
+	}
+
+	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
+		struct cam_cpas_hw_addr_trans_data cmd_add_trans;
+
+		cmd_add_trans.client_handle = client_handle;
+		cmd_add_trans.addr_trans_data = addr_trans_data;
+
+		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
+			g_cpas_intf->hw_intf->hw_priv,
+			CAM_CPAS_HW_CMD_SET_ADDR_TRANS, &cmd_add_trans,
+			sizeof(struct cam_cpas_hw_addr_trans_data));
+		if (rc)
+			CAM_ERR(CAM_CPAS, "Failed in process_cmd, rc=%d", rc);
+	} else {
+		CAM_ERR(CAM_CPAS, "Invalid process_cmd ops");
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(cam_cpas_set_addr_trans);
 
 int cam_cpas_reg_write(uint32_t client_handle, enum cam_cpas_regbase_types reg_base,
 	uint32_t offset, bool mb, uint32_t value)
@@ -1292,7 +1330,7 @@ static int cam_cpas_handle_fd_port_config(uint32_t is_secure)
 
 	rc = ITrustedCameraDriver_dynamicConfigureFDPort(sc_object, is_secure);
 	if (rc) {
-		if (rc == CAM_CPAS_ERROR_NOT_ALLOWED) {
+		if (rc == ITRUSTEDCAMERADRIVER_ERROR_NOT_ALLOWED) {
 			CAM_ERR(CAM_CPAS, "Dynamic FD port config not allowed");
 			rc = -EPERM;
 		} else {
@@ -1382,6 +1420,196 @@ static int cam_cpas_handle_custom_config_cmd(struct cam_cpas_intf *cpas_intf,
 
 	return rc;
 }
+
+#ifdef CONFIG_SPECTRA_SECURE_DYN_PORT_CFG
+static int cam_cpas_get_scm_device_type(enum cam_device_type device_type,
+	uint32_t *scm_dev_type)
+{
+	int rc = 0;
+
+	switch (device_type) {
+	/* Add support for more devices as per the requirements */
+	case CAM_CPAS_HW_TYPE_IPE:
+		*scm_dev_type = ITRUSTEDCAMERADRIVER_IPE;
+		break;
+	default:
+		CAM_ERR(CAM_CPAS, "unsupported dev type for SCM call",
+			device_type);
+		rc = -EINVAL;
+	}
+	return rc;
+}
+
+static int cam_cpas_get_scm_port_info(struct cam_cpas_cp_mapping_config_info *config,
+	struct PortInfo *port_info)
+{
+	int rc = 0;
+	int i;
+
+	switch (config->device_type) {
+	/* Add support for more devices as per the requirements */
+	case CAM_CPAS_HW_TYPE_IPE:
+		for (i = 0; i < config->num_ports; i++) {
+			/* Add support for more ports as per the requirements */
+			if (config->port_ids[i] == CAM_CPAS_IPE_OUTPUT_IMAGE_DISPLAY) {
+				port_info->port_id[port_info->num_ports++] = IPE_DISP_C;
+				port_info->port_id[port_info->num_ports++] = IPE_DISP_Y;
+			} else {
+				CAM_ERR(CAM_CPAS, "unsupported port for DCP call",
+					config->port_ids[i]);
+				rc = -EINVAL;
+				break;
+			}
+		}
+		break;
+	default:
+		CAM_ERR(CAM_CPAS, "unsupported dev type for SCM call",
+			config->device_type);
+		rc = -EINVAL;
+	}
+	return rc;
+}
+
+int cam_cpas_config_cp_mapping_ctrl(
+	struct cam_cpas_cp_mapping_config_info *config)
+{
+	int rc = 0;
+	struct Object client_env, sc_object;
+	struct cam_hw_info *cpas_hw = NULL;
+	struct cam_cpas *cpas_core;
+	struct PortInfo port_info = {0};
+	int scm_dev_type;
+
+	if (!config) {
+		CAM_ERR(CAM_CPAS, "Invalid CP mapping config");
+		return -EINVAL;
+	}
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -EINVAL;
+	}
+
+	cpas_hw = (struct cam_hw_info *) g_cpas_intf->hw_intf->hw_priv;
+	if (!cpas_hw) {
+		CAM_ERR(CAM_CPAS, "cpas_hw handle not initialized");
+		return -EINVAL;
+	}
+
+	cpas_core = (struct cam_cpas *) cpas_hw->core_info;
+	mutex_lock(&cpas_hw->hw_mutex);
+
+	if (cpas_core->streamon_clients == 0) {
+		/* Need to vote first before enabling clocks */
+		rc = cam_cpas_util_vote_default_ahb_axi(cpas_hw, true);
+		if (rc) {
+			CAM_ERR(CAM_CPAS,
+				"failed to vote for the default ahb/axi clock, rc=%d", rc);
+			goto release_mutex;
+		}
+
+		rc = cam_cpas_soc_enable_resources(&cpas_hw->soc_info,
+			cpas_hw->soc_info.lowest_clk_level);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "failed in soc_enable_resources, rc=%d", rc);
+			goto remove_default_vote;
+		}
+	}
+
+	rc = get_client_env_object(&client_env);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed getting mink env object, rc: %d", rc);
+		goto disable_resources;
+	}
+
+	rc = IClientEnv_open(client_env, CTrustedCameraDriver_UID, &sc_object);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed getting mink sc_object, rc: %d", rc);
+		goto client_release;
+	}
+
+	rc = cam_cpas_get_scm_device_type(config->device_type, &scm_dev_type);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed to get SCM device type, rc: %d", rc);
+		goto obj_release;
+	}
+
+	port_info.hw_type = scm_dev_type;
+	port_info.hw_id_mask = config->hw_instance_id_mask;
+	if (config->protect)
+		port_info.protect = PROTECT_PORT;
+	else
+		port_info.protect = UNPROTECT_PORT;
+
+	rc = cam_cpas_get_scm_port_info(config, &port_info);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed to get SCM port info, rc: %d", rc);
+		goto obj_release;
+	}
+
+	rc = ITrustedCameraDriver_dynamicConfigurePortsV2(sc_object, &port_info,
+		CAM_CPAS_MIN_DPC_LEN);
+	if (rc) {
+		if (rc == ITRUSTEDCAMERADRIVER_ERROR_NOT_ALLOWED) {
+			CAM_ERR(CAM_CPAS, "Dynamic port config not allowed");
+			rc = -EPERM;
+		} else {
+			CAM_ERR(CAM_CPAS, "Dynamic port config failed, rc: %d", rc);
+			rc = -EINVAL;
+		}
+		goto obj_release;
+	}
+
+	rc = Object_release(sc_object);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed releasing secure camera object, rc: %d", rc);
+		goto client_release;
+	}
+
+	rc = Object_release(client_env);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed releasing mink env object, rc: %d", rc);
+		goto disable_resources;
+	}
+
+	if (cpas_core->streamon_clients == 0) {
+		rc = cam_cpas_soc_disable_resources(&cpas_hw->soc_info, true, true);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "failed in soc_disable_resources, rc=%d", rc);
+			goto remove_default_vote;
+		}
+
+		rc = cam_cpas_util_vote_default_ahb_axi(cpas_hw, false);
+		if (rc)
+			CAM_ERR(CAM_CPAS,
+				"failed remove the vote on ahb/axi clock, rc=%d", rc);
+	}
+	mutex_unlock(&cpas_hw->hw_mutex);
+	return rc;
+
+obj_release:
+	Object_release(sc_object);
+client_release:
+	Object_release(client_env);
+disable_resources:
+	if (cpas_core->streamon_clients == 0)
+		cam_cpas_soc_disable_resources(&cpas_hw->soc_info,
+			true, true);
+remove_default_vote:
+	if (cpas_core->streamon_clients == 0)
+		cam_cpas_util_vote_default_ahb_axi(cpas_hw, false);
+release_mutex:
+	mutex_unlock(&cpas_hw->hw_mutex);
+	return rc;
+}
+#else
+int cam_cpas_config_cp_mapping_ctrl(
+	struct cam_cpas_cp_mapping_config_info *config)
+{
+	CAM_ERR(CAM_CPAS, "Dynamic port config not supported on this platform");
+	return -EINVAL;
+}
+#endif
 
 static int cam_cpas_sys_cache_cap_populate(
 	struct cam_cpas_sys_cache_query *sys_cache_query_cap)
@@ -1569,13 +1797,13 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 		break;
 	}
 	case CAM_QUERY_CAP_GENERIC_BLOB: {
-		void *blob_data = kzalloc(cmd->size, GFP_KERNEL);
+		void *blob_data = CAM_MEM_ZALLOC(cmd->size, GFP_KERNEL);
 
 		if (blob_data) {
 			rc = copy_from_user(blob_data, u64_to_user_ptr(cmd->handle),
 				cmd->size);
 			if (rc) {
-				kfree(blob_data);
+				CAM_MEM_FREE(blob_data);
 				CAM_ERR(CAM_CPAS, "Failed in copy from user, rc=%d",
 					rc);
 				break;
@@ -1584,14 +1812,14 @@ int cam_cpas_subdev_cmd(struct cam_cpas_intf *cpas_intf,
 			rc = cam_packet_util_process_generic_blob(cmd->size, blob_data,
 					 cam_cpas_handle_generic_query_blob, NULL);
 			if (rc) {
-				kfree(blob_data);
+				CAM_MEM_FREE(blob_data);
 				break;
 			}
 			rc = copy_to_user(u64_to_user_ptr(cmd->handle), blob_data,
 				cmd->size);
 			if (rc)
 				CAM_ERR(CAM_CPAS, "Failed in copy to user, rc=%d", rc);
-			kfree(blob_data);
+			CAM_MEM_FREE(blob_data);
 		} else {
 			rc = -ENOMEM;
 			CAM_ERR(CAM_CPAS, "memory allocation is failed rc = %d", rc);
@@ -1789,13 +2017,16 @@ static int cam_cpas_dev_component_bind(struct device *dev,
 	int rc;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct cam_hw_info *cpas_hw = NULL;
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
+	CAM_GET_TIMESTAMP(ts_start);
 	if (g_cpas_intf) {
 		CAM_ERR(CAM_CPAS, "cpas component already binded");
 		return -EALREADY;
 	}
 
-	g_cpas_intf = kzalloc(sizeof(*g_cpas_intf), GFP_KERNEL);
+	g_cpas_intf = CAM_MEM_ZALLOC(sizeof(*g_cpas_intf), GFP_KERNEL);
 	if (!g_cpas_intf)
 		return -ENOMEM;
 
@@ -1837,6 +2068,9 @@ static int cam_cpas_dev_component_bind(struct device *dev,
 		goto error_hw_remove;
 
 	g_cpas_intf->probe_done = true;
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 	CAM_DBG(CAM_CPAS,
 		"Component bound successfully %d, %d.%d.%d, %d.%d.%d, 0x%x",
 		hw_caps->camera_family, hw_caps->camera_version.major,
@@ -1850,7 +2084,7 @@ error_hw_remove:
 	cam_cpas_hw_remove(g_cpas_intf->hw_intf);
 error_destroy_mem:
 	mutex_destroy(&g_cpas_intf->intf_lock);
-	kfree(g_cpas_intf);
+	CAM_MEM_FREE(g_cpas_intf);
 	g_cpas_intf = NULL;
 	CAM_ERR(CAM_CPAS, "CPAS component bind failed");
 	return rc;
@@ -1870,7 +2104,7 @@ static void cam_cpas_dev_component_unbind(struct device *dev,
 	cam_cpas_hw_remove(g_cpas_intf->hw_intf);
 	mutex_unlock(&g_cpas_intf->intf_lock);
 	mutex_destroy(&g_cpas_intf->intf_lock);
-	kfree(g_cpas_intf);
+	CAM_MEM_FREE(g_cpas_intf);
 	g_cpas_intf = NULL;
 }
 

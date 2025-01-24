@@ -57,4 +57,17 @@ int32_t cam_cci_data_queue_burst_apply(struct cci_device *cci_dev,
 	enum cci_i2c_master_t master, enum cci_i2c_queue_t queue,
 	uint32_t triggerHalfQueue);
 
+/* xiaomi add for cci cmds dump start */
+/**
+ * @cci_dev: CCI device structure
+ * @master: current CCI master
+ * @queue: current CCI queue
+ *
+ * This API handles CCI cmds dump
+ */
+void cam_cci_cmds_dump(struct cci_device *cci_dev,
+	enum cci_i2c_master_t master,
+	enum cci_i2c_queue_t queue);
+/* xiaomi add for cci cmds dump end */
+
 #endif /* _CAM_CCI_CORE_H_ */

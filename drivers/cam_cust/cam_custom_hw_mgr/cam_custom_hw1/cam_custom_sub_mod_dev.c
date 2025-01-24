@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -13,6 +13,8 @@
 #include "cam_custom_sub_mod_soc.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
+#include "cam_mem_mgr_api.h"
+#include "cam_req_mgr_dev.h"
 
 static struct cam_hw_intf *cam_custom_hw_sub_mod_list
 	[CAM_CUSTOM_SUB_MOD_MAX_INSTANCES] = {0, 0};
@@ -41,20 +43,23 @@ int cam_custom_hw_sub_mod_init(struct cam_hw_intf **custom_hw, uint32_t hw_idx)
 static int cam_custom_hw_sub_mod_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
 {
-	struct cam_hw_info		    *hw = NULL;
-	struct cam_hw_intf		    *hw_intf = NULL;
+	struct cam_hw_info *hw = NULL;
+	struct cam_hw_intf *hw_intf = NULL;
 	struct cam_custom_sub_mod_core_info *core_info = NULL;
-	int				   rc = 0;
+	int rc = 0;
 	struct platform_device *pdev = to_platform_device(dev);
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
-	hw_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
+	CAM_GET_TIMESTAMP(ts_start);
+	hw_intf = CAM_MEM_ZALLOC(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!hw_intf)
 		return -ENOMEM;
 
 	of_property_read_u32(pdev->dev.of_node,
 		"cell-index", &hw_intf->hw_idx);
 
-	hw = kzalloc(sizeof(struct cam_hw_info), GFP_KERNEL);
+	hw = CAM_MEM_ZALLOC(sizeof(struct cam_hw_info), GFP_KERNEL);
 	if (!hw) {
 		rc = -ENOMEM;
 		goto free_hw_intf;
@@ -79,7 +84,7 @@ static int cam_custom_hw_sub_mod_component_bind(struct device *dev,
 
 	platform_set_drvdata(pdev, hw_intf);
 
-	hw->core_info = kzalloc(sizeof(struct cam_custom_sub_mod_core_info),
+	hw->core_info = CAM_MEM_ZALLOC(sizeof(struct cam_custom_sub_mod_core_info),
 		GFP_KERNEL);
 	if (!hw->core_info) {
 		CAM_DBG(CAM_CUSTOM, "Failed to alloc for core");
@@ -112,14 +117,17 @@ static int cam_custom_hw_sub_mod_component_bind(struct device *dev,
 
 	CAM_DBG(CAM_CUSTOM, "HW idx:%d component bound successfully",
 		hw_intf->hw_idx);
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 	return rc;
 
 free_core_info:
-	kfree(hw->core_info);
+	CAM_MEM_FREE(hw->core_info);
 free_hw:
-	kfree(hw);
+	CAM_MEM_FREE(hw);
 free_hw_intf:
-	kfree(hw_intf);
+	CAM_MEM_FREE(hw_intf);
 	return rc;
 }
 

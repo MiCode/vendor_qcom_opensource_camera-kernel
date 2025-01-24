@@ -545,10 +545,8 @@ static struct cam_vfe_top_ver4_reg_offset_common vfe780_top_common_reg = {
 	.core_cfg_2               = 0x0000002C,
 	.global_reset_cmd         = 0x00000030,
 	.diag_config              = 0x00000050,
-	.diag_sensor_status_0     = 0x00000054,
-	.diag_sensor_status_1     = 0x00000058,
-	.diag_frm_cnt_status_0    = 0x0000005C,
-	.diag_frm_cnt_status_1    = 0x00000060,
+	.diag_sensor_status       = {0x00000054, 0x00000058},
+	.diag_frm_cnt_status      = {0x0000005C, 0x00000060},
 	.ipp_violation_status     = 0x00000064,
 	.pdaf_violation_status    = 0x00000404,
 	.core_cgc_ovd_0           = 0x00000018,
@@ -605,6 +603,10 @@ static struct cam_vfe_ver4_path_reg_data vfe780_pp_common_reg_data = {
 	.top_debug_cfg_en                = 3,
 	.ipp_violation_mask              = 0x10,
 	.pdaf_violation_mask             = 0x40,
+	.diag_violation_mask             = 0x40000,
+	.diag_frm_count_mask_0           = 0x3f0,
+	.diag_sensor_sel_mask            = 0x0,
+	.diag_frm_count_mask_0           = 0x10,
 };
 
 static struct cam_vfe_ver4_path_reg_data vfe780_vfe_full_rdi_reg_data[3] = {
@@ -612,6 +614,8 @@ static struct cam_vfe_ver4_path_reg_data vfe780_vfe_full_rdi_reg_data[3] = {
 		.sof_irq_mask                    = 0x100,
 		.eof_irq_mask                    = 0x200,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0x2,
+		.diag_frm_count_mask_0           = 0x40,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 3,
 	},
@@ -619,6 +623,8 @@ static struct cam_vfe_ver4_path_reg_data vfe780_vfe_full_rdi_reg_data[3] = {
 		.sof_irq_mask                    = 0x400,
 		.eof_irq_mask                    = 0x800,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0x4,
+		.diag_frm_count_mask_0           = 0x80,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 3,
 	},
@@ -626,6 +632,8 @@ static struct cam_vfe_ver4_path_reg_data vfe780_vfe_full_rdi_reg_data[3] = {
 		.sof_irq_mask                    = 0x1000,
 		.eof_irq_mask                    = 0x2000,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0x6,
+		.diag_frm_count_mask_0           = 0x100,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 3,
 	},
@@ -635,6 +643,8 @@ static struct cam_vfe_ver4_path_reg_data vfe780_pdlib_reg_data = {
 	.sof_irq_mask                    = 0x4,
 	.eof_irq_mask                    = 0x8,
 	.error_irq_mask                  = 0x0,
+	.diag_sensor_sel_mask            = 0x8,
+	.diag_frm_count_mask_0           = 0x20,
 	.enable_diagnostic_hw            = 0x1,
 	.top_debug_cfg_en                = 3,
 };
@@ -828,6 +838,71 @@ static struct cam_vfe_top_ver4_debug_reg_info vfe780_dbg_reg_info[CAM_VFE_780_NU
 	),
 };
 
+static struct cam_vfe_top_ver4_diag_reg_info vfe780_diag_reg_info[] = {
+	{
+		.bitmask = 0x3FFF,
+		.name    = "SENSOR_HBI",
+	},
+	{
+		.bitmask = 0x4000,
+		.name    = "SENSOR_NEQ_HBI",
+	},
+	{
+		.bitmask = 0x8000,
+		.name    = "SENSOR_HBI_MIN_ERROR",
+	},
+	{
+		.bitmask = 0xFFFFFF,
+		.name    = "SENSOR_VBI",
+	},
+	{
+		.bitmask = 0xFF,
+		.name    = "FRAME_CNT_PIXEL_PIPE",
+	},
+	{
+		.bitmask = 0xFF00,
+		.name    = "FRAME_CNT_PDAF_PIPE",
+	},
+	{
+		.bitmask = 0xFF0000,
+		.name    = "FRAME_CNT_RDI_0_PIPE",
+	},
+	{
+		.bitmask = 0xFF000000,
+		.name    = "FRAME_CNT_RDI_1_PIPE",
+	},
+	{
+		.bitmask = 0xFF,
+		.name    = "FRAME_CNT_RDI_2_PIPE",
+	},
+	{
+		.bitmask = 0xFF00,
+		.name    = "FRAME_CNT_DSP_PIPE",
+	},
+};
+
+static struct cam_vfe_top_ver4_diag_reg_fields vfe780_diag_sensor_field[] = {
+	{
+		.num_fields = 3,
+		.field      = &vfe780_diag_reg_info[0],
+	},
+	{
+		.num_fields = 1,
+		.field      = &vfe780_diag_reg_info[3],
+	},
+};
+
+static struct cam_vfe_top_ver4_diag_reg_fields vfe780_diag_frame_field[] = {
+	{
+		.num_fields = 4,
+		.field      = &vfe780_diag_reg_info[4],
+	},
+	{
+		.num_fields = 2,
+		.field      = &vfe780_diag_reg_info[8],
+	},
+};
+
 static struct cam_vfe_top_ver4_hw_info vfe780_top_hw_info = {
 	.common_reg = &vfe780_top_common_reg,
 	.vfe_full_hw_info = {
@@ -860,9 +935,11 @@ static struct cam_vfe_top_ver4_hw_info vfe780_top_hw_info = {
 	.top_err_desc                    = vfe780_top_irq_err_desc,
 	.num_pdaf_violation_errors       = ARRAY_SIZE(vfe780_pdaf_violation_desc),
 	.pdaf_violation_desc             = vfe780_pdaf_violation_desc,
-	.debug_reg_info                  = &vfe780_dbg_reg_info,
+	.top_debug_reg_info              = &vfe780_dbg_reg_info,
 	.pdaf_lcr_res_mask               = vfe780_pdaf_lcr_res_mask,
 	.num_pdaf_lcr_res                = ARRAY_SIZE(vfe780_pdaf_lcr_res_mask),
+	.diag_sensor_info                = vfe780_diag_sensor_field,
+	.diag_frame_info                 = vfe780_diag_frame_field,
 };
 
 static struct cam_irq_register_set vfe780_bus_irq_reg[2] = {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/platform_device.h>
@@ -18,6 +19,8 @@
 #include "cam_fd_hw_v501.h"
 #include "cam_fd_hw_v600.h"
 #include "camera_main.h"
+#include "cam_mem_mgr_api.h"
+#include "cam_req_mgr_dev.h"
 
 static int cam_fd_hw_dev_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
@@ -32,21 +35,24 @@ static int cam_fd_hw_dev_component_bind(struct device *dev,
 	struct cam_fd_hw_init_args init_args;
 	struct cam_fd_hw_deinit_args deinit_args;
 	struct platform_device *pdev = to_platform_device(dev);
+	struct timespec64 ts_start, ts_end;
+	long microsec = 0;
 
-	fd_hw_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
+	CAM_GET_TIMESTAMP(ts_start);
+	fd_hw_intf = CAM_MEM_ZALLOC(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!fd_hw_intf)
 		return -ENOMEM;
 
-	fd_hw = kzalloc(sizeof(struct cam_hw_info), GFP_KERNEL);
+	fd_hw = CAM_MEM_ZALLOC(sizeof(struct cam_hw_info), GFP_KERNEL);
 	if (!fd_hw) {
-		kfree(fd_hw_intf);
+		CAM_MEM_FREE(fd_hw_intf);
 		return -ENOMEM;
 	}
 
-	fd_core = kzalloc(sizeof(struct cam_fd_core), GFP_KERNEL);
+	fd_core = CAM_MEM_ZALLOC(sizeof(struct cam_fd_core), GFP_KERNEL);
 	if (!fd_core) {
-		kfree(fd_hw);
-		kfree(fd_hw_intf);
+		CAM_MEM_FREE(fd_hw);
+		CAM_MEM_FREE(fd_hw_intf);
 		return -ENOMEM;
 	}
 	of_property_read_u32(pdev->dev.of_node,
@@ -129,6 +135,9 @@ static int cam_fd_hw_dev_component_bind(struct device *dev,
 	platform_set_drvdata(pdev, fd_hw_intf);
 	CAM_DBG(CAM_FD, "FD:%d component bound successfully",
 		fd_hw_intf->hw_idx);
+	CAM_GET_TIMESTAMP(ts_end);
+	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
+	cam_record_bind_latency(pdev->name, microsec);
 
 	return rc;
 
@@ -140,9 +149,9 @@ deinit_platform_res:
 		CAM_ERR(CAM_FD, "Failed in soc deinit");
 	mutex_destroy(&fd_hw->hw_mutex);
 free_memory:
-	kfree(fd_hw);
-	kfree(fd_hw_intf);
-	kfree(fd_core);
+	CAM_MEM_FREE(fd_hw);
+	CAM_MEM_FREE(fd_hw_intf);
+	CAM_MEM_FREE(fd_core);
 
 	return rc;
 }
@@ -174,7 +183,7 @@ static void cam_fd_hw_dev_component_unbind(struct device *dev,
 		goto deinit_platform_res;
 	}
 
-	kfree(fd_core);
+	CAM_MEM_FREE(fd_core);
 
 deinit_platform_res:
 	rc = cam_fd_soc_deinit_resources(&fd_hw->soc_info);
@@ -182,10 +191,10 @@ deinit_platform_res:
 		CAM_ERR(CAM_FD, "Error in FD soc deinit, rc=%d", rc);
 
 	mutex_destroy(&fd_hw->hw_mutex);
-	kfree(fd_hw);
+	CAM_MEM_FREE(fd_hw);
 
 free_fd_hw_intf:
-	kfree(fd_hw_intf);
+	CAM_MEM_FREE(fd_hw_intf);
 }
 
 const static struct component_ops cam_fd_hw_dev_component_ops = {

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_req_mgr_workq.h"
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
+#include "cam_mem_mgr_api.h"
 
 #define WORKQ_ACQUIRE_LOCK(workq, flags) {\
 	if ((workq)->in_irq) \
@@ -205,7 +206,7 @@ int cam_req_mgr_workq_create(char *name, int32_t num_tasks,
 	char buf[128] = "crm_workq-";
 
 	if (!*workq) {
-		crm_workq = kzalloc(sizeof(struct cam_req_mgr_core_workq),
+		crm_workq = CAM_MEM_ZALLOC(sizeof(struct cam_req_mgr_core_workq),
 			GFP_KERNEL);
 		if (crm_workq == NULL)
 			return -ENOMEM;
@@ -222,12 +223,12 @@ int cam_req_mgr_workq_create(char *name, int32_t num_tasks,
 		crm_workq->job = alloc_workqueue(buf,
 			wq_flags, max_active_tasks, NULL);
 		if (!crm_workq->job) {
-			kfree(crm_workq);
+			CAM_MEM_FREE(crm_workq);
 			return -ENOMEM;
 		}
 
 		/* Workq attributes initialization */
-		strlcpy(crm_workq->workq_name, buf, sizeof(crm_workq->workq_name));
+		strscpy(crm_workq->workq_name, buf, sizeof(crm_workq->workq_name));
 		INIT_WORK(&crm_workq->work, func);
 		spin_lock_init(&crm_workq->lock_bh);
 		CAM_DBG(CAM_CRM, "LOCK_DBG workq %s lock %pK",
@@ -242,13 +243,13 @@ int cam_req_mgr_workq_create(char *name, int32_t num_tasks,
 		atomic_set(&crm_workq->flush, 0);
 		crm_workq->in_irq = in_irq;
 		crm_workq->task.num_task = num_tasks;
-		crm_workq->task.pool = kcalloc(crm_workq->task.num_task,
+		crm_workq->task.pool = CAM_MEM_ZALLOC_ARRAY(crm_workq->task.num_task,
 				sizeof(struct crm_workq_task), GFP_KERNEL);
 		if (!crm_workq->task.pool) {
 			CAM_WARN(CAM_CRM, "Insufficient memory %zu",
 				sizeof(struct crm_workq_task) *
 				crm_workq->task.num_task);
-			kfree(crm_workq);
+			CAM_MEM_FREE(crm_workq);
 			return -ENOMEM;
 		}
 
@@ -288,8 +289,8 @@ void cam_req_mgr_workq_destroy(struct cam_req_mgr_core_workq **crm_workq)
 			WORKQ_ACQUIRE_LOCK(workq, flags);
 		}
 		/* Destroy workq payload data */
-		kfree(workq->task.pool[0].payload);
-		kfree(workq->task.pool);
+		CAM_MEM_FREE(workq->task.pool[0].payload);
+		CAM_MEM_FREE(workq->task.pool);
 
 		/* Leave lists in stable state after freeing pool */
 		INIT_LIST_HEAD(&workq->task.empty_head);
@@ -297,6 +298,6 @@ void cam_req_mgr_workq_destroy(struct cam_req_mgr_core_workq **crm_workq)
 			INIT_LIST_HEAD(&workq->task.process_head[i]);
 		*crm_workq = NULL;
 		WORKQ_RELEASE_LOCK(workq, flags);
-		kfree(workq);
+		CAM_MEM_FREE(workq);
 	}
 }

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CPASTOP_V980_100_H_
@@ -79,22 +79,22 @@ static struct cam_camnoc_irq_err
 	},
 	{
 		.irq_type = CAM_CAMNOC_HW_IRQ_TFE_UBWC_ENCODE_ERROR,
-		.enable = true,
+		.enable = false,
 		.sbm_port = 0x2, /* RT_SBM_FAULTINSTATUS0_LOW_PORT1_MASK */
 		.err_enable = {
 			.access_type = CAM_REG_TYPE_READ_WRITE,
-			.enable = true,
+			.enable = false,
 			.offset = 0x47A0, /* TFE_UBWC : RT_0_NIU_ENCERREN_LOW */
 			.value = 0xF,
 		},
 		.err_status = {
 			.access_type = CAM_REG_TYPE_READ,
-			.enable = true,
+			.enable = false,
 			.offset = 0x4790, /* IFE_UBWC : RT_0_NIU_ENCERRSTATUS_LOW */
 		},
 		.err_clear = {
 			.access_type = CAM_REG_TYPE_WRITE,
-			.enable = true,
+			.enable = false,
 			.offset = 0x4798, /* IFE_UBWC : RT_0_NIU_ENCERRCLR_LOW */
 			.value = 0x1,
 		},
@@ -563,25 +563,25 @@ static struct cam_camnoc_specific
 		.port_name = "RT3-TFE0,1,2_IFE_LITE0,1_CDM",
 		.enable = true,
 		.priority_lut_low = {
-			.enable = true,
-			.access_type = CAM_REG_TYPE_READ_WRITE,
-			.masked_value = 0,
-			.offset = 0x4C30, /* NOC_RT_3_NIU_PRIORITYLUT_LOW */
-			.value = 0x3,
-		},
-		.priority_lut_high = {
-			.enable = true,
-			.access_type = CAM_REG_TYPE_READ_WRITE,
-			.masked_value = 0,
-			.offset = 0x4C34, /* NOC_RT_3_NIU_PRIORITYLUT_HIGH */
-			.value = 0x3,
-		},
-		.urgency = {
 			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
+			.offset = 0x4C30, /* NOC_RT_3_NIU_PRIORITYLUT_LOW */
+			.value = 0x33333333,
+		},
+		.priority_lut_high = {
+			.enable = false,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0x4C34, /* NOC_RT_3_NIU_PRIORITYLUT_HIGH */
+			.value = 0x33333333,
+		},
+		.urgency = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
 			.offset = 0x4C38, /* NOC_RT_3_NIU_URGENCY_LOW */
-			.value = 0x0,
+			.value = 0x3,
 		},
 		.danger_lut = {
 			.enable = false,
@@ -591,7 +591,7 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.safe_lut = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x4C48, /* NOC_RT_3_NIU_SAFELUT_LOW */
@@ -1596,6 +1596,26 @@ static struct cam_cpas_cesta_info cam_v980_cesta_info = {
 	 .cesta_reg_info = &cam_cpas_v980_100_cesta_reg_info,
 };
 
+static struct cam_camnoc_addr_trans_client_info
+	cam980_cpas100_addr_trans_client_info[] = {
+	{
+		.client_name = "icp1",
+		.reg_enable = 0x5508,
+		.reg_offset0 = 0x5518,
+		.reg_base1 = 0x5520,
+		.reg_offset1 = 0x5528,
+		.reg_base2 = 0x5530,
+		.reg_offset2 = 0x5538,
+		.reg_base3 = 0x5540,
+		.reg_offset3 = 0x5548,
+	},
+};
+
+static struct cam_camnoc_addr_trans_info cam980_cpas100_addr_trans_info = {
+	.num_supported_clients = ARRAY_SIZE(cam980_cpas100_addr_trans_client_info),
+	.addr_trans_client_info = &cam980_cpas100_addr_trans_client_info[0],
+};
+
 static struct cam_camnoc_info cam980_cpas100_camnoc_info_rt = {
 	.specific = &cam_cpas_v980_100_camnoc_specific_rt[0],
 	.specific_size = ARRAY_SIZE(cam_cpas_v980_100_camnoc_specific_rt),
@@ -1622,6 +1642,7 @@ static struct cam_camnoc_info cam980_cpas100_camnoc_info_nrt = {
 		.sbm_enable_mask = 0x400,
 		.sbm_clear_mask = 0x1,
 	},
+	.addr_trans_info = &cam980_cpas100_addr_trans_info,
 };
 
 static struct cam_cpas_camnoc_qchannel cam980_cpas100_qchannel_info_rt = {

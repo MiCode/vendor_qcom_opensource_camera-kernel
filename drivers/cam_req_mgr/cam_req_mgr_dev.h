@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_REQ_MGR_DEV_H_
@@ -58,4 +59,9 @@ void cam_req_mgr_exit(void);
  * @brief : API to get V4L2 eventIDs subscribed by UMD.
  */
 uint32_t cam_req_mgr_get_id_subscribed(void);
+
+/**
+ * @brief : API to record bind latency for each driver.
+ */
+void cam_record_bind_latency(const char *driver_name, unsigned long time_in_usec);
 #endif /* _CAM_REQ_MGR_DEV_H_ */

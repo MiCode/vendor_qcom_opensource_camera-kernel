@@ -57,8 +57,8 @@ static struct cam_vfe_top_ver4_reg_offset_common vfe_lite98x_top_common_reg = {
 	.ahb_cgc_ovd              = 0x00001018,
 	.core_cfg_0               = 0x0000103C,
 	.diag_config              = 0x00001040,
-	.diag_sensor_status_0     = 0x00001044,
-	.diag_sensor_status_1     = 0x00001048,
+	.diag_sensor_status       = {0x00001044, 0x00001048},
+	.diag_frm_cnt_status      = {0x0000104C, 0x00001050},
 	.ipp_violation_status     = 0x00001054,
 	.bus_violation_status     = 0x00001264,
 	.bus_overflow_status      = 0x00001268,
@@ -70,18 +70,22 @@ static struct cam_vfe_top_ver4_reg_offset_common vfe_lite98x_top_common_reg = {
 static struct cam_vfe_ver4_path_reg_data vfe_lite98x_ipp_reg_data = {
 	.sof_irq_mask                    = 0x1,
 	.eof_irq_mask                    = 0x2,
-	.error_irq_mask                  = 0x2,
+	.error_irq_mask                  = 0x6,
 	.enable_diagnostic_hw            = 0x1,
 	.top_debug_cfg_en                = 0x3,
 	.ipp_violation_mask              = 0x10,
+	.diag_violation_mask             = 0x4,
+	.diag_sensor_sel_mask            = 0x8,
+	.diag_frm_count_mask_0           = 0x200,
 };
 
 static struct cam_vfe_ver4_path_reg_data vfe_lite98x_rdi_reg_data[4] = {
-
 	{
 		.sof_irq_mask                    = 0x4,
 		.eof_irq_mask                    = 0x8,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0x0,
+		.diag_frm_count_mask_0           = 0x20,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 0x3,
 	},
@@ -89,6 +93,8 @@ static struct cam_vfe_ver4_path_reg_data vfe_lite98x_rdi_reg_data[4] = {
 		.sof_irq_mask                    = 0x10,
 		.eof_irq_mask                    = 0x20,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0x2,
+		.diag_frm_count_mask_0           = 0x40,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 0x3,
 	},
@@ -96,6 +102,8 @@ static struct cam_vfe_ver4_path_reg_data vfe_lite98x_rdi_reg_data[4] = {
 		.sof_irq_mask                    = 0x40,
 		.eof_irq_mask                    = 0x80,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0x4,
+		.diag_frm_count_mask_0           = 0x80,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 0x3,
 	},
@@ -103,6 +111,8 @@ static struct cam_vfe_ver4_path_reg_data vfe_lite98x_rdi_reg_data[4] = {
 		.sof_irq_mask                    = 0x100,
 		.eof_irq_mask                    = 0x200,
 		.error_irq_mask                  = 0x0,
+		.diag_sensor_sel_mask            = 0x6,
+		.diag_frm_count_mask_0           = 0x100,
 		.enable_diagnostic_hw            = 0x1,
 		.top_debug_cfg_en                = 0x3,
 	},
@@ -128,6 +138,67 @@ static struct cam_vfe_ver4_path_hw_info
 	},
 };
 
+static struct cam_vfe_top_ver4_diag_reg_info vfe_lite98x_diag_reg_info[] = {
+	{
+		.bitmask = 0x3FFF,
+		.name    = "SENSOR_HBI",
+	},
+	{
+		.bitmask = 0x4000,
+		.name    = "SENSOR_NEQ_HBI",
+	},
+	{
+		.bitmask = 0x8000,
+		.name    = "SENSOR_HBI_MIN_ERROR",
+	},
+	{
+		.bitmask = 0xFFFFFF,
+		.name    = "SENSOR_VBI",
+	},
+	{
+		.bitmask = 0xFF,
+		.name    = "FRAME_CNT_RDI_0_PIPE",
+	},
+	{
+		.bitmask = 0xFF00,
+		.name    = "FRAME_CNT_RDI_1_PIPE",
+	},
+	{
+		.bitmask = 0xFF0000,
+		.name    = "FRAME_CNT_RDI_2_PIPE",
+	},
+	{
+		.bitmask = 0xFF000000,
+		.name    = "FRAME_CNT_RDI_3_PIPE",
+	},
+	{
+		.bitmask = 0xFF,
+		.name    = "FRAME_CNT_IPP_PIPE",
+	},
+};
+
+static struct cam_vfe_top_ver4_diag_reg_fields vfe_lite98x_diag_sensor_field[] = {
+	{
+		.num_fields = 3,
+		.field      = &vfe_lite98x_diag_reg_info[0],
+	},
+	{
+		.num_fields = 1,
+		.field      = &vfe_lite98x_diag_reg_info[3],
+	},
+};
+
+static struct cam_vfe_top_ver4_diag_reg_fields vfe_lite98x_diag_frame_field[] = {
+	{
+		.num_fields = 4,
+		.field      = &vfe_lite98x_diag_reg_info[4],
+	},
+	{
+		.num_fields = 1,
+		.field      = &vfe_lite98x_diag_reg_info[8],
+	},
+};
+
 static struct cam_vfe_top_ver4_hw_info vfe_lite98x_top_hw_info = {
 	.common_reg = &vfe_lite98x_top_common_reg,
 	.rdi_hw_info = vfe_lite98x_rdi_hw_info,
@@ -145,8 +216,10 @@ static struct cam_vfe_top_ver4_hw_info vfe_lite98x_top_hw_info = {
 		CAM_VFE_RDI_VER_1_0,
 		CAM_VFE_RDI_VER_1_0,
 	},
-	.debug_reg_info = &vfe78x_dbg_reg_info,
+	.top_debug_reg_info = &vfe78x_dbg_reg_info,
 	.num_rdi        = ARRAY_SIZE(vfe_lite98x_rdi_hw_info),
+	.diag_sensor_info = vfe_lite98x_diag_sensor_field,
+	.diag_frame_info  = vfe_lite98x_diag_frame_field,
 };
 
 static struct cam_irq_register_set vfe_lite98x_bus_irq_reg[1] = {

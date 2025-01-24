@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_H__
@@ -181,6 +181,7 @@ struct tpg_hw_stream_v3 {
  * @active_request_q_depth  : active request queue depth
  * @waiting_request_q_depth : waiting request queue depth
  * @settings update         : settings update flag
+ * @last_flush_req          : last request id with flush trigger
  */
 struct tpg_hw {
 	uint32_t                     hw_idx;
@@ -204,6 +205,7 @@ struct tpg_hw {
 	uint32_t                     active_request_q_depth;
 	uint32_t                     waiting_request_q_depth;
 	uint32_t                     settings_update;
+	int64_t                      last_flush_req;
 };
 
 /**
@@ -532,5 +534,16 @@ int tpg_hw_request_set_opcode(
  * @return : 0 on success
  */
 int tpg_hw_copy_settings_config(struct tpg_hw *hw, struct tpg_settings_config_t *settings);
+
+/**
+ * @brief : Flush tpg request queues
+ *
+ * @param hw: tpg hw instance
+ * @param last_flush_req: Request number to be flushed
+ * @param is_flush_all: flag indicating flush type
+ *
+ * @return : 0 on success
+ */
+int tpg_hw_flush_requests(struct tpg_hw *hw, uint32_t last_flushed_req, bool is_flush_all);
 
 #endif

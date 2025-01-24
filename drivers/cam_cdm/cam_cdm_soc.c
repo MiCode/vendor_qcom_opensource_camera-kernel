@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -16,6 +17,7 @@
 #include "cam_soc_util.h"
 #include "cam_io_util.h"
 #include "cam_cdm_soc.h"
+#include "cam_mem_mgr_api.h"
 
 #define CAM_CDM_OFFSET_FROM_REG(x, y) ((x)->offsets[y].offset)
 #define CAM_CDM_ATTR_FROM_REG(x, y) ((x)->offsets[y].attribute)
@@ -190,7 +192,7 @@ int cam_hw_cdm_soc_get_dt_properties(struct cam_hw_info *cdm_hw,
 		goto end;
 	}
 
-	soc_ptr->soc_private = kzalloc(
+	soc_ptr->soc_private = CAM_MEM_ZALLOC(
 			sizeof(struct cam_cdm_private_dt_data),
 			GFP_KERNEL);
 	if (!soc_ptr->soc_private)
@@ -222,7 +224,7 @@ int cam_hw_cdm_soc_get_dt_properties(struct cam_hw_info *cdm_hw,
 
 error:
 	rc = -EINVAL;
-	kfree(soc_ptr->soc_private);
+	CAM_MEM_FREE(soc_ptr->soc_private);
 	soc_ptr->soc_private = NULL;
 end:
 	return rc;

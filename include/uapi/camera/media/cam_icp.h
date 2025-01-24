@@ -104,6 +104,12 @@
 /* Max number of device types supported per ICP instance */
 #define CAM_ICP_MAX_NUM_OF_DEV_TYPES              0x5
 
+/*
+ * The index to the max version of the ACQUIRE_DEV API
+ * supported in ICP in the query cap params
+ */
+#define CAM_ICP_QUERY_MAX_ACQUIRE_DEV_VER_SUPPORTED_INDEX 0
+
 /**
  * struct cam_icp_clk_bw_request_v2
  *
@@ -248,7 +254,7 @@ struct cam_icp_query_cap_cmd_v2 {
 	__u32                            num_valid_params;
 	__u32                            valid_param_mask;
 	__u32                            params[5];
-};
+} __attribute__((__packed__));
 
 /**
  * struct cam_icp_res_info - ICP output resource info
@@ -291,6 +297,62 @@ struct cam_icp_acquire_dev_info {
 		struct cam_icp_res_info out_res[1];
 		__DECLARE_FLEX_ARRAY(struct cam_icp_res_info, out_res_flex);
 	};
+} __attribute__((__packed__));
+
+/**
+ * struct cam_icp_res_info_v2 - ICP output resource info
+ *
+ * @format: format of the resource
+ * @width:  width in pixels
+ * @height: height in lines
+ * @fps:  fps
+ * @port_id: ID of the out resource
+ * @is_secure:  whether the port is secure
+ * @num_valid_params:     number of valid params
+ * @valid_param_mask:     valid param mask
+ * @params:               additional parameters for future usage
+ */
+struct cam_icp_res_info_v2 {
+	__u32 format;
+	__u32 width;
+	__u32 height;
+	__u32 fps;
+	__u32 port_id;
+	__u32 is_secure;
+	__u32 num_valid_params;
+	__u32 valid_param_mask;
+	__u32 params[6];
+} __attribute__((__packed__));
+
+/**
+ * struct cam_icp_acquire_dev_info_v2 - An ICP device info
+ *
+ * @scratch_mem_size: Output param - size of scratch memory
+ * @dev_type: device type (IPE_RT/IPE_NON_RT/BPS)
+ * @io_config_cmd_size: size of IO config command
+ * @io_config_cmd_handle: IO config command for each acquire
+ * @secure_mode: camera mode (secure/non secure)
+ * @chain_info: chaining info of FW device handles
+ * @in_res: resource info used for clock and bandwidth calculation
+ * @num_out_res: number of output resources
+ * @out_res_flex: output resource
+ * @num_valid_params:     number of valid params
+ * @valid_param_mask:     valid param mask
+ * @params:               additional parameters for future usage
+ */
+struct cam_icp_acquire_dev_info_v2 {
+	__u32                      scratch_mem_size;
+	__u32                      dev_type;
+	__u32                      io_config_cmd_size;
+	__s32                      io_config_cmd_handle;
+	__u32                      secure_mode;
+	__s32                      chain_info;
+	struct cam_icp_res_info_v2 in_res;
+	__u32                      num_out_res;
+	__u32                      num_valid_params;
+	__u32                      valid_param_mask;
+	__u32                      params[5];
+	__DECLARE_FLEX_ARRAY(struct cam_icp_res_info_v2, out_res_flex);
 } __attribute__((__packed__));
 
 #endif /* __UAPI_CAM_ICP_H__ */

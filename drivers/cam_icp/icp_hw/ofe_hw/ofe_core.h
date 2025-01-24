@@ -12,9 +12,6 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 
-/* OFE CDM/TOP status register */
-#define OFE_RST_DONE_IRQ_STATUS_BIT  0x1
-
 #define OFE_COLLAPSE_MASK 0x1
 #define OFE_PWR_ON_MASK   0x2
 
@@ -22,14 +19,6 @@ struct cam_ofe_device_hw_info {
 	uint32_t hw_idx;
 	uint32_t pwr_ctrl;
 	uint32_t pwr_status;
-
-	uint32_t top_rst_cmd;
-	uint32_t top_irq_status;
-	uint32_t top_rst_val;
-	uint32_t cdm_rst_cmd;
-	uint32_t cdm_irq_status;
-
-	uint32_t cdm_rst_val;
 };
 
 struct cam_ofe_device_core_info {
