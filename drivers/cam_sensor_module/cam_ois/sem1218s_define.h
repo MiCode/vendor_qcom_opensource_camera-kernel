@@ -1,0 +1,15 @@
+#ifndef _CAM_SEM1217_H_
+#define _CAM_SEM1217_H_
+#define REG_OIS_STS  0x0001
+#define STATE_FW_UPDATE 0x02
+#define REG_FWUP_CHKSUM 0x1002
+#define REG_FWUP_ERR  0x1001
+#define NO_ERROR  0x00
+#define REG_FWUP_CTRL  0x1000
+#define RESET_REQ 0x80
+#define REG_APP_VER  0x1008
+#define APP_FW_SIZE  (48 * 1024)
+#define REG_FWUP_CRC 0x1010
+#define WRITE_BUFFER_MAXSIZE  4
+#define POLYNOMIAL 0x04C11DB7UL
+#endif // _CAM_SEM1217_H_
