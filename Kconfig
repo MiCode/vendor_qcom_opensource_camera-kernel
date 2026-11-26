@@ -1,0 +1,185 @@
+config SPECTRA_ISP
+	bool "enable camera ISP module"
+	help
+	  This is enabling camera ISP module.
+	  IFE camera driver file be included.
+	  This will enable camera ISP driver to handle IFE driver.
+	  Core camera driver to handle VFE HW.
+
+config SPECTRA_ICP
+	bool "enable camera ICP module"
+	help
+	  This is enabling camera ICP module.
+	  Camera ICP driver file be included.
+	  This will enable camera ICP driver to interact with,
+	  ICP FW. Which can control IPE and BPS HW.
+
+config SPECTRA_JPEG
+	bool "enable camera jpeg module"
+	help
+	  This is enabling camera JPEG module.
+	  camera jpeg module will be functional.
+	  This module interact with jpeg HW for
+	  snapshot processing.
+
+config SPECTRA_SENSOR
+	bool "enable camera sensor module"
+	help
+	  This is enabling camera sensor module.
+	  sensor module files will be included to enable the driver.
+	  eeprom, flash, csiphy all other module will be included
+	  to make the sensor functional.
+
+config SPECTRA_USE_CLK_CRM_API
+	bool "enable camera cesta clk feature"
+	help
+	  This is enabling camera cesta feature.
+	  kernel clk driver api will cache the clk value
+	  send by camera hw and apply to CRM hw.
+	  CRM hw will consolidate and apply the clk to camera HW.
+
+config SPECTRA_USE_RPMH_DRV_API
+	bool "enable camera new ICC BW api"
+	help
+	  This is helping to set BW through kernel icc driver.
+	  Kernel icc driver do caching the bw information.
+	  icc driver will update the bw information RPMH,
+	  to apply proper bw voting for camera to mmnoc
+
+config SPECTRA_LLCC_STALING
+	bool "enable camera new LLCC staling feature"
+	help
+	  This will enable to call LLCC driver cache notification API
+	  and increment count API.
+	  Which will enable LLCC staling feature,based on counter
+	  invalidate the cache slice.
+
+config TARGET_SYNX_ENABLE
+	bool "enable HW synx"
+	help
+	  This is enabling HW syx feature.
+	  synx hw signaling external to camera,
+	  like EVA and other.
+	  This is to avoid sw signaling latency.
+
+config MSM_MMRM
+	bool "enable MSM MMRM"
+	help
+	  This is enabling mmrm api access.
+	  mmrm to cahce the clk voting.
+	  mmrm knows about all clients' clock rates.
+	  MMRM can decide whether new peak power usage is within allowed value
+
+config SPECTRA_DOMAIN_ID_SECURE_CAMERA
+	bool "enable domain ID based secure camera flow"
+	help
+		This is to enable domain ID based secure
+		camera flow on the hardware platforms with
+		domain ID based security architecture.
+		VC based security can be achieved with this.
+
+config SPECTRA_QULTIVATE_API
+	bool "enable Qultivate API related dependencies"
+	help
+		This config enables all Qultivate API
+		related dependencies. Qultivate APIs are
+		used to determine whether a HW module is
+		functional on the SOC and proceed with probing.
+
+config SPECTRA_SECURE_CAMERA_25
+	bool "enable secure camera 2.5"
+	depends on SPECTRA_DMA_MAP_ATTRS
+	help
+		This config enables 2.5 secure camera
+		feature that allows the usage of non contiguous
+		buffers for the secure camera images by
+		lending the buffers to a trusted virtual machine.
+
+config SPECTRA_SECURE_CAMNOC_REG_UPDATE
+	bool "enable secure camnoc reg update feature"
+	help
+		This config enables secure reg update
+		feature that allows the HLOS to configure
+		camnoc registers through HYP to avoid
+		potential security issues.
+
+config SPECTRA_POWER_DOMAIN_SET_HW_MODE
+	bool "enable GDSC control transfer between SW and HW"
+	help
+		This config enables the API that allows the transfer
+		of GDSC control between the software and the hardware
+		when power domains are used.
+
+config SPECTRA_SECURE_MINK_API
+	bool "enable MINK based APIs"
+	default y if SPECTRA_DOMAIN_ID_SECURE_CAMERA || SPECTRA_SECURE_CAMERA_25
+	help
+		This config enables compilation of MINK based APIs
+		which provide TZ related configuration functionality
+		the camera needs. Domain ID based secure camera feature
+		and secure camera 2.5 framework relies on MINK, so this
+		config will implicitly be enabled whenever either of
+		those two configs are enabled. For FD port and dynamic
+		port security settings to be changed without using either
+		of the above two configs, then this MINK_API config has
+		to be explicitly enabled.
+
+config SPECTRA_SECURE_SCM_API
+	bool "enable SCM based APIs"
+	help
+		This config enables compilation of SCM based APIs.
+		SCM APIs are considered legacy APIs and a predecessor
+		of MINK based APIs. Do note that this option and the
+		MINK one are not mutually exclusive.
+
+config SPECTRA_VMRM
+	bool "enable VMRM module required for CSF 3.0"
+	help
+		This config enables the driver that allows
+		the resource sharing and message exchanges
+		between PVM and TVM that is required for
+		camera security framework 3.0.
+
+config SPECTRA_GET_IOMMU_FAULT_IDS
+	bool "enable retrieving HW port IDs when S1 fault happens"
+	help
+		This config enables retrieving BID, PID
+		and MID info on an IOMMU fault. These IDs help
+		the driver match with the exact instance of a
+		particular HW type.
+
+config SPECTRA_DMA_MAP_ATTRS
+	bool "enable the API required to handle some specialized DMA ops"
+	help
+		This config enables the APIs to perform
+		some of the operations on the DMA buffers
+		like delayed unmap, skip cpu sync, map
+		buffers to SMMY proxy etc.
+
+config SPECTRA_DMABUF_GET_FLAGS
+	bool "enable the API required to handle cache ops"
+	help
+		This config enables the APIs
+		to perform some of the cache
+		operations like cache clean,
+		invalidate etc.
+
+config SPECTRA_SOC_QCOM_SOCINFO
+	bool "Enable support for Qcom SoC information"
+	help
+		This option enables inclusion of the Qcom SoC information
+		header file, which provides detatils about the system-on-chip
+		configuration and capabilities. It is required for features
+		relying on SoC-specific information.
+
+config VIDEO_QCOM_CAMERA
+	tristate "enable camera module compilation"
+	depends on VIDEO_DEV && MEDIA_CONTROLLER && m
+	select VIDEO_V4L2_SUBDEV_API
+	select VIDEO_V4L2_I2C
+	default n
+	help
+	  This will enable the camera kernel
+	  driver compilation.
+	  To compile this driver as a module named camera.ko
+	  choose m here.
